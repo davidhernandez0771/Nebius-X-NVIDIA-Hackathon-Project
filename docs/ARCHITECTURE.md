@@ -221,6 +221,32 @@ not enough. Keep it out of the critical path until it solves a demonstrated need
 
 ## 11. Build order and acceptance gates
 
+### Evaluated optional tool: TensorRT Model Connect
+
+Reviewed NVIDIA's repository and current documentation on 2026-09-15. This is an
+experimental tool for building supported model checkpoints into TensorRT bundles
+and running them on NVIDIA hardware. It does not provide hosted API access or
+remove GPU memory requirements. It adds no direct benefit to our Token Factory
+API calls, whose model execution is managed by Nebius.
+
+A possible later use is a local vision service: supported object detectors such
+as DETR/YOLO find candidate objects, SAM supplies prompted masks, or the listed
+Nemotron image/text embedding model supports similarity search. These are distinct
+tasks; none alone provides the complete room inventory and reasoning workflow.
+Our RTX 5080 compatibility, memory use and latency would need an actual test of
+the selected checkpoint. Do not assume all declared recipes run on 16 GB VRAM.
+
+Current documented installation paths are Linux. x86_64 requires a source build
+with Docker and NVIDIA Container Toolkit; no x86_64 release wheel is published.
+There is no documented native Windows quick path on the system-requirements page.
+The model list includes Cosmos3-Nano image generation, which does not establish
+support for the Cosmos Reason endpoint we tried. Keep this tool outside the MVP;
+revisit only when local processing or inference speed becomes a measured need.
+
+Sources: [repository](https://github.com/NVIDIA/TensorRT-Model-Connect),
+[supported recipes](https://nvidia.github.io/TensorRT-Model-Connect/models-recipes/overview/),
+[system requirements](https://nvidia.github.io/TensorRT-Model-Connect/getting-started/environment-and-repro/).
+
 1. **Vision proof:** extend the logged gateway, analyze one non-sensitive shelf
    photo, print actual labels/tokens/latency/cost. Compare two candidates within the
    cap; pick a model only after usable output. No UI dependency until this passes.
