@@ -8,7 +8,7 @@ _TODO: one paragraph on the problem and what this project does about it._
 
 ## How Nemotron and Nebius Token Factory are used
 
-All model inference is a remote call to **Nebius Token Factory**
+Default model inference is a remote call to **Nebius Token Factory**
 (`https://api.tokenfactory.nebius.com/v1/`, OpenAI-compatible) running
 NVIDIA's open-weight **Nemotron 3** family. No local inference.
 
@@ -80,6 +80,24 @@ Nemotron's built-in "thinking" is off by default because it bills reasoning
 tokens as output. Pass `think=True` when a task actually needs it.
 
 _TODO: how to run the actual app once it exists._
+
+## Optional Cosmos development test
+
+Add your NVIDIA development API key to `NVIDIA_API_KEY` in the existing
+git-ignored `.env`. Do not overwrite your Nebius key or share either key.
+Get access at https://build.nvidia.com/nvidia/cosmos3-nano-reasoner.
+
+```bash
+uv run python scripts/cosmos_test.py
+```
+
+This sends one text-only request to NVIDIA (not Nebius), with a 256-token
+output cap and no automatic retries. It uses `nebius_llm.chat(provider="nvidia")`
+and records usage in the same private JSONL log, tagged `provider=nvidia`.
+The $0 estimate assumes NVIDIA's free development tier, not unlimited access
+or verified production billing. Authentication, throttling, empty responses,
+and truncated responses fail the test. A passing test does not verify vision.
+No images or secrets are written to the usage log.
 
 ## Project layout
 

@@ -102,6 +102,7 @@ def chat(
     tier: str | None = None,
     *,
     system: str | None = None,
+    provider: str = "nebius",
     max_tokens: int = 1024,
     temperature: float = 0.2,
     think: bool = False,
@@ -127,6 +128,15 @@ def chat(
     Raises:
         AuthError, RateLimitError, ModelNotFoundError, TokenFactoryError.
     """
+    if provider == "nvidia":
+        from .cosmos import cosmos_chat
+
+        if tier is not None or extra or think:
+            raise ValueError("Cosmos uses its own model configuration; omit tier, think and extra options.")
+        return cosmos_chat(prompt, system=system, max_tokens=max_tokens,
+                           temperature=temperature, log_usage=log_usage)
+    if provider != "nebius":
+        raise ValueError("provider must be 'nebius' or 'nvidia'")
     spec: ModelSpec = get_model(tier)
     client = _get_client()
 

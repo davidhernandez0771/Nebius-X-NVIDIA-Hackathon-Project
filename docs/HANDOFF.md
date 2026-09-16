@@ -7,6 +7,30 @@ ahead of what he has agreed to.
 
 ## The project
 
+### Current direction and authorized experiment (2026-09-15)
+
+David chose a room-organizing website concept: phone photos, user-confirmed
+item labels/locations, and Nemotron organization suggestions. Custom icons,
+digital activity modes, and projection are possible later additions. The
+tennis idea below is historical and was never accepted; do not build it.
+
+David authorized an NVIDIA-hosted Cosmos development API experiment.
+`NVIDIA_API_KEY` is private in `.env`, separate from `NEBIUS_API_KEY`.
+Run `uv run python scripts/cosmos_test.py` after he enters the key. This is
+a text-only connection test, not verified vision or production deployment.
+All calls still go through `nebius_llm.chat()` and usage logging; the explicit
+`provider="nvidia"` route makes one request without retries and tags its log.
+Default calls still use Nebius nano. No local model installation is needed.
+The NVIDIA $0 development estimate does not consume Nebius credits and does
+not promise unlimited access. Do not provision cloud GPUs without agreement.
+
+Correction to the older rules summary below: the published general rules
+require an NVIDIA open model and a runtime Token Factory call or AI Cloud
+compute, not exclusively Nebius-hosted inference for every model. Track
+requirements and development-provider terms still need checking for the
+final submission: https://nebiusglobalaihackathon.devpost.com/rules
+
+
 Entry for the Nebius x NVIDIA Global AI Hackathon, Best Apps and Agents track.
 Deadline: October 30, 2026, 10:00 a.m. PDT.
 Repo: https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
