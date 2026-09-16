@@ -20,6 +20,7 @@ def main():
             provider="nvidia", max_tokens=256, temperature=0.2)
     except TokenFactoryError as error:
         print(f"NOT PASSED: {error}")
+        print("Nebius cost: $0 (no Nebius request). NVIDIA billed cost: not reported.")
         return 1
     print(f"Model: {result.model}")
     print(f"Response:\n{result.text.strip() or '<empty>'}")

@@ -85,7 +85,16 @@ _TODO: how to run the actual app once it exists._
 
 Add your NVIDIA development API key to `NVIDIA_API_KEY` in the existing
 git-ignored `.env`. Do not overwrite your Nebius key or share either key.
-Get access at https://build.nvidia.com/nvidia/cosmos3-nano-reasoner.
+NVIDIA's web demo is at https://build.nvidia.com/nvidia/cosmos3-nano-reasoner.
+Its availability does not guarantee API access.
+
+**Current status (2026-09-15): blocked.** The live API catalog lists
+`nvidia/cosmos-reason2-8b`, now the test default, but inference returns HTTP 404.
+The earlier Cosmos3 model ID also returned 404. NVIDIA staff have reported
+this catalog/API discrepancy and disabled API access in their
+[support forum](https://forums.developer.nvidia.com/t/function-not-found-for-account/357670).
+Do not repeatedly retry or assume a new key will fix it. No successful Cosmos
+inference or vision test has been completed.
 
 ```bash
 uv run python scripts/cosmos_test.py

@@ -21,6 +21,14 @@ a text-only connection test, not verified vision or production deployment.
 All calls still go through `nebius_llm.chat()` and usage logging; the explicit
 `provider="nvidia"` route makes one request without retries and tags its log.
 Default calls still use Nebius nano. No local model installation is needed.
+Live check on 2026-09-15: NVIDIA's GET /v1/models lists
+`nvidia/cosmos-reason2-8b`, not `nvidia/cosmos3-nano-reasoner`.
+The listed Reason2 model also returned HTTP 404 in the connection test.
+Cosmos hosted inference is therefore NOT verified or available through this
+configuration. Do not treat catalog presence as proof of callable access.
+NVIDIA staff previously reported the API disabled:
+https://forums.developer.nvidia.com/t/function-not-found-for-account/357670
+Keep Cosmos optional in the upcoming architecture plan; no app built yet.
 The NVIDIA $0 development estimate does not consume Nebius credits and does
 not promise unlimited access. Do not provision cloud GPUs without agreement.
 

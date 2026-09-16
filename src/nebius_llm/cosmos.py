@@ -15,7 +15,7 @@ def cosmos_chat(prompt, *, system, max_tokens, temperature, log_usage):
         raise AuthError("Set NVIDIA_API_KEY in the repo's .env, save it, then rerun this test.")
     if not 1 <= max_tokens <= 2048:
         raise ValueError("Cosmos experiments require max_tokens between 1 and 2048.")
-    model = os.environ.get("NVIDIA_COSMOS_MODEL") or "nvidia/cosmos3-nano-reasoner"
+    model = os.environ.get("NVIDIA_COSMOS_MODEL") or "nvidia/cosmos-reason2-8b"
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -38,7 +38,9 @@ def cosmos_chat(prompt, *, system, max_tokens, temperature, log_usage):
             record_usage(entry)
         hints = {401: "Check NVIDIA_API_KEY in .env.",
                  403: "This NVIDIA account/key may not have access to Cosmos.",
-                 404: "Check the current Cosmos model ID in NVIDIA's API catalog.",
+                 404: "The model or hosted endpoint is unavailable for this key. "
+                      "A model listed in NVIDIA's catalog may still have its API disabled. "
+                      "No automatic retry was made.",
                  429: "NVIDIA rate limited this request. Wait before trying again."}
         # Never print provider response bodies, request headers or credentials.
         raise TokenFactoryError(
