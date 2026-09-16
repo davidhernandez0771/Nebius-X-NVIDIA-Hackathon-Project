@@ -29,6 +29,10 @@ configuration. Do not treat catalog presence as proof of callable access.
 NVIDIA staff previously reported the API disabled:
 https://forums.developer.nvidia.com/t/function-not-found-for-account/357670
 Keep Cosmos optional in the upcoming architecture plan; no app built yet.
+The requested architecture is now mapped in `docs/ARCHITECTURE.md` (proposal,
+not implemented). It supersedes the historical tennis pipeline/build order.
+Live Nebius metadata lists MiniCPM-V-4_5, GLM-5.3-Flash, Kimi-K2.6 and Kimi-K3
+as image-input candidates. No photo inference test has yet been performed.
 The NVIDIA $0 development estimate does not consume Nebius credits and does
 not promise unlimited access. Do not provision cloud GPUs without agreement.
 
