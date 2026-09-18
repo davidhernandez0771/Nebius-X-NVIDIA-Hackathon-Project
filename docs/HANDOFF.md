@@ -46,7 +46,9 @@ final submission: https://nebiusglobalaihackathon.devpost.com/rules
 Entry for the Nebius x NVIDIA Global AI Hackathon, Best Apps and Agents track.
 Deadline: October 30, 2026, 10:00 a.m. PDT.
 Repo: https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
-Local clone: `C:\Users\dhrce\source\repos\nebius-hackathon` (Windows 11, VS Code).
+Local clone: `C:\Users\dhrce\OneDrive\Documents\Hackathon-Nvidia\Nebius-X-NVIDIA-Hackathon-Project`
+(Windows 11, VS Code). The older `C:\Users\dhrce\source\repos\nebius-hackathon`
+clone no longer exists as of 2026-09-17.
 
 Hard rules from the hackathon:
 - Every model call at runtime must go to NVIDIA Nemotron hosted on Nebius
@@ -89,9 +91,14 @@ Never write loops that call the model without a hard cap on iterations.
   print it, commit it, or move it.
 
 Environment quirks:
-- No system Python. Use `uv` for everything: `uv sync --system-certs` (a TLS
-  proxy on this machine breaks plain `uv sync`), `uv run python ...`.
+- Use `uv` for everything: `uv sync`, `uv run python ...`. uv pins CPython
+  3.11 for the project; a system Python 3.14 also exists but is not used.
+  As of 2026-09-17 plain `uv sync` works; if it fails with a certificate
+  error, fall back to `uv sync --system-certs`.
 - `openai` SDK is v3.x. `gh` CLI is not installed; use git over HTTPS.
+- The repo lives inside OneDrive. `.venv/` is git-ignored but OneDrive may
+  still try to sync it; if you see file-lock or slow-sync problems, exclude
+  the folder from OneDrive or move the clone outside it.
 - Git identity is set per-repo ("David" <dhrcello07@gmail.com>).
 
 ## The idea (proposed; confirm with David before building)

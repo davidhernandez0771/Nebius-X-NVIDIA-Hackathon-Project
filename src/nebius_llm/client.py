@@ -20,12 +20,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import openai
-from dotenv import load_dotenv
 
-from .config import BASE_URL, ModelSpec, get_model
+from .config import BASE_URL, ModelSpec, get_model  # config.py loads .env on import
 from .usage import record_usage
-
-load_dotenv()  # reads .env from the current working directory, if present
 
 
 # ---------------------------------------------------------------------------

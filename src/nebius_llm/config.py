@@ -16,6 +16,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
+# Load .env before reading any override below. This module is imported by
+# client.py, so callers that never call load_dotenv() themselves (e.g. a plain
+# `from nebius_llm import chat`) still get their .env overrides applied.
+load_dotenv()
+
 BASE_URL = os.environ.get("NEBIUS_BASE_URL") or "https://api.tokenfactory.nebius.com/v1/"
 
 DEFAULT_TIER = "nano"
