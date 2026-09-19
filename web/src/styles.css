@@ -776,7 +776,21 @@ button:disabled {
   gap: var(--space-3);
 }
 
-/* RoomView: 3D scan viewer slot. Replaced by the 3D terminal's viewer. */
+/* RoomView: frame around the live 3D scan viewer (the ScanViewer fills it). */
+.scan-viewer-frame {
+  height: 460px;
+  overflow: hidden;
+  border: var(--border);
+  border-radius: var(--radius-card);
+}
+
+.scan-viewer-loading {
+  display: grid;
+  height: 100%;
+  place-items: center;
+}
+
+/* RoomView: shown when the room has no scan yet. */
 .scan-viewer-slot {
   display: flex;
   flex-direction: column;

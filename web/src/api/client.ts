@@ -2,6 +2,9 @@
 // VITE_API_BASE_URL (see .env.example) so dev/prod can point elsewhere.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
+// Absolute URL for things the browser fetches itself (e.g. the 3D viewer's GLB).
+export const apiUrl = (path: string) => `${BASE_URL}${path}`;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },

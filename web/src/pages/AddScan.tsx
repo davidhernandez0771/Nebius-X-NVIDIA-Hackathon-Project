@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { uploadFile } from "../api/client";
 import { EmptyState, GlassCard, Icon, StatusPill, Zones } from "../components";
 import { errorMessage } from "../api/errors";
 
 export default function AddScan() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const roomId = params.get("room_id");
   const [status, setStatus] = useState<{ tone: "neutral" | "accent" | "danger"; text: string } | null>(null);
 
@@ -15,7 +16,8 @@ export default function AddScan() {
     setStatus({ tone: "neutral", text: "Uploading..." });
     try {
       await uploadFile(`/api/scans?room_id=${roomId}`, file);
-      setStatus({ tone: "accent", text: "Uploaded." });
+      // Take the user to the room, where the scan now renders.
+      navigate(`/room?room_id=${roomId}`);
     } catch (err) {
       setStatus({ tone: "danger", text: `Failed: ${errorMessage(err)}` });
     }
