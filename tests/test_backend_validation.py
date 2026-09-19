@@ -184,7 +184,6 @@ def test_organize_model_failure_is_502_and_stores_no_proposal(api, room):
 
 # --- known gaps (xfail, strict) --------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="reviewing the same candidate as 'organize' twice creates a duplicate item")
 def test_reviewing_a_candidate_twice_does_not_duplicate_the_item(api, candidate_id):
     api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
     api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
@@ -202,7 +201,6 @@ def test_move_to_a_location_in_another_room_is_rejected(api, room):
     assert r.status_code in (400, 404, 422)
 
 
-@pytest.mark.xfail(strict=True, reason="PATCH accepts any status string, e.g. 'banana'")
 def test_update_item_rejects_an_invalid_status(api, room):
     item = make_item(room.id, room.location_id, "lamp")
     r = api.patch(f"/api/items/{item}", json={"status": "banana"})
@@ -216,3 +214,31 @@ def test_organize_unknown_room_is_404(api):
         r = api.post("/api/organize", json={"room_id": 9999})
 
     assert r.status_code == 404
+
+
+def test_re_reviewing_an_organized_candidate_returns_the_same_item(api, candidate_id):
+    first = api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"}).json()
+    again = api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
+
+    assert again.status_code == 200 and again.json()["id"] == first["id"]
+    assert item_count() == 1
+
+
+def test_an_organized_candidate_cannot_be_re_sorted_to_trash_or_unknown(api, candidate_id):
+    api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
+    for status in ("trash", "unknown"):
+        assert api.post(f"/api/candidates/{candidate_id}/review", json={"status": status}).status_code == 409
+    assert item_count() == 1
+
+
+def test_a_reviewed_but_not_organized_candidate_can_still_be_re_sorted(api, candidate_id):
+    api.post(f"/api/candidates/{candidate_id}/review", json={"status": "unknown"})
+    item = api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"}).json()
+    assert item["status"] == "active" and item_count() == 1
+
+
+def test_update_item_accepts_the_valid_statuses(api, room):
+    item = make_item(room.id, room.location_id, "lamp")
+    for status in ("trash", "active"):
+        r = api.patch(f"/api/items/{item}", json={"status": status})
+        assert r.status_code == 200 and r.json()["status"] == status
