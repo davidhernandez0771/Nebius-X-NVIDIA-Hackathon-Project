@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import { DashboardShell } from "./components";
 import Home from "./pages/Home";
@@ -10,12 +11,31 @@ import Organize from "./pages/Organize";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 
-// No route for the decorative 3D entry scene yet -- that's a later milestone
-// (docs/ARCHITECTURE.md §10, step 2). Dashboard pages share DashboardShell
-// (top bar + icon rail); routes outside it (landing, entry) can go beside it.
+// Full-bleed 3D pages live outside the dashboard shell and load lazily, so the
+// three.js bundle is only fetched when one of them is visited.
+const Landing = lazy(() => import("./pages/Landing"));
+const Entry = lazy(() => import("./pages/Entry"));
+
+// Dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
   return (
     <Routes>
+      <Route
+        path="/welcome"
+        element={
+          <Suspense fallback={null}>
+            <Landing />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/enter"
+        element={
+          <Suspense fallback={null}>
+            <Entry />
+          </Suspense>
+        }
+      />
       <Route element={<DashboardShell />}>
         <Route path="/" element={<Home />} />
         <Route path="/room" element={<RoomView />} />
