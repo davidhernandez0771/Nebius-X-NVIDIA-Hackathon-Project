@@ -10,11 +10,14 @@ and a chat bar lets you drive it in plain language.
 result never becomes inventory until you sort it, and chat text is parsed into
 an action that the backend validates before anything happens.
 
-**Status:** the backend API, database and every frontend screen exist and are
-wired together. The AI prompts (photo itemization, organize, chat commands)
-have only been exercised against mocked responses in the tests, not against
-real photos or commands. The animated 3D entry scene is not built yet. See
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the plan.
+**Status:** working end to end. The backend API, database and every dashboard
+screen are wired together. The vision, organize and chat-command prompts have
+been run against the real Token Factory API (results in
+[`docs/VISION_EVAL.md`](docs/VISION_EVAL.md)), all chat actions are validated by
+the backend, and uploaded GLB room scans render in a 3D viewer. There is a
+scroll-driven 3D landing page (`/welcome`) and an animated entry scene
+(`/enter`). See [Known limitations](#known-limitations) for what is not built,
+and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
 
 ## Prerequisites
 
@@ -78,13 +81,30 @@ backend only allows CORS from `http://localhost:5173`.
 
 `npm run build` type-checks and produces a production bundle in `web/dist/`.
 
+### What to open
+
+| URL | What it is |
+|---|---|
+| http://localhost:5173/welcome | Scroll-driven 3D landing page |
+| http://localhost:5173/enter | Short animated entry scene (skip with Esc) |
+| http://localhost:5173/ | The dashboard: create a room, add locations, upload a `.glb` scan and photos, review, organize, chat |
+
+Use a current Chrome, Safari or Edge with hardware acceleration on; the 3D
+pages need WebGL and fall back to a static version without it (or with reduced
+motion). Add `?static` to `/welcome` to preview the fallback.
+
+To try the scan viewer, export a room as `.glb` from a LiDAR app such as
+Polycam or Scaniverse and upload it from a room's "Upload a room scan" link.
+
+### Cost
+
 Uploading a photo and pressing Analyze, or using Organize or Chat, makes a
-real, billed Token Factory call. Every call appends its token counts and
-estimated cost to the file named by `USAGE_LOG_PATH` (default
-`usage_log.jsonl`). If you work in several git worktrees, set
-`USAGE_LOG_PATH=~/Hackathon-NVIDIA/usage_shared.jsonl` in each worktree's `.env`
-(it is in `.env.example`) so the $25 budget is tracked in one place. The log is
-git-ignored; check the Token Factory console for actual billing.
+real, billed Token Factory call (well under a cent each). Every call
+appends its token counts and estimated cost to the file named by
+`USAGE_LOG_PATH` (default `usage_log.jsonl`). If you work in several git
+worktrees, point them all at one shared file (see `.env.example`) so the $25
+budget is tracked in one place. The log is git-ignored; check the Token Factory
+console for actual billing.
 
 ## Run the tests
 
@@ -118,9 +138,11 @@ three tiers in [`src/nebius_llm/config.py`](src/nebius_llm/config.py):
 | `super` | `nvidia/nemotron-3-super-120b-a12b` | harder tasks that nano gets wrong |
 | `ultra` | `nvidia/Nemotron-3-Ultra-550b-a55b` | heavy reasoning, used sparingly |
 
-Photo itemization uses a separate vision tier list in the same file
-(`minicpm` is the default, `glm-flash` is the cheaper alternative). Both are
-untested on real photos so far. Any model ID can be overridden with an
+Photo itemization uses a separate vision tier list in the same file. `minicpm`
+(MiniCPM-V-4.5) is the default; `glm-flash` was compared against it and was too
+slow and unreliable (see [`docs/VISION_EVAL.md`](docs/VISION_EVAL.md)). Vision
+models miscount and occasionally invent items, which is why every proposed item
+goes through your review. Any model ID can be overridden with an
 environment variable listed in `.env.example`. More on endpoints, auth and rate
 limits: [`docs/token-factory-notes.md`](docs/token-factory-notes.md).
 
@@ -131,11 +153,31 @@ src/nebius_llm/   Token Factory client: config.py, client.py (chat), vision.py, 
 src/app/          FastAPI backend: main.py, models.py, schemas.py, db.py, storage.py
   routers/        rooms, scans, photos, candidates, items, organize, chat
   ai/             prompts and parsing for vision, organize and chat commands
-web/              React + Vite frontend (src/pages has one page per screen)
-scripts/          smoke_test.py, ask.py, hello.py, vision_debug.py
+web/              React + Vite frontend
+  src/pages/      one page per screen, plus Landing and Entry
+  src/components/ shared glass UI components; design tokens in src/tokens.css
+  src/three/      3D: landing scene, entry scene, GLB ScanViewer
+scripts/          smoke_test.py, ask.py, hello.py, vision_debug.py,
+                  vision_eval.py, command_eval.py
 tests/            client/config/usage unit tests and backend API tests
-docs/             ARCHITECTURE.md, HANDOFF.md, token-factory-notes.md
+docs/             ARCHITECTURE.md, DESIGN_BRIEF.md, VISION_EVAL.md,
+                  TESTING_GAPS.md, DEMO_SCRIPT.md, HANDOFF.md,
+                  token-factory-notes.md
 ```
+
+## Known limitations
+
+- **No real authentication.** Every record belongs to one fixed development
+  owner, so run it locally only; do not expose it to the internet.
+- **Photos are stored and sent as uploaded.** EXIF metadata (such as GPS
+  location) is not stripped. HEIC/HEIF (iPhone) uploads are accepted but are not
+  converted, so the vision model may fail to read them; export as JPG or PNG
+  first. Photos are sent to the vision model on Nebius when you press Analyze.
+- **Local storage only.** Uploads live in a git-ignored `uploads/` folder and the
+  database is a local SQLite file, with no migrations.
+- The Nebius spend shown in the top bar is a session total from the calls made in
+  the browser, not your all-time spend.
+- Voice input is not built.
 
 ## License
 
