@@ -115,7 +115,7 @@ def main() -> int:
             print(f"  FAILED (continuing): {error}")
             rows.append({"tier": tier, "image": image.name, "failed": True})
             continue
-        flag = "  TRUNCATED" if r.truncated else ""
+        flag = "  HIT TOKEN LIMIT" if r.finish_reason == "length" else ("  PARTIAL/MALFORMED JSON" if r.truncated else "")
         print(f"  {len(r.candidates)} item(s) | {r.latency_s:.1f}s | "
               f"{r.prompt_tokens} in / {r.completion_tokens} out | finish={r.finish_reason} | "
               f"${r.est_cost_usd:.6f}{flag}")
@@ -127,7 +127,7 @@ def main() -> int:
         rows.append({"tier": tier, "image": image.name, "r": r})
 
     print("\n=== summary ===")
-    print(f"{'tier':<10} {'images':>6} {'items':>6} {'truncated':>9} {'avg s':>7} {'avg out tok':>11} {'total $':>10}")
+    print(f"{'tier':<10} {'images':>6} {'items':>6} {'partial':>9} {'avg s':>7} {'avg out tok':>11} {'total $':>10}")
     for tier in tiers:
         ok = [row["r"] for row in rows if row["tier"] == tier and "r" in row]
         if not ok:

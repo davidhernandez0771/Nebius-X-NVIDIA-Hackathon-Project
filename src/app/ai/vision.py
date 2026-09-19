@@ -25,10 +25,11 @@ VISION_MAX_TOKENS = 700  # ~20 short items fit; a runaway reply is cut off cheap
 
 ITEMIZE_PROMPT = (
     "You are looking at one photo of a storage area (a shelf, drawer, or desk). "
-    f"List each distinct kind of physical item you can see, at most {MAX_CANDIDATES}. "
+    f"List each distinct kind of movable physical item you can see, at most {MAX_CANDIDATES}. "
+    "Skip furniture, walls, windows, floors and other fixtures. "
     "Group identical items into one entry using count; never list the same item twice. "
     "Respond with ONLY a compact JSON array on a single line, no prose, no markdown "
-    "fences. Each element: "
+    "fences. Every element must have all four keys: "
     '{"label": str, "category": str, "count": int, "uncertainty_note": str}. '
     "Keep label and category to a few words. uncertainty_note is at most 8 words "
     "for anything partially hidden, ambiguous, or a guess; otherwise use an empty "
@@ -141,12 +142,65 @@ def _parse_with_status(raw_text: str) -> tuple[list[CandidateGuess], bool]:
         try:
             value, pos = decoder.raw_decode(text, pos)
         except json.JSONDecodeError:
-            break  # partial/garbled element: stop, keep what we have
+            # One malformed element shouldn't cost the whole photo. MiniCPM
+            # really does emit e.g. {"count": 1, ""} (a dropped key), so try a
+            # repair, and otherwise skip just that object and carry on.
+            end = _object_end(text, pos) if text[pos] == "{" else None
+            if end is None:
+                break  # cut off mid-element: keep what we have
+            complete = False
+            repaired = _repair_object(text[pos:end])
+            pos = end
+            if repaired is None:
+                entries.append(None)  # placeholder so the caller knows one was dropped
+                continue
+            value = repaired
         entries.append(value)
         if len(entries) > MAX_CANDIDATES * 4:
             break  # runaway output; don't scan forever
 
-    return _to_candidates(entries), complete
+    dropped = entries.count(None)
+    return _to_candidates(entries), complete and dropped == 0
+
+
+def _object_end(text: str, pos: int) -> int | None:
+    """Index just past the '}' closing the object that starts at pos, or None
+    if the text ends first. String-aware so braces inside labels don't count."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for i in range(pos, len(text)):
+        ch = text[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+    return None
+
+
+_STRAY_EMPTY_STRING = re.compile(r',\s*""\s*(?=[,}])')
+_TRAILING_COMMA = re.compile(r",\s*(?=})")
+
+
+def _repair_object(segment: str):
+    """Fix the two malformations seen from real models; None if still invalid."""
+    fixed = _TRAILING_COMMA.sub("", _STRAY_EMPTY_STRING.sub("", segment))
+    try:
+        value = json.loads(fixed)
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def _clean(value, limit: int = MAX_TEXT_CHARS) -> str:

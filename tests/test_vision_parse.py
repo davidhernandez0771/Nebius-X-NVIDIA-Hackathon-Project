@@ -73,6 +73,37 @@ class ParseTests(unittest.TestCase):
         self.assertLessEqual(len(cands[0].label), 80)
 
 
+class MalformedObjectTests(unittest.TestCase):
+    # Real MiniCPM-V-4.5 output (2026-09-19): the uncertainty_note key was dropped,
+    # leaving a stray "" before the closing brace. Used to yield zero items.
+    REAL = (
+        '[{"label": "nightstand", "category": "furniture", "count": 1, ""}, '
+        '{"label": "vase", "category": "decorative", "count": 1, ""}, '
+        '{"label": "rug", "category": "flooring", "count": 1, ""}]'
+    )
+
+    def test_stray_empty_string_is_repaired(self):
+        cands, complete = _parse_with_status(self.REAL)
+        self.assertEqual([c.label for c in cands], ["nightstand", "vase", "rug"])
+        self.assertTrue(complete)
+
+    def test_unrepairable_object_is_skipped_not_fatal(self):
+        raw = '[{"label": "a", "count": 1}, {"label": oops}, {"label": "c", "count": 2}]'
+        cands, complete = _parse_with_status(raw)
+        self.assertEqual([c.label for c in cands], ["a", "c"])
+        self.assertFalse(complete)
+
+    def test_braces_inside_strings_do_not_confuse_recovery(self):
+        raw = '[{"label": "box {red}", "count": 1, ""}, {"label": "b"}]'
+        self.assertEqual([c.label for c in _parse_candidates(raw)], ["box {red}", "b"])
+
+    def test_truncated_after_bad_object_keeps_earlier_items(self):
+        raw = '[{"label": "a", "count": 1, ""}, {"label": "b", "cou'
+        cands, complete = _parse_with_status(raw)
+        self.assertEqual([c.label for c in cands], ["a"])
+        self.assertFalse(complete)
+
+
 class DetailedTests(unittest.TestCase):
     def _run(self, text, finish):
         reply = NS(text=text, est_cost_usd=0.001, finish_reason=finish, prompt_tokens=700,
