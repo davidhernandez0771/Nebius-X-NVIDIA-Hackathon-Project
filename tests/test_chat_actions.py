@@ -217,10 +217,10 @@ class ChatActionTests(unittest.TestCase):
     # -- organize (proposal only) -----------------------------------------
     def test_organize_stores_proposal_and_moves_nothing(self):
         lamp = self._item("lamp", self.desk)
-        with patch("app.ai.organize.chat", return_value=NS(text="- Put the lamp on the shelf.", est_cost_usd=0.00002)) as m:
+        with patch("app.ai.organize.chat", return_value=NS(text="- lamp -> Top Shelf: within reach.", est_cost_usd=0.00002)) as m:
             body = self._say("organize my room", parsed("organize")).json()
         self.assertEqual(body["action"], "organize")
-        self.assertIn("Put the lamp on the shelf", body["result"])
+        self.assertIn("lamp → Top Shelf", body["result"])
         self.assertAlmostEqual(body["est_cost_usd"], 0.00005)
         self.assertIn("lamp", m.call_args.args[0])
         proposal = self.db.query(models.Proposal).one()

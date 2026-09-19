@@ -114,7 +114,8 @@ def _organize(parsed: ParsedCommand, room_id: int, db: Session) -> Outcome:
     if not items:
         return Outcome(f"There's nothing to organize{scope} yet.")
     payload = _items_json(items)
-    suggestion, cost = suggest_organization(payload)
+    locations = [loc.name for loc in db.query(models.Location).filter_by(room_id=room_id).all()]
+    suggestion, cost = suggest_organization(payload, locations)
     proposal = models.Proposal(
         room_id=room_id, source_snapshot=payload, suggested_text=suggestion, status="pending", est_cost_usd=cost
     )

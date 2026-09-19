@@ -148,17 +148,18 @@ def test_move_unknown_item_or_location_is_404_and_changes_nothing(api, room):
 # --- organize ---------------------------------------------------------------
 
 def test_organize_sends_only_active_items_and_stores_a_pending_proposal(api, room):
+    make_location(api, room.id, "Shelf")
     make_item(room.id, room.location_id, "lamp")
     make_item(room.id, room.location_id, "old mug", status="trash")
     with patch("app.ai.organize.chat") as chat:
-        chat.return_value = NS(text="- Keep the lamp on the desk.", est_cost_usd=0.00002)
+        chat.return_value = NS(text="- lamp -> Shelf: easier to reach.", est_cost_usd=0.00002)
         out = api.post("/api/organize", json={"room_id": room.id}).json()
 
-    sent = json.loads(chat.call_args.args[0])
+    sent = json.loads(chat.call_args.args[0])["items"]
     assert [i["name"] for i in sent] == ["lamp"]
     with db_session() as db:
         proposal = db.get(models.Proposal, out["proposal_id"])
-        assert (proposal.status, proposal.suggested_text) == ("pending", "- Keep the lamp on the desk.")
+        assert (proposal.status, proposal.suggested_text) == ("pending", "- lamp → Shelf: easier to reach.")
 
 
 def test_organize_never_moves_items(api, room):
