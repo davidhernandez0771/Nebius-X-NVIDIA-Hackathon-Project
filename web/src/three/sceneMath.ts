@@ -70,3 +70,15 @@ export function reviewState(idx: number, c: number): ReviewState {
   if (c > 3.9) return "organize";
   return (["unknown", "trash", "organize"] as const)[Math.min(2, step)];
 }
+
+/** Entry sequence: a slow dolly in on the room while it resolves from points to solid. */
+export function entryCamera(c: number) {
+  const u = seg(c, 0.3, 1.9);
+  const m = (a: V3, b: V3): V3 => [lerp(a[0], b[0], u), lerp(a[1], b[1], u), lerp(a[2], b[2], u)];
+  return {
+    pos: m([10.5, 6.4, 12.6], [6.6, 3.9, 7.8]),
+    target: m([0, 1.2, 0], [0, 0.9, 0]) as V3,
+    side: 0,
+    lift: 0,
+  };
+}

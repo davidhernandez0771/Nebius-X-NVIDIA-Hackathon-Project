@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { scroll } from "./scrollStore";
-import { lerp, reviewState, sampleCamera, sceneParams, seg } from "./sceneMath";
+import { entryCamera, lerp, reviewState, sampleCamera, sceneParams, seg } from "./sceneMath";
 import { LEADERS, anchors, emitSceneFrame } from "./labels";
 import {
   POINTS_FRAG,
@@ -191,7 +191,7 @@ function Room({ mode, mobile }: RoomProps) {
     }
 
     // camera rig
-    const s = sampleCamera(c);
+    const s = mode === "entry" ? entryCamera(c) : sampleCamera(c);
     const dist = mobile ? 1.7 : 1;
     const px = scroll.pointer.x * 0.35;
     const py = scroll.pointer.y * 0.2;
