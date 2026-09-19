@@ -6,7 +6,7 @@ One source of truth for the look and feel. Both the UI terminal and the 3D termi
 
 **Vibe in one line:** clean Apple-style restraint, with a real 3D room as the hero. Dark, warm, glassy, one accent color, calm motion.
 
-Reference images live in `docs/inspo/` (smart-home dashboard shots). They are **style inspiration only**. Do not reuse their photos, faces, logos, text or exact layouts.
+Reference images are third-party smart-home dashboard shots. They are kept **locally in `docs/inspo/` and are deliberately not committed** (the folder is git-ignored) because the repo is public. They are **style inspiration only**: do not reuse their photos, faces, logos, text or exact layouts. This brief describes everything needed to match the look, so the images are optional.
 
 ## Reference sites (for the landing page and motion)
 

@@ -38,3 +38,6 @@ web/dist/
 
 # Private test photos for scripts/vision_eval.py
 test-photos/
+
+# Third-party design reference screenshots (kept local only; repo is public)
+docs/inspo/
