@@ -1,4 +1,5 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
 import RoomView from "./pages/RoomView";
 import AddScan from "./pages/AddScan";
@@ -8,6 +9,10 @@ import Inventory from "./pages/Inventory";
 import Organize from "./pages/Organize";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
+
+// Full-bleed 3D pages live outside the dashboard shell and load lazily.
+const Landing = lazy(() => import("./pages/Landing"));
+const Entry = lazy(() => import("./pages/Entry"));
 
 // No route for the decorative 3D entry scene yet -- that's a later milestone
 // (docs/ARCHITECTURE.md §10, step 2). This router starts at the main app.
@@ -24,6 +29,14 @@ const links = [
 ] as const;
 
 export default function App() {
+  const { pathname } = useLocation();
+  if (pathname === "/welcome" || pathname === "/enter") {
+    return (
+      <Suspense fallback={null}>
+        {pathname === "/welcome" ? <Landing /> : <Entry />}
+      </Suspense>
+    );
+  }
   return (
     <div className="app-shell">
       <nav className="app-nav">
