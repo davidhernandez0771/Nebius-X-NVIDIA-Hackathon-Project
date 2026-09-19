@@ -5,6 +5,7 @@
 
 # Local usage/spend log
 usage_log.jsonl
+usage_*.jsonl
 
 # Python
 __pycache__/

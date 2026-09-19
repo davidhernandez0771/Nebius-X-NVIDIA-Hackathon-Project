@@ -10,7 +10,7 @@ from typing import Any
 
 
 def _log_path() -> Path:
-    return Path(os.environ.get("USAGE_LOG_PATH") or "usage_log.jsonl")
+    return Path(os.environ.get("USAGE_LOG_PATH") or "usage_log.jsonl").expanduser()
 
 
 def record_usage(entry: dict[str, Any]) -> None:

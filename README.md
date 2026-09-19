@@ -80,7 +80,11 @@ backend only allows CORS from `http://localhost:5173`.
 
 Uploading a photo and pressing Analyze, or using Organize or Chat, makes a
 real, billed Token Factory call. Every call appends its token counts and
-estimated cost to `usage_log.jsonl`.
+estimated cost to the file named by `USAGE_LOG_PATH` (default
+`usage_log.jsonl`). If you work in several git worktrees, set
+`USAGE_LOG_PATH=~/Hackathon-NVIDIA/usage_shared.jsonl` in each worktree's `.env`
+(it is in `.env.example`) so the $25 budget is tracked in one place. The log is
+git-ignored; check the Token Factory console for actual billing.
 
 ## Run the tests
 
