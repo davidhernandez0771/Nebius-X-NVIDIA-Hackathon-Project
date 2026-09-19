@@ -3,7 +3,7 @@
 from nebius_llm import chat
 
 # 1. INPUT: a plain string. This is what gets sent to Nemotron.
-question = "Give me one tip for staying calm after losing a tennis point. One sentence."
+question = "Give me one tip for keeping a small desk shelf tidy. One sentence."
 
 # 2. THE CALL: send it, wait, get a result object back.
 result = chat(question, tier="nano")

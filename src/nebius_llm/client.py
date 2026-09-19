@@ -94,12 +94,72 @@ def _retry_after_seconds(err: openai.APIStatusError, attempt: int) -> float:
     return min(2 ** attempt + random.uniform(0, 0.5), 30.0)
 
 
+def _request_with_retries(
+    client: openai.OpenAI,
+    *,
+    model_id: str,
+    messages: list[dict[str, Any]],
+    max_tokens: int,
+    temperature: float,
+    retries: int,
+    extra_body: dict[str, Any] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> tuple[Any, float]:
+    """Shared retry/error-mapping loop, used by both text (chat()) and image
+    (vision.chat_vision()) calls -- they differ only in message shape and
+    model config, not in how errors or retries are handled."""
+    extra = extra or {}
+    for attempt in range(retries + 1):
+        started = time.perf_counter()
+        try:
+            resp = client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                **({"extra_body": extra_body} if extra_body else {}),
+                **extra,
+            )
+            return resp, time.perf_counter() - started
+        except openai.AuthenticationError as e:
+            raise AuthError(
+                f"Token Factory rejected the API key (HTTP {e.status_code}). "
+                "Check NEBIUS_API_KEY in your .env."
+            ) from e
+        except openai.PermissionDeniedError as e:
+            raise AuthError(
+                f"Token Factory denied access (HTTP 403) for model {model_id!r}: {e.message}"
+            ) from e
+        except openai.NotFoundError as e:
+            raise ModelNotFoundError(
+                f"Model {model_id!r} not found on Token Factory (HTTP 404). "
+                f"Run scripts/smoke_test.py to list available IDs. Server said: {e.message}"
+            ) from e
+        except openai.RateLimitError as e:
+            if attempt >= retries:
+                raise RateLimitError(
+                    f"Rate limited by Token Factory (HTTP 429) after {retries + 1} attempts. "
+                    "Slow down or wait for the limit window to reset."
+                ) from e
+            time.sleep(_retry_after_seconds(e, attempt))
+        except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
+            if attempt >= retries:
+                raise TokenFactoryError(
+                    f"Token Factory unreachable or failing after {retries + 1} attempts: {e}"
+                ) from e
+            time.sleep(min(2 ** attempt + random.uniform(0, 0.5), 30.0))
+        except openai.APIStatusError as e:
+            raise TokenFactoryError(
+                f"Token Factory returned HTTP {e.status_code} for {model_id!r}: {e.message}"
+            ) from e
+    raise TokenFactoryError("Request failed after retries")  # pragma: no cover
+
+
 def chat(
     prompt: str,
     tier: str | None = None,
     *,
     system: str | None = None,
-    provider: str = "nebius",
     max_tokens: int = 1024,
     temperature: float = 0.2,
     think: bool = False,
@@ -125,15 +185,6 @@ def chat(
     Raises:
         AuthError, RateLimitError, ModelNotFoundError, TokenFactoryError.
     """
-    if provider == "nvidia":
-        from .cosmos import cosmos_chat
-
-        if tier is not None or extra or think:
-            raise ValueError("Cosmos uses its own model configuration; omit tier, think and extra options.")
-        return cosmos_chat(prompt, system=system, max_tokens=max_tokens,
-                           temperature=temperature, log_usage=log_usage)
-    if provider != "nebius":
-        raise ValueError("provider must be 'nebius' or 'nvidia'")
     spec: ModelSpec = get_model(tier)
     client = _get_client()
 
@@ -151,54 +202,17 @@ def chat(
     template_kwargs.setdefault("enable_thinking", think)
     extra_body["chat_template_kwargs"] = template_kwargs
 
-    for attempt in range(retries + 1):
-        started = time.perf_counter()
-        try:
-            resp = client.chat.completions.create(
-                model=spec.model_id,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                extra_body=extra_body,
-                **extra,
-            )
-            break
-        except openai.AuthenticationError as e:
-            raise AuthError(
-                f"Token Factory rejected the API key (HTTP {e.status_code}). "
-                "Check NEBIUS_API_KEY in your .env."
-            ) from e
-        except openai.PermissionDeniedError as e:
-            raise AuthError(
-                f"Token Factory denied access (HTTP 403) for model {spec.model_id!r}: {e.message}"
-            ) from e
-        except openai.NotFoundError as e:
-            raise ModelNotFoundError(
-                f"Model {spec.model_id!r} not found on Token Factory (HTTP 404). "
-                "Run scripts/smoke_test.py to list available Nemotron IDs, then set "
-                f"NEBIUS_MODEL_{spec.tier.upper()} in .env. Server said: {e.message}"
-            ) from e
-        except openai.RateLimitError as e:
-            if attempt >= retries:
-                raise RateLimitError(
-                    f"Rate limited by Token Factory (HTTP 429) after {retries + 1} attempts. "
-                    "Slow down or wait for the limit window to reset."
-                ) from e
-            time.sleep(_retry_after_seconds(e, attempt))
-        except (openai.APIConnectionError, openai.APITimeoutError, openai.InternalServerError) as e:
-            if attempt >= retries:
-                raise TokenFactoryError(
-                    f"Token Factory unreachable or failing after {retries + 1} attempts: {e}"
-                ) from e
-            time.sleep(min(2 ** attempt + random.uniform(0, 0.5), 30.0))
-        except openai.APIStatusError as e:
-            raise TokenFactoryError(
-                f"Token Factory returned HTTP {e.status_code} for {spec.model_id!r}: {e.message}"
-            ) from e
-    else:  # pragma: no cover - loop always breaks or raises
-        raise TokenFactoryError("Request failed after retries")
+    resp, latency = _request_with_retries(
+        client,
+        model_id=spec.model_id,
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        retries=retries,
+        extra_body=extra_body,
+        extra=extra,
+    )
 
-    latency = time.perf_counter() - started
     choice = resp.choices[0]
     text = choice.message.content or ""
     reasoning = getattr(choice.message, "reasoning_content", None) or None

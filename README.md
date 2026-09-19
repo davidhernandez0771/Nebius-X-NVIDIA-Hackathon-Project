@@ -1,19 +1,136 @@
-# [Project Name]
+# SANT
 
 Submission for the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/) (deadline Oct 30, 2026).
 
-## What it does
+A room organizer: photograph a shelf or drawer, a vision model proposes what's
+in it, you confirm each item, Nemotron suggests how to arrange your inventory,
+and a chat bar lets you drive it in plain language.
 
-_TODO: one paragraph on the problem and what this project does about it._
+**Design rule: the AI only proposes; you or the backend decide.** A vision
+result never becomes inventory until you sort it, and chat text is parsed into
+an action that the backend validates before anything happens.
 
-## How Nemotron and Nebius Token Factory are used
+**Status:** working end to end. The backend API, database and every dashboard
+screen are wired together. The vision, organize and chat-command prompts have
+been run against the real Token Factory API (results in
+[`docs/VISION_EVAL.md`](docs/VISION_EVAL.md)), all chat actions are validated by
+the backend, and uploaded GLB room scans render in a 3D viewer. There is a
+scroll-driven 3D landing page (the front door, `/`) and an animated entry scene
+(`/enter`). See [Known limitations](#known-limitations) for what is not built,
+and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
 
-Default model inference is a remote call to **Nebius Token Factory**
-(`https://api.tokenfactory.nebius.com/v1/`, OpenAI-compatible) running
-NVIDIA's open-weight **Nemotron 3** family. No local inference.
+## Prerequisites
 
-Requests are routed through three tiers defined in
-[`src/nebius_llm/config.py`](src/nebius_llm/config.py):
+- Python 3.11+ and [uv](https://docs.astral.sh/uv/)
+- [Node.js](https://nodejs.org/) 20+ and npm
+- A Nebius Token Factory API key from [tokenfactory.nebius.com](https://tokenfactory.nebius.com)
+
+## Setup
+
+```bash
+git clone https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project.git
+cd Nebius-X-NVIDIA-Hackathon-Project
+
+# Backend dependencies, including pytest (dev group)
+uv sync --all-extras
+
+# API key
+cp .env.example .env        # then paste your key into NEBIUS_API_KEY
+
+# Frontend dependencies
+cd web && npm install && cd ..
+```
+
+`.env` is git-ignored; never commit it. If `uv sync` fails with
+`invalid peer certificate: UnknownIssuer` (common behind corporate or antivirus
+TLS proxies), use `uv sync --all-extras --system-certs`.
+
+## Run it
+
+Check the API key first. This makes one tiny Nemotron call (about $0.000003):
+
+```bash
+uv run python scripts/smoke_test.py
+```
+
+It should end with `SMOKE TEST PASSED`.
+
+Then start the two servers in separate terminals, both from the repo root.
+
+**Backend** (http://localhost:8000):
+
+```bash
+uv run uvicorn app.main:app --reload --app-dir src
+```
+
+- `GET /api/health` returns `{"status":"ok"}`.
+- Interactive API docs are at http://localhost:8000/docs.
+- The SQLite database `app.db` and the `uploads/` folder are created on first
+  run and are git-ignored.
+
+**Frontend** (http://localhost:5173):
+
+```bash
+cd web
+npm run dev
+```
+
+The frontend calls the backend at `http://localhost:8000`; set
+`VITE_API_BASE_URL` (for example in `web/.env`) to point it elsewhere. The
+backend only allows CORS from `http://localhost:5173`.
+
+`npm run build` type-checks and produces a production bundle in `web/dist/`.
+
+### What to open
+
+| URL | What it is |
+|---|---|
+| http://localhost:5173/ | Scroll-driven 3D landing page (the front door) |
+| http://localhost:5173/enter | Short animated entry scene (skip with Esc) |
+| http://localhost:5173/home | The dashboard: create a room, add locations, upload a `.glb` scan and photos, review, organize, chat |
+
+Use a current Chrome, Safari or Edge with hardware acceleration on; the 3D
+pages need WebGL and fall back to a static version without it (or with reduced
+motion). Add `?static` to the landing URL (`/?static`) to preview the fallback.
+
+To try the scan viewer, export a room as `.glb` from a LiDAR app such as
+Polycam or Scaniverse and upload it from a room's "Upload a room scan" link.
+
+### Cost
+
+Uploading a photo and pressing Analyze, or using Organize or Chat, makes a
+real, billed Token Factory call (well under a cent each). Every call
+appends its token counts and estimated cost to the file named by
+`USAGE_LOG_PATH` (default `usage_log.jsonl`). If you work in several git
+worktrees, point them all at one shared file (see `.env.example`) so the $25
+budget is tracked in one place. The log is git-ignored; check the Token Factory
+console for actual billing.
+
+## Run the tests
+
+```bash
+uv run pytest -q
+```
+
+All AI calls are mocked; the tests never touch the network or spend money.
+
+## Other scripts
+
+```bash
+uv run python scripts/ask.py "Explain mixture-of-experts in one paragraph"
+uv run python scripts/ask.py --tier super "..."    # nano (default), super, ultra
+uv run python scripts/vision_debug.py photo.jpg    # raw vision output for one image
+```
+
+`ask.py` with no question starts an interactive prompt. `--think` lets
+Nemotron reason first, which costs more output tokens. `vision_debug.py` also
+takes `--tier glm-flash`; it sends the image to a vision model, so it is billed.
+
+## Models
+
+Text inference is NVIDIA **Nemotron 3** on Nebius Token Factory
+(`https://api.tokenfactory.nebius.com/v1/`, OpenAI-compatible), routed through
+three tiers in [`src/nebius_llm/config.py`](src/nebius_llm/config.py):
 
 | Tier | Model | Used for |
 |---|---|---|
@@ -21,106 +138,46 @@ Requests are routed through three tiers defined in
 | `super` | `nvidia/nemotron-3-super-120b-a12b` | harder tasks that nano gets wrong |
 | `ultra` | `nvidia/Nemotron-3-Ultra-550b-a55b` | heavy reasoning, used sparingly |
 
-Every call logs prompt/completion tokens and an estimated cost to
-`usage_log.jsonl` so spend stays visible. See
-[`docs/token-factory-notes.md`](docs/token-factory-notes.md) for what the
-Nebius docs say about endpoints, auth, rate limits and model IDs.
-
-## Setup
-
-Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/).
-
-```bash
-git clone https://github.com/<you>/<repo>.git
-cd <repo>
-uv sync
-cp .env.example .env
-```
-
-Then open `.env` and paste your key from
-[tokenfactory.nebius.com](https://tokenfactory.nebius.com) into
-`NEBIUS_API_KEY`. The key is only ever read from the environment; `.env` is
-git-ignored.
-
-If `uv sync` fails with `invalid peer certificate: UnknownIssuer` (common behind
-corporate or antivirus TLS proxies), run `uv sync --system-certs` instead.
-
-## How to run
-
-Confirm the connection end to end (one tiny nano call):
-
-```bash
-uv run python scripts/smoke_test.py
-```
-
-It lists the Nemotron models your key can see, checks the three configured
-IDs exist, makes one call, and prints the response, token counts, estimated
-cost and cumulative spend.
-
-Ask the model anything from the terminal and see what each answer cost:
-
-```bash
-uv run python scripts/ask.py "Explain mixture-of-experts in one paragraph"
-```
-
-Run it with no question for an interactive prompt. Add `--tier super` or
-`--tier ultra` to use a bigger model, and `--think` to let it reason first
-(costs more tokens). Every call appends a line to `usage_log.jsonl`.
-
-Use the client from your own code:
-
-```python
-from nebius_llm import chat
-
-r = chat("Summarise this in one line: ...", tier="nano")
-print(r.text, r.est_cost_usd)
-```
-
-Nemotron's built-in "thinking" is off by default because it bills reasoning
-tokens as output. Pass `think=True` when a task actually needs it.
-
-_TODO: how to run the actual app once it exists._
-
-## Optional Cosmos development test
-
-Add your NVIDIA development API key to `NVIDIA_API_KEY` in the existing
-git-ignored `.env`. Do not overwrite your Nebius key or share either key.
-NVIDIA's web demo is at https://build.nvidia.com/nvidia/cosmos3-nano-reasoner.
-Its availability does not guarantee API access.
-
-**Current status (2026-09-15): blocked.** The live API catalog lists
-`nvidia/cosmos-reason2-8b`, now the test default, but inference returns HTTP 404.
-The earlier Cosmos3 model ID also returned 404. NVIDIA staff have reported
-this catalog/API discrepancy and disabled API access in their
-[support forum](https://forums.developer.nvidia.com/t/function-not-found-for-account/357670).
-Do not repeatedly retry or assume a new key will fix it. No successful Cosmos
-inference or vision test has been completed.
-
-```bash
-uv run python scripts/cosmos_test.py
-```
-
-This sends one text-only request to NVIDIA (not Nebius), with a 256-token
-output cap and no automatic retries. It uses `nebius_llm.chat(provider="nvidia")`
-and records usage in the same private JSONL log, tagged `provider=nvidia`.
-The $0 estimate assumes NVIDIA's free development tier, not unlimited access
-or verified production billing. Authentication, throttling, empty responses,
-and truncated responses fail the test. A passing test does not verify vision.
-No images or secrets are written to the usage log.
+Photo itemization uses a separate vision tier list in the same file. `minicpm`
+(MiniCPM-V-4.5) is the default; `glm-flash` was compared against it and was too
+slow and unreliable (see [`docs/VISION_EVAL.md`](docs/VISION_EVAL.md)). Vision
+models miscount and occasionally invent items, which is why every proposed item
+goes through your review. Any model ID can be overridden with an
+environment variable listed in `.env.example`. More on endpoints, auth and rate
+limits: [`docs/token-factory-notes.md`](docs/token-factory-notes.md).
 
 ## Project layout
 
 ```
-src/nebius_llm/
-  config.py    model tiers, IDs, prices, base URL
-  client.py    chat(prompt, tier) with retries and clear auth/rate-limit errors
-  usage.py     per-call JSONL usage log + totals
-scripts/
-  smoke_test.py  one-call connection check
-  ask.py         ask a question, see the answer and its cost
-docs/
-  token-factory-notes.md
+src/nebius_llm/   Token Factory client: config.py, client.py (chat), vision.py, usage.py
+src/app/          FastAPI backend: main.py, models.py, schemas.py, db.py, storage.py
+  routers/        rooms, scans, photos, candidates, items, organize, chat
+  ai/             prompts and parsing for vision, organize and chat commands
+web/              React + Vite frontend
+  src/pages/      one page per screen, plus Landing and Entry
+  src/components/ shared glass UI components; design tokens in src/tokens.css
+  src/three/      3D: landing scene, entry scene, GLB ScanViewer
+scripts/          smoke_test.py, ask.py, hello.py, vision_debug.py,
+                  vision_eval.py, command_eval.py
+tests/            client/config/usage unit tests and backend API tests
+docs/             ARCHITECTURE.md, DESIGN_BRIEF.md, VISION_EVAL.md,
+                  TESTING_GAPS.md, DEMO_SCRIPT.md, HANDOFF.md,
+                  token-factory-notes.md
 ```
+
+## Known limitations
+
+- **No real authentication.** Every record belongs to one fixed development
+  owner, so run it locally only; do not expose it to the internet.
+- **Photos are stored and sent as uploaded.** EXIF metadata (such as GPS
+  location) is not stripped. HEIC/HEIF (iPhone) uploads are accepted but are not
+  converted, so the vision model may fail to read them; export as JPG or PNG
+  first. Photos are sent to the vision model on Nebius when you press Analyze.
+- **Local storage only.** Uploads live in a git-ignored `uploads/` folder and the
+  database is a local SQLite file, with no migrations.
+- The Nebius spend shown in the top bar is a session total from the calls made in
+  the browser, not your all-time spend.
+- Voice input is not built.
 
 ## License
 

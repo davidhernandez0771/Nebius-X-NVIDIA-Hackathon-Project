@@ -1,290 +1,264 @@
-# Room organizer: proposed architecture
+# Architecture
 
-Planning snapshot: 2026-09-15. This is a proposed build plan, not an implemented app.
-David requested a full structure map. Build and verify one milestone at a time.
+Status: 2026-09-18. The foundation in §5 is built: a FastAPI backend with the
+full data model (§7), every route in §3 except the entry scene, and a React
+frontend shell with one page per screen. None of it has been run against the
+real Nebius API yet -- every AI-backed route is wired but only tested against
+mocked responses (`tests/test_app_api.py`). The first real run is also the
+first real test of the vision/command prompts; see §10 for the actual next
+step. The earlier "room organizer" architecture (forms/lists only, no
+photo-review UX, and a 3D world conflated with the room scan itself) and the
+even earlier "tennis debrief" idea are both superseded. Do not build either.
+An NVIDIA Cosmos vision integration was also tried and abandoned (every
+tested model ID returned HTTP 404; NVIDIA staff confirmed the API disabled)
+-- its code has been removed; the vision shortlist in §4 replaces it.
 
-## 1. Product and first demonstration
+## 1. Product
 
-A personal website that helps you remember where your belongings are and organize
-them around how you use your room. Your iPhone supplies photos; your desktop and
-phone share the same inventory. Nemotron turns confirmed inventory and your
-preferences into useful organization advice.
+Log in and land on a decorative animated 3D entry scene — atmosphere only,
+not tied to your data, the same for everyone. Continuing takes you into the
+main app, where the real functionality lives:
 
-First demonstration: photograph a desk shelf, confirm/edit the suggested items,
-save them under Bedroom > Desk > Top shelf, ask where the charging cable is, ask
-for a tidier arrangement, and confirm one move. Refresh the page to show that the
-new location persists. Show the model usage and estimated cost.
+1. Upload a LiDAR scan of a room, captured with an existing third-party
+   scanning app (Polycam, Scaniverse, "3D Scanner App", etc.) and exported as
+   GLB. No native app of our own to build. The scan gives spatial context
+   inside the main app; it is not what the entry scene shows.
+2. Take or upload photos of an area (a shelf, a drawer, a desk).
+3. Review: for each photo, a vision model proposes candidate items. You sort
+   each candidate into **organize** (confirmed, keep), **unknown** (skip for
+   now, needs a closer look), or **trash** (marked to get rid of). Only this
+   confirmation writes to inventory — the model's proposal is never inventory
+   on its own.
+4. Ask for organization suggestions. Nemotron reasons over your confirmed
+   inventory and preferences and proposes an arrangement; it never moves or
+   deletes anything by itself.
+5. Control all of the above through a chat command bar ("send the lamp to
+   trash", "organize my desk"). Voice input is a planned addition once chat
+   commands work; it is not in the first build.
 
-The website records observations and your confirmations. It cannot know that an
-object moved off-camera. Answers say "last confirmed" with a date, not "currently"
-unless you just verified the location. It does not infer what is inside a closed
-drawer or guarantee exact counts from cluttered photos.
+First demonstration: scan a room with a third-party app and upload the file,
+photograph one shelf, sort the proposed candidates, ask for an organizing
+suggestion, trash one item by chat command, refresh the page and show the
+change persisted along with its usage cost.
 
 ## 2. Structure map
 
 ```mermaid
 flowchart TD
-    Phone[iPhone browser: take or upload photo] --> Web[Responsive website]
-    Desktop[Desktop browser: inventory and workspace] --> Web
-    Web --> API[Python FastAPI backend]
-    API --> Photos[Private photo storage and preprocessing]
-    Photos --> Gateway[nebius_llm.chat: routing and usage logging]
-    Gateway --> Vision[Nebius vision model: candidate items]
-    Vision --> Review[User reviews names, counts and locations]
-    Review --> DB[SQLite: confirmed inventory and history]
-    DB --> Context[Relevant items and user preferences]
+    Entry[Decorative 3D entry scene: no user data] --> Login[Log in]
+    Login --> Main[Main app]
+    Main --> ScanUpload[Upload LiDAR scan: GLB from a 3rd-party app]
+    ScanUpload --> RoomView[Room view: spatial context]
+    Main --> PhotoUpload[Photograph or upload an area]
+    PhotoUpload --> Gateway[nebius_llm.chat: routing + usage logging]
+    Gateway --> Vision[Vision model: candidate items]
+    Vision --> Review[User sorts each candidate: organize / unknown / trash]
+    Review --> DB[SQLite: confirmed inventory, trash state, history]
+    DB --> Context[Relevant items + preferences]
     Context --> Gateway
-    Gateway --> Nemotron[Nebius Nemotron: advice and grounded answers]
-    Nemotron --> Proposals[Suggested organization or moves]
-    Proposals --> Confirm[User confirms completed changes]
+    Gateway --> Nemotron[Nemotron: organization suggestions]
+    Nemotron --> Proposals[Suggested arrangement]
+    Proposals --> Confirm[User confirms a move]
     Confirm --> DB
-    API --> Modes[Saved themes and link groups]
-    Gateway -. optional future adapter .-> Cosmos[Cosmos: only if access is verified]
+    Main --> ChatBar[Chat command bar]
+    ChatBar --> Gateway
+    Gateway --> Parser[Nemotron: parse command into a structured action]
+    Parser --> DB
 ```
 
-## 3. Pages and responsibilities
+## 3. Screens and responsibilities
 
-| Page | What the user does | AI required? |
-| --- | --- | --- |
-| Home | See room cards, recent items and last confirmed locations | No |
-| Add / scan | Choose room and storage area, photograph or upload one image | One vision call after pressing Analyze |
-| Review scan | Rename, remove, add or merge items; correct counts and locations | No |
-| Inventory | Search, filter, edit items, move items, see history | No for normal search |
-| Ask / organize | Ask about belongings or request an arrangement | One Nemotron call using selected records |
-| Workspace modes | Save icons, colors, backgrounds and groups of links | No for ordinary mode activation |
-| Settings / usage | Set preferences, inspect estimates, delete/export data | No |
+| Screen | What the user does | AI required? |
+|---|---|---|
+| Entry scene | Watch the animated intro, log in | No |
+| Home / dashboard | See rooms, recent items, last-confirmed locations | No |
+| Room view | See the uploaded scan for spatial context | No |
+| Add / scan upload | Upload a GLB scan of a room | No |
+| Add / photo | Photograph or upload one area | One vision call on submit |
+| Review | Sort proposed candidates into organize / unknown / trash | No (uses prior vision call's output) |
+| Inventory | Search, filter, edit, view history, see trash | No |
+| Organize | Ask for an arrangement suggestion | One Nemotron call |
+| Chat | Type a command, get it parsed into an action | One Nemotron call per command |
+| Settings / usage | Preferences, usage/cost, export/delete data | No |
 
-Make inventory and review work before adding workspace customization. The product
-identity can connect physical and digital routines later: a Study mode shows
-study links plus the last saved location of your headphones and notebook.
-
-## 4. Model choices: what is actually known
+## 4. Vision model shortlist
 
 Read-only authenticated `GET /v1/models?verbose=true` on Nebius on 2026-09-15
-advertised the following image-input models. Prices below are the returned prompt
-and completion token prices converted to USD per one million tokens. These are
-catalog observations, NOT successful inference tests or guaranteed photo costs.
+listed these image-input models. Prices are prompt/completion cost per 1M
+tokens. These are catalog observations, not successful inference tests — no
+candidate has been tested on a real photo yet. That's the first
+implementation milestone (§10).
 
 | Model ID | Input / output per 1M tokens | Proposed use |
-| --- | --- | --- |
-| `openbmb/MiniCPM-V-4_5` | $0.658 / $1.11 | First candidate for item extraction; compare on real shelf photos |
-| `zai-org/GLM-5.3-Flash` | $0.15 / $0.50 | Cheapest advertised candidate; compare quality before choosing |
-| `moonshotai/Kimi-K2.6` | $0.95 / $4.00 | Alternative when the first candidates miss items or labels |
-| `moonshotai/Kimi-K3` | $3.00 / $15.00 | Listed vision alternative; defer while cheaper models suffice |
+|---|---|---|
+| `openbmb/MiniCPM-V-4_5` | $0.658 / $1.11 | First candidate for item extraction; test first |
+| `zai-org/GLM-5.3-Flash` | $0.15 / $0.50 | Cheapest candidate; compare quality against MiniCPM |
+| `moonshotai/Kimi-K2.6` | $0.95 / $4.00 | Fallback if the above miss items or labels |
+| `moonshotai/Kimi-K3` | $3.00 / $15.00 | Deferred while cheaper models suffice |
 
-No candidate has been tested on a photo in this repo. Prefer MiniCPM as the first
-test, then GLM Flash on the same image. Choose the cheapest model that meets the
-review-quality target; model size or marketing alone does not decide quality.
+## 5. Technology
 
-Nebius's website also mentions Qwen2.5-VL, but it is absent from the current key's
-catalog. Qwen3.5 is listed with a multimodal description but `text->text` endpoint
-metadata. Neither is a confirmed image-input option for this setup.
+- Frontend: React + Vite, in `web/`. Every screen in §3 except the entry
+  scene exists as a page wired to the real backend API (`web/src/pages/`,
+  `web/src/api/client.ts`). The entry scene isn't built -- when it is, scope
+  its React Three Fiber / Three.js dependency to that one page so the rest of
+  the app doesn't carry 3D-rendering weight it doesn't need.
+- Backend: Python, FastAPI, Pydantic validation, the existing `nebius_llm`
+  wrapper, in `src/app/`. Run everything through `uv`
+  (`uv run uvicorn app.main:app --reload --app-dir src`).
+- Database: SQLite (`app.db`, git-ignored) via SQLAlchemy 2.0 models
+  (`src/app/models.py`). No migration tool yet -- the models are the single
+  source of truth and `init_db()` creates whatever tables don't exist. Add
+  Alembic when a schema change needs to preserve existing data across a
+  deploy, not before; nothing here has real data worth preserving yet.
+- Scan files: GLB uploads only (`POST /api/scans`), validated by extension
+  and size, stored as an opaque file under `uploads/scans/` (git-ignored).
+  Rendering client-side with Three.js's `GLTFLoader` is not built yet (§10
+  step 3) -- upload works, the room-view screen doesn't render the mesh yet.
+  No parsing of scan geometry for item placement -- the scan is read-only
+  spatial context, not a data source itemization writes into.
+- Photos: git-ignored local directory in development (`uploads/photos/`);
+  private object storage if deployed. MIME/size are validated on upload.
+  EXIF-stripping and explicit HEIC handling are **not implemented yet** --
+  a real known gap, not an oversight to rediscover later.
+- Auth: single-owner development mode (`DEV_OWNER_ID` in `src/app/config.py`)
+  -- every record belongs to a fixed placeholder owner, no login exists yet.
+  Add real auth before any deployment that isn't just you.
 
-Nemotron stays central: the existing nano route handles inventory questions and
-organization suggestions. Use Super only if measured quality needs it. Ultra
-is an explicit, bounded experiment for difficult planning, not the default.
+All text inference goes through `nebius_llm.chat()`; all image inference
+goes through the separate `nebius_llm.chat_vision()` (added alongside this
+foundation) with its own vision-tier config (`VISION_TIERS` in
+`src/nebius_llm/config.py`) -- neither reuses the other's price table or
+message shape. `src/app/ai/` holds the actual prompts (itemization, organize,
+command parsing) and response parsing on top of those two functions; routers
+call `src/app/ai/*`, never `nebius_llm` directly, so usage logging and error
+handling stay in one place.
 
-Cosmos remains an optional replacement vision adapter. The tested NVIDIA API
-returns 404; no local installation, rented GPU or usable hosted inference has
-been established. The rest of the app must work without it.
+## 6. Itemization review, precisely
 
-## 5. Proposed technology and deployment
+The vision call returns a list of candidate items per photo (name, category,
+approximate count, an uncertainty note) — not bounding boxes; there is no
+verified image-region output for any shortlisted model yet, and this build
+doesn't depend on getting one. The review screen shows the source photo next
+to that list. For each candidate the user picks one of three buckets:
 
-- Frontend: responsive HTML, CSS and small JavaScript modules served by FastAPI.
-  Start without a large frontend framework; this keeps one server and fits the
-  existing Python project. Add an installable web-app manifest later if useful.
-- Backend: Python FastAPI, Pydantic request/response validation, existing model
-  wrapper. Install dependencies with uv and run Python through uv.
-- Database: SQLite for the initial single-server demo. Use migrations. Introduce
-  PostgreSQL if multi-instance hosting or substantial multi-user traffic requires it.
-- Photos: ignored private local directory in development. Use a persistent private
-  volume for a one-server demo or private object storage when deploying separately.
-- Browser sessions: single-owner development first; authentication and per-owner
-  access checks before any public deployment with personal room photos.
-- Hosting: choose after the local end-to-end workflow works. Needs HTTPS, persistent
-  storage and server-side secrets. Hosting/storage charges are separate from model
-  credits. Do not assume Nebius Token Factory hosts the website itself.
+- **Organize** — confirmed; becomes (or updates) an inventory item at the
+  photographed location.
+- **Unknown** — skipped for now; stays out of inventory, resurfaces on a
+  later scan of the same area instead of silently vanishing.
+- **Trash** — flagged to get rid of. This is a soft state, not a delete: the
+  item leaves active inventory and organize suggestions but stays visible in
+  a trash list until the user empties it. Nothing physical happens — the
+  webapp cannot know you actually threw something away.
 
-All image and text inference must pass through `nebius_llm.chat()`. Extend it with
-an explicit vision route and image-message support, model-specific supported
-parameters, prices and output validation. Do not swap a vision ID into the nano
-configuration: its prices and Nemotron-specific options would then be wrong.
-This gateway extension is proposed work, not already implemented.
+A candidate never becomes inventory, and inventory is never marked trash,
+without this explicit user action. The chat command bar can also trigger a
+trash/organize action directly on an *existing* inventory item ("trash the
+lamp") — that's a user-issued command on confirmed data, not the vision
+model's proposal, so it's held to the same rule: Nemotron parses intent, the
+backend validates the referenced item exists before acting, and it never
+guesses.
 
-## 6. iPhone and desktop workflow
-
-1. Open the same website on both devices and use the same account/workspace.
-2. On the phone, select a storage area and use a photo picker/camera capture input.
-   Start with one photo at a time and retain normal file upload as a fallback.
-3. Show a preview and an explicit Analyze button before sending the image.
-4. Upload to the backend; validate and normalize rotation, strip location metadata,
-   resize to a sensible limit, and convert supported inputs to JPEG/PNG. Handle
-   iPhone HEIC explicitly or explain how to supply JPEG; never silently reject it.
-5. Phone or desktop reviews the result. Desktop refresh/polling shows saved items;
-   real-time video streaming is unnecessary for the first version.
-
-No webcam connection cable or special camera app is needed for this design.
-For direct browser camera preview, `getUserMedia()` requires permission and a secure
-context. A phone opening a desktop's plain HTTP LAN address is not localhost;
-use HTTPS for that feature. First test can simply transfer a photo to the desktop.
-
-## 7. Data model and truth rules
+## 7. Data model
 
 | Record | Essential fields |
-| --- | --- |
-| Workspace / owner | ID, owner ID, preferences, theme |
-| Location | ID, workspace ID, parent ID, name, kind (room/shelf/drawer/bin) |
-| Photo | ID, workspace ID, storage key, location ID, created time, retention choice |
-| Scan | ID, photo ID, model, status, candidate JSON, usage reference, error code |
-| Item | ID, workspace ID, name, category, attributes, quantity, location ID, last confirmed time |
-| Observation | ID, item ID, photo/scan ID, observed time; evidence distinct from confirmed truth |
+|---|---|
+| Room | ID, owner ID, name |
+| Scan | ID, room ID, storage key, uploaded time |
+| Location | ID, room ID, name (e.g. "desk", "top shelf") |
+| Photo | ID, location ID, storage key, created time |
+| Candidate | ID, photo ID, proposed label/category/count, uncertainty note, status (pending/organize/unknown/trash) |
+| Item | ID, room ID, location ID, name, category, quantity, status (active/trash), last-confirmed time |
 | Move | ID, item ID, previous/new location, confirmed time |
-| Proposal | ID, source inventory revision, suggested steps, accepted/dismissed state |
-| Mode | ID, name, icon, colors/background, user-saved links, related item IDs |
+| Proposal | ID, source inventory snapshot, suggested steps, accepted/dismissed |
+| Command | ID, raw text, parsed action, target item ID, executed time, result |
 
-Candidate fields: label, category, visible attributes, approximate count and
-uncertainty notes. Optional image regions can come later; no promise of accurate
-boxes or measurements. Model confidence numbers are not calibrated probabilities.
+Only a confirmed transaction (review submit, organize confirm, or a
+successfully parsed and validated chat command) changes an Item or a Move.
+Everything upstream of that (Candidate, Proposal, a parsed-but-unvalidated
+Command) is a suggestion, not truth.
 
-Only the user-confirmed transaction creates inventory or changes a location.
-Rescans propose matches and duplicates for review; they never automatically delete
-missing objects. An item not visible may simply be occluded. Preserve IDs through
-renames and moves. Reject cross-workspace references and stale revisions.
+## 8. Chat command layer
 
-Embeddings are optional later: encode confirmed text descriptions to find related
-items when exact search fails. They neither identify objects on their own nor
-provide reliable identity tracking. Start with category/name filters and database
-search. Any future embedding route needs the same central usage accounting policy;
-do not add an unlogged SDK shortcut or a vector database prematurely.
-
-## 8. Backend interfaces and failure behavior
-
-Proposed routes (not implemented):
-
-- `POST /api/scans`: validate one image/location, create bounded scan request.
-- `GET /api/scans/{id}`: pending, processing, ready for review, or failed.
-- `POST /api/scans/{id}/confirm`: atomically save reviewed candidates; duplicate
-  submissions use an idempotency key and do not create duplicate items.
-- `GET /api/items`, `PATCH /api/items/{id}`, `POST /api/items/{id}/moves`.
-- `POST /api/organize`: retrieve bounded relevant inventory, call Nemotron once,
-  validate proposed item/location IDs and return advice without executing moves.
-- `POST /api/ask`: retrieve relevant confirmed items; explicitly say when evidence
-  is absent rather than inventing a location.
-- CRUD routes for locations/modes; usage summary and data export/delete routes.
-
-Use a small persisted job table and one worker for scans if latency makes a direct
-request fragile. A restarted in-flight job becomes interrupted; it is not silently
-replayed at additional cost. Timeouts and rate limits return clear UI states. Keep
-manual inventory entry usable during provider failures. Reject invalid model JSON
-or offer manual review; do not loop until output is valid.
+- Input: free text in a chat bar. Nemotron (nano first; escalate to super
+  only if nano's parsing accuracy is measurably bad) parses it into one of a
+  fixed set of structured actions: `trash(item)`, `organize(location?)`,
+  `move(item, location)`, `query(question)`. Anything that doesn't parse
+  cleanly returns "I didn't understand that" rather than a best-effort guess.
+- Every parsed action is validated against the database before executing
+  (item exists, belongs to this owner, isn't already trashed) — the model
+  proposes the action, the backend is the only thing that executes it.
+- Voice is explicitly out of the first build. Design the parser around plain
+  text input/output now so adding speech-to-text/text-to-speech later doesn't
+  require touching the parsing logic.
 
 ## 9. Budget, privacy and control
 
-- Starting credit allowance: $25; actual remaining balance must come from the
-  console. The repo's estimated log is not a complete billing receipt.
-- Proposed allocation: $2 experiments, $8 implementation checks, $5 demo rehearsal,
-  $10 reserve. Reconcile with prior spending before enforcing these amounts.
-- One vision call per explicitly submitted scan; organization is a separate user
-  action with one nano call. Initial tests: one photo, capped output, retries=0.
-- Proposed first comparison cap: 3 photos x 2 models = 6 requests, with a $0.25
-  estimated batch ceiling. Stop on errors, excessive reasoning or truncated output.
-- Before implementation calls, verify supported image format and output/reasoning
-  parameters. Missing usage or unknown image billing means unknown cost, not zero.
-- Example only: 2,000 billable input tokens plus 500 output tokens costs about
-  $0.001871 on MiniCPM or $0.00055 on GLM Flash at the catalog rates. Image token
-  counts and reasoning can change actual cost; these are not per-photo quotes.
-- Budget checks must reserve estimated in-flight costs and include retry attempts.
-  Log failures and timeouts as potentially unreported spend. Use server rate limits
-  and per-session quotas so a public demo cannot consume the whole balance.
-- Keep keys server-side. Never put keys in HTML, browser storage, URLs or logs.
-- Keep photos private, validate MIME/content and size, strip EXIF, check ownership
-  on every read, and provide delete/export. Explain that analysis sends the chosen
-  image to a cloud provider. Do not claim fully local processing or zero retention.
-- Treat image text and retrieved web pages as data, not instructions. Models do not
-  run commands, browse arbitrary URLs or alter inventory without confirmation.
+- Starting credit allowance: $25 (actual remaining balance comes from the
+  Nebius console, not the local usage log).
+- One vision call per submitted photo; one Nemotron call per organize request
+  or per chat command. No loop calls the model without a hard iteration cap.
+- First vision comparison: 3 photos × 2 candidate models (MiniCPM, GLM Flash)
+  = 6 calls, capped output, no retries. Stop on errors or truncated output.
+  Pick the cheaper model unless it measurably misses items the other catches.
+- Keep keys server-side only. Never in HTML, browser storage, URLs, or logs.
+- Keep photos and scans private, validated, EXIF-stripped; check ownership on
+  every read; provide export/delete. State plainly that analysis sends the
+  chosen image to a cloud provider — no claim of local-only processing.
+- Treat photo/scan content and any parsed chat text as data, not instructions.
+  The model never executes anything the backend hasn't independently
+  validated.
 
-## 10. Optional features after the core works
+## 10. Build order and acceptance gates
 
-| Feature | Practical first version | Later / unresolved |
-| --- | --- | --- |
-| Custom identity | User-selected icon, colors and background | Generated designs and richer layouts |
-| Work/study modes | Saved link cards and associated belongings | Multiple automatic tabs can hit popup restrictions; explicit links are reliable |
-| Desktop actions | None required for MVP | Opening native apps or changing OS settings needs a separate permissioned helper/extension |
-| Virtual room | Hierarchical room/location cards | Floor plan and editable layout; true 3D reconstruction is a separate project |
-| Projector | Display the website as a second monitor | Interactive projection needs tracking/input and calibration; a projector alone does not add touch |
-| Tavily | Optional research for storage methods or products, with citations | User supplies dimensions/budget; do not send private room photos to search |
-| Cosmos | Adapter slot in the vision pipeline | Only after a callable endpoint, cost and photo test are verified |
+1. **Itemize + organize + chat loop, no 3D at all.** Flat screens: upload a
+   photo, get candidates, review/sort them, ask for an organize suggestion,
+   issue one chat command, confirm the database updates correctly on
+   refresh. **Built, but unverified**: every route, page, and the DB schema
+   exist and pass tests against mocked AI responses
+   (`tests/test_app_api.py`), but no real Nebius call has been made yet --
+   the riskiest untested part (vision quality on a real photo, Nemotron's
+   command-parsing accuracy) is still genuinely untested. Remaining before
+   this step is actually done:
+   - Run it against the real API: upload one real shelf photo, see what
+     `itemize_photo()` actually returns, fix the prompt in
+     `src/app/ai/vision.py` against real output (§9's budgeted first test).
+   - Same for `src/app/ai/commands.py`'s command parsing against real phrasing.
+   - Only `trash` is wired to an executed chat action; `organize`/`move`/
+     `query` via chat currently just return an explanatory message (see
+     `src/app/routers/chat.py`) -- decide whether those need wiring before
+     the demo or can stay Organize-screen-only.
+   - EXIF stripping and HEIC handling are not implemented (§5).
+2. **Entry scene.** Decorative animated 3D intro before login. Independent of
+   everything else; can happen in parallel with step 1 or after — it doesn't
+   block, or get blocked by, the core loop. Not started.
+3. **Scan upload + room view.** Upload works (`POST /api/scans`); client-side
+   rendering with `GLTFLoader` is not built yet. Read-only spatial context;
+   no item-placement logic yet.
+4. **Polish + connect.** iPhone-to-desktop flow (upload from either), loading/
+   error states, trash list and empty-trash action, usage/cost visible in the
+   UI itself (not just the log file).
+5. **Publish and submit.** HTTPS, persistent storage, secrets, sample data,
+   setup instructions, demo video, recheck hackathon requirements.
 
-Tavily is web research, not inventory memory. Its prize requires a functional
-runtime Tavily API call as part of the solution; adding a logo or stored links is
-not enough. Keep it out of the critical path until it solves a demonstrated need.
+Quality gate: on 3 real photos, hand-label clearly visible items and record
+omissions, invented items, and cost/latency for both shortlisted vision
+models. Target ≥80% of clearly visible items proposed and zero invented items
+that survive review. This is a usability gate, not a formal benchmark.
 
-## 11. Build order and acceptance gates
+## 11. Hackathon fit and sources
 
-### Evaluated optional tool: TensorRT Model Connect
-
-Reviewed NVIDIA's repository and current documentation on 2026-09-15. This is an
-experimental tool for building supported model checkpoints into TensorRT bundles
-and running them on NVIDIA hardware. It does not provide hosted API access or
-remove GPU memory requirements. It adds no direct benefit to our Token Factory
-API calls, whose model execution is managed by Nebius.
-
-A possible later use is a local vision service: supported object detectors such
-as DETR/YOLO find candidate objects, SAM supplies prompted masks, or the listed
-Nemotron image/text embedding model supports similarity search. These are distinct
-tasks; none alone provides the complete room inventory and reasoning workflow.
-Our RTX 5080 compatibility, memory use and latency would need an actual test of
-the selected checkpoint. Do not assume all declared recipes run on 16 GB VRAM.
-
-Current documented installation paths are Linux. x86_64 requires a source build
-with Docker and NVIDIA Container Toolkit; no x86_64 release wheel is published.
-There is no documented native Windows quick path on the system-requirements page.
-The model list includes Cosmos3-Nano image generation, which does not establish
-support for the Cosmos Reason endpoint we tried. Keep this tool outside the MVP;
-revisit only when local processing or inference speed becomes a measured need.
-
-Sources: [repository](https://github.com/NVIDIA/TensorRT-Model-Connect),
-[supported recipes](https://nvidia.github.io/TensorRT-Model-Connect/models-recipes/overview/),
-[system requirements](https://nvidia.github.io/TensorRT-Model-Connect/getting-started/environment-and-repro/).
-
-1. **Vision proof:** extend the logged gateway, analyze one non-sensitive shelf
-   photo, print actual labels/tokens/latency/cost. Compare two candidates within the
-   cap; pick a model only after usable output. No UI dependency until this passes.
-2. **Inventory foundation:** locations, manual items, persistence, confirmed moves
-   and basic search. Restart and verify saved records remain correct.
-3. **Photo review:** upload, scan, editable candidates and explicit confirmation.
-   Test iPhone input, duplicates, rotation, unsupported files and provider failure.
-4. **Nemotron workflow:** grounded item lookup and an organization plan referencing
-   real item/location IDs. Test unknown items, stale locations and rejected moves.
-5. **Connected website:** phone and desktop share the same records; polish loading,
-   error and review states. Verify account isolation before public access.
-6. **Identity and modes:** add a small theme editor and saved link groups if time
-   remains. Demonstrate a useful connection to the room-organizing workflow.
-7. **Publish and submit:** HTTPS, persistent storage, secrets, quotas, sample data,
-   setup instructions and demo video. Recheck hackathon requirements and terms.
-
-Proposed quality check: on three photos, hand-label clearly visible objects and
-record omissions, invented items, corrections, latency and cost. Target at least
-80% of clearly visible items identified and zero invented items saved after review.
-This is a small usability gate, not a scientific benchmark or accuracy guarantee.
-
-## 12. Hackathon fit and sources
-
-Best Apps and Agents is the proposed track: Nemotron on Token Factory performs the
-core reasoning while a separate vision model supplies observations. The general
-rules require a runtime Nebius call or Nebius compute plus an NVIDIA open model.
-The track explicitly calls for Nemotron on Token Factory. Verify final submission
-details again before publishing; do not rely on the obsolete tennis sections of
-HANDOFF.md as current product requirements.
+Best Apps and Agents track: Nemotron on Token Factory does the reasoning
+(organize suggestions, command parsing); a Nebius-hosted vision model
+supplies observations. General rules require a runtime Nebius Token Factory
+call or Nebius AI Cloud compute plus an NVIDIA open model — verify final
+submission terms again before publishing.
 
 - [Official rules](https://nebiusglobalaihackathon.devpost.com/rules)
 - [Nebius model catalog API](https://docs.tokenfactory.nebius.com/api-reference/models/list-models)
 - [Nebius image request format](https://docs.tokenfactory.nebius.com/api-reference/examples/vision-capabilities)
-- [Nebius vision overview](https://nebius.com/solutions/vision)
 - [NVIDIA Cosmos API availability report](https://forums.developer.nvidia.com/t/function-not-found-for-account/357670)
-- [Browser camera requirements](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)
 
-Open decisions: name/logo and visual style; which room to test first; final vision
-model after testing; photo retention preference; hosting provider; whether Tavily
-or workspace modes add enough value for the first demo. Suggested defaults above
-let us proceed one milestone at a time without committing to later features.
+Open decisions: project name/branding; which room to scan first; final vision
+model after testing; hosting provider; whether the entry scene ever becomes a
+functional hub instead of decoration (undecided — ship it decorative first).

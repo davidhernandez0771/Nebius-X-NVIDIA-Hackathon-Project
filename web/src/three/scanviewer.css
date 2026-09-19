@@ -1,0 +1,96 @@
+/* ScanViewer. Uses the global brief tokens when they exist, with fallbacks. */
+.scan-viewer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  overflow: hidden;
+  border-radius: inherit;
+  background:
+    radial-gradient(70% 60% at 20% 0%, rgba(255, 120, 50, 0.16), transparent 70%),
+    radial-gradient(70% 60% at 100% 100%, rgba(53, 240, 208, 0.08), transparent 70%),
+    var(--bg-0, #0b0807);
+  color: var(--text, #f4f0ec);
+  font-family: -apple-system, "SF Pro Display", Inter, system-ui, sans-serif;
+}
+.scan-viewer canvas {
+  display: block;
+  cursor: grab;
+}
+.scan-viewer canvas:active {
+  cursor: grabbing;
+}
+.scan-viewer__status,
+.scan-viewer__error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--surface, rgba(255, 255, 255, 0.045));
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.09));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.scan-viewer__ring {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px dotted var(--accent, #35f0d0);
+  animation: scan-viewer-spin 1.2s linear infinite;
+}
+@keyframes scan-viewer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.scan-viewer__error {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 24px;
+  padding: 18px 22px;
+  max-width: min(86%, 26rem);
+  white-space: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+.scan-viewer__error strong {
+  font-weight: 500;
+}
+.scan-viewer__error code {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted, #8e837b);
+  word-break: break-word;
+}
+.scan-viewer__error button {
+  margin-top: 4px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.09));
+  background: var(--surface, rgba(255, 255, 255, 0.045));
+  color: var(--text, #f4f0ec);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.scan-viewer__error button:hover {
+  border-color: var(--accent, #35f0d0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-viewer__ring {
+    animation: none;
+  }
+}
