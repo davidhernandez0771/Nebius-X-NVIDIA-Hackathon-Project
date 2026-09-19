@@ -68,7 +68,7 @@ def test_trash_item_already_in_trash_is_not_found_and_not_trashed_again(api, roo
     reply = say(api, "trash the lamp", room.id, trash("lamp")).json()
 
     assert reply["action"] == "unknown"
-    assert "couldn't find" in reply["result"]
+    assert "already in the trash" in reply["result"]
     assert get_item(old).status == "trash"
     assert command_rows()[0].target_item_id is None
 
@@ -130,9 +130,12 @@ def test_json_wrapped_in_prose_and_code_fence_still_parses(api, room):
 def test_non_trash_actions_never_trash_or_delete_items(api, room, action):
     lamp = make_item(room.id, room.location_id, "lamp")
     proposal = {"action": action, "item_name": "lamp", "location_name": "Shelf", "question": "where is it?"}
-    reply = say(api, "do something with the lamp", room.id, proposal).json()
+    # organize is wired now and makes a second (mocked) Nemotron call. "Shelf"
+    # doesn't exist in this room, so move/organize refuse rather than guess.
+    with patch("app.ai.organize.chat", return_value=NS(text="- fine", est_cost_usd=0.0)):
+        reply = say(api, "do something with the lamp", room.id, proposal).json()
 
-    assert reply["action"] == action
+    assert reply["action"] in (action, "unknown")
     assert get_item(lamp).status == "active"
 
 
@@ -155,7 +158,6 @@ def test_chat_rejects_a_request_without_text_or_room(api):
 
 # --- known gaps (xfail): the backend should refuse these, and doesn't -------
 
-@pytest.mark.xfail(strict=True, reason="_find_item takes .first() of an ILIKE match: 'trash the cable' picks one arbitrarily")
 def test_ambiguous_item_name_matching_several_items_must_not_guess(api, room):
     a = make_item(room.id, room.location_id, "usb cable")
     b = make_item(room.id, room.location_id, "hdmi cable")
@@ -164,7 +166,6 @@ def test_ambiguous_item_name_matching_several_items_must_not_guess(api, room):
     assert get_item(a).status == "active" and get_item(b).status == "active"
 
 
-@pytest.mark.xfail(strict=True, reason="item_name is interpolated into an ILIKE pattern unescaped, so '%' matches everything")
 def test_wildcard_characters_in_a_model_supplied_name_are_not_patterns(api, room):
     lamp = make_item(room.id, room.location_id, "lamp")
     say(api, "trash %", room.id, trash("%"))
@@ -172,7 +173,6 @@ def test_wildcard_characters_in_a_model_supplied_name_are_not_patterns(api, room
     assert get_item(lamp).status == "active"
 
 
-@pytest.mark.xfail(strict=True, reason="chat never checks the room exists or belongs to the caller")
 def test_cannot_trash_items_in_a_room_owned_by_someone_else(api):
     with db_session() as db:
         room = models.Room(owner_id="someone-else", name="Not yours")
@@ -189,6 +189,5 @@ def test_cannot_trash_items_in_a_room_owned_by_someone_else(api):
     assert get_item(lamp).status == "active"
 
 
-@pytest.mark.xfail(strict=True, reason="chat with a nonexistent room_id answers 200 instead of 404")
 def test_chat_on_a_nonexistent_room_is_404(api):
     assert say(api, "trash the lamp", 9999, trash("lamp")).status_code == 404

@@ -30,6 +30,17 @@ def update_item(item_id: int, body: schemas.ItemUpdateIn, db: Session = Depends(
     return item
 
 
+def apply_move(db: Session, item: models.Item, new_location: models.Location) -> models.Move:
+    """Record a confirmed move and update the item. Caller has already validated
+    both records (exists, same room, item active). Shared with the chat router."""
+    move = models.Move(item_id=item.id, previous_location_id=item.location_id, new_location_id=new_location.id)
+    item.location_id = new_location.id
+    db.add(move)
+    db.commit()
+    db.refresh(move)
+    return move
+
+
 @router.post("/{item_id}/moves", response_model=schemas.MoveOut)
 def move_item(item_id: int, body: schemas.MoveIn, db: Session = Depends(get_db)):
     item = db.get(models.Item, item_id)
@@ -38,9 +49,8 @@ def move_item(item_id: int, body: schemas.MoveIn, db: Session = Depends(get_db))
     new_location = db.get(models.Location, body.new_location_id)
     if not new_location:
         raise HTTPException(404, "Location not found")
-    move = models.Move(item_id=item.id, previous_location_id=item.location_id, new_location_id=new_location.id)
-    item.location_id = new_location.id
-    db.add(move)
-    db.commit()
-    db.refresh(move)
-    return move
+    if new_location.room_id != item.room_id:
+        raise HTTPException(400, "Location is in a different room")
+    if item.status != "active":
+        raise HTTPException(409, "Item is in the trash")
+    return apply_move(db, item, new_location)

@@ -12,6 +12,13 @@ class UsageTests(unittest.TestCase):
     def _with_log(self, path):
         return patch.dict("os.environ", {"USAGE_LOG_PATH": str(path)})
 
+    def test_tilde_in_log_path_is_expanded_to_home(self):
+        with tempfile.TemporaryDirectory() as home:
+            with patch.dict("os.environ", {"HOME": home, "USAGE_LOG_PATH": "~/shared.jsonl"}):
+                record_usage({"tier": "nano", "est_cost_usd": 0.5})
+                self.assertTrue((Path(home) / "shared.jsonl").exists())
+                self.assertEqual(total_spend()["est_cost_usd"], 0.5)
+
     def test_total_spend_on_missing_file_is_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self._with_log(Path(tmp) / "no_such_file.jsonl"):

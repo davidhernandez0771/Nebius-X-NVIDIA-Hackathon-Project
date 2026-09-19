@@ -148,17 +148,18 @@ def test_move_unknown_item_or_location_is_404_and_changes_nothing(api, room):
 # --- organize ---------------------------------------------------------------
 
 def test_organize_sends_only_active_items_and_stores_a_pending_proposal(api, room):
+    make_location(api, room.id, "Shelf")
     make_item(room.id, room.location_id, "lamp")
     make_item(room.id, room.location_id, "old mug", status="trash")
     with patch("app.ai.organize.chat") as chat:
-        chat.return_value = NS(text="- Keep the lamp on the desk.", est_cost_usd=0.00002)
+        chat.return_value = NS(text="- lamp -> Shelf: easier to reach.", est_cost_usd=0.00002)
         out = api.post("/api/organize", json={"room_id": room.id}).json()
 
-    sent = json.loads(chat.call_args.args[0])
+    sent = json.loads(chat.call_args.args[0])["items"]
     assert [i["name"] for i in sent] == ["lamp"]
     with db_session() as db:
         proposal = db.get(models.Proposal, out["proposal_id"])
-        assert (proposal.status, proposal.suggested_text) == ("pending", "- Keep the lamp on the desk.")
+        assert (proposal.status, proposal.suggested_text) == ("pending", "- lamp → Shelf: easier to reach.")
 
 
 def test_organize_never_moves_items(api, room):
@@ -183,7 +184,6 @@ def test_organize_model_failure_is_502_and_stores_no_proposal(api, room):
 
 # --- known gaps (xfail, strict) --------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="reviewing the same candidate as 'organize' twice creates a duplicate item")
 def test_reviewing_a_candidate_twice_does_not_duplicate_the_item(api, candidate_id):
     api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
     api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
@@ -191,7 +191,6 @@ def test_reviewing_a_candidate_twice_does_not_duplicate_the_item(api, candidate_
     assert item_count() == 1
 
 
-@pytest.mark.xfail(strict=True, reason="move does not check the destination belongs to the item's room")
 def test_move_to_a_location_in_another_room_is_rejected(api, room):
     other_room = make_room(api, "Garage")
     other_location = make_location(api, other_room, "Bench")
@@ -202,7 +201,6 @@ def test_move_to_a_location_in_another_room_is_rejected(api, room):
     assert r.status_code in (400, 404, 422)
 
 
-@pytest.mark.xfail(strict=True, reason="PATCH accepts any status string, e.g. 'banana'")
 def test_update_item_rejects_an_invalid_status(api, room):
     item = make_item(room.id, room.location_id, "lamp")
     r = api.patch(f"/api/items/{item}", json={"status": "banana"})
@@ -210,10 +208,37 @@ def test_update_item_rejects_an_invalid_status(api, room):
     assert r.status_code in (400, 422)
 
 
-@pytest.mark.xfail(strict=True, reason="organize does not check the room exists; it stores a proposal for a nonexistent room")
 def test_organize_unknown_room_is_404(api):
     with patch("app.ai.organize.chat") as chat:
         chat.return_value = NS(text="- nothing", est_cost_usd=0.0)
         r = api.post("/api/organize", json={"room_id": 9999})
 
     assert r.status_code == 404
+
+
+def test_re_reviewing_an_organized_candidate_returns_the_same_item(api, candidate_id):
+    first = api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"}).json()
+    again = api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
+
+    assert again.status_code == 200 and again.json()["id"] == first["id"]
+    assert item_count() == 1
+
+
+def test_an_organized_candidate_cannot_be_re_sorted_to_trash_or_unknown(api, candidate_id):
+    api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"})
+    for status in ("trash", "unknown"):
+        assert api.post(f"/api/candidates/{candidate_id}/review", json={"status": status}).status_code == 409
+    assert item_count() == 1
+
+
+def test_a_reviewed_but_not_organized_candidate_can_still_be_re_sorted(api, candidate_id):
+    api.post(f"/api/candidates/{candidate_id}/review", json={"status": "unknown"})
+    item = api.post(f"/api/candidates/{candidate_id}/review", json={"status": "organize"}).json()
+    assert item["status"] == "active" and item_count() == 1
+
+
+def test_update_item_accepts_the_valid_statuses(api, room):
+    item = make_item(room.id, room.location_id, "lamp")
+    for status in ("trash", "active"):
+        r = api.patch(f"/api/items/{item}", json={"status": status})
+        assert r.status_code == 200 and r.json()["status"] == status

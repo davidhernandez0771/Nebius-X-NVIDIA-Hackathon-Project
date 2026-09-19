@@ -125,11 +125,12 @@ class AppApiTests(unittest.TestCase):
         )
         self.client.post(f"/api/candidates/{analysis['candidates'][0]['id']}/review", json={"status": "organize"})
 
-        chat_mock.return_value = NS(text="- Keep the lamp on the desk.", est_cost_usd=0.00002)
+        self.client.post(f"/api/rooms/{room_id}/locations", json={"name": "Shelf"})
+        chat_mock.return_value = NS(text="- lamp -> Shelf: easier to reach.", est_cost_usd=0.00002)
         result = self.client.post("/api/organize", json={"room_id": room_id}).json()
 
         self.assertIn("lamp", chat_mock.call_args.args[0])
-        self.assertEqual(result["suggestion"], "- Keep the lamp on the desk.")
+        self.assertEqual(result["suggestion"], "- lamp → Shelf: easier to reach.")
 
     def test_chat_trash_command_end_to_end(self):
         room_id, location_id = self._make_room_and_location()

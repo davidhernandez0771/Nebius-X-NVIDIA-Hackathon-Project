@@ -30,10 +30,12 @@ def test_candidates_fail_safe_to_empty_list(raw):
     assert _parse_candidates(raw) == []
 
 
-def test_candidates_truncated_array_returns_nothing_rather_than_a_partial_guess():
-    # A reply cut off by max_tokens (finish_reason "length"). Today the whole
-    # array is discarded, including the complete first element.
-    assert _parse_candidates('[{"label": "lamp", "count": 1}, {"label": "mu') == []
+def test_candidates_truncated_array_keeps_only_the_complete_items():
+    # A reply cut off by max_tokens (finish_reason "length"). Complete elements
+    # are kept, the cut-off one is dropped. Still only proposals: the user
+    # reviews every candidate before it becomes inventory.
+    out = _parse_candidates('[{"label": "lamp", "count": 1}, {"label": "mu')
+    assert [c.label for c in out] == ["lamp"]
 
 
 def test_candidates_skip_bad_entries_and_keep_good_ones():
@@ -75,6 +77,8 @@ def test_command_anything_unclear_is_unknown(raw):
 
 
 def test_command_action_names_are_an_allowlist():
+    # trash/move/query also need their target fields, else they degrade to unknown.
+    full = '"item_name": "lamp", "location_name": "desk", "question": "where?"'
     for action in ("trash", "organize", "move", "query", "unknown"):
-        assert _parse('{"action": "%s"}' % action).action == action
-    assert _parse('{"action": "Trash"}').action == "unknown"  # exact match only
+        assert _parse('{"action": "%s", %s}' % (action, full)).action == action
+    assert _parse('{"action": "Trash", %s}' % full).action == "unknown"  # exact match only

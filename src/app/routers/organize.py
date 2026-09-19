@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..ai.organize import suggest_organization
+from ..config import DEV_OWNER_ID
 from ..db import get_db
 from nebius_llm import TokenFactoryError
 
@@ -19,6 +20,9 @@ router = APIRouter(prefix="/api/organize", tags=["organize"])
 
 @router.post("", response_model=schemas.OrganizeOut)
 def organize(body: schemas.OrganizeRequestIn, db: Session = Depends(get_db)):
+    room = db.get(models.Room, body.room_id)
+    if not room or room.owner_id != DEV_OWNER_ID:
+        raise HTTPException(404, "Room not found")
     items = db.query(models.Item).filter_by(room_id=body.room_id, status="active").all()
     payload = json.dumps(
         [
@@ -27,7 +31,7 @@ def organize(body: schemas.OrganizeRequestIn, db: Session = Depends(get_db)):
         ]
     )
     try:
-        suggestion, cost = suggest_organization(payload)
+        suggestion, cost = suggest_organization(payload, _location_names(db, body.room_id))
     except TokenFactoryError as error:
         raise HTTPException(502, str(error)) from error
 
@@ -42,3 +46,7 @@ def organize(body: schemas.OrganizeRequestIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(proposal)
     return schemas.OrganizeOut(proposal_id=proposal.id, suggestion=suggestion, est_cost_usd=cost)
+
+
+def _location_names(db: Session, room_id: int) -> list[str]:
+    return [loc.name for loc in db.query(models.Location).filter_by(room_id=room_id).all()]

@@ -24,6 +24,14 @@ def review_candidate(candidate_id: int, body: schemas.CandidateReviewIn, db: Ses
     if not candidate:
         raise HTTPException(404, "Candidate not found")
 
+    if candidate.status == "organize":
+        # An item already exists for this candidate. Re-submitting "organize"
+        # (double click, retry) must not create a second one; changing it to
+        # anything else is done on the item itself, not by re-reviewing.
+        if body.status != "organize":
+            raise HTTPException(409, "Already added to inventory; edit or trash the item instead.")
+        return _existing_item(db, candidate)
+
     candidate.status = body.status
     item = None
     if body.status == "organize":
@@ -41,3 +49,20 @@ def review_candidate(candidate_id: int, body: schemas.CandidateReviewIn, db: Ses
     if item:
         db.refresh(item)
     return item
+
+
+def _existing_item(db: Session, candidate: models.Candidate) -> models.Item | None:
+    """The item a previous 'organize' review created, if it still matches.
+    Candidates have no item link (no migration tool yet, see db.py), so match on
+    what the review copied. None if the user has since edited or removed it."""
+    return (
+        db.query(models.Item)
+        .filter_by(
+            location_id=candidate.photo.location_id,
+            name=candidate.label,
+            category=candidate.category,
+            quantity=candidate.count,
+        )
+        .order_by(models.Item.id.desc())
+        .first()
+    )

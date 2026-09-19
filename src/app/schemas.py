@@ -6,6 +6,7 @@ silently change just because a DB column changes.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -68,7 +69,7 @@ class ItemUpdateIn(BaseModel):
     name: str | None = None
     category: str | None = None
     quantity: int | None = None
-    status: str | None = None
+    status: Literal["active", "trash"] | None = None
 
 
 class MoveIn(BaseModel):

@@ -23,6 +23,15 @@ COMMAND_PROMPT = (
 
 VALID_ACTIONS = {"trash", "organize", "move", "query", "unknown"}
 
+# Fields an action cannot run without. The model sometimes proposes "trash" or
+# "move" with the target missing ("trash it", "delete everything", "move the
+# lamp"); prompt wording alone doesn't prevent that, so it is enforced here.
+REQUIRED_FIELDS = {
+    "trash": ("item_name",),
+    "move": ("item_name", "location_name"),
+    "query": ("question",),
+}
+
 
 @dataclass
 class ParsedCommand:
@@ -54,9 +63,18 @@ def _parse(raw_text: str) -> ParsedCommand:
     action = data.get("action")
     if action not in VALID_ACTIONS:
         action = "unknown"
-    return ParsedCommand(
+    parsed = ParsedCommand(
         action=action,
-        item_name=(data.get("item_name") or None),
-        location_name=(data.get("location_name") or None),
-        question=(data.get("question") or None),
+        item_name=_clean(data.get("item_name")),
+        location_name=_clean(data.get("location_name")),
+        question=_clean(data.get("question")),
     )
+    if any(not getattr(parsed, field) for field in REQUIRED_FIELDS.get(action, ())):
+        return ParsedCommand(action="unknown", item_name=None, location_name=None, question=None)
+    return parsed
+
+
+def _clean(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return value.strip()[:200] or None

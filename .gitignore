@@ -5,6 +5,7 @@
 
 # Local usage/spend log
 usage_log.jsonl
+usage_*.jsonl
 
 # Python
 __pycache__/
@@ -34,3 +35,6 @@ web/dist/
 web/vite.config.js
 web/vite.config.d.ts
 web/dist/
+
+# Private test photos for scripts/vision_eval.py
+test-photos/
