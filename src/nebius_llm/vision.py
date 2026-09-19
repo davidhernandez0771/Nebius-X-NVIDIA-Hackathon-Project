@@ -31,6 +31,7 @@ def chat_vision(
     temperature: float = 0.2,
     retries: int = 0,
     log_usage: bool = True,
+    extra_body: dict[str, Any] | None = None,
 ) -> ChatResult:
     """Send one image + prompt to a vision model tier. See config.VISION_TIERS.
 
@@ -60,6 +61,7 @@ def chat_vision(
         max_tokens=max_tokens,
         temperature=temperature,
         retries=retries,
+        extra_body=extra_body,
     )
 
     choice = resp.choices[0]
