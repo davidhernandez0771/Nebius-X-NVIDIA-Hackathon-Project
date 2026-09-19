@@ -1,5 +1,7 @@
 # Design brief
 
+**Product name: SANT.** Use it in the nav, the landing page, the browser title and the loader. Show it as plain wordmark text (no logo file exists yet); the wordmark is set in the landing serif display face, and stays uppercase.
+
 One source of truth for the look and feel. Both the UI terminal and the 3D terminal follow this.
 
 **Vibe in one line:** clean Apple-style restraint, with a real 3D room as the hero. Dark, warm, glassy, one accent color, calm motion.
@@ -84,6 +86,42 @@ A single long page, dark, with a fixed 3D canvas behind the content. Scroll prog
 7. **Closing:** call to action.
 
 Constraints: lazy-load the 3D code, keep the landing under a sensible size budget, add a static fallback for low-power devices and reduced motion, and keep text readable over the scene (contrast).
+
+## What the three reference sites actually do (observed, and the landing page must use these)
+
+Observed by loading each site and scrolling. Active Theory's 3D scene did not render fully in the test browser, so its notes come only from what was visible.
+
+**animejs.com: the scroll structure to copy**
+- **One hero object persists for the whole page** (a camera lens) and transforms as you scroll: it rotates, tilts and comes apart into an exploded view. The page is one continuous scene, not separate sections.
+- **The background tone shifts between chapters** (charcoal to warm light grey), so the scroll feels like moving through spaces.
+- **Thin leader lines with tiny monospace labels point at parts of the object**, like a technical diagram. This is the same idea as the connector-line cards in `docs/inspo`, so use one system for both: leader line + small mono label + glass card.
+- A **small scrub bar** at the bottom-right shows scroll progress through the story.
+- Each chapter is a short title plus one line of text. Nothing more.
+- Tech under the hood: several canvases and a lot of inline SVG, plus its own scroll-observer animation.
+
+**optiver.com: the typography and pacing to copy**
+- **Very large serif display headlines** ("Where ideas become breakthroughs") over a small sans body. The serif/sans contrast is the whole personality.
+- **One idea per screen**, generous empty space, deep navy background (`#021129`).
+- **Paragraph text reveals word by word as you scroll**, with unread words dim and read words bright.
+- **Floating translucent rounded squares drift in the hero** at different depths (parallax).
+- **A glass pill navigation bar** (logo, search, Menu), floating over the content.
+- No WebGL canvas at all. The polish is pure DOM, type and motion, so do not assume it needs heavy 3D.
+
+**activetheory.net: the mood to copy**
+- Near-black stage with **soft colored light blooms in the corners** rather than flat fills.
+- **Tiny glass pill navigation** (WORK and CONTACT with a thin line between), with a faint glow along its edge.
+- A **dotted circular loader with a `>>>` enter gesture** before the experience starts. Use this idea for the entry scene.
+- Its real strength is immersive WebGL: camera moves and particle fields driven by the user's input. Aim for that feel in the hero point cloud.
+
+**How this becomes our landing page**
+- Landing type: a free serif display face (for example Instrument Serif or Fraunces from Google Fonts) for big headlines, the system sans for body, and a small free monospace (for example JetBrains Mono) for the leader-line labels. The dashboard itself keeps the system font.
+- One persistent 3D room drives the whole scroll. It goes point cloud, then solid room, then exploded view with labelled parts, then items sorting into place.
+- Background shifts between warm dark tones per chapter. One lighter "paper" chapter is optional, as long as the app palette still holds.
+- Word-by-word text reveal on the big statements.
+- Scroll progress scrub bar at the bottom-right, styled like the chat bar.
+- A floating glass pill nav (logo, "Enter app").
+- Loader with a dotted ring and `>>>` before the entry scene.
+- Scroll-linked animation can use anime.js's scroll observer for DOM and three.js for the room. Keep them synced to one scroll value.
 
 ## Entry scene (after login)
 

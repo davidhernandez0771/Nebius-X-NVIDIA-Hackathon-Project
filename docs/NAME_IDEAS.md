@@ -1,8 +1,8 @@
 # Project name ideas
 
-Working title in the README is `[Project Name]`. Ten options, each with a
-one-line pitch. Check availability of the name (domain, repo, trademark) before
-committing to one; none of these have been checked.
+The project name is **SANT** (decided). The options below are the original
+brainstorm, kept for reference only. Check availability of SANT (domain, repo,
+trademark) before the submission; it has not been checked.
 
 | # | Name | Pitch |
 |---|---|---|

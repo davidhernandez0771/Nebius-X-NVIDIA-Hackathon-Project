@@ -1,4 +1,4 @@
-# [Project Name]
+# SANT
 
 Submission for the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/) (deadline Oct 30, 2026).
 
