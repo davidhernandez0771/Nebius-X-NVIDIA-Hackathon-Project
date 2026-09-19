@@ -29,3 +29,8 @@ web/dist/
 .idea/
 .vscode/
 .DS_Store
+
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+web/dist/

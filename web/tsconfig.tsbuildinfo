@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/client.ts","./src/pages/addphoto.tsx","./src/pages/addscan.tsx","./src/pages/chat.tsx","./src/pages/home.tsx","./src/pages/inventory.tsx","./src/pages/organize.tsx","./src/pages/review.tsx","./src/pages/roomview.tsx","./src/pages/settings.tsx"],"version":"5.9.3"}
