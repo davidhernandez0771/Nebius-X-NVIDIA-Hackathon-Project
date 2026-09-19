@@ -1,142 +1,137 @@
 # Handoff brief for any AI coding assistant working on this repo
 
-You are taking over as the coding assistant on this project. Read this whole
-file before touching anything. The owner (David) is a beginner with LLM APIs
-and wants to work one step at a time with plain explanations. Do not build
-ahead of what he has agreed to.
+Read this whole file before touching anything.
 
-## The project
+## Current direction (2026-09-18)
 
-### Current direction and authorized experiment (2026-09-15)
+The product is a personal room webapp: log in through a decorative animated
+3D entry scene (atmosphere only, no user data), then in the main app upload a
+LiDAR scan of a room (captured with an existing third-party scanning app —
+Polycam, Scaniverse, etc. — exported as GLB; no native app of our own),
+photograph areas, review AI-proposed items by sorting each into organize /
+unknown / trash, get Nemotron organization suggestions, and control all of it
+through a chat command bar (voice planned later, not in the first build).
 
-David chose a room-organizing website concept: phone photos, user-confirmed
-item labels/locations, and Nemotron organization suggestions. Custom icons,
-digital activity modes, and projection are possible later additions. The
-tennis idea below is historical and was never accepted; do not build it.
+This supersedes the earlier "room organizer" architecture (which had no
+photo-review UX and conflated a 3D world with the scan itself) and the even
+earlier tennis-debrief idea. Both are historical; do not build either. The
+full, current plan — screens, data model, tech choices, build order — is in
+[`docs/ARCHITECTURE.md`](ARCHITECTURE.md); trust that file over this
+paragraph if they ever disagree, and update this file when they do.
 
-David authorized an NVIDIA-hosted Cosmos development API experiment.
-`NVIDIA_API_KEY` is private in `.env`, separate from `NEBIUS_API_KEY`.
-Run `uv run python scripts/cosmos_test.py` after he enters the key. This is
-a text-only connection test, not verified vision or production deployment.
-All calls still go through `nebius_llm.chat()` and usage logging; the explicit
-`provider="nvidia"` route makes one request without retries and tags its log.
-Default calls still use Nebius nano. No local model installation is needed.
-Live check on 2026-09-15: NVIDIA's GET /v1/models lists
-`nvidia/cosmos-reason2-8b`, not `nvidia/cosmos3-nano-reasoner`.
-The listed Reason2 model also returned HTTP 404 in the connection test.
-Cosmos hosted inference is therefore NOT verified or available through this
-configuration. Do not treat catalog presence as proof of callable access.
-NVIDIA staff previously reported the API disabled:
-https://forums.developer.nvidia.com/t/function-not-found-for-account/357670
-Keep Cosmos optional in the upcoming architecture plan; no app built yet.
-The requested architecture is now mapped in `docs/ARCHITECTURE.md` (proposal,
-not implemented). It supersedes the historical tennis pipeline/build order.
-Live Nebius metadata lists MiniCPM-V-4_5, GLM-5.3-Flash, Kimi-K2.6 and Kimi-K3
-as image-input candidates. No photo inference test has yet been performed.
-The NVIDIA $0 development estimate does not consume Nebius credits and does
-not promise unlimited access. Do not provision cloud GPUs without agreement.
+NVIDIA's hosted Cosmos vision API was tried and abandoned (every tested model
+ID returned HTTP 404; NVIDIA staff confirmed the API disabled) — its code has
+been removed from the repo. Don't reintroduce it without a confirmed working
+endpoint; the Nebius vision shortlist in `docs/ARCHITECTURE.md` §4 covers
+itemization instead.
 
-Correction to the older rules summary below: the published general rules
-require an NVIDIA open model and a runtime Token Factory call or AI Cloud
-compute, not exclusively Nebius-hosted inference for every model. Track
-requirements and development-provider terms still need checking for the
-final submission: https://nebiusglobalaihackathon.devpost.com/rules
+## How to work on this project
 
+- The owner wants real technical documentation, not simplified
+  explanations — this is a working codebase for a developer, not a
+  beginner's tutorial.
+- Product direction gets worked out collaboratively before big doc or code
+  rewrites: surface the open decisions, propose a few concrete options with
+  a recommendation, and confirm before committing significant work —
+  especially before changing architecture or product scope. Once a
+  direction is confirmed, implement it directly rather than re-litigating
+  it.
+- Commit small, descriptive commits.
+
+## Hackathon constraints (unchanged)
 
 Entry for the Nebius x NVIDIA Global AI Hackathon, Best Apps and Agents track.
 Deadline: October 30, 2026, 10:00 a.m. PDT.
-Repo: https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
-Local clone: `C:\Users\dhrce\OneDrive\Documents\Hackathon-Nvidia\Nebius-X-NVIDIA-Hackathon-Project`
-(Windows 11, VS Code). The older `C:\Users\dhrce\source\repos\nebius-hackathon`
-clone no longer exists as of 2026-09-17.
 
-Hard rules from the hackathon:
-- Every model call at runtime must go to NVIDIA Nemotron hosted on Nebius
-  Token Factory (remote API). No local inference in the submitted product.
-- Public repo with MIT license at the root (done), README with setup and run
+- Every model call at runtime must go to an NVIDIA open model hosted on
+  Nebius Token Factory (or Nebius AI Cloud compute). No local inference in
+  the submitted product.
+- Public repo, MIT license at root (done), README with setup/run
   instructions and a section on how Nemotron and Token Factory are used.
 - Submission also needs: a hosted demo URL, a public YouTube video under 3
   minutes narrating how Token Factory and Nemotron are used, a project
   description, and written feedback on Nebius/NVIDIA tools.
-- Judging: pass/fail viability check, then 1-5 on four equal criteria:
+- Judging: pass/fail viability check, then 1-5 on four equal criteria —
   Technological Implementation, Design, Potential Impact, Quality of Idea.
-  Organizers said a single API call demo is the floor; a multi-step workflow
-  with memory and tier routing stands out.
+  A single API call demo is the floor; a multi-step workflow with memory and
+  tier routing stands out.
+- Verify these terms again close to submission:
+  https://nebiusglobalaihackathon.devpost.com/rules
 
 ## Budget
 
-$25 in Token Factory credits (another $25 may arrive later). Every call must
-go through `nebius_llm.chat()` so it is logged to `usage_log.jsonl`. Default
-to the `nano` tier. Use `ultra` only for the one step that needs reasoning.
-Never write loops that call the model without a hard cap on iterations.
+$25 in Token Factory credits (more may arrive later). Every call must go
+through `nebius_llm.chat()` (text) or `nebius_llm.chat_vision()` (image) so
+it's logged to `usage_log.jsonl`. Default to the `nano` text tier; use
+`super`/`ultra` only where measured quality needs it. Never write a loop that
+calls the model without a hard iteration cap.
 
-## What already exists and is verified working
+## What already exists
 
-- `src/nebius_llm/config.py`: three tiers. nano = `nvidia/Nemotron-3_5-Lightning`,
+**Verified against the real API** (live calls actually made and checked):
+
+- `src/nebius_llm/config.py`: three text tiers. nano = `nvidia/Nemotron-3_5-Lightning`,
   super = `nvidia/nemotron-3-super-120b-a12b`, ultra = `nvidia/Nemotron-3-Ultra-550b-a55b`.
   Base URL `https://api.tokenfactory.nebius.com/v1/`. All overridable via `.env`.
 - `src/nebius_llm/client.py`: `chat(prompt, tier=None, *, system=None,
   max_tokens=1024, temperature=0.2, think=False, retries=3, log_usage=True, **extra)`
-  returns a `ChatResult` with `.text`, token counts, `.est_cost_usd`.
-  Retries on 429/5xx honoring Retry-After. Raises `AuthError`,
-  `RateLimitError`, `ModelNotFoundError`, `TokenFactoryError`.
-- Thinking mode is OFF by default via `chat_template_kwargs.enable_thinking=false`.
-  Verified live: without it Nemotron spends the whole token budget narrating a
-  "thinking process". The `/no_think` system-prompt trick does nothing here.
+  returns a `ChatResult` with `.text`, token counts, `.est_cost_usd`. Retries
+  on 429/5xx honoring Retry-After. Raises `AuthError`, `RateLimitError`,
+  `ModelNotFoundError`, `TokenFactoryError`.
+- Thinking mode is OFF by default via `chat_template_kwargs.enable_thinking=false`
+  — verified live: without it, Nemotron spends the whole token budget
+  narrating a "thinking process." Pass `think=True` to enable it deliberately.
 - `src/nebius_llm/usage.py`: JSONL log + `total_spend()`.
 - `scripts/smoke_test.py` (passes), `scripts/ask.py` (interactive Q&A with
   cost per call), `scripts/hello.py` (minimal example).
-- `docs/token-factory-notes.md`: everything found in the Nebius docs, with sources.
-- Secrets: `NEBIUS_API_KEY` lives only in `.env`, which is git-ignored. Never
-  print it, commit it, or move it.
+- `docs/token-factory-notes.md`: Nebius API research findings, with sources.
+- Secrets: `NEBIUS_API_KEY` lives only in `.env`, git-ignored. Never print,
+  commit, or move it.
 
-Environment quirks:
-- Use `uv` for everything: `uv sync`, `uv run python ...`. uv pins CPython
-  3.11 for the project; a system Python 3.14 also exists but is not used.
-  As of 2026-09-17 plain `uv sync` works; if it fails with a certificate
-  error, fall back to `uv sync --system-certs`.
-- `openai` SDK is v3.x. `gh` CLI is not installed; use git over HTTPS.
-- The repo lives inside OneDrive. `.venv/` is git-ignored but OneDrive may
-  still try to sync it; if you see file-lock or slow-sync problems, exclude
-  the folder from OneDrive or move the clone outside it.
-- Git identity is set per-repo ("David" <dhrcello07@gmail.com>).
+**Built and unit-tested, but never run against the real API** (passes
+`uv run python -m unittest discover -s tests -v` — 29 tests, all mocked, zero
+network calls; that is a different, weaker claim than "works"):
 
-## The idea (proposed; confirm with David before building)
+- `src/nebius_llm/vision.py`: `chat_vision(prompt, image_bytes, tier=None, ...)`,
+  the image-call sibling of `chat()`, sharing its retry/error-mapping via
+  `_request_with_retries`. `VISION_TIERS` in `config.py` (`minicpm`, `glm-flash`)
+  are the two vision-model candidates from `docs/ARCHITECTURE.md` §4.
+- `src/app/`: full FastAPI backend -- SQLAlchemy models for every record in
+  `docs/ARCHITECTURE.md` §7, routers for every route implied by §3 (rooms,
+  locations, scan upload, photo upload + `/analyze`, candidate review,
+  item CRUD + moves, organize, chat), and `src/app/ai/` holding the actual
+  prompts (`vision.py` itemization, `organize.py`, `commands.py` command
+  parsing) plus their JSON-response parsing. Run with
+  `uv run uvicorn app.main:app --reload --app-dir src`.
+- `web/`: React + Vite frontend, one page per screen in §3 except the entry
+  scene, wired to the backend above. Run with `cd web && npm install && npm run dev`
+  -- **not verified in this environment** (no Node.js available when this was
+  built); check that `npm install` and `npm run build` succeed before relying
+  on it.
+- `tests/test_app_api.py`: exercises the whole backend against a temp SQLite
+  DB with `app.ai.vision.chat_vision`, `app.ai.organize.chat`, and
+  `app.ai.commands.chat` all mocked. This proves the plumbing (routing, DB
+  writes, the organize/trash/unknown state machine) is correct. It proves
+  nothing about whether the actual prompts produce good output on a real
+  photo or a real spoken command -- that's still completely open, and is the
+  real content of `docs/ARCHITECTURE.md` §10 step 1.
 
-**Tennis post-match mental debrief.** After a match, David types a messy
-brain-dump: score, momentum swings, moments focus broke, self-talk, tilt.
-The app returns a structured debrief and one cue for the next match, and
-builds a history so patterns across matches emerge.
+**Not built at all**: the decorative 3D entry scene, scan rendering in the
+browser (upload works, display doesn't), EXIF stripping, real auth, voice
+input, usage/cost visible anywhere but the JSONL log. See
+`docs/ARCHITECTURE.md` §10 for what's next and in what order.
 
-Pipeline (each step is one `chat()` call):
-1. nano: extract structured facts from the brain-dump as JSON
-   (score, key moments, emotional triggers, self-talk quotes, what went well).
-2. Save that record to a local JSON file (the memory).
-3. ultra with `think=True`: given the full history, identify recurring mental
-   patterns and the single highest-leverage thing to work on. Cap `max_tokens`.
-4. nano: write the user-facing debrief: 3-5 bullet summary, one pre-match cue,
-   one in-match reset routine. Plain language, no jargon.
+## Environment
 
-Build order (one step per session, show David the output of each):
-1. `IDEA.md` at repo root: one paragraph, the pipeline above, and what the
-   demo video will show.
-2. `scripts/debrief.py`: terminal version of the pipeline. Paste notes, print
-   each step's output and cost. Get the prompts good here before any UI.
-3. A minimal web page (single page, one textarea, one result panel, a
-   history list). Keep dependencies tiny; FastAPI + one HTML file, or
-   Streamlit, are both fine.
-4. Hosting so the page has a public URL. Nebius Serverless Endpoints is
-   suggested by organizers but not required; any free host works.
-5. README: fill the "what it does" and "how to run" sections, add screenshots.
-6. Demo video and submission.
+- Use `uv` for everything: `uv sync`, `uv run python ...`. If `uv sync` fails
+  with a certificate error (common behind corporate/antivirus TLS proxies),
+  run `uv sync --system-certs`.
+- `openai` SDK is v3.x.
+- Git identity and local clone path vary by machine — don't hard-code either
+  into project docs; check `git remote -v` and `pwd` if you need them.
 
-## How to work with David
+## If docs disagree
 
-- One step at a time. Explain what you are about to do and why in plain
-  language before doing it. No walls of code in chat; put code in files.
-- After every change, run it and show the actual output and the cost line.
-- Commit small, descriptive commits and push to `main` so the repo is always
-  the current state.
-- If something in the docs or API contradicts this file, trust the live API
-  (`GET /v1/models`) and the notes in `docs/token-factory-notes.md`, and
-  update this file.
+Trust the live API (`GET /v1/models`) and `docs/token-factory-notes.md` over
+any narrative description of model IDs or prices. Trust `docs/ARCHITECTURE.md`
+over this file for product scope, and update this file when they diverge.

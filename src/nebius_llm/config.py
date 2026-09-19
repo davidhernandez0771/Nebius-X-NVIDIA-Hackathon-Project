@@ -1,8 +1,12 @@
-"""Model routing config: three tiers of NVIDIA Nemotron on Nebius Token Factory.
+"""Model routing config: three tiers of NVIDIA Nemotron on Nebius Token Factory,
+plus a separate shortlist of Nebius-hosted vision models.
 
 Model IDs and prices come from Nebius's official sources as of 2026-09-13:
   - https://docs.tokenfactory.nebius.com/
   - https://github.com/nebius/token-factory-cookbook/blob/main/models/nemotron/README.md
+Vision model IDs/prices come from a live `GET /v1/models?verbose=true` call on
+2026-09-15 (see docs/ARCHITECTURE.md §4) -- untested on a real photo as of
+2026-09-18.
 Prices are USD per 1M tokens and are only used for *estimated* spend in the
 local usage log. Check the Token Factory console for actual billing.
 
@@ -80,4 +84,50 @@ def get_model(tier: str | None = None) -> ModelSpec:
     except KeyError:
         raise ValueError(
             f"Unknown model tier {tier!r}. Choose one of: {', '.join(TIERS)}"
+        ) from None
+
+
+@dataclass(frozen=True)
+class VisionModelSpec:
+    tier: str
+    model_id: str
+    input_price_per_m: float
+    output_price_per_m: float
+    notes: str
+
+    def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        return (
+            prompt_tokens * self.input_price_per_m
+            + completion_tokens * self.output_price_per_m
+        ) / 1_000_000
+
+
+DEFAULT_VISION_TIER = "minicpm"
+
+VISION_TIERS: dict[str, VisionModelSpec] = {
+    "minicpm": VisionModelSpec(
+        tier="minicpm",
+        model_id=os.environ.get("NEBIUS_MODEL_VISION_MINICPM") or "openbmb/MiniCPM-V-4_5",
+        input_price_per_m=0.658,
+        output_price_per_m=1.11,
+        notes="First candidate for item extraction (docs/ARCHITECTURE.md §4).",
+    ),
+    "glm-flash": VisionModelSpec(
+        tier="glm-flash",
+        model_id=os.environ.get("NEBIUS_MODEL_VISION_GLM") or "zai-org/GLM-5.3-Flash",
+        input_price_per_m=0.15,
+        output_price_per_m=0.50,
+        notes="Cheapest candidate; compare quality against minicpm.",
+    ),
+}
+
+
+def get_vision_model(tier: str | None = None) -> VisionModelSpec:
+    """Resolve a vision tier name ('minicpm' | 'glm-flash') to its VisionModelSpec."""
+    name = (tier or DEFAULT_VISION_TIER).lower()
+    try:
+        return VISION_TIERS[name]
+    except KeyError:
+        raise ValueError(
+            f"Unknown vision tier {tier!r}. Choose one of: {', '.join(VISION_TIERS)}"
         ) from None

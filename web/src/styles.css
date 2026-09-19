@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-right: 1px solid #8884;
+  min-width: 140px;
+}
+
+.app-nav a {
+  text-decoration: none;
+}
+
+.app-nav a.active {
+  font-weight: bold;
+}
+
+.app-main {
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 640px;
+}

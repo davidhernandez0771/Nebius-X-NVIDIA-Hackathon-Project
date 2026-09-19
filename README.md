@@ -4,7 +4,19 @@ Submission for the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaih
 
 ## What it does
 
-_TODO: one paragraph on the problem and what this project does about it._
+Log in, and after a short animated 3D entry scene, land in the main app.
+Upload a LiDAR scan of a room (captured with a third-party scanning app like
+Polycam or Scaniverse — no app of our own to install) for spatial context,
+then photograph a shelf or drawer. A vision model proposes what's in the
+photo; you sort each candidate into **organize**, **unknown**, or **trash**.
+Nemotron then suggests how to arrange your confirmed inventory, and a chat
+command bar lets you control all of it in plain language — "send the lamp to
+trash", "organize my desk" — parsed into validated actions, never guessed.
+
+**Status: foundation built (backend API + DB schema + frontend shell for every
+screen), core AI logic wired but unverified against real photos/commands.**
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full plan, screen
+list, data model and build order.
 
 ## How Nemotron and Nebius Token Factory are used
 
@@ -79,47 +91,81 @@ print(r.text, r.est_cost_usd)
 Nemotron's built-in "thinking" is off by default because it bills reasoning
 tokens as output. Pass `think=True` when a task actually needs it.
 
-_TODO: how to run the actual app once it exists._
-
-## Optional Cosmos development test
-
-Add your NVIDIA development API key to `NVIDIA_API_KEY` in the existing
-git-ignored `.env`. Do not overwrite your Nebius key or share either key.
-NVIDIA's web demo is at https://build.nvidia.com/nvidia/cosmos3-nano-reasoner.
-Its availability does not guarantee API access.
-
-**Current status (2026-09-15): blocked.** The live API catalog lists
-`nvidia/cosmos-reason2-8b`, now the test default, but inference returns HTTP 404.
-The earlier Cosmos3 model ID also returned 404. NVIDIA staff have reported
-this catalog/API discrepancy and disabled API access in their
-[support forum](https://forums.developer.nvidia.com/t/function-not-found-for-account/357670).
-Do not repeatedly retry or assume a new key will fix it. No successful Cosmos
-inference or vision test has been completed.
+Run the backend API:
 
 ```bash
-uv run python scripts/cosmos_test.py
+uv run uvicorn app.main:app --reload --app-dir src
 ```
 
-This sends one text-only request to NVIDIA (not Nebius), with a 256-token
-output cap and no automatic retries. It uses `nebius_llm.chat(provider="nvidia")`
-and records usage in the same private JSONL log, tagged `provider=nvidia`.
-The $0 estimate assumes NVIDIA's free development tier, not unlimited access
-or verified production billing. Authentication, throttling, empty responses,
-and truncated responses fail the test. A passing test does not verify vision.
-No images or secrets are written to the usage log.
+Creates `app.db` (SQLite, git-ignored) and `uploads/` (git-ignored) on first
+run. Visit `http://localhost:8000/docs` for the interactive API docs.
+
+Run the frontend, in a separate terminal (requires [Node.js](https://nodejs.org/) 20+):
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Opens at `http://localhost:5173` and talks to the backend above. Every screen
+in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §3 exists and is wired to a
+real endpoint except the decorative 3D entry scene (not built yet — see §10).
+Uploading a photo and hitting "Analyze," or asking Organize/Chat anything,
+makes a real, billed Token Factory call — nothing here has been run against
+the live API yet (only against mocked responses in `tests/test_app_api.py`),
+so the first real run is also the first real test of the vision/command
+prompts. Start small.
+
+## Vision itemization (planned, not yet implemented)
+
+Candidate models for the "photo → item list" step, from Nebius's live model
+catalog (2026-09-15). None has been tested yet on a real photo:
+
+| Model ID | Input / output per 1M tokens | Role |
+|---|---|---|
+| `openbmb/MiniCPM-V-4_5` | $0.658 / $1.11 | First candidate |
+| `zai-org/GLM-5.3-Flash` | $0.15 / $0.50 | Cheapest candidate |
+| `moonshotai/Kimi-K2.6` | $0.95 / $4.00 | Fallback |
+| `moonshotai/Kimi-K3` | $3.00 / $15.00 | Deferred |
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §4 and §9 for the test plan.
+
+An earlier experiment tried NVIDIA's hosted Cosmos vision API as an
+alternative. It returned HTTP 404 on every tested model ID (NVIDIA staff
+confirmed the API was disabled for this account), so it's been removed from
+the repo. The vision shortlist above replaces it.
 
 ## Project layout
 
 ```
 src/nebius_llm/
-  config.py    model tiers, IDs, prices, base URL
+  config.py    text-tier + vision-tier model IDs, prices, base URL
   client.py    chat(prompt, tier) with retries and clear auth/rate-limit errors
+  vision.py    chat_vision(prompt, image_bytes, tier) -- same retry/error path
   usage.py     per-call JSONL usage log + totals
+src/app/            FastAPI backend (see docs/ARCHITECTURE.md §5/§7)
+  main.py        app + routers
+  models.py      SQLAlchemy tables
+  schemas.py     Pydantic request/response shapes
+  db.py          SQLite session (no migration tool yet, see db.py's docstring)
+  storage.py     local photo/scan file storage (dev only)
+  routers/       rooms, scans, photos, candidates, items, organize, chat
+  ai/            prompts + parsing for vision itemization, organize, chat commands
+web/                 React + Vite frontend shell (see docs/ARCHITECTURE.md §3)
+  src/pages/       one page per screen, wired to the backend above
+  src/api/client.ts  fetch wrapper
 scripts/
   smoke_test.py  one-call connection check
   ask.py         ask a question, see the answer and its cost
+  hello.py       minimal single-call example
+tests/
+  test_client.py test_config.py test_usage.py   nebius_llm unit tests (mocked)
+  test_app_api.py                               backend API tests (mocked AI calls)
 docs/
-  token-factory-notes.md
+  ARCHITECTURE.md          current build plan
+  HANDOFF.md               brief for whoever (human or AI) picks this up next
+  token-factory-notes.md   Nebius API research notes
 ```
 
 ## License
