@@ -7,7 +7,7 @@ import SpendPill from "./SpendPill";
 
 // Room-scoped pages read ?room_id=; keep it when moving between them.
 const links: { to: string; label: string; icon: IconName; scoped?: boolean }[] = [
-  { to: "/", label: "Home", icon: "home" },
+  { to: "/home", label: "Home", icon: "home" },
   { to: "/room", label: "Room view", icon: "room", scoped: true },
   { to: "/add/scan", label: "Add scan", icon: "scan", scoped: true },
   { to: "/add/photo", label: "Add photo", icon: "camera" },
@@ -55,7 +55,7 @@ export default function DashboardShell() {
             to={l.scoped && roomId ? `${l.to}?room_id=${roomId}` : l.to}
             label={l.label}
             icon={<Icon name={l.icon} />}
-            active={l.to === "/" ? pathname === "/" : pathname.startsWith(l.to)}
+            active={pathname.startsWith(l.to)}
           />
         ))}
       </nav>

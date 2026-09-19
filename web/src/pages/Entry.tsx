@@ -11,7 +11,7 @@ import StaticRoom from "../three/StaticRoom";
 const loadScene = () => import("../three/RoomScene");
 const RoomScene = lazy(loadScene);
 
-const APP_ROUTE = "/";
+const APP_ROUTE = "/home";
 const RING_DOTS = 72;
 const OUTER_DOTS = 24;
 const CAPTIONS = ["LIDAR ONLINE", "RESOLVING SURFACES", "ROOM READY"];

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { DashboardShell } from "./components";
 import Home from "./pages/Home";
 import RoomView from "./pages/RoomView";
@@ -20,14 +20,16 @@ const Entry = lazy(() => import("./pages/Entry"));
 export default function App() {
   return (
     <Routes>
+      {/* The landing page is the front door. /welcome is kept as an alias. */}
       <Route
-        path="/welcome"
+        path="/"
         element={
           <Suspense fallback={null}>
             <Landing />
           </Suspense>
         }
       />
+      <Route path="/welcome" element={<Navigate to="/" replace />} />
       <Route
         path="/enter"
         element={
@@ -37,7 +39,7 @@ export default function App() {
         }
       />
       <Route element={<DashboardShell />}>
-        <Route path="/" element={<Home />} />
+        <Route path="/home" element={<Home />} />
         <Route path="/room" element={<RoomView />} />
         <Route path="/add/scan" element={<AddScan />} />
         <Route path="/add/photo" element={<AddPhoto />} />
@@ -47,6 +49,7 @@ export default function App() {
         <Route path="/chat" element={<Chat />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

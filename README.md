@@ -15,7 +15,7 @@ screen are wired together. The vision, organize and chat-command prompts have
 been run against the real Token Factory API (results in
 [`docs/VISION_EVAL.md`](docs/VISION_EVAL.md)), all chat actions are validated by
 the backend, and uploaded GLB room scans render in a 3D viewer. There is a
-scroll-driven 3D landing page (`/welcome`) and an animated entry scene
+scroll-driven 3D landing page (the front door, `/`) and an animated entry scene
 (`/enter`). See [Known limitations](#known-limitations) for what is not built,
 and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
 
@@ -85,13 +85,13 @@ backend only allows CORS from `http://localhost:5173`.
 
 | URL | What it is |
 |---|---|
-| http://localhost:5173/welcome | Scroll-driven 3D landing page |
+| http://localhost:5173/ | Scroll-driven 3D landing page (the front door) |
 | http://localhost:5173/enter | Short animated entry scene (skip with Esc) |
-| http://localhost:5173/ | The dashboard: create a room, add locations, upload a `.glb` scan and photos, review, organize, chat |
+| http://localhost:5173/home | The dashboard: create a room, add locations, upload a `.glb` scan and photos, review, organize, chat |
 
 Use a current Chrome, Safari or Edge with hardware acceleration on; the 3D
 pages need WebGL and fall back to a static version without it (or with reduced
-motion). Add `?static` to `/welcome` to preview the fallback.
+motion). Add `?static` to the landing URL (`/?static`) to preview the fallback.
 
 To try the scan viewer, export a room as `.glb` from a LiDAR app such as
 Polycam or Scaniverse and upload it from a room's "Upload a room scan" link.

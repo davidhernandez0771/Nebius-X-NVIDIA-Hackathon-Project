@@ -266,7 +266,7 @@ export default function Landing() {
       {run3d && <LeaderLayer />}
 
       <header className="glass-nav" style={rm ? undefined : { opacity: 0 }}>
-        <Link className="wordmark" to="/welcome" aria-label="SANT">SANT</Link>
+        <Link className="wordmark" to="/" aria-label="SANT">SANT</Link>
         <span className="nav-divider" />
         <Link className="nav-cta" to="/enter">Enter app</Link>
       </header>
@@ -355,7 +355,7 @@ export default function Landing() {
               <Reveal text="Scan once, review in minutes, and never lose a thing again." section={section} />
               <div className="hero-actions" style={{ marginTop: "2rem", justifyContent: "center" }}>
                 <Link className="btn" to="/enter">Enter SANT <span aria-hidden="true">&gt;&gt;&gt;</span></Link>
-                <Link className="btn ghost" to="/">Skip to app</Link>
+                <Link className="btn ghost" to="/home">Skip to app</Link>
               </div>
             </div>
           )}

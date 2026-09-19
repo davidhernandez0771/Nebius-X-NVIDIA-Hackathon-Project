@@ -39,7 +39,7 @@ export default function Organize() {
     }
   }
 
-  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/" cta="Go to Home" />;
+  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/home" cta="Go to Home" />;
 
   const moves = result ? parseMoves(result.suggestion) : [];
 
