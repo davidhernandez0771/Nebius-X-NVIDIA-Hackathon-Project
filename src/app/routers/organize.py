@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..ai.organize import suggest_organization
+from ..config import DEV_OWNER_ID
 from ..db import get_db
 from nebius_llm import TokenFactoryError
 
@@ -19,6 +20,9 @@ router = APIRouter(prefix="/api/organize", tags=["organize"])
 
 @router.post("", response_model=schemas.OrganizeOut)
 def organize(body: schemas.OrganizeRequestIn, db: Session = Depends(get_db)):
+    room = db.get(models.Room, body.room_id)
+    if not room or room.owner_id != DEV_OWNER_ID:
+        raise HTTPException(404, "Room not found")
     items = db.query(models.Item).filter_by(room_id=body.room_id, status="active").all()
     payload = json.dumps(
         [

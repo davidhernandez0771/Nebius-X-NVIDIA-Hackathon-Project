@@ -191,7 +191,6 @@ def test_reviewing_a_candidate_twice_does_not_duplicate_the_item(api, candidate_
     assert item_count() == 1
 
 
-@pytest.mark.xfail(strict=True, reason="move does not check the destination belongs to the item's room")
 def test_move_to_a_location_in_another_room_is_rejected(api, room):
     other_room = make_room(api, "Garage")
     other_location = make_location(api, other_room, "Bench")
@@ -210,7 +209,6 @@ def test_update_item_rejects_an_invalid_status(api, room):
     assert r.status_code in (400, 422)
 
 
-@pytest.mark.xfail(strict=True, reason="organize does not check the room exists; it stores a proposal for a nonexistent room")
 def test_organize_unknown_room_is_404(api):
     with patch("app.ai.organize.chat") as chat:
         chat.return_value = NS(text="- nothing", est_cost_usd=0.0)
