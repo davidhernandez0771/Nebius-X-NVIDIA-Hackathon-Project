@@ -1,0 +1,81 @@
+/* Design tokens: the single source of truth for SANT's look (docs/DESIGN_BRIEF.md).
+   Every color in the app is defined here. Other stylesheets and components must
+   reference these variables and never hard-code a color. Tune the look here. */
+
+:root {
+  color-scheme: dark;
+
+  /* --- Palette (brief) --- */
+  --bg-0: #0b0807;
+  --bg-glow: #2a130a;
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-border: rgba(255, 255, 255, 0.09);
+  --text: #f4f0ec;
+  --text-muted: #8e837b;
+  --accent: #35f0d0;
+  --warm: #ff9a2e;
+  --danger: #ff5a5f;
+
+  /* --- Derived from the palette (still one accent, no new hues) --- */
+  --on-accent: var(--bg-0); /* dark icon/text on a filled accent */
+  --surface-hover: rgba(255, 255, 255, 0.075);
+  --surface-strong: rgba(255, 255, 255, 0.09); /* solid-ish glass: confirmed cards, tiles */
+  --surface-highlight: rgba(255, 255, 255, 0.12); /* inner top highlight on glass */
+  --surface-dim: rgba(255, 255, 255, 0.14); /* unfilled meter dots, toggle off track */
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --accent-soft: rgba(53, 240, 208, 0.14);
+  --accent-line: rgba(53, 240, 208, 0.45);
+  --accent-glow: rgba(53, 240, 208, 0.35);
+  --warm-soft: rgba(255, 154, 46, 0.14);
+  --warm-line: rgba(255, 154, 46, 0.45);
+  --danger-soft: rgba(255, 90, 95, 0.12);
+  --danger-line: rgba(255, 90, 95, 0.4);
+  --scrim: rgba(11, 8, 7, 0.6); /* over the hero / behind overlays */
+
+  /* --- Shape and material --- */
+  --radius-card: 26px;
+  --radius-tile: 20px;
+  --radius-control: 14px;
+  --radius-pill: 999px;
+  --blur: 20px;
+  --tile-size: 60px;
+  --tile-size-compact: 46px;
+  --border: 1px solid var(--surface-border);
+  --inner-highlight: inset 0 1px 0 var(--surface-highlight);
+
+  /* --- Type scale (system stack, large light headings, muted sublines) --- */
+  --font: -apple-system, "SF Pro Display", Inter, system-ui, sans-serif;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.375rem;
+  --fs-xl: 2rem;
+  --fs-hero: clamp(2rem, 5vw, 3rem);
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --lh-body: 1.6;
+  --lh-tight: 1.15;
+  --tracking-wordmark: 0.22em;
+
+  /* --- Spacing --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* --- Motion: springy, short, ease-out --- */
+  --ease-spring: cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 150ms;
+  --dur: 250ms;
+  --dur-slow: 350ms;
+
+  /* --- Layout --- */
+  --panel-width: 400px;
+  --topbar-height: 76px;
+}
