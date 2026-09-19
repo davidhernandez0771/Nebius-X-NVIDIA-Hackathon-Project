@@ -34,3 +34,6 @@ web/dist/
 web/vite.config.js
 web/vite.config.d.ts
 web/dist/
+
+# Private test photos for scripts/vision_eval.py
+test-photos/
