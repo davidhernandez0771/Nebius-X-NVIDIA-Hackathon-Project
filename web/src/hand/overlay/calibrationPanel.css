@@ -1,0 +1,330 @@
+/* Real, interactive popover -- deliberately NOT part of handCursorOverlay's
+   pointer-events:none layer. Docked near the hand-toggle button (bottom
+   right); Agent 4's trigger button controls `open` from outside. */
+
+.calibration-panel {
+  position: fixed;
+  right: var(--space-5, 1.5rem);
+  bottom: calc(
+    var(--space-5, 1.5rem) + 56px + var(--space-3, 0.75rem) + env(safe-area-inset-bottom, 0px)
+  ); /* stacked above HandToggle */
+  z-index: 10050;
+  width: min(320px, calc(100vw - 2 * var(--space-5, 1.5rem)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 1rem);
+  padding: var(--space-5, 1.5rem);
+  border-radius: var(--radius-card, 26px);
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  background: var(--surface-strong, rgba(255, 255, 255, 0.09));
+  backdrop-filter: blur(var(--blur, 20px));
+  box-shadow: var(--inner-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.12)), 0 20px 60px rgba(0, 0, 0, 0.35);
+  color: var(--text, #f4f0ec);
+  font: var(--fs-base, 0.9375rem) / var(--lh-body, 1.6) var(--font, sans-serif);
+}
+
+.calibration-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 0.75rem);
+}
+
+.calibration-panel-header h2 {
+  margin: 0;
+  font-size: var(--fs-md, 1.0625rem);
+  font-weight: var(--fw-medium, 500);
+}
+
+.calibration-panel-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  background: transparent;
+  color: var(--text-muted, #8e837b);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur-fast, 150ms) var(--ease-out), color var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.calibration-panel-close:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.075));
+  color: var(--text, #f4f0ec);
+}
+
+.calibration-instructions {
+  margin: 0;
+  padding: var(--space-3, 0.75rem);
+  border-radius: var(--radius-control, 14px);
+  background: var(--surface, rgba(255, 255, 255, 0.045));
+  color: var(--text-muted, #8e837b);
+  font-size: var(--fs-sm, 0.8125rem);
+}
+
+.calibration-instructions strong {
+  color: var(--text, #f4f0ec);
+  font-weight: var(--fw-medium, 500);
+}
+
+.calibration-divider {
+  margin: 0;
+  border: none;
+  border-top: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+}
+
+.calibration-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 0.5rem);
+}
+
+.calibration-field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: var(--fs-sm, 0.8125rem);
+}
+
+.calibration-field-value {
+  color: var(--accent, #35f0d0);
+  font-weight: var(--fw-medium, 500);
+}
+
+.calibration-field-hint {
+  color: var(--text-muted, #8e837b);
+  font-size: var(--fs-xs, 0.75rem);
+}
+
+.calibration-field input[type="range"] {
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-dim, rgba(255, 255, 255, 0.14));
+  accent-color: var(--accent, #35f0d0);
+  cursor: pointer;
+}
+
+.calibration-panel-reset {
+  align-self: flex-start;
+  padding: var(--space-2, 0.5rem) var(--space-4, 1rem);
+  border-radius: var(--radius-pill, 999px);
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  background: transparent;
+  color: var(--text, #f4f0ec);
+  font: var(--fs-sm, 0.8125rem) / 1 var(--font, sans-serif);
+  cursor: pointer;
+  transition: background var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.calibration-panel-reset:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.075));
+}
+
+.calibration-preview-details summary {
+  cursor: pointer;
+  color: var(--text-muted, #8e837b);
+  font-size: var(--fs-sm, 0.8125rem);
+}
+
+.calibration-preview-details summary:hover {
+  color: var(--text, #f4f0ec);
+}
+
+.calibration-preview-frame {
+  position: relative;
+  margin-top: var(--space-3, 0.75rem);
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-control, 14px);
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.03) 0 10px,
+    rgba(255, 255, 255, 0.015) 10px 20px
+  );
+  overflow: hidden;
+}
+
+.calibration-preview-region {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 2px solid var(--accent, #35f0d0);
+  background: var(--accent-soft, rgba(53, 240, 208, 0.14));
+}
+
+.calibration-preview-note {
+  margin: var(--space-2, 0.5rem) 0 0;
+  color: var(--text-muted, #8e837b);
+  font-size: var(--fs-xs, 0.75rem);
+}
+
+.calibration-swatches {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+}
+
+.calibration-swatch {
+  position: relative;
+  /* Bug fix (Revision 5): the global `button { min-height: 44px; ... }` tap-
+     target reset in styles.css was overriding width/height below (a bare
+     element selector losing to width/height alone isn't what happened here
+     -- min-height overrides height regardless of specificity, since min/max
+     constraints always win over a plain size property) and stretching these
+     into ovals. This class's higher specificity only helps once min-height
+     is actually set here too. */
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  outline: 2px solid transparent; /* transparent base so the selected/focus states below can transition in, not snap */
+  outline-offset: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  transition: transform var(--dur-fast, 150ms) var(--ease-out), outline-color var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.calibration-swatch:hover {
+  transform: scale(1.1);
+}
+
+/* Selected indicator: an OUTSIDE outline (not a border-color change), so it
+   reads clearly against the panel background regardless of the swatch's own
+   color -- a border tint can disappear into a similarly-light/dark swatch,
+   an outline drawn outside the circle never does. Only `outline-color`
+   changes here (width/offset are already set on the base rule above) so
+   this transitions in via the `transition` declared there instead of
+   popping in instantly. */
+.calibration-swatch[aria-pressed="true"] {
+  outline-color: var(--text, #f4f0ec);
+}
+
+.calibration-swatch:focus-visible {
+  outline-color: var(--accent, #35f0d0);
+}
+
+.calibration-swatch-custom {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* The input itself is visually hidden (opacity: 0, see below) so the label's
+   own background can preview the current color -- but it's still a real,
+   focusable, keyboard-operable <input>, so give the wrapper its own visible
+   focus ring rather than letting keyboard focus go invisible. */
+.calibration-swatch-custom:focus-within {
+  outline-color: var(--accent, #35f0d0);
+}
+
+/* Same "selected" treatment as a preset swatch's [aria-pressed="true"],
+   shown when the current color doesn't match any preset exactly (a label
+   can't take aria-pressed itself -- that's a button/toggle semantic -- so
+   this is a plain data attribute driven from the same comparison). */
+.calibration-swatch-custom[data-active="true"] {
+  outline-color: var(--text, #f4f0ec);
+}
+
+/* Native color input, sized/shaped to fill the same round swatch, with its
+   own chrome (swatch preview, border) suppressed via the vendor pseudo
+   elements below -- the surrounding label already shows the current color. */
+.calibration-swatch-custom input[type="color"] {
+  width: 150%;
+  height: 150%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  opacity: 0; /* the label's own background already previews the color */
+}
+
+.calibration-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* --- Cursor shape picker (Revision 5, GOAL 1) ---
+   Same shape rules (border-radius/clip-path) as `.hand-cursor-dot-fill` in
+   handCursorOverlay.css, duplicated rather than shared -- these are two
+   independent stylesheets/components by design (this panel doesn't import
+   the overlay's CSS), and it's four short rules. */
+.calibration-shapes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+}
+
+.calibration-shape-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1, 0.25rem);
+  padding: var(--space-2, 0.5rem);
+  border-radius: var(--radius-control, 14px);
+  border: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted, #8e837b);
+  font-size: var(--fs-xs, 0.75rem);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast, 150ms) var(--ease-out),
+    color var(--dur-fast, 150ms) var(--ease-out),
+    border-color var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.calibration-shape-option:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.075));
+  color: var(--text, #f4f0ec);
+}
+
+.calibration-shape-option:focus-visible {
+  outline: 2px solid var(--accent, #35f0d0);
+  outline-offset: 2px;
+}
+
+.calibration-shape-option[aria-pressed="true"] {
+  border-color: var(--accent, #35f0d0);
+  color: var(--text, #f4f0ec);
+}
+
+.calibration-shape-preview {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--text, #f4f0ec);
+  background: transparent;
+  border-radius: 50%;
+}
+
+.calibration-shape-preview[data-shape="square"] {
+  border-radius: 2px;
+  clip-path: none;
+}
+
+.calibration-shape-preview[data-shape="rounded-square"] {
+  border-radius: 30%;
+  clip-path: none;
+}
+
+.calibration-shape-preview[data-shape="diamond"] {
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+@media (max-width: 480px) {
+  .calibration-panel {
+    right: var(--space-3, 0.75rem);
+    left: var(--space-3, 0.75rem);
+    width: auto;
+  }
+}

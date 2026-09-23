@@ -41,3 +41,8 @@ test-photos/
 
 # Third-party design reference screenshots (kept local only; repo is public)
 docs/inspo/
+
+# MediaPipe WASM + model assets for the hand-interaction prototype (large
+# binaries fetched from Google's CDN by setup, not committed to the repo)
+web/public/mediapipe/
+web/public/models/*.task
