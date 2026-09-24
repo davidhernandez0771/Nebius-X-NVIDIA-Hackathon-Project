@@ -23,10 +23,17 @@ import {
   type ViewportPoint,
 } from "../contracts";
 
-// EMA time constant for cursor smoothing. Short enough that pointing still
-// feels immediate (~2-3 frames of lag at a typical 30fps webcam feed), long
-// enough to absorb per-frame landmark jitter.
-const SMOOTHING_TAU_MS = 80;
+// EMA time constant for cursor smoothing. The tracker is actually driven by
+// requestAnimationFrame (~60Hz on most displays, one frame ~16.7ms), not the
+// 30fps this constant was originally reasoned against -- the alpha formula
+// below uses real inter-frame dt, so behavior was never actually wrong, only
+// the stated assumption was. Lowered from the original 80 to 50: still ~3
+// frames of jitter absorption at 60fps, but reaches ~86% of a step change
+// within 100ms instead of ~71%, trading a little smoothing for more
+// responsiveness. Not tuned against a real camera by anyone yet -- the
+// values here are a reasoned starting point for a live feel-tuning pass, not
+// a final answer. See HANDOFF_AGENT2.md.
+const SMOOTHING_TAU_MS = 50;
 
 // Thumb/index PINCH -- Revision 4: purely internal now (feeds the
 // select/pinch priority rule and two-hand zoom only, no public event/getter).
@@ -51,6 +58,19 @@ const SELECT_STABILITY_MS = 60;
 // many hand-size-units from their own MCP to count as "extended" -- a curled
 // fist brings a fingertip back near its MCP, well under this.
 const MIN_FINGER_EXTENSION_RATIO = 0.5;
+
+// Velocity clamp on the raw (pre-EMA) cursor sample: caps how far a single
+// frame's raw point can move from the previous raw point, in px/ms. Guards
+// against a known MediaPipe failure mode -- a fingertip briefly detected at a
+// wrong position for one frame -- which would otherwise snap the smoothed
+// cursor toward the bad sample just as readily as a real fast move. A
+// reasoned starting cap, not tuned against a real camera; loosen if
+// legitimate fast moves feel clipped.
+const MAX_CURSOR_PX_PER_MS = 3;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 // Two-hand zoom tuning -- unchanged from Revision 3.
 const ZOOM_DEAD_ZONE = 0.02; // +-2% around ratio 1 reads as "no change"
@@ -88,20 +108,37 @@ function freshPinchState(): PinchIdentityState {
 class CursorSmoother {
   private x: number | null = null;
   private y: number | null = null;
+  // Previous *raw* (pre-EMA) sample, tracked separately from the smoothed
+  // x/y so the velocity clamp below can bound frame-to-frame raw movement
+  // without affecting the EMA's own convergence math.
+  private lastRawX: number | null = null;
+  private lastRawY: number | null = null;
 
   reset(): void {
     this.x = null;
     this.y = null;
+    this.lastRawX = null;
+    this.lastRawY = null;
   }
 
   sample(rawX: number, rawY: number, dt: number): ViewportPoint {
     if (this.x === null || this.y === null) {
+      // First sample after construction/reset: snap, and nothing to clamp
+      // against yet -- matches the existing "fresh smoother" contract.
       this.x = rawX;
       this.y = rawY;
+      this.lastRawX = rawX;
+      this.lastRawY = rawY;
     } else {
+      const maxDelta = MAX_CURSOR_PX_PER_MS * dt;
+      const clampedRawX = this.lastRawX! + clamp(rawX - this.lastRawX!, -maxDelta, maxDelta);
+      const clampedRawY = this.lastRawY! + clamp(rawY - this.lastRawY!, -maxDelta, maxDelta);
+      this.lastRawX = clampedRawX;
+      this.lastRawY = clampedRawY;
+
       const alpha = 1 - Math.exp(-dt / SMOOTHING_TAU_MS);
-      this.x += alpha * (rawX - this.x);
-      this.y += alpha * (rawY - this.y);
+      this.x += alpha * (clampedRawX - this.x);
+      this.y += alpha * (clampedRawY - this.y);
     }
     return { x: this.x, y: this.y };
   }

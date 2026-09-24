@@ -17,6 +17,17 @@ from nebius_llm import TokenFactoryError
 
 router = APIRouter(prefix="/api/organize", tags=["organize"])
 
+# A move is always "item -> some other location than the one it's already in".
+# With only one location in the whole room, every move Nemotron could possibly
+# suggest is a no-op, and the validator (correctly) strips all of them --
+# every call would land on the generic NOTHING_TO_SUGGEST fallback regardless
+# of what's in the room. Catching this up front skips a Nemotron call that
+# can only ever produce that one outcome, and lets the message name the real,
+# fixable reason instead of reading as broken.
+SINGLE_LOCATION_MESSAGE = (
+    "Everything's already in the only location this room has. Add another location to get organizing suggestions."
+)
+
 
 @router.post("", response_model=schemas.OrganizeOut)
 def organize(body: schemas.OrganizeRequestIn, db: Session = Depends(get_db)):
@@ -24,16 +35,23 @@ def organize(body: schemas.OrganizeRequestIn, db: Session = Depends(get_db)):
     if not room or room.owner_id != DEV_OWNER_ID:
         raise HTTPException(404, "Room not found")
     items = db.query(models.Item).filter_by(room_id=body.room_id, status="active").all()
+    if not items:
+        raise HTTPException(400, "No items to organize yet.")
+    location_names = _location_names(db, body.room_id)
     payload = json.dumps(
         [
             {"name": item.name, "category": item.category, "quantity": item.quantity, "location": item.location.name}
             for item in items
         ]
     )
-    try:
-        suggestion, cost = suggest_organization(payload, _location_names(db, body.room_id))
-    except TokenFactoryError as error:
-        raise HTTPException(502, str(error)) from error
+
+    if len(location_names) < 2:
+        suggestion, cost = SINGLE_LOCATION_MESSAGE, 0.0
+    else:
+        try:
+            suggestion, cost = suggest_organization(payload, location_names)
+        except TokenFactoryError as error:
+            raise HTTPException(502, str(error)) from error
 
     proposal = models.Proposal(
         room_id=body.room_id,

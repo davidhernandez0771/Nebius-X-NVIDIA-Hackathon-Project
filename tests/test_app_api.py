@@ -132,6 +132,20 @@ class AppApiTests(unittest.TestCase):
         self.assertIn("lamp", chat_mock.call_args.args[0])
         self.assertEqual(result["suggestion"], "- lamp → Shelf: easier to reach.")
 
+    @patch("app.ai.organize.chat")
+    def test_organize_with_one_location_skips_the_model_call(self, chat_mock):
+        room_id, location_id = self._make_room_and_location()
+        analysis = self._upload_and_analyze(
+            location_id, '[{"label": "lamp", "category": "electronics", "count": 1, "uncertainty_note": ""}]'
+        )
+        self.client.post(f"/api/candidates/{analysis['candidates'][0]['id']}/review", json={"status": "organize"})
+
+        result = self.client.post("/api/organize", json={"room_id": room_id}).json()
+
+        chat_mock.assert_not_called()
+        self.assertIn("only location", result["suggestion"])
+        self.assertEqual(result["est_cost_usd"], 0.0)
+
     def test_chat_trash_command_end_to_end(self):
         room_id, location_id = self._make_room_and_location()
         analysis = self._upload_and_analyze(
@@ -173,6 +187,43 @@ class AppApiTests(unittest.TestCase):
         )
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["room_id"], room_id)
+
+    def test_analyzing_the_same_photo_twice_is_rejected(self):
+        _, location_id = self._make_room_and_location()
+        with patch("app.ai.vision.chat_vision") as vision_mock:
+            vision_mock.return_value = NS(
+                text='[{"label": "lamp", "category": "electronics", "count": 1, "uncertainty_note": ""}]',
+                est_cost_usd=0.0001,
+            )
+            photo = self.client.post(
+                f"/api/photos?location_id={location_id}",
+                files={"file": ("shelf.jpg", b"fake-bytes", "image/jpeg")},
+            ).json()
+            first = self.client.post(f"/api/photos/{photo['id']}/analyze")
+            self.assertEqual(first.status_code, 200)
+            second = self.client.post(f"/api/photos/{photo['id']}/analyze")
+        self.assertEqual(second.status_code, 409)
+
+    def test_organize_with_no_items_is_rejected(self):
+        room_id, _ = self._make_room_and_location()
+        r = self.client.post("/api/organize", json={"room_id": room_id})
+        self.assertEqual(r.status_code, 400)
+
+    def test_chat_with_blank_text_is_rejected(self):
+        room_id, _ = self._make_room_and_location()
+        r = self.client.post("/api/chat", json={"text": "", "room_id": room_id})
+        self.assertEqual(r.status_code, 422)
+
+    def test_item_quantity_cannot_go_negative(self):
+        room_id, location_id = self._make_room_and_location()
+        analysis = self._upload_and_analyze(
+            location_id, '[{"label": "cable", "category": "electronics", "count": 2, "uncertainty_note": ""}]'
+        )
+        item = self.client.post(
+            f"/api/candidates/{analysis['candidates'][0]['id']}/review", json={"status": "organize"}
+        ).json()
+        r = self.client.patch(f"/api/items/{item['id']}", json={"quantity": -1})
+        self.assertEqual(r.status_code, 422)
 
 
 if __name__ == "__main__":

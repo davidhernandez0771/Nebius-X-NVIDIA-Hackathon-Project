@@ -321,6 +321,27 @@
   clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
 }
 
+/* --- Calibration wizard ("Calibrate by hand") --- */
+.calibration-wizard-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+}
+
+.calibration-wizard-progress {
+  height: 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-dim, rgba(255, 255, 255, 0.14));
+  overflow: hidden;
+}
+
+.calibration-wizard-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, #35f0d0);
+  transition: width 120ms linear;
+}
+
 @media (max-width: 480px) {
   .calibration-panel {
     right: var(--space-3, 0.75rem);

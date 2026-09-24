@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
-from .routers import candidates, chat, items, organize, photos, rooms, scans
+from .routers import candidates, chat, items, organize, phone_scans, photos, rooms, scans
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.include_router(rooms.router)
 app.include_router(scans.router)
+app.include_router(phone_scans.router)
 app.include_router(photos.router)
 app.include_router(candidates.router)
 app.include_router(items.router)

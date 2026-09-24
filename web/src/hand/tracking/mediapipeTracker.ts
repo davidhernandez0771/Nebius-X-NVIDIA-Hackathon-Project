@@ -118,6 +118,15 @@ export function createMediapipeTracker(): TrackingAdapter {
             },
             runningMode: "VIDEO",
             numHands: 2,
+            // Previously unset (library default 0.5 for all three). Raising
+            // detection/presence reduces "cursor snaps to a phantom
+            // position" from low-confidence hand locks; tracking confidence
+            // stays more permissive so an already-locked-on hand isn't
+            // dropped mid-gesture from minor motion blur. Reasoned defaults,
+            // not tuned against a real camera -- sanity-check by feel.
+            minHandDetectionConfidence: 0.6,
+            minHandPresenceConfidence: 0.6,
+            minTrackingConfidence: 0.5,
           });
           if (cleanedUp) {
             acquiredLandmarker.close();

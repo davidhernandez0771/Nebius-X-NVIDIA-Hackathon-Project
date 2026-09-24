@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CURSOR_SHAPES, DEFAULT_INTERACTION_COLOR, type CursorShape, type HandPointerApi } from "../contracts";
+import { CalibrationWizard } from "./CalibrationWizard";
 import "./calibrationPanel.css";
 
 type Props = {
@@ -62,6 +63,7 @@ export function CalibrationPanel({ api, open, onClose }: Props) {
   } = api;
   const headingId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   // Escape to close, and move focus in when opened -- the panel has no
   // backdrop/outside-click dismissal (a hand-driven .click() elsewhere in
@@ -76,6 +78,12 @@ export function CalibrationPanel({ api, open, onClose }: Props) {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
+
+  // Reopening the panel later should land back on the normal sliders view,
+  // not mid-wizard from a previous session.
+  useEffect(() => {
+    if (!open) setWizardOpen(false);
+  }, [open]);
 
   if (!open) return null;
 
@@ -113,57 +121,66 @@ export function CalibrationPanel({ api, open, onClose }: Props) {
         <strong>thumb and index on both hands</strong> and move them apart or together to zoom.
       </p>
 
-      <label className="calibration-field">
-        <span className="calibration-field-label">
-          <span>Region size</span>
-          <span className="calibration-field-value">{sizePercent}%</span>
-        </span>
-        <input
-          type="range"
-          min={SIZE_MIN}
-          max={SIZE_MAX}
-          step={0.01}
-          value={controlRegion.width}
-          aria-valuetext={`${sizePercent}%`}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            setControlRegion({ width: v, height: v });
-          }}
-        />
-        <span className="calibration-field-hint">Smaller = less arm movement to reach every edge.</span>
-      </label>
+      {wizardOpen ? (
+        <CalibrationWizard api={api} onDone={() => setWizardOpen(false)} />
+      ) : (
+        <>
+          <label className="calibration-field">
+            <span className="calibration-field-label">
+              <span>Region size</span>
+              <span className="calibration-field-value">{sizePercent}%</span>
+            </span>
+            <input
+              type="range"
+              min={SIZE_MIN}
+              max={SIZE_MAX}
+              step={0.01}
+              value={controlRegion.width}
+              aria-valuetext={`${sizePercent}%`}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setControlRegion({ width: v, height: v });
+              }}
+            />
+            <span className="calibration-field-hint">Smaller = less arm movement to reach every edge.</span>
+          </label>
 
-      <label className="calibration-field">
-        <span className="calibration-field-label">
-          <span>Vertical position</span>
-          <span className="calibration-field-value">{verticalLabel}</span>
-        </span>
-        <input
-          type="range"
-          min={CENTER_Y_MIN}
-          max={CENTER_Y_MAX}
-          step={0.01}
-          value={controlRegion.centerY}
-          aria-valuetext={verticalLabel}
-          onChange={(e) => setControlRegion({ centerY: Number(e.target.value) })}
-        />
-        <span className="calibration-field-hint">Lower it for a relaxed, resting arm.</span>
-      </label>
+          <label className="calibration-field">
+            <span className="calibration-field-label">
+              <span>Vertical position</span>
+              <span className="calibration-field-value">{verticalLabel}</span>
+            </span>
+            <input
+              type="range"
+              min={CENTER_Y_MIN}
+              max={CENTER_Y_MAX}
+              step={0.01}
+              value={controlRegion.centerY}
+              aria-valuetext={verticalLabel}
+              onChange={(e) => setControlRegion({ centerY: Number(e.target.value) })}
+            />
+            <span className="calibration-field-hint">Lower it for a relaxed, resting arm.</span>
+          </label>
 
-      <details className="calibration-preview-details">
-        <summary>Preview region</summary>
-        <div className="calibration-preview-frame">
-          <div
-            className="calibration-preview-region"
-            style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}
-          />
-        </div>
-        <p className="calibration-preview-note">Schematic preview, not a live camera feed.</p>
-      </details>
+          <details className="calibration-preview-details">
+            <summary>Preview region</summary>
+            <div className="calibration-preview-frame">
+              <div
+                className="calibration-preview-region"
+                style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}
+              />
+            </div>
+            <p className="calibration-preview-note">Schematic preview, not a live camera feed.</p>
+          </details>
 
-      <button type="button" className="calibration-panel-reset" onClick={resetControlRegion}>
-        Reset region to default
-      </button>
+          <button type="button" className="calibration-panel-reset" onClick={() => setWizardOpen(true)}>
+            Calibrate by hand
+          </button>
+          <button type="button" className="calibration-panel-reset" onClick={resetControlRegion}>
+            Reset region to default
+          </button>
+        </>
+      )}
 
       <hr className="calibration-divider" />
 

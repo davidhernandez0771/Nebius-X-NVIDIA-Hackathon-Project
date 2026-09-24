@@ -181,6 +181,22 @@ describe("control-region mapping", () => {
     expect(gp.cursor).toEqual({ x: 800, y: 800 });
   });
 
+  it("clamps a single frame's raw movement so one bad-frame landmark spike can't snap the cursor", () => {
+    const gp = createGestureProcessor();
+    gp.setControlRegion(CUSTOM_REGION);
+    gp.update(frame(0, [{ handedness: "Right", landmarks: openHandAt({ x: 0.5, y: 0.5 }) }]));
+    expect(gp.cursor).toEqual({ x: 500, y: 500 }); // first sample: snaps, nothing to clamp against yet
+
+    // One frame later (dt=16ms, ~one frame at 60fps), the raw point jumps all
+    // the way across the region -- a bad single-frame detection, not a real
+    // fast move. Unclamped, the EMA alone would already pull the cursor to
+    // ~363 in this one frame; the velocity clamp bounds the pre-EMA raw
+    // sample to 3px/ms * 16ms = 48px of movement, so the post-EMA cursor
+    // stays much closer to its pre-jump position instead.
+    gp.update(frame(16, [{ handedness: "Right", landmarks: openHandAt({ x: 0.7, y: 0.5 }) }]));
+    expectClose(gp.cursor!.x, 486.86, 1);
+  });
+
   it("queues a region change made mid-select and only applies it once the primary hand releases", () => {
     const REGION_A: ControlRegion = { centerX: 0.5, centerY: 0.5, width: 0.4, height: 0.4 }; // [0.3,0.7]
     const REGION_B: ControlRegion = { centerX: 0.5, centerY: 0.5, width: 0.2, height: 0.2 }; // [0.4,0.6]

@@ -14,7 +14,13 @@ type Candidate = {
   uncertainty_note: string;
   status: string;
 };
-type AnalyzeResult = { photo_id: number; candidates: Candidate[]; est_cost_usd: number };
+type AnalyzeResult = {
+  photo_id: number;
+  candidates: Candidate[];
+  est_cost_usd: number;
+  truncated: boolean;
+  warnings: string[];
+};
 
 export default function AddPhoto() {
   const [params] = useSearchParams();
@@ -35,7 +41,9 @@ export default function AddPhoto() {
         tone: "accent",
         text: `Found ${result.candidates.length} candidate item(s), ~$${result.est_cost_usd.toFixed(5)}.`,
       });
-      navigate(`/review?photo_id=${photo.id}`);
+      navigate(`/review?photo_id=${photo.id}`, {
+        state: { truncated: result.truncated, warnings: result.warnings },
+      });
     } catch (err) {
       setStatus({ tone: "danger", text: `Failed: ${errorMessage(err)}` });
     }
