@@ -1,0 +1,187 @@
+/* Assistant chat (Worker 3) -- scoped, colocated stylesheet, same pattern
+   as ../hand/integration/handToggle.css and ../hand/overlay/calibrationPanel.css.
+   Reuses the shared tokens in ../tokens.css; introduces no new colors. */
+
+.assistant-conversations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.assistant-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.assistant-conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.assistant-conversation-list li {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.assistant-conversation-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.assistant-conversation-item:hover {
+  background: var(--surface-hover);
+}
+
+.assistant-conversation-item.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.assistant-conversation-title {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.assistant-conversation-delete {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  border-radius: var(--radius-control);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.assistant-conversation-delete:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.assistant-log {
+  flex: 1;
+  min-height: 120px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.assistant-message-error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+/* ----------------------------------------------------------- composer */
+
+.assistant-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.assistant-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--inner-highlight);
+  -webkit-backdrop-filter: blur(var(--blur));
+  backdrop-filter: blur(var(--blur));
+}
+
+.assistant-composer-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  line-height: var(--lh-body);
+  padding: var(--space-2) 0;
+}
+
+.assistant-composer-input::placeholder {
+  color: var(--text-muted);
+}
+
+.assistant-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+}
+
+.assistant-mic-btn,
+.assistant-send-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.assistant-mic-btn:hover:not(:disabled),
+.assistant-send-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.assistant-mic-btn.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.assistant-mic-btn:disabled,
+.assistant-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.assistant-stop-btn {
+  width: auto;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  color: var(--danger);
+  border-color: var(--danger-line);
+}
+
+.assistant-composer-note {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding: 0 var(--space-2);
+}
+
+.assistant-composer-note--error {
+  color: var(--danger);
+}

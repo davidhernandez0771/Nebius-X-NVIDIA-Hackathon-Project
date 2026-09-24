@@ -11,10 +11,24 @@ import Inventory from "./pages/Inventory";
 import Organize from "./pages/Organize";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
+import VoicePage from "./voice/VoicePage";
+import CommandsPage from "./commands/CommandsPage";
+import ModesPage from "./commands/ModesPage";
+import AssistantPage from "./assistant/AssistantPage";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
 import { HandToggle } from "./hand/integration/HandToggle";
 import { CalibrationPanel } from "./hand/overlay/CalibrationPanel";
+import { registerHandControlBridge } from "./hand/integration/handControlBridge";
+import { registerBuiltinActions } from "./actions/builtins";
+import { registerModeActivateAction } from "./commands/registerActions";
+
+// Registered once at module load (both are idempotent -- see their own
+// files) rather than in an effect, so every action is available the moment
+// any component (including a test) calls executeAction(), with no mount-order
+// dependency on App itself rendering first.
+registerBuiltinActions();
+registerModeActivateAction();
 
 // Full-bleed 3D pages live outside the dashboard shell and load lazily, so the
 // three.js bundle is only fetched when one of them is visited.
@@ -27,6 +41,16 @@ export default function App() {
   // so it survives navigation. See HAND_INTERACTION_PLAN.md.
   const hand = useHandPointer();
   const [calibrationOpen, setCalibrationOpen] = useState(false);
+
+  // Every render (cheap -- see handControlBridge.ts's own doc): keeps the
+  // action registry's hand_control.enable/disable wired to whichever
+  // useHandPointer() instance is actually live, without threading it
+  // through DashboardShell's <Outlet />.
+  registerHandControlBridge({
+    status: () => ({ enabled: hand.enabled }),
+    enable: hand.enable,
+    disable: hand.disable,
+  });
 
   return (
     <>
@@ -58,6 +82,10 @@ export default function App() {
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/organize" element={<Organize />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/voice" element={<VoicePage />} />
+          <Route path="/commands" element={<CommandsPage />} />
+          <Route path="/modes" element={<ModesPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

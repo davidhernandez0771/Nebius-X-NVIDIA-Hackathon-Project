@@ -15,6 +15,10 @@ const links: { to: string; label: string; icon: IconName; scoped?: boolean }[] =
   { to: "/inventory", label: "Inventory", icon: "shelf", scoped: true },
   { to: "/organize", label: "Organize", icon: "organize", scoped: true },
   { to: "/chat", label: "Chat", icon: "chat", scoped: true },
+  { to: "/voice", label: "Voice", icon: "mic" },
+  { to: "/commands", label: "Commands", icon: "wand" },
+  { to: "/modes", label: "Modes", icon: "layers" },
+  { to: "/assistant", label: "Assistant", icon: "sparkle" },
   { to: "/settings", label: "Settings", icon: "settings" },
 ];
 
