@@ -1,0 +1,256 @@
+"""Replay a Trajectory on the Franka with differential IK, record the episode, and verify it (spec 8.5).
+
+The caller must already be inside ``isaaclab.app.launch_simulation(make_sim_cfg(...), args)``.
+Isaac Lab 3.0 quaternions are (x, y, z, w); everything that crosses into demo_pipeline is (w, x, y, z).
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import torch
+
+import isaaclab.sim as sim_utils
+from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import instantiate
+from isaaclab.utils.math import quat_apply, subtract_frame_transforms
+
+from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode
+from demo_pipeline.schemas import Pose, Scene, SimSignals, Trajectory, VerificationResult
+from demo_pipeline.success import check_success
+
+from .scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, BIN_PARTS, FRONT_EYE, FRONT_TARGET, make_scene_cfg
+
+TASK_TEXT = "pick up the red cube and place it in the blue bin"
+PHYSICS_DT = 0.01
+DECIMATION = 2
+FPS = 50
+TCP_OFFSET = 0.1034  # m, panda_hand origin -> point between the fingertips, along hand +z
+GRIPPER_OPEN, GRIPPER_CLOSED = 0.04, 0.0  # finger joint targets (m)
+CONTACT_N = 0.1  # newtons; below this a pair is "not in contact"
+PREROLL_MAX_STEPS = 200  # control steps to reach the first pose before recording starts
+PREROLL_POS_TOL = 0.003
+CAMERA_WARMUP_STEPS = 5
+
+
+def make_sim_cfg(device: str = "cuda:0") -> sim_utils.SimulationCfg:
+    return sim_utils.SimulationCfg(dt=PHYSICS_DT, device=device)
+
+
+def _xyzw(q_wxyz) -> list[float]:
+    w, x, y, z = q_wxyz
+    return [x, y, z, w]
+
+
+def _wxyz(q_xyzw: np.ndarray) -> np.ndarray:
+    return np.concatenate([q_xyzw[..., 3:4], q_xyzw[..., :3]], axis=-1)
+
+
+def _yaw_rotate(q_wxyz, v) -> np.ndarray:
+    w, x, y, z = q_wxyz
+    rot = np.array([
+        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+    ])
+    return rot @ np.asarray(v, dtype=float)
+
+
+@dataclass
+class _Session:
+    sim: sim_utils.SimulationContext
+    scene: object
+    cameras: bool
+    ik: DifferentialIKController
+    arm: SceneEntityCfg
+    finger_ids: list[int]
+    jacobi_idx: int
+
+
+_SESSION: _Session | None = None
+
+
+def _session(record_cameras: bool) -> _Session:
+    """One SimulationContext + scene per process; built on first use."""
+    global _SESSION
+    if _SESSION is not None:
+        if record_cameras and not _SESSION.cameras:
+            raise RuntimeError("this sim session was built without cameras")
+        return _SESSION
+    sim = sim_utils.SimulationContext(make_sim_cfg())
+    scene = instantiate(make_scene_cfg(cameras=record_cameras))
+    sim.reset()
+    robot = scene["robot"]
+    arm = SceneEntityCfg("robot", joint_names=["panda_joint.*"], body_names=["panda_hand"])
+    arm.resolve(scene)
+    ik = DifferentialIKController(
+        DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+        num_envs=scene.num_envs,
+        device=sim.device,
+    )
+    finger_ids = [robot.joint_names.index("panda_finger_joint1"), robot.joint_names.index("panda_finger_joint2")]
+    jacobi_idx = arm.body_ids[0] - 1 if robot.is_fixed_base else arm.body_ids[0]
+    _SESSION = _Session(sim, scene, record_cameras, ik, arm, finger_ids, jacobi_idx)
+    return _SESSION
+
+
+def _place_scene(s: _Session, scene_spec: Scene) -> None:
+    sc, robot, dev = s.scene, s.scene["robot"], s.sim.device
+    origin = sc.env_origins[0].cpu().numpy()
+    q = robot.data.default_joint_pos.torch.clone()
+    robot.write_joint_position_to_sim_index(position=q)
+    robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch.clone())
+
+    def put(name: str, pos, quat_wxyz) -> None:
+        pose = torch.tensor([[*(np.asarray(pos) + origin), *_xyzw(quat_wxyz)]], dtype=torch.float32, device=dev)
+        sc[name].write_root_pose_to_sim_index(root_pose=pose)
+        sc[name].write_root_velocity_to_sim_index(root_velocity=torch.zeros(1, 6, device=dev))
+
+    put("cube", scene_spec.cube_pose.pos, scene_spec.cube_pose.quat_wxyz)
+    bp = scene_spec.bin_pose
+    for name, (_size, center) in BIN_PARTS.items():
+        put(name, np.asarray(bp.pos) + _yaw_rotate(bp.quat_wxyz, center), bp.quat_wxyz)
+    sc.reset()
+    s.ik.reset()
+    if s.cameras:
+        eye = torch.tensor([np.asarray(FRONT_EYE) + origin], dtype=torch.float32, device=dev)
+        target = torch.tensor([np.asarray(FRONT_TARGET) + origin], dtype=torch.float32, device=dev)
+        sc["front"].set_world_poses_from_view(eye, target)
+
+
+def _hand_target(s: _Session, tcp_pos: np.ndarray, quat_wxyz) -> torch.Tensor:
+    """TCP pose (world, wxyz) -> panda_hand pose command in the robot root frame (pos + xyzw)."""
+    dev, robot = s.sim.device, s.scene["robot"]
+    origin = s.scene.env_origins[0]
+    q = torch.tensor([_xyzw(quat_wxyz)], dtype=torch.float32, device=dev)
+    tcp = torch.tensor([tcp_pos], dtype=torch.float32, device=dev) + origin
+    offset = torch.tensor([[0.0, 0.0, TCP_OFFSET]], device=dev)
+    hand_w = tcp - quat_apply(q, offset)
+    root = robot.data.root_pose_w.torch
+    pos_b, quat_b = subtract_frame_transforms(root[:, 0:3], root[:, 3:7], hand_w, q)
+    return torch.cat([pos_b, quat_b], dim=-1)
+
+
+def _physics_step(s: _Session, command: torch.Tensor, gripper: int) -> torch.Tensor:
+    """Two physics steps (decimation 2) tracking `command`. Returns the full joint target vector."""
+    robot = s.scene["robot"]
+    s.ik.set_command(command)
+    for _ in range(DECIMATION):
+        jacobi_joint_ids = [j + robot.num_base_dofs for j in s.arm.joint_ids]
+        jacobian = robot.data.body_link_jacobian_w.torch[:, s.jacobi_idx, :, jacobi_joint_ids]
+        ee_pose_w = robot.data.body_pose_w.torch[:, s.arm.body_ids[0]]
+        root = robot.data.root_pose_w.torch
+        joint_pos = robot.data.joint_pos.torch[:, s.arm.joint_ids]
+        ee_pos_b, ee_quat_b = subtract_frame_transforms(root[:, 0:3], root[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
+        arm_target = s.ik.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
+        finger = torch.full((1, 2), GRIPPER_CLOSED if gripper else GRIPPER_OPEN, device=s.sim.device)
+        robot.set_joint_position_target_index(target=arm_target, joint_ids=s.arm.joint_ids)
+        robot.set_joint_position_target_index(target=finger, joint_ids=s.finger_ids)
+        s.scene.write_data_to_sim()
+        s.sim.step()
+        s.scene.update(PHYSICS_DT)
+    full = robot.data.joint_pos.torch.clone()
+    full[:, s.arm.joint_ids] = arm_target
+    full[:, s.finger_ids] = finger
+    return full
+
+
+def _tcp_pose(s: _Session) -> tuple[np.ndarray, np.ndarray]:
+    robot = s.scene["robot"]
+    hand = robot.data.body_pose_w.torch[:, s.arm.body_ids[0]]
+    offset = torch.tensor([[0.0, 0.0, TCP_OFFSET]], device=s.sim.device)
+    tcp = hand[:, 0:3] + quat_apply(hand[:, 3:7], offset) - s.scene.env_origins[0]
+    return tcp[0].cpu().numpy().astype(np.float64), _wxyz(hand[0, 3:7].cpu().numpy().astype(np.float64))
+
+
+def _max_pair_force(sensor) -> float:
+    """Largest filtered normal-force magnitude over both physics substeps of the last control step."""
+    hist = sensor.data.normal_force_matrix_w_history
+    forces = (hist.torch if hist is not None else sensor.data.normal_force_matrix_w.torch)
+    return float(torch.linalg.norm(forces, dim=-1).max().item())
+
+
+def replay(
+    traj: Trajectory, scene: Scene, *, ep_dir: Path | None, record_cameras: bool
+) -> tuple[VerificationResult, SimSignals]:
+    s = _session(record_cameras)
+    _place_scene(s, scene)
+    arr = traj.to_arrays()
+    n = len(arr["t"])
+
+    # Pre-roll (not recorded): bring the hand to the first pose with the gripper as at step 0.
+    first = _hand_target(s, arr["ee_pos"][0], arr["ee_quat"][0])
+    for i in range(PREROLL_MAX_STEPS):
+        _physics_step(s, first, int(arr["gripper"][0]))
+        if i >= CAMERA_WARMUP_STEPS and np.linalg.norm(_tcp_pose(s)[0] - arr["ee_pos"][0]) < PREROLL_POS_TOL:
+            break
+    preroll_err = float(np.linalg.norm(_tcp_pose(s)[0] - arr["ee_pos"][0]))
+    print(f"[replay] pre-roll: {i + 1} steps, residual {preroll_err * 1000:.1f} mm")
+
+    rec = {k: [] for k in ("joint_pos", "action", "ee_pos", "ee_quat", "cube_pos")}
+    contacts = {k: np.zeros(n, dtype=bool) for k in ("gripper_cube", "arm_bin", "arm_table")}
+    max_force = np.zeros(n)
+    frames: dict[str, list[np.ndarray]] = {"front": [], "wrist": []} if record_cameras else {}
+    track_err = np.zeros(n)
+
+    for k in range(n):
+        cmd = _hand_target(s, arr["ee_pos"][k], arr["ee_quat"][k])
+        action = _physics_step(s, cmd, int(arr["gripper"][k]))
+        robot, cube = s.scene["robot"], s.scene["cube"]
+        tcp, q = _tcp_pose(s)
+        track_err[k] = np.linalg.norm(tcp - arr["ee_pos"][k])
+        rec["joint_pos"].append(robot.data.joint_pos.torch[0].cpu().numpy())
+        rec["action"].append(action[0].cpu().numpy())
+        rec["ee_pos"].append(tcp)
+        rec["ee_quat"].append(q)
+        rec["cube_pos"].append((cube.data.root_pos_w.torch[0] - s.scene.env_origins[0]).cpu().numpy())
+        contacts["gripper_cube"][k] = _max_pair_force(s.scene["cube_contact"]) > CONTACT_N
+        forces = {}
+        for group, sensors in ARM_CONTACT_SENSORS.items():
+            forces[group] = max(_max_pair_force(s.scene[name]) for name in sensors)
+        contacts["arm_bin"][k] = forces["bin"] > CONTACT_N
+        contacts["arm_table"][k] = forces["table"] > CONTACT_N
+        max_force[k] = max(forces.values())
+        for cam in frames:
+            frames[cam].append(s.scene[cam].data.output["rgb"].torch[0, ..., :3].cpu().numpy().astype(np.uint8))
+
+    print(
+        f"[replay] tracking error mm: mean {track_err.mean() * 1000:.1f}, max {track_err.max() * 1000:.1f} "
+        f"(at t={arr['t'][int(track_err.argmax())]:.2f} s)"
+    )
+    signals = SimSignals(
+        cube_pos=np.asarray(rec["cube_pos"], dtype=np.float64),
+        contact_gripper_cube=contacts["gripper_cube"],
+        contact_arm_bin=contacts["arm_bin"],
+        contact_arm_table=contacts["arm_table"],
+        max_contact_force=max_force,
+    )
+    result = check_success(traj, signals, scene.bin_pose, bin_inner=BIN_INNER)
+
+    if ep_dir is not None:
+        ep_dir = Path(ep_dir)
+        meta = EpisodeMeta(
+            demo_id=ep_dir.name, robot=scene.robot, task_text=TASK_TEXT, fps=FPS, n_steps=n, cameras=sorted(frames)
+        )
+        save_episode(ep_dir, meta, {
+            "joint_pos": np.asarray(rec["joint_pos"], dtype=np.float32),
+            "action": np.asarray(rec["action"], dtype=np.float32),
+            "ee_pos": np.asarray(rec["ee_pos"], dtype=np.float32),
+            "ee_quat": np.asarray(rec["ee_quat"], dtype=np.float32),
+            "gripper": arr["gripper"].astype(np.int8),
+        })
+        if frames:
+            from PIL import Image
+
+            for cam, imgs in frames.items():
+                for k, img in enumerate(imgs):
+                    Image.fromarray(img).save(image_path(ep_dir, cam, k))
+    return result, signals
+
+
+def bin_pose_for(x: float, y: float, yaw: float = 0.0) -> Pose:
+    return Pose(pos=(x, y, 0.0), quat_wxyz=(math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)))
