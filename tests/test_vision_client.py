@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nebius_llm import chat_vision
+from nebius_llm import chat_vision, chat_vision_images
 
 
 def _response(text="[]", finish_reason="stop", prompt_tokens=700, completion_tokens=100):
@@ -64,3 +64,27 @@ def test_unknown_vision_tier_fails_before_any_request(api_mock):
     with pytest.raises(ValueError):
         chat_vision("p", b"img", tier="nope")
     api_mock.assert_not_called()
+
+
+def test_multi_image_request_has_text_then_images_in_order(api_mock):
+    api_mock.return_value = _response()
+    images = [b"first", b"second", b"third"]
+    chat_vision_images("compare these", images, max_tokens=99)
+
+    kwargs = api_mock.call_args.kwargs
+    text_part, *image_parts = kwargs["messages"][0]["content"]
+    assert text_part == {"type": "text", "text": "compare these"}
+    assert [p["image_url"]["url"] for p in image_parts] == [
+        "data:image/png;base64," + base64.b64encode(img).decode() for img in images
+    ]
+    assert kwargs["max_tokens"] == 99
+
+
+def test_nemotron_vl_tier_routes_to_its_model_id(api_mock, tmp_path):
+    api_mock.return_value = _response(prompt_tokens=1000, completion_tokens=200)
+    result = chat_vision_images("p", [b"img"], tier="nemotron-vl")
+
+    assert api_mock.call_args.kwargs["model"] == "nvidia/Nemotron-3.5-Super-VL"
+    entry = json.loads((tmp_path / "usage_log.jsonl").read_text())
+    assert entry["tier"] == "vision:nemotron-vl"
+    assert result.est_cost_usd == pytest.approx((1000 * 0.30 + 200 * 0.90) / 1_000_000)

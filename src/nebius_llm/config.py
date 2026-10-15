@@ -119,11 +119,21 @@ VISION_TIERS: dict[str, VisionModelSpec] = {
         output_price_per_m=0.50,
         notes="Cheapest candidate; compare quality against minicpm.",
     ),
+    # ID and prices from a live `GET /v1/models?verbose=true` on 2026-10-15:
+    # modality text+image->text, pricing.prompt 0.0000003 / completion 0.0000009
+    # USD per token, pricing.image "0" (images are billed as prompt tokens).
+    "nemotron-vl": VisionModelSpec(
+        tier="nemotron-vl",
+        model_id=os.environ.get("NEBIUS_MODEL_VISION_NEMOTRON") or "nvidia/Nemotron-3.5-Super-VL",
+        input_price_per_m=0.30,
+        output_price_per_m=0.90,
+        notes="Multi-image demo diagnoser (perfect-then-multiply spec 8.3).",
+    ),
 }
 
 
 def get_vision_model(tier: str | None = None) -> VisionModelSpec:
-    """Resolve a vision tier name ('minicpm' | 'glm-flash') to its VisionModelSpec."""
+    """Resolve a vision tier name ('minicpm' | 'glm-flash' | 'nemotron-vl') to its VisionModelSpec."""
     name = (tier or DEFAULT_VISION_TIER).lower()
     try:
         return VISION_TIERS[name]
