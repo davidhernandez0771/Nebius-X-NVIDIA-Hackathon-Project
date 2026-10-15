@@ -46,3 +46,6 @@ docs/inspo/
 # binaries fetched from Google's CDN by setup, not committed to the repo)
 web/public/mediapipe/
 web/public/models/*.task
+
+# perfect-then-multiply pipeline data (episodes, datasets, runs)
+/data/
