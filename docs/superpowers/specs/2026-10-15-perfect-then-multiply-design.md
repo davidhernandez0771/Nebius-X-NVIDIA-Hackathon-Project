@@ -429,6 +429,12 @@ Sim worker jobs run asynchronously; the UI polls job status.
 - The LeRobot exporter lives in `lerobot_tools/`, not `demo_pipeline/`.
   `demo_pipeline` must stay importable without lerobot. It runs in its own
   venv, `C:\venvs\lerobot`.
+- **Nemotron VL accepts at most 8 images per prompt.** T4's live call got
+  HTTP 400. Section 8.3 therefore becomes 7 front frames + 1 wrist frame, or
+  8 front frames when there is no wrist frame. Measured cost: ~263 prompt
+  tokens per 256×256 image, ~$0.0013 per diagnose call, ~2.5 s latency.
+- The teleop message (`HandPoseMsg`) and the hand → end-effector mapping live
+  in `demo_pipeline/teleop.py` (pure, testable). The sim worker applies them.
 - Python environments live outside OneDrive (`C:\venvs\...`) and uv runs with
   `UV_LINK_MODE=copy`. A `.venv` inside OneDrive fails to install (os errors
   5 and 396).
