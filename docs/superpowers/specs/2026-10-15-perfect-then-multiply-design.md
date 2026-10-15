@@ -417,4 +417,18 @@ Sim worker jobs run asynchronously; the UI polls job status.
 
 ## Changes
 
-None yet.
+**2026-10-15, during planning:**
+
+- Repair ops are flat JSON objects (`{"op": "remove_pause", "t0": 1.5, "t1": 2.4}`)
+  instead of `{op, params}`. This is simpler for the model and is validated as
+  a discriminated union.
+- Added `SimSignals` to the contract: per-step cube position and contacts,
+  passed from the sim worker to measuring.
+- The success check lives in `demo_pipeline/success.py`, as pure code, so it
+  is testable without Isaac. The sim worker calls it.
+- The LeRobot exporter lives in `lerobot_tools/`, not `demo_pipeline/`.
+  `demo_pipeline` must stay importable without lerobot. It runs in its own
+  venv, `C:\venvs\lerobot`.
+- Python environments live outside OneDrive (`C:\venvs\...`) and uv runs with
+  `UV_LINK_MODE=copy`. A `.venv` inside OneDrive fails to install (os errors
+  5 and 396).
