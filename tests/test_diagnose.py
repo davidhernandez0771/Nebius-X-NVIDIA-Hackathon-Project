@@ -101,6 +101,21 @@ def test_diagnose_sends_frames_then_wrist_to_nemotron_vl_without_thinking():
     assert kwargs["extra_body"] == {"chat_template_kwargs": {"enable_thinking": False}}
 
 
+def test_diagnose_subsamples_frames_to_the_8_image_limit_keeping_ends_and_captions():
+    # Token Factory rejects more than 8 images per prompt (HTTP 400, seen live 2026-10-15).
+    frames = [(i / 3, f"f{i}".encode()) for i in range(10)]
+    with patch("app.ai.diagnose.chat_vision_images") as vision:
+        vision.return_value = _reply(json.dumps(GOOD))
+        _diagnose(frames=frames)
+
+    prompt, images = vision.call_args.args
+    assert len(images) == 8
+    assert images[0] == b"f0" and images[6] == b"f9" and images[7] == b"wrist"
+    kept_times = [t for t, png in frames if png in images]
+    assert [f"Image {i}: front camera at t={t:.2f} s" in prompt for i, t in enumerate(kept_times, start=1)] == [True] * 7
+    assert "Image 8: wrist camera" in prompt
+
+
 def test_diagnose_retries_once_with_error_then_succeeds():
     with patch("app.ai.diagnose.chat_vision_images") as vision:
         vision.side_effect = [_reply("no json here"), _reply(json.dumps(GOOD))]

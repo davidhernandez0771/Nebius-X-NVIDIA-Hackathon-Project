@@ -25,6 +25,9 @@ from nebius_llm import chat_vision_images
 
 DIAGNOSE_TIER = "nemotron-vl"
 DIAGNOSE_MAX_TOKENS = 2048
+# Token Factory rejects more: "At most 8 image(s) may be provided in one prompt"
+# (HTTP 400, live call 2026-10-15). Spec 8.3's 10 front + 1 wrist frames do not fit.
+MAX_IMAGES = 8
 # Thinking off: verified for Nemotron 3.5 text models (nebius_llm.client.chat);
 # the plan asks for the same switch on the VL model.
 DIAGNOSE_EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}}
@@ -70,6 +73,16 @@ def _repair_menu() -> list[str]:
         fields = ", ".join(['"op": "%s"' % op, *(f'"{name}"' for name in model.model_fields if name != "op")])
         lines.append(f"- {op} {{{fields}}}: {_OP_HELP[op]}")
     return lines
+
+
+def select_frames(frames: list[tuple[float, bytes]], has_wrist_frame: bool) -> list[tuple[float, bytes]]:
+    """Evenly subsample front frames, keeping the first and last, so that all images fit in MAX_IMAGES."""
+    limit = MAX_IMAGES - (1 if has_wrist_frame else 0)
+    if len(frames) <= limit:
+        return list(frames)
+    if limit == 1:
+        return [frames[0]]
+    return [frames[round(i * (len(frames) - 1) / (limit - 1))] for i in range(limit)]
 
 
 def _metrics_table(windows: list[MetricsWindow]) -> list[str]:
@@ -164,11 +177,13 @@ def diagnose(
 ) -> Diagnosis:
     """Ask Nemotron VL for a Diagnosis; retry with the validation error until max_attempts.
 
-    frames are (t, PNG bytes) front-camera images in time order.
+    frames are (t, PNG bytes) front-camera images in time order; they are
+    subsampled with select_frames() if they would exceed MAX_IMAGES.
 
     Raises: DiagnosisError after max_attempts invalid replies; nebius_llm errors
     (AuthError, RateLimitError, ...) propagate unchanged.
     """
+    frames = select_frames(frames, wrist_frame is not None)
     prompt = build_diagnosis_prompt(
         task_text, windows, [t for t, _ in frames], wrist_frame is not None, replay_success
     )
