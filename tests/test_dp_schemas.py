@@ -176,6 +176,20 @@ def test_episode_save_and_load_round_trip(tmp_path):
     assert images["front"] == [ep_dir / "front" / f"{i:06d}.png" for i in range(n)]
 
 
+def test_sim_signals_save_and_load_round_trip(tmp_path):
+    from demo_pipeline.episode_io import load_signals, save_signals
+    from demo_pipeline.schemas import SimSignals
+    n = 4
+    sig = SimSignals(cube_pos=np.arange(n * 3, dtype=float).reshape(n, 3),
+                     contact_gripper_cube=np.array([0, 1, 1, 0], bool), contact_arm_bin=np.zeros(n, bool),
+                     contact_arm_table=np.zeros(n, bool), max_contact_force=np.linspace(0, 1, n))
+    save_signals(tmp_path, sig)
+    loaded = load_signals(tmp_path)
+    for name in ("cube_pos", "contact_gripper_cube", "contact_arm_bin", "contact_arm_table", "max_contact_force"):
+        np.testing.assert_array_equal(getattr(loaded, name), getattr(sig, name))
+    assert load_signals(tmp_path / "missing") is None
+
+
 def test_data_dir_defaults_to_repo_data_and_honours_env(monkeypatch, tmp_path):
     from demo_pipeline.paths import data_dir
     monkeypatch.delenv("DATA_DIR", raising=False)
