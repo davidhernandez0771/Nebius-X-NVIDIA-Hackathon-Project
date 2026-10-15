@@ -6,6 +6,7 @@ Conventions: Isaac Lab world frame, Z-up, meters, seconds; quaternions are (w, x
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Literal, Union
 
@@ -106,6 +107,29 @@ class Demo(_Model):
         if self.source != "human" and not self.parent_id:
             raise ValueError(f"a {self.source} demo needs a parent_id")
         return self
+
+
+@dataclass(frozen=True)
+class SimSignals:
+    """Per-step simulator signals recorded during replay (sim worker -> measure). Same length as the Trajectory."""
+
+    cube_pos: np.ndarray  # [N, 3] cube center, world frame
+    contact_gripper_cube: np.ndarray  # [N] bool
+    contact_arm_bin: np.ndarray  # [N] bool
+    contact_arm_table: np.ndarray  # [N] bool
+    max_contact_force: np.ndarray  # [N] float, N (newtons), max over arm-vs-bin/table contacts
+
+    def __post_init__(self) -> None:
+        if self.cube_pos.ndim != 2 or self.cube_pos.shape[1] != 3:
+            raise ValueError(f"cube_pos must be [N, 3], got {self.cube_pos.shape}")
+        n = self.cube_pos.shape[0]
+        for name in ("contact_gripper_cube", "contact_arm_bin", "contact_arm_table", "max_contact_force"):
+            if getattr(self, name).shape != (n,):
+                raise ValueError(f"{name} must have shape ({n},), got {getattr(self, name).shape}")
+
+    @property
+    def n_steps(self) -> int:
+        return int(self.cube_pos.shape[0])
 
 
 class MetricsWindow(_Model):

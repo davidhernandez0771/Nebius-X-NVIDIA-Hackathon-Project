@@ -63,6 +63,25 @@ def test_trajectory_needs_at_least_two_steps():
         Trajectory(t=[0.0], ee_pos=[(0, 0, 0)], ee_quat=[IDENTITY], gripper=[0])
 
 
+# --- SimSignals (sim worker -> measure) -------------------------------------------------------
+
+def test_sim_signals_validates_lengths_and_shapes():
+    from demo_pipeline.schemas import SimSignals
+    n = 5
+    s = SimSignals(cube_pos=np.zeros((n, 3)), contact_gripper_cube=np.zeros(n, bool),
+                   contact_arm_bin=np.zeros(n, bool), contact_arm_table=np.zeros(n, bool),
+                   max_contact_force=np.zeros(n))
+    assert s.n_steps == n
+    with pytest.raises(ValueError):
+        SimSignals(cube_pos=np.zeros((n, 3)), contact_gripper_cube=np.zeros(n - 1, bool),
+                   contact_arm_bin=np.zeros(n, bool), contact_arm_table=np.zeros(n, bool),
+                   max_contact_force=np.zeros(n))
+    with pytest.raises(ValueError):
+        SimSignals(cube_pos=np.zeros((n, 2)), contact_gripper_cube=np.zeros(n, bool),
+                   contact_arm_bin=np.zeros(n, bool), contact_arm_table=np.zeros(n, bool),
+                   max_contact_force=np.zeros(n))
+
+
 # --- Demo lineage ------------------------------------------------------------------
 
 def test_human_demo_has_no_parent_and_derived_demo_needs_one():
