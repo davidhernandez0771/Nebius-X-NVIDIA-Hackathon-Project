@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -182,3 +183,16 @@ def test_msg_json_round_trip_uses_the_shared_field_names():
         "t_ms", "tracking_ok", "wrist_uv", "palm_width", "pinch_ratio", "yaw_rad", "frame_w", "frame_h",
     }
     assert HandPoseMsg.model_validate_json(text) == _msg()
+
+
+TS_FIXTURE = Path(__file__).resolve().parents[1] / "web" / "src" / "teleop" / "__fixtures__" / "hand_pose_msg.json"
+
+
+def test_ts_fixture_validates_as_HandPoseMsg():
+    # Produced by web/src/teleop/handPoseMessage.test.ts's toHandPoseMsg() from fixed landmarks.
+    msg = HandPoseMsg.model_validate_json(TS_FIXTURE.read_text(encoding="utf-8"))
+
+    assert msg.tracking_ok is True
+    assert msg.frame_w == 1280 and msg.frame_h == 720
+    pose = to_ee_target(msg)
+    assert all(math.isfinite(c) for c in pose.pos)
