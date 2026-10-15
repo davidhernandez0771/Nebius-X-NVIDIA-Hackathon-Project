@@ -1,4 +1,4 @@
-"""Vision itemization calls: one image + prompt -> a Nebius-hosted vision model.
+"""Vision calls: a prompt + one or more images -> a Nebius-hosted vision model.
 
 Deliberately separate from chat() (see docs/ARCHITECTURE.md §5): vision models
 have their own price table and message shape (an image content part), and must
@@ -41,6 +41,39 @@ def chat_vision(
 
     Raises: AuthError, RateLimitError, ModelNotFoundError, TokenFactoryError.
     """
+    return chat_vision_images(
+        prompt,
+        [image_bytes],
+        mime_type=mime_type,
+        tier=tier,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        retries=retries,
+        log_usage=log_usage,
+        extra_body=extra_body,
+    )
+
+
+def chat_vision_images(
+    prompt: str,
+    images: list[bytes],
+    *,
+    mime_type: str = "image/png",
+    tier: str | None = None,
+    max_tokens: int = 2048,
+    temperature: float = 0.2,
+    retries: int = 0,
+    log_usage: bool = True,
+    extra_body: dict[str, Any] | None = None,
+) -> ChatResult:
+    """Send a prompt followed by several images, in order, to a vision model tier.
+
+    The message content is one text part, then one image part per image, so a
+    prompt can refer to "image 1", "image 2", ... by position. Same retry and
+    usage-logging behaviour as chat_vision().
+
+    Raises: AuthError, RateLimitError, ModelNotFoundError, TokenFactoryError.
+    """
     spec: VisionModelSpec = get_vision_model(tier)
     client = _get_client()
 
@@ -49,7 +82,7 @@ def chat_vision(
             "role": "user",
             "content": [
                 {"type": "text", "text": prompt},
-                _image_content_part(image_bytes, mime_type),
+                *(_image_content_part(image, mime_type) for image in images),
             ],
         }
     ]

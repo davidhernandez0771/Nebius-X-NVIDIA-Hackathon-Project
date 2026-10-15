@@ -10,7 +10,7 @@ from .client import (
 )
 from .config import DEFAULT_TIER, DEFAULT_VISION_TIER, TIERS, VISION_TIERS, ModelSpec, VisionModelSpec, get_model, get_vision_model
 from .usage import total_spend
-from .vision import chat_vision
+from .vision import chat_vision, chat_vision_images
 
 __all__ = [
     "AuthError",
@@ -26,6 +26,7 @@ __all__ = [
     "VisionModelSpec",
     "chat",
     "chat_vision",
+    "chat_vision_images",
     "get_model",
     "get_vision_model",
     "total_spend",
