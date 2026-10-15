@@ -76,3 +76,41 @@ The CUDA torch build was kept (lerobot's pins accept 2.11; uv did not replace it
    from somewhere. It is currently present only because `wandb` (from `lerobot[training]`) depends on it. A venv built
    with only `lerobot[dataset]` gives `ModuleNotFoundError: No module named 'pydantic'` on `import demo_pipeline.episode_io`.
    Recommendation: add `pydantic` explicitly to the lerobot venv recipe.
+
+## ACT training smoke (Task 3), 2026-10-15 17:05
+
+`C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.train_smoke` (results in
+`data/runs/t3_act_smoke_20261015_170519/results.json`, git-ignored). Data: 10 synthetic episodes x 100 frames,
+9-joint state/action, front + wrist video at 128x128, exported with `lerobot_tools.export.export_episodes`.
+Command: stock `lerobot-train --policy.type=act --policy.device=cuda --policy.push_to_hub=false
+--dataset.video_backend=pyav --steps=300 --batch_size=8 --save_freq=300 --log_freq=50`.
+
+| Measure | Result |
+|---|---|
+| Training ran 300/300 steps on CUDA | yes |
+| Steady-state speed (steps 51-300, `updt_s + data_s`) | **20.7 steps/s** (~0.048 s/step; tqdm showed 20.6 it/s) |
+| First 50 steps (warmup) | 0.557 s/step |
+| Loss (step 50 -> 300) | 14.974 -> 2.994 |
+| Torch peak memory, as logged by lerobot (`mem_gb`) | **0.99 GB** |
+| Whole-GPU peak (nvidia-smi, 0.5 s polling) | 7184 MiB (baseline 1183 MiB). Not ours alone: Isaac in Terminal 2 was also on the GPU (3577 MiB seen just before the run). |
+| Wall time incl. startup + reload | 89.8 s; export of 2000 frames ~ a few s |
+| Checkpoint saved | **yes**: `train/checkpoints/000300/pretrained_model/` (model.safetensors, config, pre/post-processor) |
+| Checkpoint reloads | **yes**: `ACTPolicy.from_pretrained` + `make_pre_post_processors(pretrained_path=...)` + `select_action` on a dataset frame -> action shape (1, 9), finite |
+| `lerobot-train` exit code | **1** (see below) |
+
+**Windows failure in `lerobot-train` (after the checkpoint is written):**
+
+```
+File "...\lerobot\scripts\lerobot_train.py", line 703, in train
+    update_last_checkpoint(checkpoint_dir)
+File "...\lerobot\common\train_utils.py", line 101, in update_last_checkpoint
+    last_checkpoint_dir.symlink_to(relative_target)
+OSError: [WinError 1314] A required privilege is not held by the client: '000300' -> 'data\runs\t3_act_smoke_20261015_170519\train\checkpoints\last'
+```
+
+Windows only lets admins or Developer-Mode users create symlinks. Consequences: every save (`--save_freq`) kills the
+run right after writing that step's checkpoint, so a long run dies at its first save. Not worked around (system
+setting / human decision). Options: (a) turn on Windows Developer Mode (Settings > System > For developers), which
+allows symlinks without admin; (b) run training via a small in-repo wrapper that replaces
+`lerobot.common.train_utils.update_last_checkpoint` with a copy/no-op before calling `lerobot_train.train`;
+(c) for short runs, set `--save_freq` = `--steps` and accept exit code 1 (what this smoke did).
