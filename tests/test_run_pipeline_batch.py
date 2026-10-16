@@ -226,7 +226,7 @@ def test_nemotron_calls_are_counted_and_the_budget_stops_the_batch(batch, env, c
     sim = cam_sim
     usage = Usage()
 
-    def model(*args):
+    def model(*args, **kwargs):
         usage.calls += 1
         return _keep(), []
 
@@ -245,7 +245,7 @@ def test_the_cost_budget_also_stops_the_batch(batch, env, cam_sim):
     sim = cam_sim
     usage = Usage()
 
-    def model(*args):
+    def model(*args, **kwargs):
         usage.calls += 1
         return _keep(), []
 
@@ -278,3 +278,61 @@ def test_main_exit_codes(batch, env, tmp_path, monkeypatch):
     down = FakeSim(tmp_path / "w2", health_error=SimWorkerUnavailable("down"))
     with patch.object(batch, "SimWorkerClient", return_value=down):
         assert batch.main(["--set", str(set_dir), "--diagnoser", "rules", "--force"]) == 2
+
+
+# --- raw episodes are stored once and reused (sprint 3b, Task 2) ----------------------------------
+
+def test_the_raw_replay_is_stored_with_a_human_passport(batch, env):
+    set_dir, store, sim = env
+    _run(batch, set_dir, store, sim, limit=1)
+    assert store.get_passport("pilot_0").lineage == ["pilot_0"]
+    assert (store.episode_dir("pilot_0") / "steps.npz").is_file()
+
+
+def test_a_second_diagnoser_reuses_the_stored_raw_replay(batch, env, cam_sim):
+    set_dir, store, _ = env
+    _run(batch, set_dir, store, cam_sim, limit=1)
+    cam_sim.requests.clear()
+    with patch.object(batch, "diagnose_gated", return_value=(_keep(), [])):
+        _run(batch, set_dir, store, cam_sim, diagnoser="nemotron", limit=1, model_usage=Usage())
+    assert _replayed(cam_sim) == ["pilot_0_nemotron_v1"]
+
+
+def test_a_raw_replay_without_cameras_is_not_reused_when_cameras_are_needed(batch, env, cam_sim):
+    set_dir, store, _ = env
+    _run(batch, set_dir, store, cam_sim, limit=1, record_cameras=False)
+    cam_sim.requests.clear()
+    with patch.object(batch, "diagnose_gated", return_value=(_keep(), [])):
+        _run(batch, set_dir, store, cam_sim, diagnoser="nemotron", limit=1, model_usage=Usage())
+    assert _replayed(cam_sim) == ["pilot_0_raw", "pilot_0_nemotron_v1"]
+
+
+def test_a_changed_demo_in_the_set_is_replayed_again_not_reused(batch, env):
+    set_dir, store, sim = env
+    _run(batch, set_dir, store, sim, limit=1)
+    changed = _demo("pilot_0").model_copy(update={"human_seconds": 3.0,
+                                                  "trajectory": _traj(120)})
+    (set_dir / "pilot_0" / "demo.json").write_text(changed.model_dump_json(), encoding="utf-8")
+    sim.requests.clear()
+    _run(batch, set_dir, store, sim, limit=1, force=True, out_dir=set_dir / "other")
+    assert _replayed(sim)[0] == "pilot_0_raw"
+    store.save_demo(changed)  # same demo again: a fresh run without --force reuses its raw replay
+    sim.requests.clear()
+    _run(batch, set_dir, store, sim, limit=1, out_dir=set_dir / "third")
+    assert _replayed(sim) == ["pilot_0_rules_v1"]
+
+
+def test_stop_kind_says_why_the_batch_stopped(batch, env, tmp_path):
+    set_dir, store, sim = env
+    assert _run(batch, set_dir, store, sim, limit=1)["stop_kind"] is None
+    down = FakeSim(tmp_path / "w", health_error=SimWorkerUnavailable("down"))
+    assert _run(batch, set_dir, store, down, resume=True)["stop_kind"] == "worker"
+
+
+def test_ids_restrict_the_batch_to_those_demos_in_set_order(batch, env):
+    set_dir, store, sim = env
+    summary = _run(batch, set_dir, store, sim, ids=["pilot_2", "pilot_0"])
+    assert _replayed(sim) == ["pilot_0_raw", "pilot_0_rules_v1", "pilot_2_raw", "pilot_2_rules_v1"]
+    assert [d["status"] for d in summary["demos"]] == ["kept", "pending", "kept"]
+    with pytest.raises(batch.BatchRefused, match="nope"):
+        _run(batch, set_dir, store, sim, ids=["nope"], resume=True)

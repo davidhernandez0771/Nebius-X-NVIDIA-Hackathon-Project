@@ -383,3 +383,35 @@ def test_diagnose_gated_returns_what_was_dropped():
         diag, gated = diagnose_gated(**kwargs)
     assert diag.decision == "keep"
     assert len(gated) == 3  # the issue, its repair, the decision
+
+
+# --- re-diagnosis: the previous repair's failure reasons (sprint 3b, Task 1) ---------------------
+
+def test_prompt_states_why_the_previous_repair_failed():
+    prompt = build_diagnosis_prompt(TASK, _windows(), [0.0, 1.5], has_wrist_frame=False, replay_success=False,
+                                    failure_reasons=["not_in_bin", "arm_bin_contact"])
+    line = next(ln for ln in prompt.splitlines() if "previous repair" in ln)
+    assert "the previous repair failed verification because: not_in_bin, arm_bin_contact" in line
+    assert prompt.index(line) < prompt.index("Images, in order:")  # stated up front, with the replay result
+
+
+def test_prompt_without_failure_reasons_has_no_previous_repair_line():
+    for reasons in (None, []):
+        prompt = build_diagnosis_prompt(TASK, _windows(), [0.0], has_wrist_frame=False, replay_success=True,
+                                        failure_reasons=reasons)
+        assert "previous repair" not in prompt
+
+
+def test_diagnose_passes_failure_reasons_into_the_prompt():
+    with patch("app.ai.diagnose.chat_vision_images") as vision:
+        vision.return_value = _reply(json.dumps(GOOD))
+        _diagnose(replay_success=False, failure_reasons=["not_settled"])
+    assert "failed verification because: not_settled" in vision.call_args.args[0]
+
+
+def test_failure_reasons_survive_the_retry_prompt():
+    with patch("app.ai.diagnose.chat_vision_images") as vision:
+        vision.side_effect = [_reply("not json"), _reply(json.dumps(GOOD))]
+        diagnose_gated(frames=[(0.0, b"f0")], wrist_frame=None, windows=_windows(), task_text=TASK,
+                       replay_success=False, duration=DURATION, failure_reasons=["drop"])
+    assert "failed verification because: drop" in vision.call_args_list[1].args[0]

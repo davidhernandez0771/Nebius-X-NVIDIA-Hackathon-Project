@@ -21,6 +21,7 @@ trajectory failing in the sim, so it is a failed verification of this demo.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import threading
 import time
@@ -33,11 +34,28 @@ import numpy as np
 from pydantic import BaseModel, Field
 
 from demo_pipeline import PIPELINE_VERSION
-from demo_pipeline.episode_io import EpisodeMeta, load_episode
+from demo_pipeline.episode_io import EpisodeMeta, load_episode, load_signals
 from demo_pipeline.process import perfect_demo
-from demo_pipeline.schemas import Demo, Diagnosis, MetricsWindow, Passport, Scene, SimSignals, Trajectory
-from demo_pipeline.sim_protocol import HealthResponse, ReplayRequest, ReplayResponse
-from demo_pipeline.store import DemoStore
+from demo_pipeline.refine import refine_diagnosis
+from demo_pipeline.rules import detect_rules
+from demo_pipeline.schemas import (
+    Demo,
+    Diagnosis,
+    MetricsWindow,
+    Passport,
+    Scene,
+    SimSignals,
+    Trajectory,
+    VerificationResult,
+)
+from demo_pipeline.sim_protocol import (
+    HealthResponse,
+    MultiplyResponse,
+    ReplayRequest,
+    ReplayResponse,
+    SignalsPayload,
+)
+from demo_pipeline.store import DemoStore, write_atomic
 from nebius_llm.config import get_vision_model
 
 from .ai.diagnose import DIAGNOSE_TIER, diagnose_gated, select_frames
@@ -207,13 +225,98 @@ def replay_with_retry(client: SimWorkerClient, req: ReplayRequest, *, busy_retri
     raise AssertionError("unreachable")
 
 
-def _copy_episode(ep_dir: str | None, dest: Path, notes: list[str]) -> None:
+def _link_or_copy(src: str, dst: str) -> None:
+    """Hard-link (same volume: no extra disk for camera frames), else copy."""
+    try:
+        os.link(src, dst)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def stamp_episode(ep_dir: Path, passport: Passport) -> None:
+    """Put the Passport (and its demo id) into the episode's meta, so lerobot_tools.assemble can trace every
+    episode to its human demo. episode.json is replaced, so a hard-linked source episode is untouched."""
+    path = Path(ep_dir) / "episode.json"
+    meta = EpisodeMeta.model_validate_json(path.read_text(encoding="utf-8"))
+    write_atomic(path, meta.model_copy(update={"passport": passport, "demo_id": passport.demo_id})
+                 .model_dump_json(indent=2))
+
+
+def _copy_episode(ep_dir: str | None, dest: Path, notes: list[str], passport: Passport | None = None) -> bool:
+    """Link the worker's episode into the store at `dest` (nothing to copy if it already is `dest`) and stamp
+    the passport. False, with a note, when the episode is not on this disk."""
     if ep_dir is None or not Path(ep_dir).is_dir():
         notes.append(f"episode {ep_dir} is not on this disk; not copied to {dest}")
-        return
-    if dest.exists():
-        shutil.rmtree(dest)
-    shutil.copytree(ep_dir, dest)
+        return False
+    if Path(ep_dir).resolve() != Path(dest).resolve():
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(ep_dir, dest, copy_function=_link_or_copy)
+    if passport is not None:
+        stamp_episode(dest, passport)
+    return True
+
+
+def human_passport(demo: Demo, verification: VerificationResult) -> Passport:
+    return Passport(demo_id=demo.id, lineage=[demo.id], diagnosis_source="none", robot=demo.scene.robot,
+                    verification=verification, pipeline_version=PIPELINE_VERSION)
+
+
+def record_raw(store: DemoStore, client: SimWorkerClient, demo: Demo, *, record_cameras: bool,
+               busy_retries: int = 60, busy_wait_s: float = 10.0,
+               sleep: Callable[[float], None] = time.sleep) -> ReplayResponse:
+    """Replay a stored human demo as recorded ("<id>_raw") into its store episode, with a human Passport (also
+    saved as the demo's passport). The returned replay points at the store copy when there is one."""
+    req = ReplayRequest(trajectory=demo.trajectory, scene=demo.scene, record_cameras=record_cameras,
+                        out_name=f"{demo.id}_raw")
+    resp = replay_with_retry(client, req, busy_retries=busy_retries, busy_wait_s=busy_wait_s, sleep=sleep)
+    passport = human_passport(demo, resp.verification)
+    store.save_passport(demo.id, passport)
+    if _copy_episode(resp.ep_dir, store.episode_dir(demo.id), [], passport):
+        resp = resp.model_copy(update={"ep_dir": str(store.episode_dir(demo.id))})
+    return resp
+
+
+def stored_raw(store: DemoStore, demo_id: str, *, need_cameras: bool) -> ReplayResponse | None:
+    """The raw replay record_raw stored for this demo, rebuilt from its episode; None if there is none (or it
+    has no front camera when one is needed)."""
+    ep = store.episode_dir(demo_id)
+    passport = store.get_passport(demo_id)
+    signals = load_signals(ep) if (ep / "episode.json").is_file() else None
+    if passport is None or signals is None:
+        return None
+    meta = EpisodeMeta.model_validate_json((ep / "episode.json").read_text(encoding="utf-8"))
+    if need_cameras and FRONT not in meta.cameras:
+        return None
+    return ReplayResponse(verification=passport.verification, signals=SignalsPayload.from_signals(signals),
+                          ep_dir=str(ep), n_steps=signals.n_steps, wall_s=0.0)
+
+
+def variant_demo_id(parent_id: str, seed: int) -> str:
+    return f"{parent_id}_m{seed:04d}"
+
+
+def store_variants(store: DemoStore, parent_id: str, resp: MultiplyResponse) -> list[str]:
+    """Store each successful variant as a "variant" demo of `parent_id`, with its episode and a Passport that
+    inherits the parent's repairs and diagnosis source. Failed variants only count in the yield."""
+    parent_pp = store.get_passport(parent_id)
+    ids = []
+    for v in resp.variants:
+        if not v.verification.success:
+            continue
+        vid = variant_demo_id(parent_id, v.seed)
+        store.save_demo(Demo(id=vid, source="variant", parent_id=parent_id, trajectory=v.trajectory,
+                             scene=v.scene, human_seconds=0.0))
+        passport = Passport(
+            demo_id=vid, lineage=store.lineage(vid),
+            repairs_applied=parent_pp.repairs_applied if parent_pp else [],
+            diagnosis_source=parent_pp.diagnosis_source if parent_pp else "none",
+            model_id=parent_pp.model_id if parent_pp else None, variant_seed=v.seed, robot=v.scene.robot,
+            verification=v.verification, pipeline_version=PIPELINE_VERSION)
+        store.save_passport(vid, passport)
+        _copy_episode(v.ep_dir, store.episode_dir(vid), [], passport)
+        ids.append(vid)
+    return ids
 
 
 def _replay_summary(req: ReplayRequest, resp: ReplayResponse) -> dict:
@@ -257,26 +360,44 @@ def perfect_stored_demo(
         return resp
 
     if raw is None:
-        raw = replay(demo.trajectory, f"{demo_id}_raw")
-    _copy_episode(raw.ep_dir, store.episode_dir(demo_id), notes)
+        raw = record_raw(store, client, demo, record_cameras=cameras, busy_retries=busy_retries,
+                         busy_wait_s=busy_wait_s, sleep=sleep)
+        replays.append(_replay_summary(ReplayRequest(trajectory=demo.trajectory, scene=demo.scene,
+                                                     record_cameras=cameras, out_name=f"{demo_id}_raw"), raw))
     # ep_dir/success: the latest replay, i.e. of the trajectory perfect_demo diagnoses next
     # abort: an error that must fail the job; perfect_demo turns any step exception into a fallback or a discard
-    state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "gated": [],
-                             "model_id": None, "abort": None}
+    state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "abort": None}
+    # One entry per perfect_demo round. perfect_demo returns only the last diagnosis, so diagnose_fn records each
+    # round's refined repairs (refine_diagnosis is pure: the same call perfect_demo makes) and its real source.
+    rounds: list[dict[str, Any]] = []
 
-    def diagnose_fn(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> Diagnosis:
-        # The failure reasons only reach the model through the failed replay's frames, windows and
-        # replay_success=False: diagnose_gated has no reasons input.
-        state["gated"], state["model_id"] = [], None
+    def nemotron(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> tuple[Diagnosis, list[str]]:
         if state["ep_dir"] is None:
             raise ValueError("the replay saved no episode, so there are no frames to show the model")
         frames, wrist, task_text = episode_frames(Path(state["ep_dir"]), d.trajectory.t)
-        try:
-            diag, gated = diagnose(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1])
-        except PipelineAbort as e:
-            state["abort"] = e
-            raise
-        state["gated"], state["model_id"] = gated, get_vision_model(DIAGNOSE_TIER).model_id
+        diag, gated = diagnose(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1],
+                               failure_reasons=reasons)
+        diag.check_times(d.trajectory.t[-1])  # what perfect_demo checks; failing it means the rules, as there
+        return diag, gated
+
+    def diagnose_fn(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> Diagnosis:
+        record: dict[str, Any] = {"source": "rules", "model_id": None, "gated": [], "reasons": list(reasons)}
+        diag = None
+        if diagnoser == "nemotron":
+            try:
+                diag, record["gated"] = nemotron(d, windows, reasons)
+                record.update(source="nemotron", model_id=get_vision_model(DIAGNOSE_TIER).model_id)
+            except PipelineAbort as e:
+                state["abort"] = e
+                raise
+            except Exception as e:  # an invalid reply, an API error, no frames: this round uses the rules
+                notes.append(f"round {len(rounds) + 1}: nemotron failed ({type(e).__name__}: {e}); "
+                             f"used the rules detector")
+        if diag is None:
+            diag = detect_rules(d.trajectory, windows)
+        refined = refine_diagnosis(diag, d.trajectory)
+        record.update(decision=refined.decision, repairs=list(refined.repairs))
+        rounds.append(record)
         return diag
 
     def verify_fn(traj: Trajectory, scene: Scene):
@@ -291,17 +412,18 @@ def perfect_stored_demo(
         return resp.verification, align_signals(resp.signals.to_signals(), traj.t)
 
     result = perfect_demo(demo, align_signals(raw.signals.to_signals(), demo.trajectory.t),
-                          diagnose_fn=diagnose_fn if diagnoser == "nemotron" else None, verify_fn=verify_fn,
-                          bin_rim_z=bin_rim_z(demo.scene))
+                          diagnose_fn=diagnose_fn, verify_fn=verify_fn, bin_rim_z=bin_rim_z(demo.scene))
     if state["abort"] is not None:
         raise state["abort"]
     notes = result.notes + notes
 
-    source = result.diagnosis_source
-    model_id = state["model_id"] if source == "nemotron" else None
-    gated = state["gated"] if source == "nemotron" else []
+    # perfect_demo labels every diagnose_fn result "nemotron"; the rounds know which one really answered
+    last = rounds[-1] if rounds else {"source": "none", "model_id": None, "gated": []}
+    source, model_id, gated = last["source"], last["model_id"], last["gated"]
     if result.diagnosis is not None:
         store.save_diagnosis(demo_id, result.diagnosis, source, model_id, gated)
+    # every round's repairs, in order: each round repaired the trajectory the previous one left
+    applied = [op for r in rounds if r["decision"] == "repair" for op in r["repairs"]]
 
     out_id = None
     if result.status in ("perfected", "kept"):
@@ -309,12 +431,13 @@ def perfect_stored_demo(
         store.save_demo(Demo(id=out_id, source="repaired", parent_id=demo_id, trajectory=result.trajectory,
                              scene=demo.scene, human_seconds=0.0))
         store.save_diagnosis(out_id, result.diagnosis, source, model_id, gated)
-        store.save_passport(out_id, Passport(
+        passport = Passport(
             demo_id=out_id, lineage=store.lineage(out_id),
-            repairs_applied=result.diagnosis.repairs if result.status == "perfected" else [],
+            repairs_applied=applied if result.status == "perfected" else [],
             diagnosis_source=source, model_id=model_id, robot=demo.scene.robot,
-            verification=result.verification, pipeline_version=PIPELINE_VERSION))
-        _copy_episode(state["ep_dir"], store.episode_dir(out_id), notes)  # the successful (last) replay
+            verification=result.verification, pipeline_version=PIPELINE_VERSION)
+        store.save_passport(out_id, passport)
+        _copy_episode(state["ep_dir"], store.episode_dir(out_id), notes, passport)  # the last, successful replay
     elif store.has_demo(output_demo_id(demo_id, diagnoser)):
         notes.append(f"an older output {output_demo_id(demo_id, diagnoser)!r} from an earlier run is still stored")
 
@@ -333,6 +456,7 @@ def perfect_stored_demo(
                                                        for i in result.diagnosis.issues],
         "verification": None if result.verification is None else result.verification.model_dump(),
         "raw_verification": raw.verification.model_dump(),
+        "rounds": [{**r, "repairs": [op.model_dump() for op in r["repairs"]]} for r in rounds],
         "replays": replays,
         "notes": notes,
     }

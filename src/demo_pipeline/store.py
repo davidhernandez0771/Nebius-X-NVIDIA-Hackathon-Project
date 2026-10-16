@@ -42,7 +42,9 @@ class StoredDiagnosis(BaseModel):
     gated: list[str] = Field(default_factory=list)  # what app.ai.diagnose.gate_diagnosis dropped
 
 
-def _write_atomic(path: Path, text: str) -> None:
+def write_atomic(path: Path, text: str) -> None:
+    """Write to a temp file in the same folder, then os.replace: readers never see half a file, and a
+    hard-linked file at `path` is replaced, never modified in place."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -97,7 +99,7 @@ class DemoStore:
         except KeyError:
             raise ValueError(f"demo id {demo.id!r} may only contain letters, digits, '_' and '-'") from None
         path = d / "demo.json"
-        _write_atomic(path, demo.model_dump_json(indent=2))
+        write_atomic(path, demo.model_dump_json(indent=2))
         return path
 
     def get_demo(self, id: str) -> Demo:
@@ -130,7 +132,7 @@ class DemoStore:
                        gated: list[str] = ()) -> Path:
         path = self._existing_dir(id) / "diagnosis.json"
         stored = StoredDiagnosis(source=source, model_id=model_id, diagnosis=diag, gated=list(gated))
-        _write_atomic(path, stored.model_dump_json(indent=2))
+        write_atomic(path, stored.model_dump_json(indent=2))
         return path
 
     def get_stored_diagnosis(self, id: str) -> StoredDiagnosis | None:
@@ -148,7 +150,7 @@ class DemoStore:
 
     def save_passport(self, id: str, passport: Passport) -> Path:
         path = self._existing_dir(id) / "passport.json"
-        _write_atomic(path, passport.model_dump_json(indent=2))
+        write_atomic(path, passport.model_dump_json(indent=2))
         return path
 
     def get_passport(self, id: str) -> Passport | None:

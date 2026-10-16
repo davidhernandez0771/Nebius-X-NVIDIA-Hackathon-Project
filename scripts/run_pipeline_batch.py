@@ -4,7 +4,8 @@
 
 For each demo in <set>/manifest.json (T1 writes it last, so a set without it is refused):
   1. import <set>/<id>/demo.json into the demo store (DATA_DIR/demos/), so the web pages see it;
-  2. /replay it as recorded ("<id>_raw"), recording cameras when the worker has them;
+  2. /replay it as recorded ("<id>_raw"), recording cameras when the worker has them, into its store episode
+     with a human Passport; a stored raw replay of the same demo (with cameras if needed) is reused;
   3. perfect it (app.jobs.perfect_stored_demo), which stores "<id>_<diagnoser>" with its Passport;
   4. write <out>/<id>.json, atomically. <out> defaults to <set>/pipeline/<diagnoser>/.
 <out>/summary.json is rewritten after every demo.
@@ -30,11 +31,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from app.jobs import PipelineAbort, check_worker, is_infrastructure, perfect_stored_demo, replay_with_retry
+from app.jobs import (
+    PipelineAbort,
+    check_worker,
+    is_infrastructure,
+    perfect_stored_demo,
+    record_raw,
+    stored_raw,
+)
 from app.ai.diagnose import DIAGNOSE_TIER, diagnose_gated
 from app.sim_client import SimWorkerClient, SimWorkerError
 from demo_pipeline.schemas import Demo
-from demo_pipeline.sim_protocol import ReplayRequest
 from demo_pipeline.store import DemoStore
 
 DONE = ("perfected", "kept", "discarded")
@@ -79,6 +86,11 @@ def _set_ids(set_dir: Path) -> list[str]:
     return [d["id"] for d in json.loads(manifest.read_text(encoding="utf-8"))["demos"]]
 
 
+def _same_demo(a: Demo, b: Demo) -> bool:
+    """Same recording: a stored raw replay of `a` is a raw replay of `b`."""
+    return a.trajectory == b.trajectory and a.scene == b.scene
+
+
 def _read_result(path: Path) -> dict | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -106,6 +118,8 @@ def run_batch(
     resume: bool = False,
     force: bool = False,
     limit: int | None = None,
+    ids: list[str] | None = None,
+    reuse_raw: bool | None = None,
     record_cameras: bool | None = None,
     max_model_calls: int = 10,
     max_cost_usd: float = 0.05,
@@ -115,7 +129,10 @@ def run_batch(
 ) -> dict:
     set_dir = Path(set_dir)
     out = Path(out_dir) if out_dir is not None else set_dir / "pipeline" / diagnoser
-    ids = _set_ids(set_dir)
+    only, ids = ids, _set_ids(set_dir)
+    unknown = sorted(set(only or []) - set(ids))
+    if unknown:
+        raise BatchRefused(f"{unknown} are not in {set_dir / 'manifest.json'}")
     existing = [i for i in ids if (out / f"{i}.json").exists()]
     if existing and not (resume or force):
         raise BatchRefused(f"{out} already has results for {len(existing)} demos; use --resume to continue "
@@ -123,39 +140,41 @@ def run_batch(
     calls0, cost0 = model_usage()
     started = datetime.now(timezone.utc).isoformat()
     stopped: str | None = None
+    stop_kind: str | None = None  # "worker" (resume when it is up), "budget" or "refused"
 
     def summary() -> dict:
         rows = [_row(i, _read_result(out / f"{i}.json")) for i in ids]
         calls, cost = model_usage()
         data = {"set": str(set_dir), "diagnoser": diagnoser, "started_at": started,
-                "updated_at": datetime.now(timezone.utc).isoformat(), "stopped": stopped,
+                "updated_at": datetime.now(timezone.utc).isoformat(), "stopped": stopped, "stop_kind": stop_kind,
                 "counts": {s: sum(r["status"] == s for r in rows) for s in STATUSES},
                 "model_calls": calls - calls0, "est_cost_usd": round(cost - cost0, 6), "demos": rows}
         _write_json(out / "summary.json", data)
         return data
 
-    def guarded_diagnose(*args):
+    def guarded_diagnose(*args, **kwargs):
         calls, cost = model_usage()
         calls, cost = calls - calls0, cost - cost0
         if (calls + CALLS_PER_DIAGNOSE > max_model_calls
                 or cost + CALLS_PER_DIAGNOSE * RESERVE_USD_PER_CALL > max_cost_usd):
             raise PipelineAbort(f"model budget reached: {calls} calls, ${cost:.4f} used of {max_model_calls} calls, "
                                 f"${max_cost_usd}; the next diagnose could exceed it")
-        return diagnose_gated(*args)
+        return diagnose_gated(*args, **kwargs)
 
     try:
         health = client.health()
     except SimWorkerError as e:
-        stopped = f"{e}; nothing was run. Start the worker and re-run with --resume"
+        stopped, stop_kind = f"{e}; nothing was run. Start the worker and re-run with --resume", "worker"
         return summary()
     cameras = health.cameras if record_cameras is None else record_cameras
     health = health.model_copy(update={"cameras": cameras})  # what this run records, not what the worker could
     refusal = check_worker(health, None, diagnoser)  # the robot is checked per demo
     if refusal is not None:
-        stopped = f"{refusal[1]}; nothing was run"
+        stopped, stop_kind = f"{refusal[1]}; nothing was run", "refused"
         return summary()
 
-    todo = [i for i in ids if force or (_read_result(out / f"{i}.json") or {}).get("status") not in DONE]
+    run_ids = ids if only is None else [i for i in ids if i in set(only)]
+    todo = [i for i in run_ids if force or (_read_result(out / f"{i}.json") or {}).get("status") not in DONE]
     if limit is not None:
         todo = todo[:limit]
     log(f"{len(todo)} of {len(ids)} demos to run ({diagnoser}, cameras={cameras}) -> {out}")
@@ -166,22 +185,24 @@ def run_batch(
             refusal = check_worker(health, demo.scene.robot, diagnoser)
             if refusal is not None:
                 raise BatchRefused(refusal[1])
+            unchanged = store.has_demo(id) and _same_demo(store.get_demo(id), demo)
             store.save_demo(demo)
-            raw = replay_with_retry(client, ReplayRequest(trajectory=demo.trajectory, scene=demo.scene,
-                                                          record_cameras=cameras, out_name=f"{id}_raw"),
-                                    busy_retries=60, busy_wait_s=10.0, sleep=sleep)
+            reuse = (not force) if reuse_raw is None else reuse_raw  # --force redoes the raw replay too
+            raw = stored_raw(store, id, need_cameras=cameras) if unchanged and reuse else None
+            if raw is None:
+                raw = record_raw(store, client, demo, record_cameras=cameras, sleep=sleep)
             result = perfect_stored_demo(store, client, id, diagnoser, raw=raw, record_cameras=cameras,
                                          sleep=sleep, diagnose=guarded_diagnose)
         except PipelineAbort as e:
-            stopped = f"{e}; {id} was not stored. Re-run with --resume"
+            stopped, stop_kind = f"{e}; {id} was not stored. Re-run with --resume", "budget"
             break
         except SimWorkerError as e:
             if is_infrastructure(e):
-                stopped = f"{e}; {id} was not stored. Re-run with --resume once the worker is up"
+                stopped, stop_kind = f"{e}; {id} was not stored. Re-run with --resume once the worker is up", "worker"
                 break
             result = {"status": "error", "error": f"{type(e).__name__}: {e}"}
         except BatchRefused as e:
-            stopped = f"{e}; {id} was not run"
+            stopped, stop_kind = f"{e}; {id} was not run", "refused"
             break
         except Exception as e:  # a corrupt demo or anything unexpected is this demo's error; go on
             result = {"status": "error", "error": f"{type(e).__name__}: {e}"}
