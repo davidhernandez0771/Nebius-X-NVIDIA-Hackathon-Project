@@ -9,8 +9,9 @@ For each ok registry row of the run (lerobot_tools.experiments):
   3. run run_eval.py --cell <cell> --cameras --headless --out DATA_DIR/evals/<run_id>/<cell>.json --resume;
      run_eval re-checks the gate itself and exits 3 if Isaac got busy in between -> back to step 1;
   4. stop the server.
-A cell whose results file already exists is skipped, so re-running this after a crash continues where it stopped
-(and run_eval --resume continues a half-finished cell at its next seed). Cells left unevaluated keep
+A cell whose results file exists with no sim_error/policy_error episode is skipped. A cell with such episodes (CUDA
+dies when Windows sleeps; T2 lost seeds that way) is resumed, up to MAX_ATTEMPTS runs; run_eval --resume re-runs
+only those seeds. Re-running this script after a crash continues where it stopped. Cells left unevaluated keep
 eval_success null in the registry.
 """
 
@@ -31,10 +32,11 @@ sys.path[:0] = [str(REPO / "src"), str(REPO)]
 from demo_pipeline.paths import data_dir  # noqa: E402
 from lerobot_tools.policy_client import PolicyClient, PolicyServerError  # noqa: E402
 from sim_eval.registry import trained_rows  # noqa: E402
-from sim_eval.report import isaac_gate, python_processes  # noqa: E402
+from sim_eval.report import infra_failures, isaac_gate, python_processes  # noqa: E402
 
 LEROBOT_PY = Path(r"C:\venvs\lerobot\Scripts\python.exe")
 FREE_WINDOW_S = 60  # Isaac must stay free this long before we start (T2 runs jobs back to back)
+MAX_ATTEMPTS = 3  # per cell: re-run a cell whose results contain sim_error/policy_error episodes
 
 
 def log(msg: str) -> None:
@@ -128,10 +130,11 @@ def main(argv: list[str] | None = None) -> int:
     for row in rows:
         cell = row["cell"]["name"]
         out = out_dir / f"{cell}.json"
-        if out.exists():
+        if infra_failures(out) == 0:
             log(f"{cell}: already evaluated ({out})")
             status[cell] = "done earlier"
             continue
+        attempts = 0
         while True:
             if not wait_for_gate(gate_log, deadline, args.poll_s):
                 log(f"{cell}: Isaac never free long enough before the deadline; eval_success stays null")
@@ -151,7 +154,16 @@ def main(argv: list[str] | None = None) -> int:
             if rc == 3:
                 log(f"{cell}: run_eval's own gate refused (Isaac got busy); waiting again")
                 continue
-            status[cell] = "evaluated" if out.exists() else f"run_eval exit {rc}, no results"
+            attempts += 1
+            bad = infra_failures(out)
+            if bad == 0:
+                status[cell] = "evaluated"
+            elif attempts < MAX_ATTEMPTS:
+                # sim_error / policy_error / no results: e.g. CUDA died when Windows slept. Resume re-runs those seeds.
+                log(f"{cell}: run_eval exit {rc}, infra failures {bad}; resuming (attempt {attempts + 1})")
+                continue
+            else:
+                status[cell] = f"incomplete after {attempts} attempts: run_eval exit {rc}, infra failures {bad}"
             log(f"{cell}: {status[cell]}")
             break
         if status[cell].startswith("not evaluated"):

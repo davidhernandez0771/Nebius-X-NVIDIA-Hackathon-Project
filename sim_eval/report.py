@@ -115,6 +115,16 @@ def episode_log_path(results: Path) -> Path:
     return results.with_name(results.stem + ".episodes.jsonl")
 
 
+def infra_failures(results: Path) -> int | None:
+    """Episodes in a results file that ended in sim_error or policy_error (None if there is no results file).
+    These say nothing about the policy (e.g. CUDA died when Windows slept), so the run should be resumed."""
+    results = Path(results)
+    if not results.is_file():
+        return None
+    episodes = json.loads(results.read_text(encoding="utf-8"))["episodes"]
+    return sum(e["ended_by"] in ("sim_error", "policy_error") for e in episodes)
+
+
 def write_results(path: Path, run: dict, episodes: list[EpisodeResult], summary: EvalSummary) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

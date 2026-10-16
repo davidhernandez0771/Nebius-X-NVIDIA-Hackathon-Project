@@ -95,3 +95,20 @@ def test_gate_ignores_this_process_and_all_its_ancestors():
 
 def test_episode_log_sits_next_to_the_results_file(tmp_path):
     assert episode_log_path(tmp_path / "evals" / "raw_5_1.json") == tmp_path / "evals" / "raw_5_1.episodes.jsonl"
+
+
+def test_infra_failures_counts_sim_and_policy_errors_in_a_results_file(tmp_path):
+    from sim_eval.report import infra_failures
+
+    def ep(seed, ended_by):
+        ok = ended_by == "success"
+        return EpisodeResult(seed=seed, success=ok, reasons=[] if ok else [ended_by if "error" in ended_by
+                                                                            else "not_in_bin"],
+                             ended_by=ended_by, steps=5, sim_s=0.1, wall_s=1.0)
+
+    eps = [ep(5000, "success"), ep(5001, "time_limit"), ep(5002, "sim_error"), ep(5003, "policy_error")]
+    path = write_results(tmp_path / "r.json", {"cell": "raw_5"}, eps, aggregate(eps))
+    assert infra_failures(path) == 2
+    clean = eps[:2]
+    assert infra_failures(write_results(tmp_path / "c.json", {}, clean, aggregate(clean))) == 0
+    assert infra_failures(tmp_path / "missing.json") is None
