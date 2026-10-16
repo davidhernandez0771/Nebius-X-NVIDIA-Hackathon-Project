@@ -40,7 +40,7 @@ def frame_bytes(out_name: str, camera: str, step: int) -> bytes:
 
 class FakeSim:
     def __init__(self, root: Path, *, results=None, errors=None, cameras=True, robots=("franka",), ok=True,
-                 health_error=None, extra_steps=0):
+                 health_error=None, extra_steps=0, failing_seeds=(), multiply_errors=None):
         self.root = Path(root)
         self.results = list(results or [verification()])
         self.errors = dict(errors or {})  # replay call index -> exception to raise
@@ -48,6 +48,9 @@ class FakeSim:
         self.health_error = health_error
         self.extra_steps = extra_steps  # the worker's gripper gate can lengthen the executed trajectory
         self.requests: list[ReplayRequest] = []
+        self.multiply_requests: list = []
+        self.failing_seeds = set(failing_seeds)  # multiply variants with these seeds fail verification
+        self.multiply_errors = dict(multiply_errors or {})  # multiply call index -> exception
         self.closed = False
 
     def health(self) -> HealthResponse:
@@ -60,7 +63,10 @@ class FakeSim:
         self.requests.append(req)
         if k in self.errors:
             raise self.errors[k]
-        result = self.results[min(k, len(self.results) - 1)]
+        return self._record(req, self.results[min(k, len(self.results) - 1)])
+
+    def _record(self, req: ReplayRequest, result: VerificationResult, frames: bool = True) -> ReplayResponse:
+        """frames=False lists the cameras but writes no images (variants: nothing in the tests reads them)."""
         traj = req.trajectory.to_arrays()
         n = len(req.trajectory.t) + self.extra_steps
         idx = np.minimum(np.arange(n), len(req.trajectory.t) - 1)
@@ -76,7 +82,7 @@ class FakeSim:
                                n_steps=n, cameras=cams)
             save_episode(ep, meta, {"joint_pos": np.zeros((n, 9)), "action": np.zeros((n, 9)),
                                     "ee_pos": traj["ee_pos"][idx], "ee_quat": traj["ee_quat"][idx], "gripper": grip})
-            for cam in cams:
+            for cam in cams if frames else []:
                 for i in range(n):
                     image_path(ep, cam, i).write_bytes(frame_bytes(req.out_name, cam, i))
             save_signals(ep, signals)
@@ -92,3 +98,30 @@ class FakeSim:
 
     def __exit__(self, *exc):
         self.close()
+
+
+def _fake_multiply(self, req):
+    """Like the worker's run_multiply: one variant per seed (real sample_scene + transform_trajectory), each
+    replayed into <root>/episodes/<prefix>_<seed:04d>; `failing_seeds` fail verification."""
+    from demo_pipeline.multiply import sample_scene, transform_trajectory
+    from demo_pipeline.sim_protocol import MultiplyResponse, MultiplyVariant
+
+    k = len(self.multiply_requests)
+    self.multiply_requests.append(req)
+    if k in self.multiply_errors:
+        raise self.multiply_errors[k]
+    variants = []
+    for seed in range(req.seed0, req.seed0 + req.n):
+        scene = sample_scene(np.random.default_rng(seed), req.robot, seed)
+        traj = transform_trajectory(req.trajectory, req.scene, scene)
+        ok = seed not in self.failing_seeds
+        name = f"{req.out_prefix}_{seed:04d}"
+        resp = self._record(ReplayRequest(trajectory=traj, scene=scene, record_cameras=req.record_cameras,
+                                          out_name=name), verification(ok), frames=False)
+        variants.append(MultiplyVariant(seed=seed, scene=scene, trajectory=traj, verification=resp.verification,
+                                        ep_dir=resp.ep_dir))
+    return MultiplyResponse(attempts=len(variants), successes=sum(v.verification.success for v in variants),
+                            variants=variants, wall_s=0.2)
+
+
+FakeSim.multiply = _fake_multiply

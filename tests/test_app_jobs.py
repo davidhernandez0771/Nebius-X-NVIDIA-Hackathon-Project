@@ -451,3 +451,102 @@ def test_rules_rounds_are_recorded_too(store, tmp_path):
     assert [r["source"] for r in out["rounds"]] == ["rules"]
     assert "remove_pause" in [r["op"] for r in out["rounds"][0]["repairs"]]
     assert out["diagnosis_source"] == "rules"
+
+
+# --- episodes with passports, raw replays and stored variants (sprint 3b, Task 2) ------------------
+
+from demo_pipeline.episode_io import load_episode  # noqa: E402
+from demo_pipeline.sim_protocol import MultiplyRequest  # noqa: E402
+
+
+def test_record_raw_stores_the_episode_with_a_human_passport(store, tmp_path):
+    from app.jobs import record_raw
+
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker")
+    raw = record_raw(store, sim, store.get_demo("human_1"), record_cameras=True, sleep=lambda s: None)
+    assert sim.requests[0].out_name == "human_1_raw" and sim.requests[0].record_cameras
+    assert raw.ep_dir == str(store.episode_dir("human_1"))
+    passport = store.get_passport("human_1")
+    assert passport.lineage == ["human_1"] and passport.repairs_applied == []
+    assert passport.diagnosis_source == "none" and passport.verification == verification()
+    meta, _, _ = load_episode(store.episode_dir("human_1"))
+    assert meta.passport == passport and meta.demo_id == "human_1"
+
+
+def test_stamping_a_linked_copy_leaves_the_workers_episode_untouched(store, tmp_path):
+    from app.jobs import record_raw
+
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker")
+    record_raw(store, sim, store.get_demo("human_1"), record_cameras=True, sleep=lambda s: None)
+    worker_meta, _, _ = load_episode(tmp_path / "worker" / "episodes" / "human_1_raw")
+    assert worker_meta.passport is None and worker_meta.demo_id == "human_1_raw"
+
+
+def test_stored_raw_rebuilds_the_replay_from_the_store(store, tmp_path):
+    from app.jobs import record_raw, stored_raw
+
+    store.save_demo(_demo())
+    assert stored_raw(store, "human_1", need_cameras=False) is None
+    raw = record_raw(store, FakeSim(tmp_path / "worker"), store.get_demo("human_1"), record_cameras=False,
+                     sleep=lambda s: None)
+    again = stored_raw(store, "human_1", need_cameras=False)
+    assert again.verification == raw.verification and again.signals == raw.signals
+    assert again.ep_dir == raw.ep_dir and again.n_steps == raw.n_steps
+    assert stored_raw(store, "human_1", need_cameras=True) is None  # recorded without cameras
+
+
+def test_perfect_reuses_a_stored_raw_replay_without_copying_it_onto_itself(store, tmp_path):
+    from app.jobs import record_raw, stored_raw
+
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker")
+    record_raw(store, sim, store.get_demo("human_1"), record_cameras=True, sleep=lambda s: None)
+    sim.requests.clear()
+    out = _perfect(store, sim, raw=stored_raw(store, "human_1", need_cameras=True))
+    assert out["status"] == "kept" and [r.out_name for r in sim.requests] == ["human_1_rules_v1"]
+    assert (store.episode_dir("human_1") / "steps.npz").is_file()
+
+
+def test_the_verified_episode_carries_the_output_passport(store, tmp_path):
+    store.save_demo(_demo(pause_steps=50))
+    _perfect(store, FakeSim(tmp_path / "worker"))
+    meta, _, _ = load_episode(store.episode_dir("human_1_rules"))
+    assert meta.passport == store.get_passport("human_1_rules") and meta.demo_id == "human_1_rules"
+
+
+def test_successful_variants_are_stored_with_lineage_seed_and_inherited_repairs(store, tmp_path):
+    from app.jobs import store_variants
+
+    store.save_demo(_demo(pause_steps=50))
+    sim = FakeSim(tmp_path / "worker", failing_seeds={11})
+    _perfect(store, sim)
+    parent = store.get_demo("human_1_rules")
+    resp = sim.multiply(MultiplyRequest(trajectory=parent.trajectory, scene=parent.scene, robot="franka", n=3,
+                                        seed0=10, record_cameras=True, out_prefix="human_1_rules_mx"))
+    ids = store_variants(store, "human_1_rules", resp)
+    assert ids == ["human_1_rules_m0010", "human_1_rules_m0012"]  # seed 11 failed verification
+    v = store.get_demo("human_1_rules_m0010")
+    assert (v.source, v.parent_id, v.human_seconds) == ("variant", "human_1_rules", 0.0)
+    passport = store.get_passport("human_1_rules_m0010")
+    assert passport.lineage == ["human_1", "human_1_rules", "human_1_rules_m0010"]
+    assert passport.variant_seed == 10 and passport.diagnosis_source == "rules"
+    assert passport.repairs_applied == store.get_passport("human_1_rules").repairs_applied != []
+    meta, _, _ = load_episode(store.episode_dir("human_1_rules_m0010"))
+    assert meta.passport == passport
+    assert not store.has_demo("human_1_rules_m0011")
+
+
+def test_variants_of_a_human_demo_carry_no_repairs(store, tmp_path):
+    from app.jobs import record_raw, store_variants
+
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker")
+    record_raw(store, sim, store.get_demo("human_1"), record_cameras=True, sleep=lambda s: None)
+    resp = sim.multiply(MultiplyRequest(trajectory=_traj(), scene=_scene(), robot="franka", n=1, seed0=5,
+                                        record_cameras=True, out_prefix="human_1_mx"))
+    (vid,) = store_variants(store, "human_1", resp)
+    passport = store.get_passport(vid)
+    assert passport.lineage == ["human_1", vid] and passport.repairs_applied == []
+    assert passport.diagnosis_source == "none"
