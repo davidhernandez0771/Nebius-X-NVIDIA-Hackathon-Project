@@ -16,7 +16,9 @@ validator cannot drift apart.
 from __future__ import annotations
 
 import json
+import math
 import statistics
+from dataclasses import dataclass
 from typing import get_args
 
 import numpy as np
@@ -28,6 +30,7 @@ from demo_pipeline.schemas import (
     Issue,
     IssueType,
     MetricsWindow,
+    Pose,
     RepairOp,
     SegmentName,
     SimSignals,
@@ -371,6 +374,56 @@ MODEL_OPS = ("recenter_grasp", "replan_transit", "discard")
 # An off-center claim needs the measured offset at the close to exceed the IK tracking error there (3.3 mm
 # after the joint-velocity feedforward fix, spec Changes 2026-10-16): below it, "off-center" is noise.
 GRASP_CENTERED_MM = 3.3
+# Bin geometry (sim_worker/scene_cfg.py, which imports Isaac): footprint half-size 0.11 m (inner 0.20 + 2 walls
+# of 0.01), rim 0.09 m above the bin origin; the cube rests with its center 0.025 m up.
+BIN_FOOTPRINT_HALF = 0.11
+BIN_RIM_HEIGHT = 0.09
+CUBE_HALF = 0.025
+# Sprint 5 (pre-registered, T4 note): a verified replay contradicts these claims (spec 8.5: the cube ends in
+# the bin and does not leave the gripper before it is above the bin).
+RELEASE_TYPES = ("bad_release", "drop")
+_HYBRID_ISSUE_HELP = {**_ISSUE_HELP, "drop": "the cube leaves the gripper before the bin, whether it slips or the "
+                                             "gripper opens"}
+
+
+@dataclass(frozen=True)
+class ReleaseFacts:
+    """Measured at the release: the last closed step before the first open after the grasp."""
+
+    t: float  # time of the first open
+    outside_m: float  # cube center's horizontal distance outside the bin footprint (0 = over the bin)
+    above_rim_m: float  # cube bottom above the bin rim
+    hand_over_bin_after: bool  # the hand passes over the footprint after the open (it carries on to the bin)
+
+
+def _bin_xy(points: np.ndarray, bin_pose: Pose) -> np.ndarray:
+    w, x, y, z = bin_pose.quat_wxyz
+    yaw = math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+    d = np.asarray(points, dtype=float)[..., :2] - np.asarray(bin_pose.pos[:2])
+    c, s_ = math.cos(-yaw), math.sin(-yaw)
+    return np.stack([c * d[..., 0] - s_ * d[..., 1], s_ * d[..., 0] + c * d[..., 1]], axis=-1)
+
+
+def release_facts(traj: Trajectory, signals: SimSignals | None, bin_pose: Pose | None) -> ReleaseFacts | None:
+    """Where the cube was let go, from the replay's signals; None without signals on the trajectory's steps,
+    without a bin pose, or without an open after the first close."""
+    if signals is None or bin_pose is None or signals.n_steps != len(traj.t):
+        return None
+    g = np.asarray(traj.gripper)
+    closed = np.flatnonzero(g == 1)
+    if closed.size == 0:
+        return None
+    opens = np.flatnonzero(g[closed[0]:] == 0)
+    if opens.size == 0:
+        return None
+    k_open = int(closed[0] + opens[0])
+    held = signals.cube_pos[k_open - 1]
+    local = _bin_xy(held, bin_pose)
+    outside = float(np.hypot(*np.maximum(np.abs(local) - BIN_FOOTPRINT_HALF, 0.0)))
+    above_rim = float(held[2] - CUBE_HALF - (bin_pose.pos[2] + BIN_RIM_HEIGHT))
+    hand_after = _bin_xy(np.asarray(traj.ee_pos)[k_open:], bin_pose)
+    over = bool(np.any(np.all(np.abs(hand_after) <= BIN_FOOTPRINT_HALF, axis=1)))
+    return ReleaseFacts(t=float(traj.t[k_open]), outside_m=outside, above_rim_m=above_rim, hand_over_bin_after=over)
 
 
 def first_close(traj: Trajectory) -> float | None:
@@ -409,9 +462,11 @@ def build_hybrid_prompt(
     *,
     offset_mm: float | None = None,
     failure_reasons: list[str] | None = None,
+    release: ReleaseFacts | None = None,
 ) -> str:
     """The hybrid prompt: the code's timing findings are stated as done; the model looks only for what the
-    rules never name. No "leave it out" bias; contacts stay ground truth."""
+    rules never name. No "leave it out" bias; contacts stay ground truth. offset_mm=None (the blind arm)
+    states no grasp measurement; `release` adds the measured release facts."""
     captions = [f"Image {i}: front camera at t={t:.2f} s" for i, t in enumerate(frame_times, start=1)]
     if has_wrist_frame:
         captions.append(f"Image {len(frame_times) + 1}: wrist camera at the first gripper close")
@@ -424,7 +479,15 @@ def build_hybrid_prompt(
             grasp_fact += (f"; the gripper center was {offset_mm:.1f} mm (horizontally) from the cube center. "
                            f"Offsets up to {GRASP_CENTERED_MM:g} mm are within the arm's tracking error")
         grasp_fact += "."
-    issue_lines = [f"- {name}: {_ISSUE_HELP[name]}" for name in MODEL_TYPES]
+    release_fact = []
+    if release is not None:
+        release_fact = [
+            f"Measured by code: the first gripper open after the grasp is at t={release.t:.2f} s; the cube center "
+            f"was {release.outside_m * 100:.1f} cm outside the bin footprint (0 = over the bin) and its bottom "
+            f"{release.above_rim_m * 100:.1f} cm above the bin rim; "
+            + ("the hand later passes over the bin." if release.hand_over_bin_after
+               else "the hand does not pass over the bin afterwards."), ""]
+    issue_lines = [f"- {name}: {_HYBRID_ISSUE_HELP[name]}" for name in MODEL_TYPES]
     menu = [line for line in _repair_menu() if line.split()[1] in MODEL_OPS]
     parts = [
         "You are reviewing one robot demonstration recorded by a human teleoperating a robot arm in simulation.",
@@ -442,20 +505,23 @@ def build_hybrid_prompt(
         "",
         grasp_fact,
         "",
+        *release_fact,
         "Metrics per window, computed by code (gripper 0 = open, 1 = closed):",
         *_metrics_table(windows),
         "",
         "Your job: look for the problems code cannot name, and report every one you see evidence for. "
         "A missed problem spoils the training data as much as a false alarm.",
-        "- grasp_off_center: in the wrist image, is the cube centered between the fingers? Use the measured offset. "
-        "Report it as a point issue at the close time, with a recenter_grasp repair at that time.",
+        "- grasp_off_center: in the wrist image, is the cube centered between the fingers?"
+        + (" Use the measured offset." if offset_mm is not None else "")
+        + " Report it as a point issue at the close time, with a recenter_grasp repair at that time.",
         "- bad_release: is the cube released outside the bin, or dropped from too high?",
-        "- drop: does the cube fall out of the gripper before the bin?",
+        "- drop: does the cube leave the gripper before the bin, whether it slips or the gripper opens?",
         "- wrong_object: does the gripper go for something other than the red cube?",
         "- segments: split the demo into its phases.",
         "Contacts: the G, B and T columns are ground truth from the simulator.",
         "  - never report rim_contact unless a window in its span has B (arm-bin contact).",
-        "  - never report drop unless G (gripper-cube contact) ends in a window where gripper is still 1.",
+        "  - never report drop unless G ends before the cube is over the bin (the gripper slipped or was opened "
+        "mid-carry).",
         "",
         f"Segment names (ordered, non-overlapping, each with t0 < t1): {', '.join(get_args(SegmentName))}.",
         "",
@@ -482,8 +548,8 @@ def _overlap_any(a, others) -> bool:
     return sa is not None and any((sb := _span(b)) is not None and _overlaps(sa, sb) for b in others)
 
 
-def merge_hybrid(rules: Diagnosis, model: Diagnosis, *, t_close: float | None,
-                 offset_mm: float | None) -> tuple[Diagnosis, list[str]]:
+def merge_hybrid(rules: Diagnosis, model: Diagnosis, *, t_close: float | None, offset_mm: float | None,
+                 replay_success: bool | None = None) -> tuple[Diagnosis, list[str]]:
     """Rules issues and repairs, plus the model's issues and repairs of the types it owns. Returns the merged
     diagnosis and one line per model item left out. The decision follows from the merged repairs."""
     dropped: list[str] = []
@@ -495,6 +561,9 @@ def merge_hybrid(rules: Diagnosis, model: Diagnosis, *, t_close: float | None,
         if issue.type not in MODEL_TYPES:
             dropped.append(f"dropped {where}: the rules own timing ({', '.join(RULES_TYPES)}, slow) and the hybrid "
                            f"prompt asks only for {', '.join(MODEL_TYPES)}")
+            continue
+        if issue.type in RELEASE_TYPES and replay_success:
+            dropped.append(f"dropped {where}: the replay verified success (the cube ended in the bin)")
             continue
         if issue.type == "grasp_off_center":
             if grasp_noise:
@@ -538,21 +607,28 @@ def diagnose_hybrid(
     duration: float,
     *,
     signals: SimSignals | None = None,
+    bin_pose: Pose | None = None,
+    blind: bool = False,
     max_attempts: int = 2,
     failure_reasons: list[str] | None = None,
 ) -> tuple[Diagnosis, list[str]]:
-    """Rules + Nemotron. detect_rules finds the timing issues; Nemotron, told what the rules found, looks only for
+    """Rules + Nemotron. blind=True (the hybrid_blind arm) neither states nor gates by the measured grasp
+    offset, so a grasp claim is the model's own reading of the wrist frame. With `bin_pose`, the measured
+    release facts are stated. detect_rules finds the timing issues; Nemotron, told what the rules found, looks only for
     MODEL_TYPES and the segments; its reply is gated with the metrics (gate_diagnosis, plus the measured grasp
     offset) and merged (merge_hybrid). Returns (diagnosis, what was left out of the model's reply).
 
     Raises DiagnosisError after max_attempts invalid replies; nebius_llm errors propagate. The caller falls back
     to the rules alone."""
     rules = detect_rules(traj, windows, task_text)
-    t_close, offset = first_close(traj), grasp_offset_mm(traj, signals)
+    t_close = first_close(traj)
+    offset = None if blind else grasp_offset_mm(traj, signals)
+    release = release_facts(traj, signals, bin_pose)
     frames = select_frames(frames, wrist_frame is not None)
     prompt = build_hybrid_prompt(task_text, windows, [t for t, _ in frames], wrist_frame is not None, replay_success,
-                                 rules, t_close, offset_mm=offset, failure_reasons=failure_reasons)
+                                 rules, t_close, offset_mm=offset, failure_reasons=failure_reasons,
+                                 release=release)
     images = [png for _, png in frames] + ([wrist_frame] if wrist_frame is not None else [])
     model, gated = gate_diagnosis(_ask_model(prompt, images, duration, max_attempts), windows)
-    merged, dropped = merge_hybrid(rules, model, t_close=t_close, offset_mm=offset)
+    merged, dropped = merge_hybrid(rules, model, t_close=t_close, offset_mm=offset, replay_success=replay_success)
     return merged, gated + dropped

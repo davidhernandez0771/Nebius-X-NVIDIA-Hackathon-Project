@@ -265,3 +265,131 @@ def test_hybrid_issue_types_cover_everything_the_rules_or_model_may_say():
 
     assert set(RULES_TYPES) | set(MODEL_TYPES) | {"slow", "other"} == set(get_args(IssueType))
     assert Issue  # imported for the type list
+
+
+# --- sprint 5 (pre-registered): release facts, the verified-success gate, the blind arm ---------------
+
+from demo_pipeline.schemas import Pose  # noqa: E402
+
+BIN = Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=(1.0, 0.0, 0.0, 0.0))
+
+
+def _release_signals(traj, release_xy):
+    """The cube rides in the gripper from the close to the first open, released at `release_xy` (cube center,
+    bottom at the release height), and rests there afterwards."""
+    a = traj.to_arrays()
+    n = len(traj.t)
+    g = a["gripper"]
+    k_close = int(np.flatnonzero(g == 1)[0])
+    k_open = k_close + int(np.flatnonzero(g[k_close:] == 0)[0])
+    cube = np.tile(a["ee_pos"][k_close], (n, 1))
+    cube[k_close:k_open] = a["ee_pos"][k_close:k_open]
+    cube[k_open - 1] = (release_xy[0], release_xy[1], a["ee_pos"][k_open - 1][2])
+    cube[k_open:] = (release_xy[0], release_xy[1], 0.025)
+    held = np.zeros(n, dtype=bool)
+    held[k_close:k_open] = True
+    return SimSignals(cube_pos=cube, contact_gripper_cube=held, contact_arm_bin=np.zeros(n, dtype=bool),
+                      contact_arm_table=np.zeros(n, dtype=bool), max_contact_force=np.zeros(n)), k_open
+
+
+def test_release_facts_over_the_bin():
+    from app.ai.diagnose import release_facts
+
+    traj = _traj()
+    sig, k_open = _release_signals(traj, (0.5, 0.3))
+    f = release_facts(traj, sig, BIN)
+    assert f.t == pytest.approx(traj.t[k_open]) and f.outside_m == pytest.approx(0.0)
+    held_z = traj.ee_pos[k_open - 1][2]
+    assert f.above_rim_m == pytest.approx(held_z - 0.025 - 0.09)
+
+
+def test_release_facts_outside_the_footprint_and_whether_the_hand_goes_on_to_the_bin():
+    from app.ai.diagnose import release_facts
+
+    traj = _traj()  # the hand sweeps y 0 -> 0.3: it ends over the bin
+    sig, _ = _release_signals(traj, (0.5 + 0.11 + 0.06, 0.3))
+    f = release_facts(traj, sig, BIN)
+    assert f.outside_m == pytest.approx(0.06) and f.hand_over_bin_after is True
+    far_bin = Pose(pos=(1.5, 0.3, 0.0), quat_wxyz=(1.0, 0.0, 0.0, 0.0))
+    assert release_facts(traj, sig, far_bin).hand_over_bin_after is False
+
+
+def test_release_facts_need_signals_a_bin_and_an_open_after_the_close():
+    from app.ai.diagnose import release_facts
+
+    traj = _traj()
+    assert release_facts(traj, None, BIN) is None
+    assert release_facts(traj, _release_signals(traj, (0.5, 0.3))[0], None) is None
+    held = Trajectory(t=[0.0, 0.02, 0.04], ee_pos=[(0, 0, 0)] * 3, ee_quat=[DOWN] * 3, gripper=[0, 1, 1])
+    assert release_facts(held, _signals(held), BIN) is None
+
+
+def test_the_prompt_states_the_release_facts():
+    from app.ai.diagnose import ReleaseFacts
+
+    prompt = _prompt(release=ReleaseFacts(t=1.6, outside_m=0.064, above_rim_m=0.031, hand_over_bin_after=True))
+    line = next(ln for ln in prompt.splitlines() if "first gripper open after the grasp" in ln)
+    assert "t=1.60 s" in line and "6.4 cm outside the bin footprint" in line and "3.1 cm above the bin rim" in line
+    assert "the hand later passes over the bin" in line
+
+
+def test_the_prompt_says_drop_includes_an_opened_gripper():
+    prompt = _prompt()
+    assert "never report drop unless G ends before the cube is over the bin" in prompt
+    assert "whether it slips or the gripper opens" in prompt
+    assert "ends in a window where gripper is still 1" not in prompt
+
+
+def test_the_blind_prompt_has_no_measured_offset():
+    prompt = _prompt(offset_mm=None)
+    assert "mm (horizontally)" not in prompt and "tracking error" not in prompt
+    assert "Use the measured offset" not in prompt
+    assert f"first gripper close at t={T_CLOSE:.2f} s" in prompt  # the time stays: it says nothing about centering
+
+
+@pytest.mark.parametrize("kind", ["bad_release", "drop"])
+def test_release_claims_are_dropped_when_the_replay_verified_success(kind):
+    model = _diag(issues=[{"type": kind, "t": 1.6, "evidence": "outside the bin"}])
+    merged, dropped = merge_hybrid(_diag(), model, t_close=T_CLOSE, offset_mm=8.0, replay_success=True)
+    assert merged.issues == [] and any(kind in d and "verified success" in d for d in dropped)
+    merged, _ = merge_hybrid(_diag(), model, t_close=T_CLOSE, offset_mm=8.0, replay_success=False)
+    assert [i.type for i in merged.issues] == [kind]
+
+
+def test_diagnose_hybrid_blind_hides_the_offset_and_does_not_gate_the_grasp():
+    reply = {"segments": [], "issues": [GRASP], "repairs": [RECENTER], "decision": "repair", "label": TASK_TEXT}
+    with patch("app.ai.diagnose.chat_vision_images", return_value=_reply(reply)) as vision:
+        diag, dropped = _call(offset=0.001, blind=True)  # 1 mm: the sighted arm would gate this claim
+    assert "mm (horizontally)" not in vision.call_args.args[0]
+    assert "grasp_off_center" in [i.type for i in diag.issues]
+    assert not any("tracking error" in d for d in dropped)
+    with patch("app.ai.diagnose.chat_vision_images", return_value=_reply(reply)):
+        diag, _ = _call(offset=0.001)
+    assert "grasp_off_center" not in [i.type for i in diag.issues]
+
+
+def test_diagnose_hybrid_passes_release_facts_and_gates_on_replay_success():
+    traj = _traj(pause_steps=40)
+    sig, _ = _release_signals(traj, (0.5 + 0.11 + 0.06, 0.3))
+    windows = compute_windows(traj, sig)
+    reply = {"segments": [], "issues": [{"type": "bad_release", "t": 1.6, "evidence": "beside the bin"}],
+             "repairs": [], "decision": "keep", "label": TASK_TEXT}
+    for success, kept in ((True, False), (False, True)):
+        with patch("app.ai.diagnose.chat_vision_images", return_value=_reply(reply)) as vision:
+            diag, _ = diagnose_hybrid([(0.0, b"f0")], b"w", windows, traj, TASK_TEXT, success, traj.t[-1],
+                                      signals=sig, bin_pose=BIN)
+        assert "6.0 cm outside the bin footprint" in vision.call_args.args[0]
+        assert ("bad_release" in [i.type for i in diag.issues]) is kept
+
+
+def test_release_facts_use_the_bins_yaw():
+    import math as _m
+
+    from app.ai.diagnose import release_facts
+
+    q = (_m.cos(_m.pi / 8), 0.0, 0.0, _m.sin(_m.pi / 8))  # 45 degrees about z
+    yawed = Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=q)
+    traj = _traj()
+    sig, _ = _release_signals(traj, (0.5 + 0.12, 0.3 + 0.12))  # 0.17 m along the bin's own x axis
+    f = release_facts(traj, sig, yawed)
+    assert f.outside_m == pytest.approx(0.12 * 2 ** 0.5 - 0.11, abs=1e-6)
