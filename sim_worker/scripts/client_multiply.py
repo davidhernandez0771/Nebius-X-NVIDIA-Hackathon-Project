@@ -12,14 +12,13 @@ import collections
 import json
 import sys
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
 
 from demo_pipeline.schemas import Demo, Pose, Scene  # noqa: E402
 from demo_pipeline.sim_protocol import MultiplyRequest, MultiplyResponse  # noqa: E402
+from sim_worker.http_client import WorkerError, post_json  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
 
 parser = argparse.ArgumentParser()
@@ -43,14 +42,11 @@ def main() -> None:
         traj = scripted_expert(scene)
     body = MultiplyRequest(trajectory=traj, scene=scene, robot=args.robot, n=args.n, seed0=args.seed0,
                            out_prefix=args.prefix).model_dump_json().encode()
-    req = urllib.request.Request(args.url + "/multiply", data=body, method="POST",
-                                 headers={"Content-Type": "application/json"})
     t0 = time.time()
-    try:
-        with urllib.request.urlopen(req, timeout=6 * 3600) as r:
-            resp = MultiplyResponse.model_validate_json(r.read())
-    except urllib.error.HTTPError as e:
-        print("ERROR", e.code, e.read().decode(), flush=True)
+    try:  # retries a dropped connection or 409 busy; finished seeds come back from disk at once
+        resp = MultiplyResponse.model_validate(post_json(args.url + "/multiply", body))
+    except WorkerError as e:
+        print("ERROR", e.status, e.body, flush=True)
         sys.exit(1)
     reasons = collections.Counter(x for v in resp.variants for x in v.verification.reasons)
     out = {"source": str(args.demo) if args.demo else "scripted_expert", "robot": args.robot, "prefix": args.prefix,
