@@ -117,3 +117,123 @@ def test_status_endpoint_counts_forwarded_messages(client):
         assert client.get("/teleop/status").json() == {
             "browser_connected": True, "sim_connected": True, "messages_forwarded": 3,
         }
+
+
+# --- sprint 3c: control (browser -> sim) and sim_status (sim -> browser) ------------------
+
+def _control(action: str) -> dict:
+    return {"type": "control", "action": action}
+
+
+def _sim_status(**over) -> dict:
+    status = {"type": "sim_status", "recording": True, "steps": 123, "demo_id": None, "last_result": None}
+    status.update(over)
+    return status
+
+
+@pytest.mark.parametrize("action", ["record_start", "record_stop", "reset_scene"])
+def test_control_message_is_forwarded_to_sim(client, action):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json(_control(action))
+
+        assert sim.receive_json() == _control(action)
+
+
+def test_invalid_control_is_rejected_and_not_forwarded(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json({"type": "control", "action": "self_destruct"})
+        error = browser.receive_json()
+        browser.send_json({"type": "control", "action": "record_start", "extra": 1})
+        error_2 = browser.receive_json()
+        browser.send_json({"type": "teleport"})
+        error_3 = browser.receive_json()
+        browser.send_json(_control("record_stop"))
+
+        assert error["type"] == "error" and "action" in error["detail"]
+        assert error_2["type"] == "error"
+        assert error_3["type"] == "error"
+        assert sim.receive_json() == _control("record_stop")  # the first thing the sim sees
+
+
+def test_control_without_a_sim_is_answered_with_an_error(client):
+    with client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json(_control("record_start"))
+        error = browser.receive_json()
+
+    assert error["type"] == "error" and "sim" in error["detail"]
+
+
+def test_controls_do_not_count_as_forwarded_hand_messages(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json(_control("reset_scene"))
+        sim.receive_json()
+        assert client.get("/teleop/status").json()["messages_forwarded"] == 0
+
+
+def test_sim_status_is_forwarded_to_browser(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        status = _sim_status(recording=False, steps=376, demo_id="human_20261016_ab12",
+                             last_result="saved human_20261016_ab12: verified success")
+        sim.send_json(status)
+
+        assert browser.receive_json() == {**status, "paused": False}
+
+
+def test_sim_status_paused_flag_passes_through(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        sim.send_json(_sim_status(paused=True))
+
+        assert browser.receive_json()["paused"] is True
+
+
+def test_invalid_sim_status_gets_an_error_back_and_is_not_forwarded(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        sim.send_json({"type": "sim_status", "recording": "maybe", "steps": -1})
+        error = sim.receive_json()
+        sim.send_text("not json")
+        error_2 = sim.receive_json()
+        sim.send_json(_sim_status(steps=1))
+
+        assert error["type"] == "error"
+        assert error_2["type"] == "error"
+        assert browser.receive_json()["steps"] == 1  # the first thing the browser sees
+
+
+def test_a_reconnecting_browser_gets_the_last_sim_status(client):
+    with client.websocket_connect(SIM) as sim:
+        with client.websocket_connect(BROWSER) as browser:
+            browser.receive_json()
+            sim.send_json(_sim_status(steps=7))
+            browser.receive_json()
+        with client.websocket_connect(BROWSER) as browser:
+            assert browser.receive_json() == {"type": "status", "sim_connected": True}
+            assert browser.receive_json()["steps"] == 7
+
+
+def test_sim_disconnect_forgets_its_status(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        sim.send_json(_sim_status())
+        browser.receive_json()
+    with client.websocket_connect(BROWSER) as browser:
+        assert browser.receive_json() == {"type": "status", "sim_connected": False}
+        browser.send_text("bad")  # the next message must be this error, not a stale sim_status
+        assert browser.receive_json()["type"] == "error"
+
+
+def test_a_new_sim_does_not_inherit_the_old_sims_status(client):
+    with client.websocket_connect(SIM) as sim:
+        sim.send_json(_sim_status(steps=99))
+        sim.send_text("bad")  # the error reply proves the status above was processed
+        sim.receive_json()
+    with client.websocket_connect(SIM), client.websocket_connect(BROWSER) as browser:
+        assert browser.receive_json() == {"type": "status", "sim_connected": True}
+        browser.send_text("bad")
+        assert browser.receive_json()["type"] == "error"  # not the old sim's steps=99
