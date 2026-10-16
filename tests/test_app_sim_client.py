@@ -67,6 +67,7 @@ def _multiply_response():
 
 
 def _client(handler, **kw):
+    kw.setdefault("sleep", lambda s: None)  # retries wait 10 s each by default
     return SimWorkerClient("http://sim.test:8770", transport=httpx.MockTransport(handler), **kw)
 
 
@@ -227,3 +228,152 @@ def test_client_closes_its_http_client():
     with client as c:
         c.health()
     assert client.closed
+
+
+# --- retries on dropped connections and 409 busy, against a real local server (T2's sprint-4 finding) ------
+
+import socket  # noqa: E402
+import struct  # noqa: E402
+import threading  # noqa: E402
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # noqa: E402
+
+
+class FakeWorker:
+    """A stdlib HTTP server whose answers are scripted per request: "reset" (TCP RST, WinError 10054 on Windows),
+    "drop" (close without a response), "busy" (409), "sim_error" (500), or "ok" (the contract's 200)."""
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.paths = []
+        worker = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def _answer(self):
+                length = int(self.headers.get("content-length") or 0)
+                self.rfile.read(length)
+                worker.paths.append(self.path)
+                action = worker.script.pop(0) if worker.script else "ok"
+                if action == "reset":
+                    self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+                    self.connection.close()
+                    return
+                if action == "drop":
+                    self.connection.close()
+                    return
+                if action == "busy":
+                    return self._send(409, {"error": "busy", "detail": "a multiply job is running"})
+                if action == "sim_error":
+                    return self._send(500, {"error": "sim_error", "detail": "RuntimeError: boom"})
+                body = {"/replay": lambda: json.loads(_replay_response().model_dump_json()),
+                        "/multiply": lambda: json.loads(_multiply_response().model_dump_json()),
+                        "/health": lambda: {"ok": True, "robots": ["franka"], "cameras": True, "busy": False}}
+                self._send(200, body[self.path]())
+
+            def _send(self, status, obj):
+                data = json.dumps(obj).encode()
+                self.send_response(status)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            do_GET = do_POST = _answer
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+@pytest.fixture
+def worker():
+    made = []
+
+    def make(*script):
+        w = FakeWorker(script)
+        made.append(w)
+        return w
+
+    yield make
+    for w in made:
+        w.close()
+
+
+def _live_client(w, sleeps, **kw):
+    return SimWorkerClient(w.url, sleep=sleeps.append, **kw)
+
+
+def _multiply_request():
+    return MultiplyRequest(trajectory=_traj(), scene=_scene(), robot="franka", n=2, seed0=1, out_prefix="v")
+
+
+@pytest.mark.parametrize("failure", ["reset", "drop"])
+def test_replay_is_retried_after_a_dropped_connection(worker, failure):
+    w, sleeps = worker(failure, failure), []
+    assert _live_client(w, sleeps).replay(_replay_request()) == _replay_response()
+    assert w.paths == ["/replay"] * 3 and sleeps == [10.0, 10.0]
+
+
+def test_multiply_is_retried_after_a_reset(worker):
+    w, sleeps = worker("reset"), []
+    assert _live_client(w, sleeps).multiply(_multiply_request()) == _multiply_response()
+    assert w.paths == ["/multiply"] * 2 and sleeps == [10.0]
+
+
+def test_busy_is_retried_the_same_way(worker):
+    w, sleeps = worker("busy", "busy", "busy"), []
+    assert _live_client(w, sleeps).replay(_replay_request()) == _replay_response()
+    assert len(w.paths) == 4 and sleeps == [10.0] * 3
+
+
+def test_after_three_retries_a_dropped_connection_is_unavailable(worker):
+    w, sleeps = worker("reset", "reset", "reset", "reset"), []
+    with pytest.raises(SimWorkerUnavailable) as info:
+        _live_client(w, sleeps).multiply(_multiply_request())
+    assert len(w.paths) == 4 and sleeps == [10.0] * 3
+    assert "4 attempts" in str(info.value) and "start the sim worker" in str(info.value)
+
+
+def test_after_three_retries_busy_is_still_busy(worker):
+    w, sleeps = worker("busy", "busy", "busy", "busy"), []
+    with pytest.raises(SimWorkerBusy):
+        _live_client(w, sleeps).replay(_replay_request())
+    assert len(w.paths) == 4
+
+
+def test_other_error_answers_are_not_retried(worker):
+    w, sleeps = worker("sim_error"), []
+    with pytest.raises(SimWorkerError) as info:
+        _live_client(w, sleeps).replay(_replay_request())
+    assert info.value.error == "sim_error" and len(w.paths) == 1 and sleeps == []
+
+
+def test_health_is_not_retried_so_the_preflight_fails_fast(worker):
+    w, sleeps = worker("reset"), []
+    with pytest.raises(SimWorkerUnavailable):
+        _live_client(w, sleeps).health()
+    assert len(w.paths) == 1 and sleeps == []
+
+
+def test_a_timeout_is_not_retried():
+    def handler(request):
+        raise httpx.ReadTimeout("timed out")
+
+    sleeps = []
+    client = SimWorkerClient("http://sim.test:8770", transport=httpx.MockTransport(handler), sleep=sleeps.append)
+    with pytest.raises(SimWorkerUnavailable, match="ReadTimeout"):
+        client.replay(_replay_request())
+    assert sleeps == []
+
+
+def test_retries_and_wait_are_configurable(worker):
+    w, sleeps = worker("reset", "reset"), []
+    with pytest.raises(SimWorkerUnavailable):
+        _live_client(w, sleeps, retries=1, retry_wait_s=2.5).replay(_replay_request())
+    assert len(w.paths) == 2 and sleeps == [2.5]
