@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
-from .routers import candidates, chat, items, organize, phone_scans, photos, rooms, scans, teleop
+from .routers import candidates, chat, demos, items, organize, phone_scans, photos, rooms, scans, teleop
 
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.include_router(items.router)
 app.include_router(organize.router)
 app.include_router(chat.router)
 app.include_router(teleop.router)
+app.include_router(demos.router)
 
 
 @app.get("/api/health")
