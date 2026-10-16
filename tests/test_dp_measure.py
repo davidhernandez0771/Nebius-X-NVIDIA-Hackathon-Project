@@ -166,3 +166,33 @@ def test_position_noise_grows_with_tremor():
     quiet, loud = _line(4.0, noise_m=0.0005), _line(4.0, noise_m=0.002)
     assert 0.0 < position_noise(quiet) < position_noise(loud)
     assert position_noise(loud) == pytest.approx(4 * position_noise(quiet), rel=0.2)
+
+
+def _trembling_hold(duration: float, mm: float, seed: int) -> Trajectory:
+    """A resting hand with tremor-like noise: white noise low-passed at ~6 Hz, std mm per axis."""
+    n = int(round(duration / DT)) + 1
+    k = np.exp(-0.5 * (np.arange(-5, 6) * DT / 0.022) ** 2)
+    raw = np.random.default_rng(seed).standard_normal((n + 10, 3))
+    noise = np.stack([np.convolve(raw[:, i], k / k.sum(), mode="valid") for i in range(3)], axis=1)
+    pos = np.array([0.5, 0.0, 0.2]) + noise / noise.std(axis=0) * mm / 1000
+    return Trajectory.from_arrays(np.arange(n) * DT, pos, np.tile(IDENTITY, (n, 1)), np.zeros(n, int))
+
+
+def test_smoothed_speed_of_a_trembling_hold_stays_low_up_to_both_ends():
+    # a line fitted to pure noise still has a random slope; padding along it faked motion at the ends
+    # (plain line pad: median 0.015 m/s, 27 / 200 over 0.02). The ends stay ~sqrt(2) noisier than the
+    # middle, since only one side has real samples, so this bounds the rate rather than every seed.
+    edge = np.array([max(s[:15].max(), s[-15:].max())
+                     for s in (smoothed_speed(_trembling_hold(3.0, 4.0, seed), 0.2) for seed in range(200))])
+    assert np.median(edge) < 0.012
+    assert (edge > 0.02).mean() <= 0.05
+
+
+def test_smoothed_speed_of_a_trembling_moving_hand_keeps_its_speed_at_the_ends():
+    # the significance test must not flatten real motion, or the ends would fake a slow-down (and idle)
+    for seed in range(10):
+        tr = _trembling_hold(3.0, 4.0, seed)
+        pos = np.asarray(tr.ee_pos) + np.outer(np.asarray(tr.t), [0.1, 0.0, 0.0])  # 0.1 m/s along x
+        moving = Trajectory.from_arrays(tr.t, pos, tr.ee_quat, tr.gripper)
+        s = smoothed_speed(moving, 0.2)
+        assert s[:5].mean() == pytest.approx(0.1, abs=0.03) and s[-5:].mean() == pytest.approx(0.1, abs=0.03), seed

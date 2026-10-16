@@ -30,10 +30,30 @@ def position_noise(traj: Trajectory) -> float:
     return float(np.median(np.linalg.norm(p[2:] - 2 * p[1:-1] + p[:-2], axis=1)))
 
 
+SLOPE_SIGNIFICANCE = 2.0  # an end's fitted slope counts only above this many standard errors
+
+
 def _line_pad(pos: np.ndarray, n_fit: int, n_pad: int) -> np.ndarray:
-    """n_pad samples before pos[0], on the least-squares line through the first n_fit samples."""
+    """n_pad samples before pos[0], on the least-squares line through the first n_fit samples.
+
+    Per axis, a slope that is not significant (|slope| < SLOPE_SIGNIFICANCE standard errors) is
+    noise, not motion: that axis is padded flat at its mean instead, so a trembling resting hand
+    gets no fake motion at the ends. The standard error allows for tremor's correlated residuals
+    (AR(1)). The ends stay ~sqrt(2) noisier than the middle: only one side has real samples.
+    """
+    y = pos[:n_fit]
     x = np.arange(n_fit, dtype=np.float64)
-    slope, icept = np.polyfit(x, pos[:n_fit], 1)
+    slope, icept = np.polyfit(x, y, 1)
+    if n_fit >= 4:
+        resid = y - (icept + x[:, None] * slope)
+        s = np.sqrt((resid**2).sum(axis=0) / (n_fit - 2))
+        num = (resid[1:] * resid[:-1]).sum(axis=0)
+        den = (resid**2).sum(axis=0)
+        rho = np.clip(np.divide(num, den, out=np.zeros_like(num), where=den > 0), 0.0, 0.99)
+        se = s / np.sqrt(((x - x.mean()) ** 2).sum()) * np.sqrt((1 + rho) / (1 - rho))
+        flat = np.abs(slope) < SLOPE_SIGNIFICANCE * se
+        slope = np.where(flat, 0.0, slope)
+        icept = np.where(flat, y.mean(axis=0), icept)
     return icept + np.arange(-n_pad, 0, dtype=np.float64)[:, None] * slope
 
 

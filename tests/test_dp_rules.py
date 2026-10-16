@@ -239,3 +239,13 @@ def test_tremor_over_the_whole_demo_is_one_jitter_finding_and_one_smooth(jitter_
     assert (jit.t0, jit.t1) == pytest.approx((0.0, tr.t[-1]))
     [sm] = _repairs(diag, "smooth")
     assert (sm.t0, sm.t1, sm.strength) == (jit.t0, jit.t1, "med")
+
+
+def test_idle_at_the_ends_under_strong_tremor_is_idle_not_a_pause():
+    # seen at 4 mm on seeds 6, 20 and 25: the hand rests, but the ends' smoothed speed sat just above the limit
+    for seed in range(60):
+        tr, truth, _ = make_case(seed, 4.0)
+        idle = [(i.t0, i.t1) for i in truth if i.type == "idle_start_end"]
+        for p in _issues(_detect(tr), "pause"):
+            inside = sum(max(0.0, min(p.t1, b) - max(p.t0, a)) for a, b in idle)
+            assert inside < 0.5 * (p.t1 - p.t0), (seed, p, idle)
