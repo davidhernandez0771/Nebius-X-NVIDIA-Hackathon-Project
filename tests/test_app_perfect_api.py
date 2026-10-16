@@ -78,7 +78,7 @@ def test_default_diagnoser_is_hybrid(env):
     model.assert_called_once()
     result = api.get(f"/jobs/{job_id}").json()["result"]
     assert result["diagnoser"] == "hybrid" and result["hybrid"] is True
-    assert result["diagnosis_source"] == "nemotron" and result["output_demo_id"] == "human_1_hybrid"
+    assert result["diagnosis_source"] == "hybrid" and result["output_demo_id"] == "human_1_hybrid"
 
 
 def test_nemotron_alone_is_still_available(env):
