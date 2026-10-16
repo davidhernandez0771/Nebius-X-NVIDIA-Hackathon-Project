@@ -22,12 +22,16 @@ Pure: numpy + pydantic + demo_pipeline only (no torch, no Isaac), so it tests an
 
 from __future__ import annotations
 
+import json
+import queue
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Literal, Protocol
 
 import numpy as np
+from pydantic import ValidationError
 
 from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
 from demo_pipeline.rules import TASK_TEXT
@@ -198,6 +202,147 @@ class TeleopSession:
             self.last_result = f"save failed: {type(e).__name__}: {e}"
         finally:
             self.state = "idle"
+
+
+# --- the sink's relay side --------------------------------------------------------------------
+
+def dispatch(session: TeleopSession, text: str) -> str | None:
+    """Apply one relay message to the session: a control, or a HandPoseMsg. The relay's own
+    "status" chatter is ignored. Returns a line to log for an "error" from the relay or for a
+    message that is invalid (dropped), else None."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return f"invalid message (not JSON): {text[:80]!r}"
+    kind = data.get("type") if isinstance(data, dict) else None
+    if kind == "error":
+        return f"relay error: {data.get('detail')}"
+    if kind == "status":
+        return None
+    try:
+        if kind == "control":
+            session.on_control(str(data.get("action")))
+        else:
+            session.on_hand(HandPoseMsg.model_validate(data))
+    except (ValueError, ValidationError) as e:
+        return f"invalid message: {e}"
+    return None
+
+
+def relay_loop(
+    session: TeleopSession,
+    url: str,
+    *,
+    period: float = TELEOP_DT,
+    status_every: int = 5,
+    retry_s: float = 2.0,
+    should_stop: Callable[[], bool] = lambda: False,
+    log: Callable[[str], None] = print,
+) -> None:
+    """Run the session against the relay (src/app/routers/teleop.py, role=sim) until should_stop().
+
+    The session and the robot stay on the calling thread (Isaac's main thread). A reader thread
+    keeps a WebSocket open, reconnecting every retry_s while the relay is down, and queues what
+    arrives. Each tick drains the queue in order, then calls session.step(), at most once per
+    `period` of wall clock. A slower sim just runs slower; it never tries to catch up. The status
+    goes back to the relay whenever it changes apart from the step count, and every status_every
+    ticks. While the relay is down, the robot keeps holding its pose."""
+    from websockets.sync.client import connect  # lazy: only the live sink needs it
+
+    inbox: queue.SimpleQueue[str] = queue.SimpleQueue()
+    conn_box: list = [None]
+
+    def reader() -> None:
+        while not should_stop():
+            try:
+                with connect(url, open_timeout=retry_s) as conn:
+                    conn_box[0] = conn
+                    log(f"[teleop] connected to {url}")
+                    for text in conn:
+                        inbox.put(text if isinstance(text, str) else text.decode())
+            except Exception as e:  # refused, dropped, closed: retry while running
+                if conn_box[0] is not None:
+                    log(f"[teleop] relay connection lost: {type(e).__name__}: {e}")
+            conn_box[0] = None
+            if not should_stop():
+                time.sleep(retry_s)
+
+    threading.Thread(target=reader, name="teleop-relay-reader", daemon=True).start()
+    next_tick, tick, last_sent = time.monotonic(), 0, None
+    try:
+        while not should_stop():
+            while True:
+                try:
+                    text = inbox.get_nowait()
+                except queue.Empty:
+                    break
+                problem = dispatch(session, text)
+                if problem:
+                    log(f"[teleop] {problem}")
+            session.step()
+            status = session.status()
+            changed = last_sent is None or {**status, "steps": 0} != {**last_sent, "steps": 0}
+            conn = conn_box[0]
+            if conn is not None and (changed or tick % status_every == 0):
+                try:
+                    conn.send(json.dumps(status))
+                    last_sent = status
+                except Exception:
+                    pass  # the reader thread notices the drop and reconnects
+            tick += 1
+            next_tick += period
+            delay = next_tick - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            else:
+                next_tick = time.monotonic()  # behind real time: don't try to catch up
+    finally:
+        conn = conn_box[0]
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# --- a scripted fake hand (the automated smoke's input) -------------------------------------
+
+PINCH_CLOSED, PINCH_OPEN = 0.2, 0.8  # well past GripperLatch's 0.35 / 0.45 hysteresis band
+
+
+def scripted_hand(
+    traj: Trajectory, calib: Calibration = Calibration(), frame: tuple[int, int] = (640, 480)
+) -> list[HandPoseMsg]:
+    """The HandPoseMsg stream a perfect hand would send for `traj`, one per step: the exact inverse
+    of to_ee_target, so to_ee_target(msg) reproduces each pose, and the pinch reproduces the gripper
+    through GripperLatch. Raises ValueError for a pose the calibration's workspace cannot express
+    (to_ee_target would clamp it)."""
+    if calib.invert_y or calib.invert_z:
+        raise ValueError("scripted_hand supports the default (non-inverted) calibration only")
+    (x0, x1), (y0, y1), (z0, z1) = calib.x_range, calib.y_range, calib.z_range
+    msgs = []
+    for k, (t, (x, y, z), q, g) in enumerate(zip(traj.t, traj.ee_pos, traj.ee_quat, traj.gripper)):
+        s_x, s_y, s_z = (x - x0) / (x1 - x0), (y1 - y) / (y1 - y0), (z - z0) / (z1 - z0)
+        if not all(-1e-9 <= s <= 1 + 1e-9 for s in (s_x, s_y, s_z)):
+            raise ValueError(f"step {k}: pose {(x, y, z)} is outside the calibration workspace")
+        w, qx, qy, qz = q
+        if abs(w) > 1e-6 or abs(qz) > 1e-6:
+            raise ValueError(f"step {k}: {q} is not a gripper-down pose with a yaw")
+        yaw = 2.0 * np.arctan2(qy, qx)
+        if abs(yaw) > calib.yaw_limit + 1e-9:
+            raise ValueError(f"step {k}: yaw {yaw:.3f} rad is outside the calibration's yaw limit")
+        u_mirrored = calib.u_min + s_y * (calib.u_max - calib.u_min)
+        msgs.append(HandPoseMsg(
+            t_ms=t * 1000.0,
+            tracking_ok=True,
+            wrist_uv=(1.0 - u_mirrored, calib.v_max - s_z * (calib.v_max - calib.v_min)),
+            palm_width=calib.palm_far + s_x * (calib.palm_near - calib.palm_far),
+            pinch_ratio=PINCH_CLOSED if g else PINCH_OPEN,
+            yaw_rad=float(yaw + calib.yaw0),
+            frame_w=frame[0],
+            frame_h=frame[1],
+        ))
+    return msgs
 
 
 # --- saving into the DemoStore --------------------------------------------------------------

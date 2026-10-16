@@ -386,3 +386,163 @@ def test_store_saver_writes_camera_frames(tmp_path):
     meta, _, images = load_episode(store.episode_dir(rec.demo.id))
     assert meta.cameras == ["front"]
     assert all(p.is_file() for p in images["front"])
+
+
+# --- the scripted fake hand (Task 3 smoke input) --------------------------------------------
+
+from demo_pipeline.teleop import GripperLatch  # noqa: E402
+from sim_worker.scripted import scripted_expert  # noqa: E402
+from sim_worker.teleop_session import scripted_hand  # noqa: E402
+
+
+def test_scripted_hand_round_trips_through_to_ee_target():
+    traj = scripted_expert(SCENE)
+    msgs = scripted_hand(traj)
+    assert len(msgs) == len(traj.t)
+    for msg, pos, quat in zip(msgs, traj.ee_pos, traj.ee_quat):
+        pose = to_ee_target(msg)
+        assert pose.pos == pytest.approx(pos, abs=1e-9)
+        assert pose.quat_wxyz == pytest.approx(quat, abs=1e-9)
+
+
+def test_scripted_hand_pinch_reproduces_the_gripper_through_the_latch():
+    traj = scripted_expert(SCENE)
+    latch = GripperLatch()
+    assert [latch.update(m) for m in scripted_hand(traj)] == traj.gripper
+
+
+def test_scripted_hand_messages_are_valid_and_timed_at_50_hz():
+    msgs = scripted_hand(scripted_expert(SCENE), frame=(1280, 720))
+    assert all(m.tracking_ok and 0 <= m.wrist_uv[0] <= 1 and 0 <= m.wrist_uv[1] <= 1 for m in msgs)
+    assert [m.t_ms for m in msgs[:3]] == pytest.approx([0.0, 20.0, 40.0])
+    assert (msgs[0].frame_w, msgs[0].frame_h) == (1280, 720)
+
+
+def test_scripted_hand_refuses_poses_outside_the_workspace():
+    traj = scripted_expert(SCENE)
+    narrow = Calibration(y_range=(-0.1, 0.1))  # the bin sits at y = 0.3
+    with pytest.raises(ValueError, match="outside"):
+        scripted_hand(traj, narrow)
+
+
+def test_scripted_hand_drives_a_session_to_the_expert_trajectory(rig):
+    session, _, clock, saved = rig
+    traj = scripted_expert(SCENE)
+    session.on_control("record_start")
+    for msg in scripted_hand(traj):
+        session.on_hand(msg)
+        session.step()
+        clock.advance(TELEOP_DT)
+    session.on_control("record_stop")
+    got = saved[0].demo.trajectory
+    assert len(got.t) == len(traj.t)
+    assert np.allclose(got.ee_pos, traj.ee_pos) and got.gripper == traj.gripper
+
+
+# --- the sink's relay side: dispatch + relay_loop (no Isaac) ---------------------------------
+
+import json  # noqa: E402
+import socket  # noqa: E402
+import threading  # noqa: E402
+import time  # noqa: E402
+
+from sim_worker.teleop_session import dispatch, relay_loop  # noqa: E402
+
+
+def test_dispatch_routes_hand_and_control_messages(rig):
+    session, driver, clock, _ = rig
+    assert dispatch(session, hand(u=0.3).model_dump_json()) is None
+    session.step()
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+    assert dispatch(session, json.dumps({"type": "control", "action": "record_start"})) is None
+    assert session.state == "recording"
+
+
+def test_dispatch_ignores_relay_chatter_and_reports_garbage(rig):
+    session, _, _, _ = rig
+    assert dispatch(session, json.dumps({"type": "error", "detail": "x"})) == "relay error: x"
+    assert dispatch(session, json.dumps({"type": "status", "sim_connected": True})) is None
+    assert "invalid" in dispatch(session, "not json")
+    assert "invalid" in dispatch(session, json.dumps({"type": "control", "action": "self_destruct"}))
+    assert session.state == "idle"
+
+
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@pytest.fixture
+def relay_server(monkeypatch, tmp_path):
+    """The real FastAPI relay on a real port, in a thread."""
+    uvicorn = pytest.importorskip("uvicorn")
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "test.db"))
+    monkeypatch.setenv("APP_UPLOAD_DIR", str(tmp_path / "uploads"))
+    app = pytest.importorskip("app.main").app  # the backend venv only (Isaac's lacks sqlalchemy)
+    from app.routers import teleop
+
+    teleop.reset_relay()
+    port = _free_port()
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        assert time.monotonic() < deadline, "relay server did not start"
+        time.sleep(0.05)
+    yield f"ws://127.0.0.1:{port}/ws/teleop"
+    server.should_exit = True
+    thread.join(timeout=10)
+    teleop.reset_relay()
+
+
+def test_relay_loop_records_a_demo_end_to_end_through_the_real_relay(relay_server):
+    from websockets.sync.client import connect
+
+    saved, stop = [], threading.Event()
+    session = TeleopSession(FakeDriver(), SCENE, lambda r: saved.append(r) or f"saved {r.demo.id}",
+                            new_id=lambda: "human_e2e")
+    sink = threading.Thread(target=relay_loop, args=(session, relay_server + "?role=sim"),
+                            kwargs={"should_stop": stop.is_set}, daemon=True)
+    sink.start()
+    try:
+        with connect(relay_server + "?role=browser") as browser:
+            def next_json(pred, timeout=10.0):
+                deadline = time.monotonic() + timeout
+                while True:
+                    msg = json.loads(browser.recv(timeout=max(0.01, deadline - time.monotonic())))
+                    if pred(msg):
+                        return msg
+
+            next_json(lambda m: m == {"type": "status", "sim_connected": True})
+            browser.send(json.dumps({"type": "control", "action": "record_start"}))
+            next_json(lambda m: m.get("type") == "sim_status" and m["recording"])
+            for msg in scripted_hand(scripted_expert(SCENE))[:60]:
+                browser.send(msg.model_dump_json())
+                time.sleep(0.005)
+            next_json(lambda m: m.get("type") == "sim_status" and m["steps"] >= 10)
+            browser.send(json.dumps({"type": "control", "action": "record_stop"}))
+            done = next_json(lambda m: m.get("type") == "sim_status" and m["demo_id"] is not None)
+    finally:
+        stop.set()
+        sink.join(timeout=10)
+
+    assert not sink.is_alive()
+    assert done["demo_id"] == "human_e2e" and done["last_result"] == "saved human_e2e"
+    assert done["recording"] is False
+    assert len(saved) == 1 and len(saved[0].demo.trajectory.t) == done["steps"] >= 10
+
+
+def test_relay_loop_keeps_stepping_while_the_relay_is_down():
+    """No backend at all: the loop keeps the robot stepping (holding) and retries, and stops on request."""
+    driver, stop = FakeDriver(), threading.Event()
+    session = TeleopSession(driver, SCENE, lambda r: "ok")
+    sink = threading.Thread(target=relay_loop, args=(session, f"ws://127.0.0.1:{_free_port()}/ws/teleop?role=sim"),
+                            kwargs={"should_stop": stop.is_set, "retry_s": 0.05}, daemon=True)
+    sink.start()
+    time.sleep(0.5)
+    stop.set()
+    sink.join(timeout=10)
+    assert not sink.is_alive()
+    assert len(driver.applied) > 5
