@@ -213,7 +213,9 @@ def test_replay_success_without_a_passport_comes_from_the_signals(demos_api, sto
     _write_episode(store)
     _, mock = _diagnose(demos_api)
     expected = check_success(_traj(), _signals(), _scene().bin_pose)
-    assert expected.reasons == ["not_settled"]  # the fixture's cube rests only 0.4 s
+    # The fixture's cube rests only 0.4 s (not_settled); it is also teleported into the bin from the
+    # hand's height, which success.py may flag as high_release. Either way the replay is not a success.
+    assert not expected.success and "not_settled" in expected.reasons
     assert mock.call_args.args[4] is False
 
 
