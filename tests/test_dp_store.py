@@ -1,6 +1,7 @@
 """demo_pipeline.store: the on-disk demo store (demos, diagnoses, passports, lineage)."""
 from __future__ import annotations
 
+import json
 import os
 import re
 from datetime import datetime, timedelta, timezone
@@ -8,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from demo_pipeline.schemas import Demo, Diagnosis, Passport, Pose, Scene, Trajectory, VerificationResult
-from demo_pipeline.store import DemoStore
+from demo_pipeline.store import DemoStore, StoredDiagnosis
 
 IDENTITY = (1.0, 0.0, 0.0, 0.0)
 T0 = datetime(2026, 10, 15, 12, 0, 0, tzinfo=timezone.utc)
@@ -213,6 +214,46 @@ def test_diagnosis_source_must_be_known(store):
     store.save_demo(_demo("human_1"))
     with pytest.raises(ValueError):
         store.save_diagnosis("human_1", _diagnosis(), "gpt", None)
+
+
+GATED = ["dropped issue slow 1.00-2.00: median speed 0.12 m/s is not below 0.05",
+         "dropped repair retime 1.00-2.00: only tied to dropped issues"]
+
+
+def test_gated_list_is_stored_in_the_diagnosis_file(store):
+    store.save_demo(_demo("human_1"))
+    store.save_diagnosis("human_1", _diagnosis(), "nemotron", "m", gated=GATED)
+    stored = store.get_stored_diagnosis("human_1")
+    assert stored == StoredDiagnosis(source="nemotron", model_id="m", diagnosis=_diagnosis(), gated=GATED)
+    assert sorted(p.name for p in (store.root / "demos" / "human_1").iterdir()) == ["demo.json", "diagnosis.json"]
+
+
+def test_gated_defaults_to_empty(store):
+    store.save_demo(_demo("human_1"))
+    store.save_diagnosis("human_1", _diagnosis(), "rules", None)
+    assert store.get_stored_diagnosis("human_1").gated == []
+
+
+def test_a_diagnosis_file_written_before_gated_existed_reads_as_empty(store):
+    store.save_demo(_demo("human_1"))
+    old = {"source": "rules", "model_id": None, "diagnosis": _diagnosis().model_dump(mode="json")}
+    (store.root / "demos" / "human_1" / "diagnosis.json").write_text(json.dumps(old), encoding="utf-8")
+    assert store.get_stored_diagnosis("human_1").gated == []
+    assert store.get_diagnosis("human_1") == (_diagnosis(), "rules", None)
+
+
+def test_saving_again_replaces_the_gated_list(store):
+    store.save_demo(_demo("human_1"))
+    store.save_diagnosis("human_1", _diagnosis(), "nemotron", "m", gated=GATED)
+    store.save_diagnosis("human_1", _diagnosis(), "rules", None)
+    assert store.get_stored_diagnosis("human_1").gated == []
+
+
+def test_no_stored_diagnosis_yet_is_none(store):
+    store.save_demo(_demo("human_1"))
+    assert store.get_stored_diagnosis("human_1") is None
+    with pytest.raises(KeyError):
+        store.get_stored_diagnosis("nope")
 
 
 # --- passports ---------------------------------------------------------------------
