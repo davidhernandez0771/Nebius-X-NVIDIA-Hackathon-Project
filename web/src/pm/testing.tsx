@@ -26,7 +26,7 @@ export function stubBackend(routes: Record<string, Reply | Reply[]>) {
 
 export function renderAt(path: string, element: JSX.Element, route: string) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route path={route} element={element} />
       </Routes>
