@@ -205,3 +205,140 @@ def test_main_parses_flags(abl, cases, monkeypatch):
     assert [p.name for p in seen["episodes"]] == ["degraded_0000", "degraded_0001", "degraded_0002"]
     assert seen["diagnosers"] == ["rules", "hybrid"] and seen["max_model_calls"] == 50
     assert seen["max_cost_usd"] == 0.10
+
+
+# --- sprint 5 (pre-registered): v2 arms, manifest check, negatives' false-positive rates -----------------
+
+import hashlib  # noqa: E402
+
+
+def _v2_episode(root: Path, name: str, kind: str, close=40, open_=80, bin_y=0.3, offset_m=0.0, truth=None):
+    """A v2-style episode: the cube rides in the gripper between the close and the first open, then rests where
+    it was let go. truth.json carries the demo type, as T1's v2 does."""
+    traj = _traj()
+    grip = [1 if close <= i < open_ else 0 for i in range(len(traj.t))]
+    traj = traj.model_copy(update={"gripper": grip})
+    scene = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=IDENTITY),
+                  bin_pose=Pose(pos=(0.5, bin_y, 0.0), quat_wxyz=IDENTITY), robot="franka", seed=0)
+    sim = FakeSim(root)
+    resp = sim.replay(ReplayRequest(trajectory=traj, scene=scene, record_cameras=True, out_name=name))
+    ep = Path(resp.ep_dir)
+    a = traj.to_arrays()
+    n = len(traj.t)
+    cube = np.tile(a["ee_pos"][close] + [offset_m, 0.0, 0.0], (n, 1))
+    cube[close:open_] = a["ee_pos"][close:open_] + [offset_m, 0.0, 0.0]
+    cube[open_:] = (cube[open_ - 1][0], cube[open_ - 1][1], 0.025)
+    held = np.zeros(n, dtype=bool)
+    held[close:open_] = True
+    sig = np.load(ep / "signals.npz")
+    np.savez(ep / "signals.npz", **{**{k: sig[k] for k in sig.files}, "cube_pos": cube,
+                                    "contact_gripper_cube": held})
+    (ep / "demo.json").write_text(Demo(id=name, source="human", trajectory=traj, scene=scene,
+                                       human_seconds=2.0).model_dump_json(), encoding="utf-8")
+    (ep / "truth.json").write_text(json.dumps({"synthetic": True, "demo_id": name, "type": kind,
+                                               "issues": truth or []}), encoding="utf-8")
+    ok = kind not in ("drop", "bad_release")
+    (ep / "verification.json").write_text(json.dumps({"success": ok, "reasons": [] if ok else ["not_in_bin"],
+                                                      "duration": 2.0, "path_length": 0.5,
+                                                      "max_contact_force": 0.0}), encoding="utf-8")
+    return ep
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.fixture
+def v2(tmp_path):
+    root = tmp_path / "eps"
+    t_open = lambda k: k * 0.02  # noqa: E731
+    eps = [
+        _v2_episode(root, "v2_0", "timing_off_center", offset_m=0.008, truth=[GRASP_TRUTH]),
+        _v2_episode(root, "v2_1", "timing_centered", offset_m=0.0),
+        _v2_episode(root, "v2_2", "drop", open_=45,
+                    truth=[{"type": "drop", "t0": t_open(45), "t1": t_open(45), "dont_care": False}]),
+        _v2_episode(root, "v2_3", "bad_release", bin_y=0.45,
+                    truth=[{"type": "bad_release", "t0": t_open(80), "t1": t_open(80), "dont_care": False}]),
+        _v2_episode(root, "v2_4", "clean"),
+    ]
+    manifest = {"name": "v2", "demos": [{"id": ep.name, "type": json.loads((ep / "truth.json").read_text())["type"],
+                                         "demo_sha256": _sha(ep / "demo.json"),
+                                         "truth_sha256": _sha(ep / "truth.json")} for ep in eps]}
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    return eps, tmp_path / "manifest.json", tmp_path / "out"
+
+
+def _run_v2(abl, v2, diagnosers, model=None, usage=None, **kw):
+    eps, manifest, out = v2
+    usage = usage or Usage()
+    calls = []
+
+    def default(frames, wrist, windows, traj, task_text, success, duration, **k):
+        usage.calls += 1
+        calls.append(k)
+        from app.ai.diagnose import merge_hybrid
+        from demo_pipeline.rules import detect_rules
+
+        reply = Diagnosis.model_validate({"segments": [], "issues": [{"type": "grasp_off_center", "t": 0.8,
+                                                                      "evidence": "x"}],
+                                          "repairs": [], "decision": "keep", "label": TASK_TEXT})
+        return merge_hybrid(detect_rules(traj, windows, task_text), reply, t_close=0.8, offset_mm=None,
+                            replay_success=success)
+
+    with patch.object(abl, "diagnose_hybrid", side_effect=model or default):
+        summary = abl.run_ablation(eps, None, list(diagnosers), out, manifest=manifest, model_usage=usage,
+                                   log=lambda s: None, **kw)
+    return summary, calls
+
+
+def test_v2_case_carries_its_type_and_bin_pose(abl, v2):
+    eps, _, _ = v2
+    case = abl.load_case(eps[2])
+    assert case.kind == "drop" and case.bin_pose.pos == (0.5, 0.3, 0.0) and case.replay_success is False
+
+
+def test_code_all_finds_the_drop_and_the_bad_release_from_sim_state(abl, v2):
+    summary, calls = _run_v2(abl, v2, ["code_all"])
+    assert calls == []
+    pt = summary["diagnosers"]["code_all"]["per_type"]
+    assert pt["drop"]["tp"] == 1 and pt["drop"]["fp"] == 0
+    assert pt["bad_release"]["tp"] == 1 and pt["bad_release"]["fp"] == 0
+    assert pt["grasp_off_center"]["tp"] == 1 and pt["grasp_off_center"]["fp"] == 0
+
+
+def test_hybrid_blind_is_called_blind_and_both_hybrid_arms_get_the_bin(abl, v2):
+    _, calls = _run_v2(abl, v2, ["hybrid", "hybrid_blind"])
+    assert [k["blind"] for k in calls] == [False, True] * 5  # per episode: hybrid, then hybrid_blind
+    assert all(k["bin_pose"] is not None and k["signals"] is not None for k in calls)
+
+
+def test_negatives_false_positive_rates_per_type(abl, v2):
+    summary, _ = _run_v2(abl, v2, ["hybrid_blind"])
+    blind = summary["diagnosers"]["hybrid_blind"]
+    # the fake claims an off-center grasp everywhere: 4 grasp negatives, all false positives
+    assert blind["negatives_fp_rate"]["grasp_off_center"] == {"episodes": 4, "with_fp": 4, "rate": 1.0}
+    assert blind["grasp_fp_rate_on_centered"] == {"episodes": 1, "with_fp": 1, "rate": 1.0}
+    assert blind["negatives_fp_rate"]["drop"] == {"episodes": 4, "with_fp": 0, "rate": 0.0}
+
+
+def test_the_r1_bar_is_evaluated_for_the_blind_arm(abl, v2):
+    summary, _ = _run_v2(abl, v2, ["hybrid_blind"])
+    bar = summary["diagnosers"]["hybrid_blind"]["r1_bar"]
+    assert bar == {"recall": 1.0, "fp_rate_centered": 1.0, "passes": False,
+                   "rule": "grasp recall >= 0.75 and FP rate <= 0.25 on the centered negatives"}
+
+
+def test_an_episode_whose_files_do_not_match_the_manifest_is_not_scored(abl, v2):
+    eps, manifest, _ = v2
+    (eps[4] / "truth.json").write_text(json.dumps({"type": "clean", "issues": [], "edited": True}), encoding="utf-8")
+    summary, calls = _run_v2(abl, v2, ["rules"])
+    assert summary["rejected"] == [{"episode": "v2_4", "reason": "truth.json does not match the manifest"}]
+    assert summary["n_degraded"] == 4
+
+
+def test_after_a_budget_stop_every_arm_is_scored_on_the_same_episodes(abl, v2):
+    summary, calls = _run_v2(abl, v2, ["rules", "hybrid", "hybrid_blind"], max_model_calls=4)
+    # 2 calls reserved per diagnose: calls 1 and 2 (episode 0), 3 (episode 1 hybrid), then the blind call stops
+    assert len(calls) == 3 and "budget" in summary["stopped"]
+    assert summary["scored_episodes"] == ["v2_0"]
+    assert summary["diagnosers"]["rules"]["cases_scored"] == 1
