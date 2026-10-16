@@ -37,6 +37,7 @@ from scripts.score_rules_on_degraded import make_case  # noqa: E402
 from sim_worker.degraded import case_name, is_done, write_case_files  # noqa: E402
 from sim_worker.isaac_executor import IsaacExecutor  # noqa: E402
 from sim_worker.jobs import episodes_dir, run_replay  # noqa: E402
+from sim_worker.keepawake import KeepAwake  # noqa: E402
 from sim_worker.replay import make_sim_cfg  # noqa: E402
 
 
@@ -44,7 +45,7 @@ def main() -> None:
     root, cameras = Path(data_dir()), not args_cli.no_cameras
     index_path = episodes_dir(root) / f"{args_cli.prefix}_index.json"
     rows = []
-    with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
+    with launch_simulation(make_sim_cfg(args_cli.device), args_cli), KeepAwake():  # no idle sleep mid-run
         ex = IsaacExecutor(robot="franka", cameras=cameras, root=root)
         ex.warm_up()
         for seed in range(args_cli.seed0, args_cli.seed0 + args_cli.n):

@@ -185,3 +185,50 @@ def test_multiply_may_move_a_demo_to_the_worker_robot(tmp_path):
     resp = run_multiply(req, FakeReplay(), root=tmp_path, worker_robot="openarm", worker_cameras=False)
     assert resp.variants[0].scene.robot == "openarm"
     assert math.isfinite(resp.wall_s)
+
+
+# ---- recovery after a transient sim error (e.g. Windows sleep, sprint 4 Task 2) -----------------------------------
+
+def _flaky(fail_seeds: set[int], times: int = 1):
+    """A replay_fn that raises the first `times` calls for each seed in fail_seeds."""
+    seen: dict[int, int] = {}
+
+    def fn(traj, scene, ep_dir, record_cameras):
+        seen[scene.seed] = seen.get(scene.seed, 0) + 1
+        if scene.seed in fail_seeds and seen[scene.seed] <= times:
+            raise RuntimeError("Warp CUDA error 999: unknown error")
+        return FakeReplay()(traj, scene, ep_dir, record_cameras)
+
+    fn.seen = seen
+    return fn
+
+
+def test_a_variant_is_retried_once_when_the_sim_recovers(tmp_path):
+    fn, recovered = _flaky({101}), []
+    resp = run_multiply(_mult_req(n=3), fn, root=tmp_path, worker_robot="franka", worker_cameras=False,
+                        recover=lambda exc: recovered.append(repr(exc)) or True)
+    assert resp.successes == 3 and fn.seen[101] == 2
+    assert len(recovered) == 1 and "999" in recovered[0]
+
+
+def test_no_retry_when_recovery_fails(tmp_path):
+    fn = _flaky({101})
+    resp = run_multiply(_mult_req(n=3), fn, root=tmp_path, worker_robot="franka", worker_cameras=False,
+                        recover=lambda exc: False)
+    assert [v.verification.reasons for v in resp.variants if v.seed == 101] == [["sim_error"]]
+    assert fn.seen[101] == 1
+
+
+def test_a_variant_that_fails_again_after_recovery_is_a_sim_error(tmp_path):
+    fn = _flaky({101}, times=2)
+    resp = run_multiply(_mult_req(n=3), fn, root=tmp_path, worker_robot="franka", worker_cameras=False,
+                        recover=lambda exc: True)
+    assert [v.verification.reasons for v in resp.variants if v.seed == 101] == [["sim_error"]]
+    assert fn.seen[101] == 2 and resp.successes == 2
+
+
+def test_replay_requests_also_retry_after_recovery(tmp_path):
+    fn = _flaky({0})
+    resp = run_replay(_replay_req(), fn, root=tmp_path, worker_robot="franka", worker_cameras=False,
+                      recover=lambda exc: True)
+    assert resp.verification.success and fn.seen[0] == 2

@@ -42,6 +42,7 @@ if args_cli.cameras:
 from demo_pipeline.multiply import sample_scene, transform_trajectory  # noqa: E402
 from demo_pipeline.schemas import Pose, Scene  # noqa: E402
 from sim_worker.batch import RowStore, yield_report  # noqa: E402
+from sim_worker.keepawake import KeepAwake  # noqa: E402
 from sim_worker.replay import bin_pose_for, make_sim_cfg, replay  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
 
@@ -72,7 +73,7 @@ def main() -> None:
     )
     src_traj = scripted_expert(src_scene, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z)
     rows, t0, store = [], time.time(), RowStore(out)
-    with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
+    with launch_simulation(make_sim_cfg(args_cli.device), args_cli), KeepAwake():  # no idle sleep mid-run
         source = store.get("source") if args_cli.resume else None
         if source is None:
             source = _run(src_traj, src_scene, out / "source", opts)

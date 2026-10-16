@@ -163,3 +163,30 @@ def test_submit_raises_busy_without_a_job_loop():
     worker._slot.acquire()  # a job is in flight
     with pytest.raises(Busy):
         worker.submit("replay", ReplayRequest.model_validate_json(_replay_body()))
+
+
+def test_jobs_run_inside_the_keep_awake_guard_on_the_job_thread():
+    events: list[str] = []
+
+    class Guard:
+        def __enter__(self):
+            events.append(f"awake:{threading.current_thread().name}")
+
+        def __exit__(self, *exc):
+            events.append("release")
+
+    class Ex(FakeExecutor):
+        def execute(self, kind, req):
+            events.append("job")
+            return super().execute(kind, req)
+
+    worker = SimWorker(Ex(), robot="franka", cameras=False, keep_awake=Guard)
+    done = threading.Event()
+    t = threading.Thread(target=lambda: (worker.submit("replay", ReplayRequest.model_validate_json(_replay_body())),
+                                         done.set()))
+    t.start()
+    while not worker.run_one(timeout=0.5):
+        pass
+    t.join(5)
+    assert done.is_set()
+    assert events == [f"awake:{threading.current_thread().name}", "job", "release"]

@@ -54,8 +54,9 @@ class _Job:
 class SimWorker:
     """One job at a time: submit() (any thread) blocks until serve_jobs() (the main thread) has run it."""
 
-    def __init__(self, executor: Executor, *, robot: str, cameras: bool):
+    def __init__(self, executor: Executor, *, robot: str, cameras: bool, keep_awake=None):
         self.executor, self.robot, self.cameras = executor, robot, cameras
+        self.keep_awake = keep_awake  # () -> context manager held around each job (sim_worker.keepawake)
         self._slot = threading.Lock()  # held from submission until the result is handed back
         self._jobs: queue.Queue[_Job] = queue.Queue()
 
@@ -86,7 +87,11 @@ class SimWorker:
         except queue.Empty:
             return False
         try:
-            job.result = self.executor.execute(job.kind, job.request)
+            if self.keep_awake is None:
+                job.result = self.executor.execute(job.kind, job.request)
+            else:
+                with self.keep_awake():
+                    job.result = self.executor.execute(job.kind, job.request)
         except BaseException as exc:  # noqa: BLE001 - every failure is reported to the client, the loop survives
             traceback.print_exc()
             job.error = exc
@@ -167,6 +172,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--robot", default="franka", choices=["franka", "openarm", "flexiv"])
     parser.add_argument("--cameras", action="store_true")
+    parser.add_argument("--allow-sleep", action="store_true",
+                        help="do not ask Windows to stay awake while a job runs (sim_worker.keepawake)")
     add_tracking_args(parser)
     add_launcher_args(parser)
     args = parser.parse_args(argv)
@@ -176,17 +183,20 @@ def main(argv: list[str] | None = None) -> None:
     from demo_pipeline.paths import data_dir
 
     from .isaac_executor import IsaacExecutor
+    from .keepawake import KeepAwake
     from .replay import make_sim_cfg
 
     root = Path(data_dir())
     with launch_simulation(make_sim_cfg(args.device), args):
         executor = IsaacExecutor(robot=args.robot, cameras=args.cameras, root=root, tracking=options_from_args(args))
         executor.warm_up()  # build the sim session now, on the main thread, before serving
-        worker = SimWorker(executor, robot=args.robot, cameras=args.cameras)
+        keep_awake = None if args.allow_sleep else KeepAwake
+        worker = SimWorker(executor, robot=args.robot, cameras=args.cameras, keep_awake=keep_awake)
         srv = make_http_server(worker, args.host, args.port)
         threading.Thread(target=srv.serve_forever, daemon=True, name="http").start()
         print(json.dumps({"event": "ready", "url": f"http://{args.host}:{args.port}", "robot": args.robot,
-                          "cameras": args.cameras, "episodes": str(root / "episodes")}), flush=True)
+                          "cameras": args.cameras, "episodes": str(root / "episodes"),
+                          "keep_awake_during_jobs": not args.allow_sleep}), flush=True)
         stop = threading.Event()
         try:
             worker.serve_jobs(stop)

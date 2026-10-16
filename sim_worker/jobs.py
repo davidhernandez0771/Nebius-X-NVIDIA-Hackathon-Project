@@ -30,6 +30,8 @@ from demo_pipeline.sim_protocol import (
 )
 
 ReplayFn = Callable[[Trajectory, Scene, Path | None, bool], tuple[VerificationResult, SimSignals, Trajectory]]
+# recover(exc) -> True when the sim is usable again (e.g. the GPU answers after a Windows sleep): retry once.
+RecoverFn = Callable[[BaseException], bool]
 
 _DONE = "verification.json"
 
@@ -63,14 +65,30 @@ def _write_done(ep: Path, scene: Scene, traj: Trajectory, result: VerificationRe
     (ep / _DONE).write_text(result.model_dump_json(indent=1), encoding="utf-8")
 
 
+def _replay_once_more(replay_fn: ReplayFn, recover: RecoverFn | None, traj: Trajectory, scene: Scene,
+                      ep: Path | None, record_cameras: bool, log: Callable[[str], None]):
+    """replay_fn; if it raises and recover() says the sim is back, start the folder afresh and try once more."""
+    try:
+        return replay_fn(traj, scene, ep, record_cameras)
+    except Exception as exc:
+        if recover is None or not recover(exc):
+            raise
+        log(f"[jobs] recovered after {exc!r}; retrying {'(no folder)' if ep is None else ep.name} once")
+        if ep is not None and ep.exists():
+            shutil.rmtree(ep)
+        return replay_fn(traj, scene, ep, record_cameras)
+
+
 def run_replay(req: ReplayRequest, replay_fn: ReplayFn, *, root: Path, worker_robot: str,
-               worker_cameras: bool) -> ReplayResponse:
+               worker_cameras: bool, recover: RecoverFn | None = None,
+               log: Callable[[str], None] = print) -> ReplayResponse:
     _check(req.scene.robot, req.record_cameras, worker_robot, worker_cameras)
     t0 = time.time()
     ep = (episodes_dir(root) / req.out_name).resolve() if req.save_episode else None
     if ep is not None and ep.exists():
         shutil.rmtree(ep)  # a replay request always records afresh
-    result, signals, executed = replay_fn(req.trajectory, req.scene, ep, req.record_cameras)
+    result, signals, executed = _replay_once_more(replay_fn, recover, req.trajectory, req.scene, ep,
+                                                  req.record_cameras, log)
     if ep is not None:
         _write_done(ep, req.scene, executed, result)
     return ReplayResponse(verification=result, signals=SignalsPayload.from_signals(signals),
@@ -94,7 +112,8 @@ def _sim_error(traj: Trajectory) -> VerificationResult:
 
 
 def run_multiply(req: MultiplyRequest, replay_fn: ReplayFn, *, root: Path, worker_robot: str,
-                 worker_cameras: bool, log: Callable[[str], None] = print) -> MultiplyResponse:
+                 worker_cameras: bool, recover: RecoverFn | None = None,
+                 log: Callable[[str], None] = print) -> MultiplyResponse:
     _check(req.robot, req.record_cameras, worker_robot, worker_cameras)
     t0 = time.time()
     variants = []
@@ -110,7 +129,8 @@ def run_multiply(req: MultiplyRequest, replay_fn: ReplayFn, *, root: Path, worke
             if ep.exists():
                 shutil.rmtree(ep)
             try:
-                result, _signals, executed = replay_fn(traj, scene, ep, req.record_cameras)
+                result, _signals, executed = _replay_once_more(replay_fn, recover, traj, scene, ep,
+                                                               req.record_cameras, log)
                 _write_done(ep, scene, executed, result)
             except Exception as exc:  # one broken variant is a recorded failure, not a failed request
                 log(f"[multiply] seed {seed}: sim_error {exc!r}\n{traceback.format_exc()}")
