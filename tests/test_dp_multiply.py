@@ -276,9 +276,125 @@ def test_franka_scenes_are_unchanged_by_the_table():
     np.testing.assert_allclose(s.bin_pose.pos, (0.6052868061282477, -0.2995369307149335, 0.0), atol=1e-15)
 
 
+# --- per-robot ranges fitted from T2's measured runs (sprint 3c, T1 Task 1) ---
+# (run, cube x, cube y, bin x, bin y) read from C:/dev/pm-t2/data/*/scene.json + verification.json on 2026-10-16.
+# Successes come from every run; unreachable failures only from scripted-expert runs (batch_*, corners_*):
+# the multiply runs predate the handover fix and fail on its swing (T1 status note, sprint 3c Task 1).
+
+FLEXIV_SUCCESSES = [
+    ('batch_flexiv/ep_0103', 0.4625, -0.1103, 0.6150, 0.2145),
+    ('batch_flexiv/ep_0110', 0.5439, 0.1796, 0.4457, -0.1205),
+    ('batch_flexiv/ep_0111', 0.4307, -0.1323, 0.5645, 0.1605),
+    ('batch_flexiv/ep_0117', 0.5724, -0.0739, 0.6201, 0.2400),
+    ('batch_flexiv/ep_0118', 0.4288, -0.1689, 0.4882, 0.2533),
+    ('corners_flexiv/bin_0.40_+0.30', 0.5000, -0.1500, 0.4000, 0.3000),
+    ('corners_flexiv/bin_0.65_+0.30', 0.5000, -0.1500, 0.6500, 0.3000),
+    ('multiply_flexiv/source', 0.5000, 0.0000, 0.5000, 0.3000),
+    ('multiply_flexiv/var_0101', 0.5845, 0.1477, 0.6433, -0.1653),
+    ('multiply_flexiv/var_0103', 0.4625, -0.1103, 0.6150, 0.2145),
+    ('multiply_flexiv/var_0106', 0.5965, -0.1838, 0.5161, 0.2787),
+    ('multiply_flexiv/var_0109', 0.4389, -0.1394, 0.5357, 0.2996),
+    ('multiply_flexiv/var_0111', 0.4307, -0.1323, 0.5645, 0.1605),
+    ('multiply_flexiv/var_0116', 0.4553, 0.1791, 0.5523, -0.2236),
+    ('multiply_flexiv/var_0117', 0.5724, -0.0739, 0.6201, 0.2400),
+    ('multiply_flexiv/var_0118', 0.4288, -0.1689, 0.4882, 0.2533),
+    ('multiply_flexiv/var_0120', 0.4277, -0.1320, 0.4545, 0.2363),
+]
+FLEXIV_UNREACHABLE = [  # scripted expert runs only
+    ('batch_flexiv/ep_0101', 0.5845, 0.1477, 0.6433, -0.1653),
+    ('batch_flexiv/ep_0102', 0.4928, 0.1565, 0.6483, -0.1545),
+    ('batch_flexiv/ep_0113', 0.5309, -0.1294, 0.5049, 0.2667),
+    ('batch_flexiv/ep_0114', 0.4998, 0.1374, 0.4344, -0.1679),
+    ('batch_flexiv/ep_0115', 0.5405, 0.0415, 0.6053, -0.2995),
+    ('batch_flexiv/ep_0116', 0.4553, 0.1791, 0.5523, -0.2236),
+    ('batch_flexiv/ep_0125', 0.5560, 0.1145, 0.4805, -0.2287),
+    ('batch_flexiv/ep_0126', 0.4012, 0.1767, 0.6448, -0.2262),
+    ('batch_flexiv/ep_0129', 0.5730, 0.1290, 0.6434, -0.2444),
+    ('corners_flexiv/bin_0.40_-0.30', 0.5000, 0.1500, 0.4000, -0.3000),
+    ('corners_flexiv/bin_0.65_-0.30', 0.5000, 0.1500, 0.6500, -0.3000),
+    ('corners_flexiv/cube_0.40_+0.20', 0.4000, 0.2000, 0.5250, -0.3000),
+    ('corners_flexiv/cube_0.60_+0.20', 0.6000, 0.2000, 0.5250, -0.3000),
+]
+OPENARM_SUCCESSES = [
+    ('batch_openarm_lift018/ep_0000', 0.5632, -0.1989, 0.4084, 0.1378),
+    ('batch_openarm_lift018/ep_0018', 0.4251, -0.1932, 0.4987, 0.1216),
+]
+OPENARM_UNREACHABLE = [  # scripted expert runs only
+    ('batch_openarm_lift018/ep_0001', 0.4847, 0.1311, 0.5374, -0.2835),
+    ('batch_openarm_lift018/ep_0002', 0.5266, 0.1870, 0.4979, -0.1876),
+    ('batch_openarm_lift018/ep_0003', 0.4959, -0.1415, 0.4730, 0.2227),
+    ('batch_openarm_lift018/ep_0004', 0.5804, -0.0091, 0.5972, 0.2905),
+    ('batch_openarm_lift018/ep_0005', 0.5610, 0.1232, 0.4715, -0.2676),
+    ('batch_openarm_lift018/ep_0006', 0.5076, -0.0627, 0.4936, 0.2925),
+    ('batch_openarm_lift018/ep_0007', 0.5484, -0.1634, 0.5269, 0.2228),
+    ('batch_openarm_lift018/ep_0008', 0.4368, -0.0637, 0.5194, 0.2804),
+    ('batch_openarm_lift018/ep_0009', 0.4970, -0.1739, 0.6077, 0.2900),
+    ('batch_openarm_lift018/ep_0010', 0.5867, -0.1420, 0.4348, 0.2439),
+    ('batch_openarm_lift018/ep_0011', 0.4066, -0.1197, 0.5172, 0.2437),
+    ('batch_openarm_lift018/ep_0012', 0.5341, 0.1786, 0.6201, -0.2614),
+    ('batch_openarm_lift018/ep_0013', 0.5730, 0.1421, 0.4654, -0.2537),
+    ('batch_openarm_lift018/ep_0014', 0.4153, -0.1386, 0.4188, 0.2935),
+    ('batch_openarm_lift018/ep_0015', 0.5563, 0.1375, 0.6354, -0.2890),
+    ('batch_openarm_lift018/ep_0016', 0.4153, 0.0920, 0.6005, -0.2106),
+    ('batch_openarm_lift018/ep_0017', 0.5307, 0.0169, 0.6272, -0.2897),
+    ('batch_openarm_lift018/ep_0019', 0.4096, -0.1641, 0.5149, 0.1663),
+    ('batch_openarm_lift018/ep_0020', 0.5615, 0.1253, 0.4825, -0.2465),
+    ('batch_openarm_lift018/ep_0021', 0.4803, 0.1272, 0.5583, -0.2928),
+    ('batch_openarm_lift018/ep_0022', 0.5318, -0.1894, 0.5787, 0.1334),
+    ('batch_openarm_lift018/ep_0023', 0.5363, -0.1499, 0.5185, 0.1961),
+    ('batch_openarm_lift018/ep_0024', 0.5453, -0.1246, 0.4364, 0.1925),
+    ('batch_openarm_lift018/ep_0025', 0.4386, 0.1963, 0.4303, -0.1645),
+    ('batch_openarm_lift018/ep_0026', 0.4983, -0.1062, 0.5782, 0.1879),
+    ('batch_openarm_lift018/ep_0027', 0.5395, -0.0745, 0.4809, 0.2587),
+    ('batch_openarm_lift018/ep_0028', 0.5704, 0.1540, 0.4080, -0.2699),
+    ('batch_openarm_lift018/ep_0029', 0.5932, -0.1125, 0.4108, 0.1757),
+]
+
+
+def _inside(r: multiply.SceneRanges, cx, cy, bx, by) -> bool:
+    return (r.cube_x[0] <= cx <= r.cube_x[1] and r.cube_y[0] <= cy <= r.cube_y[1]
+            and r.bin_x[0] <= bx <= r.bin_x[1] and r.bin_y[0] <= by <= r.bin_y[1])
+
+
+@pytest.mark.parametrize("robot,successes", [("flexiv", FLEXIV_SUCCESSES), ("openarm", OPENARM_SUCCESSES)])
+def test_fitted_ranges_contain_every_observed_success(robot, successes):
+    r = multiply.SCENE_RANGES[robot]
+    assert [run for run, *p in successes if not _inside(r, *p)] == []
+
+
+def test_openarm_ranges_exclude_every_observed_unreachable_failure():
+    r = multiply.SCENE_RANGES["openarm"]
+    assert len(OPENARM_UNREACHABLE) == 28
+    assert [run for run, *p in OPENARM_UNREACHABLE if _inside(r, *p)] == []
+
+
+def test_flexiv_ranges_exclude_the_unreachable_failures_that_separate_by_place():
+    # Only the far -y bins separate: no success below bin y -0.224, and every scripted run there failed.
+    r = multiply.SCENE_RANGES["flexiv"]
+    excluded = sorted(run for run, *p in FLEXIV_UNREACHABLE if not _inside(r, *p))
+    assert excluded == ["batch_flexiv/ep_0115", "corners_flexiv/bin_0.40_-0.30", "corners_flexiv/bin_0.65_-0.30",
+                        "corners_flexiv/cube_0.40_+0.20", "corners_flexiv/cube_0.60_+0.20"]
+    assert (r.cube_x, r.cube_y, r.bin_x) == ((0.40, 0.60), (-0.20, 0.20), (0.40, 0.65))  # Franka's elsewhere
+
+
+def test_flexiv_unreachable_does_not_separate_elsewhere_the_same_scene_both_failed_and_succeeded():
+    # T2: the Flexiv's carry failures are grip drag, not reach. Seeds 101 and 116 failed unreachable as
+    # scripted runs and succeeded as multiply variants, on the very same scene.
+    succ = {tuple(p) for _, *p in FLEXIV_SUCCESSES}
+    both = sorted(run for run, *p in FLEXIV_UNREACHABLE if tuple(p) in succ)
+    assert both == ["batch_flexiv/ep_0101", "batch_flexiv/ep_0116"]
+
+
 @pytest.mark.parametrize("robot", ["openarm", "flexiv"])
-def test_new_arms_start_with_frankas_ranges(robot):
-    assert multiply.SCENE_RANGES[robot] == multiply.SCENE_RANGES["franka"]
+def test_fitted_ranges_are_inside_the_tested_franka_ranges_and_sample(robot):
+    r, f = multiply.SCENE_RANGES[robot], multiply.SCENE_RANGES["franka"]
+    for ax in ("cube_x", "cube_y", "cube_yaw", "bin_x", "bin_y"):
+        lo, hi = getattr(r, ax)
+        assert getattr(f, ax)[0] <= lo < hi <= getattr(f, ax)[1], ax
+    rng = np.random.default_rng(0)
+    for i in range(200):
+        s = sample_scene(rng, robot, i)
+        assert _inside(r, *s.cube_pose.pos[:2], *s.bin_pose.pos[:2])
 
 
 def test_ranges_are_honored_per_robot(monkeypatch):
@@ -307,3 +423,15 @@ def test_ranges_that_cannot_keep_the_gap_fail_clearly(monkeypatch):
     monkeypatch.setattr(multiply, "MAX_SAMPLE_TRIES", 50)
     with pytest.raises(RuntimeError, match="flexiv"):
         sample_scene(np.random.default_rng(0), "flexiv", 0)
+
+
+@pytest.mark.parametrize("robot,successes", [("flexiv", FLEXIV_SUCCESSES), ("openarm", OPENARM_SUCCESSES)])
+def test_fitted_ranges_follow_the_documented_rule(robot, successes):
+    # Each axis: the observed successes +-0.02 m, rounded outward to the cm, clipped to the tested Franka range.
+    franka, r = multiply.SCENE_RANGES["franka"], multiply.SCENE_RANGES[robot]
+    for k, ax in enumerate(("cube_x", "cube_y", "bin_x", "bin_y")):
+        v = [p[k] for _, *p in successes]
+        lo = max(math.floor(round((min(v) - 0.02) * 100, 6)) / 100, getattr(franka, ax)[0])
+        hi = min(math.ceil(round((max(v) + 0.02) * 100, 6)) / 100, getattr(franka, ax)[1])
+        assert getattr(r, ax) == pytest.approx((lo, hi)), ax
+    assert r.cube_yaw == franka.cube_yaw  # no evidence that yaw matters for reach

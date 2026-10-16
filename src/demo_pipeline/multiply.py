@@ -32,12 +32,16 @@ class SceneRanges(NamedTuple):
 
 _FRANKA = SceneRanges(cube_x=(0.40, 0.60), cube_y=(-0.20, 0.20), cube_yaw=(-math.pi / 2, math.pi / 2),
                       bin_x=(0.40, 0.65), bin_y=(-0.30, 0.30))  # spec 8.6; confirmed reachable by T2 (2026-10-16)
+# The other arms' ranges are fitted on T2's measured runs (T1 status note, sprint 3c Task 1): each axis
+# spans the observed successes +-0.02 m, rounded outward to the cm and clipped to the tested (Franka) ranges.
 SCENE_RANGES: dict[RobotName, SceneRanges] = {
     "franka": _FRANKA,
-    # Placeholders equal to the Franka's: T2 will tune them (the OpenArm's +-45 deg wrist confines
-    # a vertical grasp to a ~0.2 m band, T2 note 2026-10-16, Task 5).
-    "openarm": _FRANKA,
-    "flexiv": _FRANKA,
+    # 17 successes over the whole Franka range except bins below y -0.224, where all 4 scripted runs failed
+    # unreachable. Elsewhere the failures are grip drag, not place: the same scene both failed and succeeded.
+    "flexiv": _FRANKA._replace(bin_y=(-0.25, 0.30)),
+    # Only 2 of 30 scripted runs succeeded (lift_z 0.18; at 0.25 none do): the ranges are the small box around
+    # them, which excludes all 28 unreachable failures. The +-45 deg wrist allows no more (T2 note, Task 5).
+    "openarm": _FRANKA._replace(cube_x=(0.40, 0.59), cube_y=(-0.20, -0.17), bin_x=(0.40, 0.52), bin_y=(0.10, 0.16)),
 }
 CUBE_X, CUBE_Y, CUBE_YAW = _FRANKA.cube_x, _FRANKA.cube_y, _FRANKA.cube_yaw  # the Franka's, for older callers
 BIN_X, BIN_Y = _FRANKA.bin_x, _FRANKA.bin_y
