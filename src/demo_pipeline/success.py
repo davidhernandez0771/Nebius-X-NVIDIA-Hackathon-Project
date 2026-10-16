@@ -1,7 +1,10 @@
 """Verifier success check (spec 8.5): did a replayed demo put the cube in the bin, cleanly?
 
-Reason codes: not_in_bin, gripper_closed, not_settled, too_slow, collision, dropped, and
-unreachable (the arm could not follow the commanded pose: IK residual > 2 cm for > 1 s; needs tcp_error).
+Reason codes: not_in_bin, gripper_closed, not_settled, too_slow, collision, dropped,
+unreachable (the arm could not follow the commanded pose: IK residual > 2 cm for > 1 s; needs tcp_error), and
+high_release (the gripper let go of the cube over the bin with the cube's center > 0.18 m above the bin origin: it
+fell in rather than being placed. The scripted expert opens at 0.10 m; opening at the 0.25 m carry height is the
+sprint 5 bad_release. A cube that lands in the bin passes in_bin, so only this catches it).
 """
 
 from __future__ import annotations
@@ -53,6 +56,7 @@ def check_success(
     tcp_error: np.ndarray | None = None,
     unreachable_tol: float = 0.02,
     unreachable_s: float = 1.0,
+    release_height_max: float = 0.18,
 ) -> VerificationResult:
     """tcp_error: optional per-step distance (m) between the commanded and the reached tool point."""
     arr = traj.to_arrays()
@@ -71,6 +75,9 @@ def check_success(
     arm_contact = sim.contact_arm_bin | sim.contact_arm_table
     lost = sim.contact_gripper_cube[:-1] & ~sim.contact_gripper_cube[1:]
     dropped = lost & (grip[1:] == 1) & ~over_bin[1:]
+    # the step before each opening, with the cube still in the fingers
+    released = (grip[:-1] == 1) & (grip[1:] == 0) & sim.contact_gripper_cube[:-1]
+    high_release = released & over_bin[:-1] & (cube_b[:-1, 2] > release_height_max + _EPS)
 
     reasons = []
     if not in_bin:
@@ -85,6 +92,8 @@ def check_success(
         reasons.append("collision")
     if np.any(dropped):
         reasons.append("dropped")
+    if np.any(high_release):
+        reasons.append("high_release")
     if tcp_error is not None and _longest_run_s(t, np.asarray(tcp_error) > unreachable_tol) > unreachable_s + _EPS:
         reasons.append("unreachable")
 
