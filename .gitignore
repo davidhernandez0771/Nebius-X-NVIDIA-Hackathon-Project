@@ -49,3 +49,25 @@ web/public/models/*.task
 
 # perfect-then-multiply pipeline data (episodes, datasets, runs)
 /data/
+
+# Pre-publication audit (T7, 2026-10-16): outputs that tools write outside /data/
+# LeRobot's default --output_dir, experiment trackers, logs
+/outputs/
+wandb/
+*.log
+# Model weights and array dumps (download or regenerate; never commit)
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.tflite
+*.npz
+*.npy
+*.pkl
+# Test and coverage caches
+.hypothesis/
+coverage/
+htmlcov/
+.coverage
+node_modules/

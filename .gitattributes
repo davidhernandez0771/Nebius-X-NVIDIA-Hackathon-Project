@@ -1,1 +1,16 @@
 * text=auto eol=lf
+# Binary files: never normalise line endings or diff as text (T7 audit, 2026-10-16)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.glb binary
+*.mp4 binary
+*.webm binary
+*.task binary
+*.wasm binary
+*.safetensors binary
+*.pt binary
+*.parquet binary
