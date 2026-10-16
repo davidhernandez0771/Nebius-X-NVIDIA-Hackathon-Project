@@ -167,3 +167,109 @@ def test_real_smoke_checkpoint_gives_a_finite_action():
     finally:
         server.shutdown()
         server.server_close()
+
+
+# -- keep-alive (HTTP/1.1 persistent connection) ---------------------------------------------------------------------
+# Windows loopback resets ~1 in 2,000-3,000 *new* TCP connections (WinError 10054, measured 2026-10-16), so the client
+# keeps one connection open for the whole eval instead of opening one per call.
+
+
+def _serve_counting(runner, **kw):
+    """Like _serve, but counts the TCP connections the server accepts."""
+    server = make_server(runner, "127.0.0.1", 0, **kw)
+    accepted = []
+    get_request = server.get_request
+
+    def counting_get_request():
+        conn = get_request()
+        accepted.append(conn[1])
+        return conn
+
+    server.get_request = counting_get_request
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, f"http://127.0.0.1:{server.server_address[1]}", accepted
+
+
+@pytest.fixture
+def counted():
+    runner = FakeRunner()
+    server, url, accepted = _serve_counting(runner)
+    client = PolicyClient(url)
+    yield runner, client, accepted
+    client.close()
+    server.shutdown()
+    server.server_close()
+
+
+def test_many_calls_share_one_connection(counted):
+    _, client, accepted = counted
+    client.health()
+    client.reset()
+    for _ in range(50):
+        client.act(np.zeros(9), _images())
+    assert len(accepted) == 1
+
+
+def test_error_responses_keep_the_connection_usable(counted):
+    _, client, accepted = counted
+    with pytest.raises(PolicyServerError) as e:
+        client.act(np.zeros(8), _images())
+    assert e.value.status == 400
+    with pytest.raises(PolicyServerError) as e:
+        client.act(np.full(9, -999.0), _images())
+    assert e.value.status == 500
+    np.testing.assert_allclose(client.act(np.ones(9), _images()), np.arange(9) + 1.0)
+    assert len(accepted) == 1
+
+
+def test_unknown_route_body_is_drained_so_the_next_request_parses(counted):
+    _, client, accepted = counted
+    with pytest.raises(PolicyServerError) as e:
+        client._call("POST", "/nope", {"state": [0.0] * 9, "padding": "x" * 5000})
+    assert e.value.status == 404
+    assert client.health()["ok"] is True
+    assert len(accepted) == 1
+
+
+def test_client_reconnects_after_the_server_drops_an_idle_connection():
+    runner = FakeRunner()
+    server, url, accepted = _serve_counting(runner, idle_timeout=0.2)
+    client = PolicyClient(url)
+    try:
+        client.reset()
+        time.sleep(0.6)  # the server closes the idle connection
+        np.testing.assert_allclose(client.act(np.zeros(9), _images()), np.arange(9))
+        assert runner.resets == 1 and len(runner.seen) == 1  # nothing sent twice
+        assert len(accepted) == 2
+    finally:
+        client.close()
+        server.shutdown()
+        server.server_close()
+
+
+def test_client_works_with_a_close_after_each_response_server():
+    """An HTTP/1.0 server (the sprint-2 one) closes after every response; the client must just reconnect."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class OneShot(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            data = b'{"ok": true}'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), OneShot)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    client = PolicyClient(f"http://127.0.0.1:{server.server_address[1]}")
+    try:
+        assert [client.health()["ok"] for _ in range(3)] == [True] * 3
+    finally:
+        client.close()
+        server.shutdown()
+        server.server_close()

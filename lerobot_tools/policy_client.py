@@ -3,6 +3,12 @@
     client = PolicyClient("http://127.0.0.1:8765")
     client.reset()                                   # at the start of every episode
     action = client.act(joint_pos, {"front": rgb_hwc_uint8, "wrist": rgb_hwc_uint8})   # -> (9,) float32
+    client.close()                                   # or use it as a context manager
+
+One HTTP/1.1 keep-alive connection is reused for every call (thread-safe; calls are serialized). Windows loopback
+resets ~1 in 2,000-3,000 *new* TCP connections (WinError 10054, measured 2026-10-16), so one connection per eval
+instead of one per call removes those failures. If the server has dropped the idle connection, the client
+reconnects and resends once; that is the only automatic retry.
 
 Latency check against a running server:
     python -m lerobot_tools.policy_client --url http://127.0.0.1:8765 --bench 50
@@ -12,10 +18,11 @@ from __future__ import annotations
 
 import argparse
 import base64
+import http.client
 import json
+import threading
 import time
-import urllib.error
-import urllib.request
+import urllib.parse
 
 import numpy as np
 
@@ -32,22 +39,57 @@ class PolicyClient:
     def __init__(self, url: str = "http://127.0.0.1:8765", timeout: float = 30.0):
         self.url = url.rstrip("/")
         self.timeout = timeout
+        parts = urllib.parse.urlsplit(self.url)
+        if parts.scheme != "http" or not parts.hostname:
+            raise ValueError(f"expected an http://host:port URL, got {url!r}")
+        self._host, self._port, self._prefix = parts.hostname, parts.port or 80, parts.path
+        self._conn: http.client.HTTPConnection | None = None
+        self._lock = threading.Lock()
+
+    def close(self) -> None:
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
+    def __enter__(self) -> PolicyClient:
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+    def _send(self, method: str, path: str, data: bytes | None) -> tuple[int, bytes]:
+        if self._conn is None:
+            self._conn = http.client.HTTPConnection(self._host, self._port, timeout=self.timeout)
+        headers = {"Content-Type": "application/json"} if data is not None else {}
+        self._conn.request(method, self._prefix + path, body=data, headers=headers)
+        resp = self._conn.getresponse()
+        return resp.status, resp.read()  # http.client closes the socket itself if the server said "close"
 
     def _call(self, method: str, path: str, body: dict | None = None) -> dict:
         data = None if body is None else json.dumps(body).encode("utf-8")
-        req = urllib.request.Request(self.url + path, data=data, method=method,
-                                     headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
+        with self._lock:
             try:
-                detail = json.loads(e.read().decode("utf-8")).get("error", "")
+                reused = self._conn is not None and self._conn.sock is not None
+                try:
+                    status, raw = self._send(method, path, data)
+                except (http.client.RemoteDisconnected, ConnectionResetError, ConnectionAbortedError,
+                        BrokenPipeError):
+                    # The server closed the kept-alive connection (idle timeout) before reading this request:
+                    # reconnect and send it once more. A fresh connection that fails is reported, not retried.
+                    self.close()
+                    if not reused:
+                        raise
+                    status, raw = self._send(method, path, data)
+            except (OSError, http.client.HTTPException) as e:  # refused, timeout, reset
+                self.close()
+                raise PolicyServerError(f"{method} {path}: cannot reach {self.url}: {e}") from e
+        if status >= 400:
+            try:
+                detail = json.loads(raw.decode("utf-8")).get("error", "")
             except (ValueError, AttributeError):
                 detail = ""
-            raise PolicyServerError(f"{method} {path} -> {e.code}: {detail}", status=e.code) from e
-        except (urllib.error.URLError, OSError) as e:  # refused, timeout, reset
-            raise PolicyServerError(f"{method} {path}: cannot reach {self.url}: {e}") from e
+            raise PolicyServerError(f"{method} {path} -> {status}: {detail}", status=status)
+        return json.loads(raw.decode("utf-8"))
 
     def health(self) -> dict:
         return self._call("GET", "/health")
