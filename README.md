@@ -334,10 +334,10 @@ Invoke-WebRequest -OutFile web\public\models\hand_landmarker.task `
 uv run pytest -q
 ```
 
-Latest run on this branch: **1066 passed, 16 skipped, 0 failed.** The skips need lerobot,
+Latest run on this branch: **1090 passed, 16 skipped, 0 failed.** The skips need lerobot,
 PIL, pyarrow or torch (they run in the other venvs), Isaac, or a GPU (gated by
 `T3_GPU_TESTS=1`).
-<!-- src: test output 2026-10-16 on 68e4e68, recorded in docs/superpowers/notes/2026-10-16-web-pages.md (Sprint 3c T5 final summary) -->
+<!-- src: test output 2026-10-16 on 97d1c92 (code identical to 68e4e68), recorded in docs/superpowers/notes/2026-10-16-web-pages.md (docs refresh after sprint 4) -->
 
 **Isaac-side tests** (they need no repo fixtures, hence `--noconftest`):
 
