@@ -129,7 +129,7 @@ export default function ReviewPage({ pollIntervalMs = 1000 }: { pollIntervalMs?:
     <Zones
       hero={
         <>
-          <PageTitle title={loaded ? loaded.demo.id : "Review"}>
+          <PageTitle title={loaded ? loaded.demo.id : "Review"} isId={!!loaded}>
             {loaded ? (
               <span className="pm-num">
                 {loaded.demo.source} demo, {durationOf(loaded.demo).toFixed(1)} s on {loaded.demo.scene.robot}

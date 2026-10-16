@@ -64,9 +64,9 @@ export function Loading({ what }: { what: string }) {
   );
 }
 
-export function PageTitle({ title, children }: { title: string; children?: ReactNode }) {
+export function PageTitle({ title, isId = false, children }: { title: string; isId?: boolean; children?: ReactNode }) {
   return (
-    <div className="hero-copy pm-title">
+    <div className={`hero-copy pm-title${isId ? " pm-title--id" : ""}`}>
       <h1>{title}</h1>
       {children && <p className="muted">{children}</p>}
     </div>

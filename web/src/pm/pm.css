@@ -12,6 +12,13 @@
   line-height: var(--lh-tight);
 }
 
+/* Ids are data: the display serif's old-style figures make 01 read as o1. */
+.pm-title--id h1 {
+  font-family: var(--font);
+  font-weight: var(--fw-light);
+  overflow-wrap: anywhere;
+}
+
 .pm-num {
   font-variant-numeric: tabular-nums;
 }
@@ -88,8 +95,8 @@
 }
 
 .pm-clock {
-  font-family: var(--font-display);
   font-size: var(--fs-xl);
+  font-weight: var(--fw-light);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -423,11 +430,14 @@
 
 .pm-chart {
   position: relative;
+  margin: 0;
+  overflow-x: auto;
 }
 
 .pm-chart svg {
   display: block;
   width: 100%;
+  min-width: 560px; /* below this the labels get too small to read; the card scrolls instead */
   height: auto;
 }
 
