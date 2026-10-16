@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { GlassCard, StatusPill, Zones } from "../../components";
 import type { HandFrame, TrackedHand, TrackingAdapter, TrackingStatus } from "../../hand/contracts";
 import { toHandPoseMsg, type HandPoseMsg } from "../../teleop/handPoseMessage";
-import { TeleopClient, type TeleopStatus } from "../../teleop/teleopClient";
+import type { TeleopStatus } from "../../teleop/teleopClient";
 import { teleopSocketUrl } from "../api";
 import { PageTitle } from "../common";
 import { CALIBRATION, framingCheck, type Framing } from "./framing";
+import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
 import "../pm.css";
 
 // MediaPipe hand skeleton: landmark index pairs.
@@ -18,7 +20,7 @@ const UI_INTERVAL_MS = 100; // framing text updates at ~10 Hz; the canvas draws 
 // Same choice as TeleopClient: the right hand, else the first one.
 const pickHand = (hands: TrackedHand[]) => hands.find((h) => h.handedness === "Right") ?? hands[0] ?? null;
 
-type Phase = { state: "idle" } | { state: "starting" } | { state: "streaming"; since: number } | { state: "error"; message: string };
+type Phase = { state: "idle" } | { state: "starting" } | { state: "streaming" } | { state: "error"; message: string };
 
 function cameraMessage(err: unknown): string {
   const name = err instanceof DOMException ? err.name : "";
@@ -77,38 +79,35 @@ const TRACK_TEXT: Record<TrackingStatus, string> = {
   error: "frames stopped",
 };
 
+const SINK_COMMAND = "C:\\isaac\\env_isaaclab\\Scripts\\python.exe sim_worker\\scripts\\teleop_sink.py --viz kit";
+const STEP_S = 0.02; // the sim records at 50 Hz (sim_worker/teleop_session.py TELEOP_DT)
+
 export default function RecordPage() {
   const [phase, setPhase] = useState<Phase>({ state: "idle" });
   const [track, setTrack] = useState<TrackingStatus>("idle");
   const [relay, setRelay] = useState<TeleopStatus>({ socketOpen: false, simConnected: false, lastError: null });
+  const [sim, setSim] = useState<SimStatus | null>(null);
   const [pose, setPose] = useState<{ msg: HandPoseMsg; framing: Framing } | null>(null);
-  const [now, setNow] = useState(0);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const session = useRef<{ tracker: TrackingAdapter; client: TeleopClient | null } | null>(null);
+  const session = useRef<{ tracker: TrackingAdapter; link: RecordLink | null } | null>(null);
 
   function teardown() {
     session.current?.tracker.cleanup();
-    session.current?.client?.close();
+    session.current?.link?.close();
     session.current = null;
   }
   useEffect(() => teardown, []);
-
-  useEffect(() => {
-    if (phase.state !== "streaming") return;
-    const id = window.setInterval(() => setNow(performance.now()), 250);
-    return () => window.clearInterval(id);
-  }, [phase.state]);
 
   async function start() {
     setPhase({ state: "starting" });
     const { createMediapipeTracker } = await import("../../hand/tracking");
     const tracker = createMediapipeTracker();
-    session.current = { tracker, client: null };
+    session.current = { tracker, link: null };
     let lastUi = -Infinity;
     let last: HandPoseMsg | undefined;
     tracker.onStatus(setTrack);
     tracker.onFrame((frame: HandFrame) => {
-      session.current?.client?.push(frame);
+      session.current?.link?.push(frame);
       const msg = toHandPoseMsg(pickHand(frame.hands), frame, last);
       last = msg;
       const framing = framingCheck(msg);
@@ -126,25 +125,28 @@ export default function RecordPage() {
       return;
     }
     // Open the relay only once the camera works, so a blocked camera never streams.
-    const client = new TeleopClient(teleopSocketUrl());
-    client.onStatus(setRelay);
-    if (session.current) session.current.client = client;
-    const since = performance.now();
-    setNow(since);
-    setPhase({ state: "streaming", since });
+    const link = new RecordLink(teleopSocketUrl());
+    link.onStatus(setRelay);
+    link.onSimStatus(setSim);
+    if (session.current) session.current.link = link;
+    setPhase({ state: "streaming" });
   }
 
   function stop() {
     teardown();
     setTrack("idle");
     setRelay({ socketOpen: false, simConnected: false, lastError: null });
+    setSim(null);
     setPose(null);
     setPhase({ state: "idle" });
   }
 
+  const control = (action: ControlAction) => session.current?.link?.sendControl(action);
+
   const streaming = phase.state === "streaming";
   const lost = streaming && (track === "no-hand" || track === "error");
-  const seconds = streaming ? Math.max(0, (now - phase.since) / 1000) : 0;
+  const simReady = streaming && relay.simConnected;
+  const recording = simReady && !!sim?.recording;
 
   return (
     <Zones
@@ -178,29 +180,31 @@ export default function RecordPage() {
           </div>
           {phase.state === "error" && (
             <GlassCard variant="provisional" className="empty-state">
-              <h2>Can't start recording</h2>
+              <h2>Can't start the camera</h2>
               <p className="muted" role="alert">
                 {phase.message}
               </p>
+            </GlassCard>
+          )}
+          {streaming && relay.socketOpen && !relay.simConnected && (
+            <GlassCard variant="provisional" className="empty-state">
+              <h2>The sim isn't connected</h2>
+              <p className="muted">Start the Isaac sink in a terminal, then wait for the arm to appear:</p>
+              <code className="pm-command">{SINK_COMMAND}</code>
             </GlassCard>
           )}
         </>
       }
     >
       <GlassCard as="section" className="stack">
-        <div className="row spread">
-          <h2>Session</h2>
-          <span className="pm-clock" aria-label={`${seconds.toFixed(0)} seconds`}>
-            {Math.floor(seconds / 60)}:{String(Math.floor(seconds % 60)).padStart(2, "0")}
-          </span>
-        </div>
+        <h2>Camera and link</h2>
         {streaming ? (
-          <button type="button" className="primary-button" onClick={stop}>
-            Stop
+          <button type="button" className="ghost-button" onClick={stop}>
+            Stop camera
           </button>
         ) : (
           <button type="button" className="primary-button" onClick={start} disabled={phase.state === "starting"}>
-            Start streaming
+            Start camera
           </button>
         )}
         <dl className="pm-status-list">
@@ -208,12 +212,50 @@ export default function RecordPage() {
           <dd>{TRACK_TEXT[track]}</dd>
           <dt>Backend relay</dt>
           <dd>{relay.socketOpen ? "connected" : streaming ? "not connected; is the backend running?" : "off"}</dd>
-          <dt>Sim worker</dt>
-          <dd>{relay.simConnected ? "following your hand" : relay.socketOpen ? "not connected to the relay" : "off"}</dd>
+          <dt>Sim</dt>
+          <dd>{relay.simConnected ? "connected" : relay.socketOpen ? "not connected" : "off"}</dd>
         </dl>
         {relay.lastError && (
           <p className="small" role="alert">
             The relay rejected a message: {relay.lastError}
+          </p>
+        )}
+      </GlassCard>
+
+      <GlassCard as="section" className="stack">
+        <div className="row spread">
+          <h2>Record a demo</h2>
+          {recording && (
+            <StatusPill tone={sim?.paused ? "warm" : "danger"}>{sim?.paused ? "Paused: hand tracking lost" : "Recording"}</StatusPill>
+          )}
+        </div>
+        {recording ? (
+          <button type="button" className="primary-button" onClick={() => control("record_stop")}>
+            Stop and save
+          </button>
+        ) : (
+          <button type="button" className="primary-button" onClick={() => control("record_start")} disabled={!simReady}>
+            Start recording
+          </button>
+        )}
+        <button type="button" className="ghost-button" onClick={() => control("reset_scene")} disabled={!simReady || recording}>
+          Reset scene
+        </button>
+        <dl className="pm-status-list pm-num">
+          <dt>Recorded</dt>
+          <dd data-testid="recorded">{sim ? `${(sim.steps * STEP_S).toFixed(1)} s (${sim.steps} steps)` : "–"}</dd>
+          {sim?.demoId && (
+            <>
+              <dt>Saved</dt>
+              <dd>
+                <Link to={`/pm/review?id=${encodeURIComponent(sim.demoId)}`}>Review {sim.demoId}</Link>
+              </dd>
+            </>
+          )}
+        </dl>
+        {simReady && sim?.lastResult && (
+          <p className="small" role="status">
+            {sim.lastResult}
           </p>
         )}
       </GlassCard>
@@ -238,8 +280,8 @@ export default function RecordPage() {
       </GlassCard>
 
       <p className="muted small panel-note">
-        This page streams your hand to the sim worker through the backend. Saving a recording as a demo happens on the
-        sim side, which isn't connected yet.
+        The arm follows your hand even when not recording, so you can line up first. Each stop saves a human demo with
+        its episode; review it before perfecting.
       </p>
     </Zones>
   );
