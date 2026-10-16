@@ -422,10 +422,20 @@ def test_a_diagnosis_saved_without_a_gated_list_reads_back_as_empty(demos_api, s
     assert demos_api.get("/demos/human_1/diagnosis").json()["gated"] == []
 
 
+def test_gated_list_is_kept_in_the_stored_diagnosis_with_no_sidecar(demos_api, store):
+    _post(demos_api, _demo())
+    _write_episode(store)
+    _diagnose(demos_api, gated=GATED)
+    assert store.get_stored_diagnosis("human_1").gated == GATED
+    assert not (store.root / "demos" / "human_1" / "gated.json").exists()
+
+
 def test_corrupt_gated_list_is_422(demos_api, store):
     _post(demos_api, _demo())
     store.save_diagnosis("human_1", _diagnosis(), "rules", None)
-    (store.root / "demos" / "human_1" / "gated.json").write_text("{not json", encoding="utf-8")
+    path = store.root / "demos" / "human_1" / "diagnosis.json"
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({**stored, "gated": "not a list"}), encoding="utf-8")
     assert demos_api.get("/demos/human_1/diagnosis").status_code == 422
 
 

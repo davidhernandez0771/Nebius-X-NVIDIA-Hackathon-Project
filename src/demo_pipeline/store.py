@@ -1,7 +1,7 @@
 """On-disk demo store: one folder per demo under <root>/demos/.
 
 <root>/demos/<id>/demo.json        Demo
-<root>/demos/<id>/diagnosis.json   {"source", "model_id", "diagnosis"}, optional
+<root>/demos/<id>/diagnosis.json   {"source", "model_id", "diagnosis", "gated"}, optional
 <root>/demos/<id>/passport.json    Passport, optional
 <root>/demos/<id>/episode/         the recorded episode (episode_io format), optional
 
@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .paths import data_dir
 from .schemas import Demo, Diagnosis, Passport
@@ -39,6 +39,7 @@ class StoredDiagnosis(BaseModel):
     source: DiagnosisSource
     model_id: str | None = None
     diagnosis: Diagnosis
+    gated: list[str] = Field(default_factory=list)  # what app.ai.diagnose.gate_diagnosis dropped
 
 
 def _write_atomic(path: Path, text: str) -> None:
@@ -125,18 +126,23 @@ class DemoStore:
 
     # --- diagnoses -----------------------------------------------------------------
 
-    def save_diagnosis(self, id: str, diag: Diagnosis, source: str, model_id: str | None) -> Path:
+    def save_diagnosis(self, id: str, diag: Diagnosis, source: str, model_id: str | None,
+                       gated: list[str] = ()) -> Path:
         path = self._existing_dir(id) / "diagnosis.json"
-        stored = StoredDiagnosis(source=source, model_id=model_id, diagnosis=diag)
+        stored = StoredDiagnosis(source=source, model_id=model_id, diagnosis=diag, gated=list(gated))
         _write_atomic(path, stored.model_dump_json(indent=2))
         return path
 
-    def get_diagnosis(self, id: str) -> tuple[Diagnosis, str, str | None] | None:
+    def get_stored_diagnosis(self, id: str) -> StoredDiagnosis | None:
+        """None if not diagnosed yet; ValueError if diagnosis.json is corrupt. A file without `gated` reads as []."""
         path = self._existing_dir(id) / "diagnosis.json"
         if not path.is_file():
             return None
-        stored = StoredDiagnosis.model_validate_json(path.read_text(encoding="utf-8"))
-        return stored.diagnosis, stored.source, stored.model_id
+        return StoredDiagnosis.model_validate_json(path.read_text(encoding="utf-8"))
+
+    def get_diagnosis(self, id: str) -> tuple[Diagnosis, str, str | None] | None:
+        stored = self.get_stored_diagnosis(id)
+        return None if stored is None else (stored.diagnosis, stored.source, stored.model_id)
 
     # --- passports -----------------------------------------------------------------
 
