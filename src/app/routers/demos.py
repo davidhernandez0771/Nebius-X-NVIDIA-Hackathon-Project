@@ -40,7 +40,7 @@ from nebius_llm import TokenFactoryError
 from nebius_llm.config import get_vision_model
 
 from ..ai.diagnose import DIAGNOSE_TIER, DiagnosisError, diagnose_gated
-from ..jobs import FRONT, WRIST, Diagnoser, JobRunner, load_frames, perfect_stored_demo
+from ..jobs import FRONT, WRIST, Diagnoser, JobRunner, check_worker, load_frames, perfect_stored_demo
 from ..sim_client import SimWorkerClient, SimWorkerError
 
 log = logging.getLogger(__name__)
@@ -169,14 +169,9 @@ def perfect(demo_id: str, response: Response, diagnoser: Diagnoser = "nemotron",
             health = client.health()
         except SimWorkerError as e:
             raise HTTPException(503, str(e)) from None
-        if not health.ok:
-            raise HTTPException(503, "the sim worker answers but reports ok=false; restart it")
-        if demo.scene.robot not in health.robots:
-            raise HTTPException(409, f"the sim worker runs {health.robots}, not {demo.scene.robot!r}; "
-                                     f"start one with --robot {demo.scene.robot}")
-        if diagnoser == "nemotron" and not health.cameras:
-            raise HTTPException(409, "diagnoser=nemotron needs camera frames, but the sim worker runs without "
-                                     "cameras; restart it with --cameras or use ?diagnoser=rules")
+        refusal = check_worker(health, demo.scene.robot, diagnoser)
+        if refusal is not None:
+            raise HTTPException(*refusal)
 
         def run() -> dict:
             with client:

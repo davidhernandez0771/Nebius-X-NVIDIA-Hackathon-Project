@@ -12,8 +12,11 @@ from app.ai.diagnose import DiagnosisError
 from app.jobs import (
     BIN_RIM_HEIGHT,
     JobRunner,
+    PipelineAbort,
     align_signals,
     bin_rim_z,
+    check_worker,
+    is_infrastructure,
     output_demo_id,
     perfect_stored_demo,
 )
@@ -285,6 +288,66 @@ def test_rediagnosis_uses_the_frames_of_the_replay_that_failed(store, tmp_path):
     assert all(b.startswith(b"PNG human_1_nemotron_v1 front ") for _, b in second_frames)
     assert model.call_args_list[1].args[4] is False  # that replay failed
     assert out["status"] == "perfected" and out["attempts"] == 2
+
+
+def test_a_custom_diagnose_function_is_used_instead_of_diagnose_gated(store, tmp_path):
+    store.save_demo(_demo())
+    calls = []
+
+    def diagnose(*args):
+        calls.append(args)
+        return _keep(), []
+
+    with patch("app.jobs.diagnose_gated") as default:
+        out = _perfect(store, FakeSim(tmp_path / "worker"), diagnoser="nemotron", diagnose=diagnose)
+    default.assert_not_called()
+    assert len(calls) == 1 and out["diagnosis_source"] == "nemotron"
+
+
+def test_an_abort_from_the_diagnoser_fails_the_job_instead_of_falling_back(store, tmp_path):
+    store.save_demo(_demo())
+
+    def diagnose(*args):
+        raise PipelineAbort("model call budget reached: 10 of 10 calls used")
+
+    with pytest.raises(PipelineAbort, match="budget"):
+        _perfect(store, FakeSim(tmp_path / "worker"), diagnoser="nemotron", diagnose=diagnose)
+    assert store.get_stored_diagnosis("human_1") is None and not store.has_demo("human_1_nemotron")
+
+
+# --- the worker preflight shared by the route and the batch -----------------------------------
+
+def _health(**kw):
+    from demo_pipeline.sim_protocol import HealthResponse
+
+    return HealthResponse(**{"ok": True, "robots": ["franka"], "cameras": True, "busy": False, **kw})
+
+
+def test_check_worker_accepts_a_matching_worker_even_when_busy():
+    assert check_worker(_health(busy=True), "franka", "nemotron") is None
+
+
+def test_check_worker_without_a_robot_skips_the_robot_check():
+    assert check_worker(_health(robots=["openarm"]), None, "rules") is None
+    assert check_worker(_health(ok=False), None, "rules")[0] == 503
+
+
+@pytest.mark.parametrize("health,robot,diagnoser,status,text", [
+    (dict(ok=False), "franka", "rules", 503, "ok=false"),
+    (dict(), "openarm", "rules", 409, "--robot openarm"),
+    (dict(cameras=False), "franka", "nemotron", 409, "--cameras"),
+])
+def test_check_worker_refusals(health, robot, diagnoser, status, text):
+    got = check_worker(_health(**health), robot, diagnoser)
+    assert got[0] == status and text in got[1]
+
+
+def test_infrastructure_errors_are_everything_but_a_sim_error():
+    assert is_infrastructure(SimWorkerUnavailable("x"))
+    assert is_infrastructure(SimWorkerBusy("x", status=409, error="busy"))
+    assert is_infrastructure(SimWorkerError("x", status=422, error="invalid"))
+    assert is_infrastructure(SimWorkerError("x", status=502))
+    assert not is_infrastructure(SimWorkerError("x", status=500, error="sim_error"))
 
 
 # --- perfect: the sim worker fails (Review Focus 2) -------------------------------------------

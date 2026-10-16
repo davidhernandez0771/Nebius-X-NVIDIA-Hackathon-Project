@@ -36,7 +36,7 @@ from demo_pipeline import PIPELINE_VERSION
 from demo_pipeline.episode_io import EpisodeMeta, load_episode
 from demo_pipeline.process import perfect_demo
 from demo_pipeline.schemas import Demo, Diagnosis, MetricsWindow, Passport, Scene, SimSignals, Trajectory
-from demo_pipeline.sim_protocol import ReplayRequest, ReplayResponse
+from demo_pipeline.sim_protocol import HealthResponse, ReplayRequest, ReplayResponse
 from demo_pipeline.store import DemoStore
 from nebius_llm.config import get_vision_model
 
@@ -171,8 +171,27 @@ def episode_frames(ep_dir: Path, t: list[float]) -> tuple[list[tuple[float, byte
     return frames, wrist, meta.task_text
 
 
-def _is_infrastructure(e: SimWorkerError) -> bool:
+class PipelineAbort(RuntimeError):
+    """Raised by an injected step (e.g. a model-call budget) to fail the job; perfect_demo must not swallow it."""
+
+
+def is_infrastructure(e: SimWorkerError) -> bool:
+    """The worker could not do the job (down, hung, busy, refused the request), as opposed to a sim_error:
+    the sim failing on this trajectory."""
     return e.error != "sim_error"
+
+
+def check_worker(health: HealthResponse, robot: str | None, diagnoser: Diagnoser) -> tuple[int, str] | None:
+    """Why this worker cannot perfect a demo for `robot` (None: any) with `diagnoser`, as (HTTP status,
+    message); None if it can. A busy worker can: replays are retried."""
+    if not health.ok:
+        return 503, "the sim worker answers but reports ok=false; restart it"
+    if robot is not None and robot not in health.robots:
+        return 409, f"the sim worker runs {health.robots}, not {robot!r}; start one with --robot {robot}"
+    if diagnoser == "nemotron" and not health.cameras:
+        return 409, ("diagnoser=nemotron needs camera frames, but the sim worker runs without cameras; "
+                     "restart it with --cameras or use diagnoser=rules")
+    return None
 
 
 def replay_with_retry(client: SimWorkerClient, req: ReplayRequest, *, busy_retries: int, busy_wait_s: float,
@@ -215,9 +234,12 @@ def perfect_stored_demo(
     busy_retries: int = 60,
     busy_wait_s: float = 10.0,
     sleep: Callable[[float], None] = time.sleep,
+    diagnose: Callable[..., tuple[Diagnosis, list[str]]] | None = None,
 ) -> dict:
-    """Perfect one stored human demo; returns a JSON-able summary. Raises SimWorkerError when the worker
-    cannot do the job (see the module docstring), ValueError for a demo that is not human."""
+    """Perfect one stored human demo; returns a JSON-able summary. `diagnose` replaces diagnose_gated (same
+    arguments); a PipelineAbort it raises fails the job. Raises SimWorkerError when the worker cannot do the
+    job (see the module docstring), ValueError for a demo that is not human."""
+    diagnose = diagnose or diagnose_gated
     demo = store.get_demo(demo_id)
     if demo.source != "human":
         raise ValueError(f"demo {demo_id!r} is {demo.source!r}; only human demos are perfected")
@@ -238,8 +260,9 @@ def perfect_stored_demo(
         raw = replay(demo.trajectory, f"{demo_id}_raw")
     _copy_episode(raw.ep_dir, store.episode_dir(demo_id), notes)
     # ep_dir/success: the latest replay, i.e. of the trajectory perfect_demo diagnoses next
+    # abort: an error that must fail the job; perfect_demo turns any step exception into a fallback or a discard
     state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "gated": [],
-                             "model_id": None, "infra": None}
+                             "model_id": None, "abort": None}
 
     def diagnose_fn(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> Diagnosis:
         # The failure reasons only reach the model through the failed replay's frames, windows and
@@ -248,7 +271,11 @@ def perfect_stored_demo(
         if state["ep_dir"] is None:
             raise ValueError("the replay saved no episode, so there are no frames to show the model")
         frames, wrist, task_text = episode_frames(Path(state["ep_dir"]), d.trajectory.t)
-        diag, gated = diagnose_gated(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1])
+        try:
+            diag, gated = diagnose(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1])
+        except PipelineAbort as e:
+            state["abort"] = e
+            raise
         state["gated"], state["model_id"] = gated, get_vision_model(DIAGNOSE_TIER).model_id
         return diag
 
@@ -257,8 +284,8 @@ def perfect_stored_demo(
         try:
             resp = replay(traj, f"{output_demo_id(demo_id, diagnoser)}_v{k}")
         except SimWorkerError as e:
-            if _is_infrastructure(e):
-                state["infra"] = e  # perfect_demo would call this a discard; the job must fail instead
+            if is_infrastructure(e):
+                state["abort"] = e  # perfect_demo would call this a discard; the job must fail instead
             raise
         state["ep_dir"], state["success"] = resp.ep_dir, resp.verification.success
         return resp.verification, align_signals(resp.signals.to_signals(), traj.t)
@@ -266,8 +293,8 @@ def perfect_stored_demo(
     result = perfect_demo(demo, align_signals(raw.signals.to_signals(), demo.trajectory.t),
                           diagnose_fn=diagnose_fn if diagnoser == "nemotron" else None, verify_fn=verify_fn,
                           bin_rim_z=bin_rim_z(demo.scene))
-    if state["infra"] is not None:
-        raise state["infra"]
+    if state["abort"] is not None:
+        raise state["abort"]
     notes = result.notes + notes
 
     source = result.diagnosis_source
