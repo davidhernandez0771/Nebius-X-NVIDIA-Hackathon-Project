@@ -22,7 +22,7 @@ from pathlib import Path
 
 LAST_POINTER = "last.txt"
 VIDEO_BACKEND = "pyav"
-MAX_STEPS, MAX_BATCH = 2000, 8  # sprint-2 GPU budget (Isaac shares the GPU)
+MAX_STEPS, MAX_BATCH = 10_000, 8  # sprint-3 GPU budget (Isaac shares the GPU; one run at a time)
 
 
 def update_last_checkpoint_pointer(checkpoint_dir: Path) -> Path:

@@ -76,10 +76,14 @@ def test_argv_resume_last_points_config_path_at_resolved_checkpoint(tmp_path):
     assert f"--config_path={step / 'pretrained_model'}" in argv
 
 
-@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=2001"], ["--batch_size", "9"]])
+@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=10001"], ["--batch_size", "9"]])
 def test_argv_enforces_sprint_gpu_budget(bad):
     with pytest.raises(ValueError, match="budget"):
         build_lerobot_argv(bad)
+
+
+def test_sprint3_budget_allows_10k_steps_at_batch_8():
+    assert build_lerobot_argv(["--steps=10000", "--batch_size=8"])[:2] == ["--steps=10000", "--batch_size=8"]
 
 
 def test_patch_replaces_lerobot_symlink_function(tmp_path):
