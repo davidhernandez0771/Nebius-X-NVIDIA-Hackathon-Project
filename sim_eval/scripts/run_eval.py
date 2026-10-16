@@ -67,6 +67,7 @@ from sim_eval.report import (  # noqa: E402
     episode_log_path,
     isaac_gate,
     preflight,
+    python_processes,
     resolve_start,
     write_results,
 )
@@ -108,17 +109,6 @@ class VramPoller(threading.Thread):
         self.join(timeout=5)
 
 
-def python_processes() -> list[tuple[int, str]]:
-    """(pid, command line) of every python.exe, via CIM (what the sprint rule says to check)."""
-    cmd = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
-           "Select-Object ProcessId, CommandLine | ConvertTo-Json -Compress")
-    out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True,
-                         timeout=60).stdout.strip()
-    rows = json.loads(out) if out else []
-    rows = [rows] if isinstance(rows, dict) else rows
-    return [(int(r["ProcessId"]), r.get("CommandLine") or "") for r in rows]
-
-
 def main() -> None:
     t0 = time.time()
     client = PolicyClient(args_cli.checkpoint_url, timeout=60)
@@ -146,7 +136,7 @@ def main() -> None:
     else:
         print(f"[eval] start pose: default (start-state check unavailable: {start_check['reason']})", flush=True)
     free_mib = VramPoller.read_free_mib()
-    gate_ok, gate = isaac_gate(python_processes(), own_pids={os.getpid(), os.getppid()}, free_mib=free_mib)
+    gate_ok, gate = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib)
     print(f"[eval] Isaac gate: {'ok' if gate_ok else 'REFUSED'}; other Isaac processes {gate['other_isaac']}; "
           f"GPU free {free_mib} MiB (need >= {gate['min_free_mib']})", flush=True)
     if not gate_ok:

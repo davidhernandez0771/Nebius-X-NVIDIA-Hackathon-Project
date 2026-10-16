@@ -4,6 +4,7 @@ the results file. No Isaac imports."""
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -34,12 +35,23 @@ def preflight(health: dict, *, cameras: bool, image_size: int, sim_cameras=SIM_C
 MIN_FREE_MIB = 8192  # sprint-3 rule: T3 evaluates only with >= 8 GB of GPU memory free
 
 
-def isaac_gate(processes: list[tuple[int, str]], *, own_pids: set[int], free_mib: int | None,
+def _ancestors(processes: list[tuple[int, int, str]], pid: int) -> set[int]:
+    parent = {p: pp for p, pp, _ in processes}
+    chain = {pid}
+    while parent.get(pid) is not None and parent[pid] not in chain:
+        pid = parent[pid]
+        chain.add(pid)
+    return chain
+
+
+def isaac_gate(processes: list[tuple[int, int, str]], *, own_pid: int, free_mib: int | None,
                min_free_mib: int = MIN_FREE_MIB) -> tuple[bool, dict]:
-    """May this eval run? Only if no *other* python process (not in own_pids: this one and its venv launcher) runs
-    from Isaac (command line contains 'isaac') and nvidia-smi reports enough free memory. `processes` is [(pid, command line)] of python.exe processes."""
-    others = [{"pid": pid, "cmd": cmd[:200]} for pid, cmd in processes
-              if pid not in own_pids and "isaac" in (cmd or "").lower()]
+    """May this eval run? Only if no *other* python process runs from Isaac (command line contains 'isaac') and
+    nvidia-smi reports enough free memory. `processes` is [(pid, parent pid, command line)] of python.exe
+    processes; this process and its ancestors (venv launchers, the eval_cells driver) don't count as other."""
+    mine = _ancestors(processes, own_pid)
+    others = [{"pid": pid, "cmd": cmd[:200]} for pid, _, cmd in processes
+              if pid not in mine and "isaac" in (cmd or "").lower()]
     reasons = []
     if others:
         reasons.append("another Isaac process is running: " + "; ".join(f"{o['pid']} {o['cmd']}" for o in others))
@@ -49,6 +61,17 @@ def isaac_gate(processes: list[tuple[int, str]], *, own_pids: set[int], free_mib
         reasons.append(f"GPU has {free_mib} MiB free, need >= {min_free_mib}")
     return not reasons, {"other_isaac": others, "free_mib": free_mib, "min_free_mib": min_free_mib,
                          "ok": not reasons, "reason": " | ".join(reasons) or None}
+
+
+def python_processes() -> list[tuple[int, int, str]]:
+    """(pid, parent pid, command line) of every python.exe, via CIM (what the sprint rule says to check)."""
+    cmd = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+           "Select-Object ProcessId, ParentProcessId, CommandLine | ConvertTo-Json -Compress")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True,
+                         timeout=60).stdout.strip()
+    rows = json.loads(out) if out else []
+    rows = [rows] if isinstance(rows, dict) else rows
+    return [(int(r["ProcessId"]), int(r.get("ParentProcessId") or 0), r.get("CommandLine") or "") for r in rows]
 
 
 def resolve_start(mode: str, *, start_state: Path | None = None, registry: Path | None = None,

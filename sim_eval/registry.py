@@ -41,6 +41,12 @@ def _matches(lines: list[str], cell: str, checkpoint: str | None) -> list[tuple[
     return matches
 
 
+def trained_rows(registry: Path, run_id: str) -> list[dict]:
+    """Every successfully trained row of one experiment run, in file order."""
+    rows = [json.loads(line) for line in Path(registry).read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [r for r in rows if r.get("run_id") == run_id and r.get("status") == "ok" and r.get("checkpoint")]
+
+
 def find_row(registry: Path, cell: str, checkpoint: str | None = None) -> dict:
     """The successfully trained row for `cell` (matched like update_registry; the last if one checkpoint has several)."""
     return _matches(Path(registry).read_text(encoding="utf-8").splitlines(), cell, checkpoint)[-1][1]

@@ -55,40 +55,43 @@ def test_default_results_path_names_the_cell(tmp_path):
 
 # --- Isaac gate: no other Isaac python process, >= 8 GB GPU memory free (sprint-3 rule) ------------------------------
 
-from sim_eval.report import MIN_FREE_MIB, isaac_gate  # noqa: E402
+from sim_eval.report import MIN_FREE_MIB, episode_log_path, isaac_gate  # noqa: E402
 
 ISAAC_PY = r"C:\isaac\env_isaaclab\Scripts\python.exe"
 
 
 def test_gate_passes_with_only_this_process_and_enough_memory():
-    ok, rec = isaac_gate([(10, f"{ISAAC_PY} sim_eval/scripts/run_eval.py --n 20"), (11, r"C:\venvs\lerobot\python.exe -m"
-                                                                                       r" lerobot_tools.policy_server")],
-                         own_pids={10}, free_mib=12000)
+    procs = [(10, 1, f"{ISAAC_PY} sim_eval/scripts/run_eval.py --n 20"),
+             (11, 1, r"C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.policy_server")]
+    ok, rec = isaac_gate(procs, own_pid=10, free_mib=12000)
     assert MIN_FREE_MIB == 8192
     assert ok is True and rec["other_isaac"] == [] and rec["free_mib"] == 12000
 
 
 def test_gate_refuses_another_isaac_process():
-    ok, rec = isaac_gate([(10, f"{ISAAC_PY} run_eval.py"), (5696, f"{ISAAC_PY} flexiv_trial.py --effort 200")],
-                         own_pids={10}, free_mib=12000)
+    procs = [(10, 1, f"{ISAAC_PY} run_eval.py"), (5696, 2, f"{ISAAC_PY} flexiv_trial.py --effort 200")]
+    ok, rec = isaac_gate(procs, own_pid=10, free_mib=12000)
     assert ok is False and rec["other_isaac"][0]["pid"] == 5696 and "flexiv_trial" in rec["reason"]
 
 
 def test_gate_refuses_low_memory_or_unknown_memory():
-    ok, rec = isaac_gate([], own_pids={10}, free_mib=8000)
+    ok, rec = isaac_gate([], own_pid=10, free_mib=8000)
     assert ok is False and "8000" in rec["reason"]
-    ok, rec = isaac_gate([], own_pids={10}, free_mib=None)
+    ok, rec = isaac_gate([], own_pid=10, free_mib=None)
     assert ok is False and "nvidia-smi" in rec["reason"]
 
 
-def test_gate_ignores_this_process_and_its_venv_launcher_parent():
-    # A venv python.exe on Windows is a launcher that starts the real interpreter as its child.
-    procs = [(20, f"{ISAAC_PY} run_eval.py"), (21, rf"C:\isaac\python\python.exe {ISAAC_PY} run_eval.py")]
-    ok, _ = isaac_gate(procs, own_pids={20, 21}, free_mib=12000)
+def test_gate_ignores_this_process_and_all_its_ancestors():
+    # A venv python.exe on Windows is a launcher that starts the real interpreter as its child, and eval_cells
+    # (itself Isaac python) launches run_eval: launcher 20 -> driver 21 -> launcher 22 -> run_eval 23.
+    procs = [(20, 5, f"{ISAAC_PY} eval_cells.py"), (21, 20, rf"C:\isaac\python\python.exe {ISAAC_PY} eval_cells.py"),
+             (22, 21, f"{ISAAC_PY} run_eval.py"), (23, 22, rf"C:\isaac\python\python.exe {ISAAC_PY} run_eval.py"),
+             (30, 5, f"{ISAAC_PY} t2_server.py")]
+    ok, rec = isaac_gate(procs, own_pid=23, free_mib=12000)
+    assert ok is False and [o["pid"] for o in rec["other_isaac"]] == [30]
+    ok, _ = isaac_gate(procs[:4], own_pid=23, free_mib=12000)
     assert ok is True
 
 
 def test_episode_log_sits_next_to_the_results_file(tmp_path):
-    from sim_eval.report import episode_log_path
-
-    assert episode_log_path(tmp_path / "evals" / "raw_5_20261016.json") == tmp_path / "evals" / "raw_5_20261016.episodes.jsonl"
+    assert episode_log_path(tmp_path / "evals" / "raw_5_1.json") == tmp_path / "evals" / "raw_5_1.episodes.jsonl"
