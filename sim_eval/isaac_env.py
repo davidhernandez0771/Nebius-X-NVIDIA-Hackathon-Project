@@ -49,8 +49,9 @@ def _max_pair_force(sensor) -> float:
 class IsaacEvalEnv:
     bin_inner = BIN_INNER
 
-    def __init__(self, cameras: bool, device: str = "cuda:0", start_joint_pos=None):
-        """start_joint_pos: 9 joint positions to reset to (sim_eval.start_state picks it); None = the asset default."""
+    def __init__(self, cameras: bool, device: str = "cuda:0", start_joint_pos=None, start_poses=None):
+        """start_joint_pos: 9 joint positions to reset to (sim_eval.start_state picks it); None = the asset default.
+        start_poses: {scene seed: 9 joint positions} overriding it per scene (training scenes, sprint 6 Task A)."""
         self.sim = sim_utils.SimulationContext(make_sim_cfg(device))
         self.scene = instantiate(make_scene_cfg(cameras=cameras))
         self.sim.reset()
@@ -74,13 +75,20 @@ class IsaacEvalEnv:
             if q.shape != (1, robot.num_joints) or not np.isfinite(q).all():
                 raise ValueError(f"start_joint_pos: expected {robot.num_joints} finite values, got {q.shape}")
             self.start_q = torch.tensor(q, device=self.sim.device)
+        self.start_by_seed = {}
+        for seed, pose in (start_poses or {}).items():
+            q = np.asarray(pose, dtype=np.float32).reshape(1, -1)
+            if q.shape != (1, robot.num_joints) or not np.isfinite(q).all():
+                raise ValueError(f"start_poses[{seed}]: expected {robot.num_joints} finite values, got {q.shape}")
+            self.start_by_seed[int(seed)] = torch.tensor(q, device=self.sim.device)
 
     # -- EvalEnv ----------------------------------------------------------------------------------------------------
 
     def reset(self, scene: Scene) -> None:
         sc, robot, dev = self.scene, self.scene["robot"], self.sim.device
         origin = sc.env_origins[0].cpu().numpy()
-        robot.write_joint_position_to_sim_index(position=self.start_q.clone())
+        start_q = self.start_by_seed.get(scene.seed, self.start_q)
+        robot.write_joint_position_to_sim_index(position=start_q.clone())
         robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch.clone())
 
         def put(name: str, pos, quat_wxyz) -> None:
@@ -98,7 +106,7 @@ class IsaacEvalEnv:
             target = torch.tensor((np.asarray(FRONT_TARGET) + origin)[None], dtype=torch.float32, device=dev)
             sc["front"].set_world_poses_from_view(eye, target)
         # Hold the start pose for a few steps so the renderer produces real frames before the first observation.
-        hold = self.start_q[0].cpu().numpy()
+        hold = start_q[0].cpu().numpy()
         for _ in range(CAMERA_WARMUP_STEPS):
             self._apply(hold)
 

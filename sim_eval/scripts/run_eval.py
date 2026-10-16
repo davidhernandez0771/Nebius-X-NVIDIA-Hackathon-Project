@@ -33,7 +33,11 @@ from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
 parser = argparse.ArgumentParser(description="Evaluate a served policy on seeded test scenes.")
 parser.add_argument("--checkpoint-url", default="http://127.0.0.1:8765", help="policy server URL")
-parser.add_argument("--n", type=int, default=50, help="number of test scenes")
+parser.add_argument("--n", type=int, default=50, help="number of unseen test scenes (0 with --train-episodes)")
+parser.add_argument("--train-episodes", type=Path, nargs="*", default=[],
+                    help="recorded training episode dirs: also evaluate on their scenes, from their own start pose")
+parser.add_argument("--record-seeds", type=int, nargs="*", default=[], help="save camera frames for these seeds")
+parser.add_argument("--record-every", type=int, default=5, help="keep every k-th frame of recorded seeds")
 parser.add_argument("--seed0", type=int, default=5000, help="first test-scene seed (>= 5000)")
 parser.add_argument("--cell", default=None, help="experiment cell name; writes eval_success into the registry")
 parser.add_argument("--cameras", action="store_true", help="render front + wrist 128x128 (needed by image policies)")
@@ -65,15 +69,17 @@ from sim_eval.registry import update_registry  # noqa: E402
 from sim_eval.report import (  # noqa: E402
     default_results_path,
     episode_log_path,
+    group_summaries,
     isaac_gate,
     preflight,
     python_processes,
     resolve_start,
     write_results,
 )
+from sim_eval.recording import FrameRecorder  # noqa: E402
 from sim_eval.results import aggregate  # noqa: E402
+from sim_eval.scenes import scene_plan  # noqa: E402
 from sim_eval.retry import RetryingPolicy  # noqa: E402
-from sim_eval.scenes import eval_scenes  # noqa: E402
 from sim_worker.replay import make_sim_cfg  # noqa: E402
 from sim_worker.scene_cfg import IMAGE_SIZE  # noqa: E402
 
@@ -142,10 +148,11 @@ def main() -> None:
     if not gate_ok:
         print(f"[eval] refusing to start: {gate['reason']}", flush=True)
         sys.exit(3)
-    all_scenes = eval_scenes(args_cli.n, args_cli.seed0)
+    all_scenes, start_poses, groups = scene_plan(args_cli.n, args_cli.seed0, args_cli.train_episodes)
     out = args_cli.out or default_results_path(data_dir(), args_cli.cell)
     header = {"checkpoint": health.get("checkpoint"), "seed0": args_cli.seed0, "max_seconds": args_cli.max_seconds,
-              "cameras": args_cli.cameras, "reset_pose": start_pose, "n": args_cli.n, "cell": args_cli.cell}
+              "cameras": args_cli.cameras, "reset_pose": start_pose, "n": args_cli.n, "cell": args_cli.cell,
+              "start_poses": {str(k): v for k, v in start_poses.items()} or None}
     try:
         episode_log, done = EpisodeLog.open(episode_log_path(out), header, resume=args_cli.resume)
         scenes = remaining(all_scenes, done)
@@ -171,7 +178,13 @@ def main() -> None:
         from sim_eval.isaac_env import IsaacEvalEnv
 
         t_build = time.time()
-        env = IsaacEvalEnv(cameras=args_cli.cameras, device=args_cli.device, start_joint_pos=start_pose)
+        env = IsaacEvalEnv(cameras=args_cli.cameras, device=args_cli.device, start_joint_pos=start_pose,
+                           start_poses=start_poses)
+        if args_cli.record_seeds:
+            frames_dir = out.with_name(out.stem + "_frames")
+            env = FrameRecorder(env, args_cli.record_seeds, frames_dir, every=args_cli.record_every)
+            print(f"[eval] recording seeds {args_cli.record_seeds} every {args_cli.record_every} steps to {frames_dir}",
+                  flush=True)
         build_s = time.time() - t_build
         print(f"[eval] scene built in {build_s:.1f} s; joints {env.joint_names}", flush=True)
 
@@ -188,10 +201,14 @@ def main() -> None:
         new = []
         if scenes:
             new, _ = evaluate(env, policy, scenes, on_episode=progress, max_seconds=args_cli.max_seconds)
+        if isinstance(env, FrameRecorder):
+            env.close()
         poller.stop()
         episodes = sorted([*done, *new], key=lambda e: e.seed)
         summary = aggregate(episodes)
         run.update(
+            groups=groups,
+            group_summaries=group_summaries(episodes, groups),
             scene_build_s=round(build_s, 1),
             wall_s_total=round(time.time() - t0, 1),
             wall_s_per_episode=[round(e.wall_s, 2) for e in episodes],
