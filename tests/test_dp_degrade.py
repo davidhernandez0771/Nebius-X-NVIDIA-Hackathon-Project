@@ -242,3 +242,170 @@ def test_a_slow_factor_stretches_the_expert_stops(clean):
 def test_slowed_start_and_end_of_the_expert_are_not_reported_as_stops(clean):
     out, issues = degrade(clean, _rng(1), **CLEAN_OFF, slow_factor=1.6, expert_stops=True)
     assert all(DT < s.t0 and s.t1 < out.t[-1] - DT for s in _stops(issues))  # those are idle time
+
+
+# --- drop and bad_release (sprint 5): the semantic failures a diagnoser must see ----------------
+
+G = 9.81
+BIN_HALF, CUBE_HALF, BIN_RIM_Z = 0.11, 0.025, 0.09  # bin footprint half-size, cube half-size, bin rim height (m)
+
+
+def _cube_gap(xy, scene: Scene = None) -> float:
+    """Horizontal gap (m) between the held cube (any yaw: its half-diagonal) and the bin footprint."""
+    b = np.asarray((scene or _scene()).bin_pose.pos[:2])
+    d = np.maximum(np.abs(np.asarray(xy)[:2] - b) - BIN_HALF - CUBE_HALF * math.sqrt(2), 0.0)
+    return float(np.hypot(*d))
+
+
+def _opens(tr: Trajectory) -> list[int]:
+    g = np.asarray(tr.gripper)
+    return [int(i) + 1 for i in np.flatnonzero((g[:-1] == 1) & (g[1:] == 0))]
+
+
+def test_a_centered_grasp_with_timing_issues_reports_no_grasp_issue(clean):
+    """The negatives of set v2: timing issues, and the cube grasped at its center."""
+    out, issues = degrade(clean, _rng(3), n_pauses=2, jitter_mm=0.0, grasp_offset_mm=0.0, slow_factor=1.3,
+                          idle_start_s=0.7)
+    assert {i.type for i in issues} == {"pause", "slow", "idle_start_end"}
+    np.testing.assert_allclose(out.ee_pos[out.gripper.index(1)], clean.ee_pos[clean.gripper.index(1)], atol=1e-9)
+
+
+@pytest.mark.parametrize("kw", [dict(drop=True), dict(bad_release="outside"), dict(bad_release="high")])
+def test_drop_and_bad_release_need_the_scene(clean, kw):
+    with pytest.raises(ValueError, match="scene"):
+        degrade(clean, _rng(), **CLEAN_OFF, **kw)
+
+
+def test_a_drop_and_a_bad_release_do_not_go_together(clean):
+    with pytest.raises(ValueError, match="drop"):
+        degrade(clean, _rng(), **CLEAN_OFF, drop=True, bad_release="outside", scene=_scene())
+
+
+def test_an_unknown_bad_release_kind_raises(clean):
+    with pytest.raises(ValueError, match="bad_release"):
+        degrade(clean, _rng(), **CLEAN_OFF, bad_release="sideways", scene=_scene())
+
+
+def test_a_drop_opens_the_gripper_mid_carry_and_only_edits_the_gripper(clean):
+    out, issues = degrade(clean, _rng(1), **CLEAN_OFF, drop=True, scene=_scene())
+    [drop] = issues
+    assert drop.type == "drop" and drop.t0 == drop.t1
+    [k] = _opens(out)
+    assert drop.t0 == pytest.approx(out.t[k])
+    assert _runs(out.gripper) == [0, 1, 0]  # the hand stays open from the drop to the end
+    np.testing.assert_allclose(out.ee_pos, clean.ee_pos, atol=1e-12)  # same path: the hand goes on without the cube
+    assert k < _opens(clean)[0]
+
+
+def test_a_drop_happens_in_the_carry_well_away_from_the_bin_over_many_seeds(clean):
+    pos, t = np.asarray(clean.ee_pos), np.asarray(clean.t)
+    v = np.gradient(pos, t, axis=0)
+    i_close = clean.gripper.index(1)
+    times = set()
+    for seed in range(30):
+        out, [drop] = degrade(clean, _rng(seed), **CLEAN_OFF, drop=True, scene=_scene())
+        [k] = _opens(out)
+        p = pos[k]
+        assert k > i_close
+        assert p[2] - CUBE_HALF >= 0.05 - 1e-9  # the cube is at least 5 cm above the table
+        assert _cube_gap(p) >= 0.05 - 1e-9  # and at least 5 cm from the bin footprint
+        assert np.hypot(*v[k, :2]) >= 0.05  # mid-carry: the hand is moving sideways, not lifting
+        land = p[:2] + v[k, :2] * math.sqrt(2 * (p[2] - CUBE_HALF) / G)
+        assert _cube_gap(land) >= 0.05 - 1e-9  # where the falling cube lands, ignoring bounces
+        times.add(round(drop.t0, 2))
+    assert len(times) >= 10  # the drop time is random
+
+
+def test_a_drop_survives_the_timing_degradations_and_pauses_keep_clear_of_it(clean):
+    out, issues = degrade(clean, _rng(4), n_pauses=2, jitter_mm=2.0, grasp_offset_mm=0.0, slow_factor=1.3,
+                          idle_start_s=0.5, idle_end_s=0.5, drop=True, scene=_scene())
+    [drop] = _of(issues, "drop")
+    [k] = _opens(out)
+    assert drop.t0 == drop.t1 == pytest.approx(out.t[k])
+    for p in _of(issues, "pause"):
+        assert min(abs(p.t0 - drop.t0), abs(p.t1 - drop.t0)) >= 0.3 - 1e-9
+        assert not p.t0 <= drop.t0 <= p.t1
+
+
+def test_no_room_for_a_drop_raises(clean):
+    near = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1.0, 0.0, 0.0, 0.0)),
+                 bin_pose=Pose(pos=(0.5, 0.17, 0.0), quat_wxyz=(1.0, 0.0, 0.0, 0.0)), robot="franka", seed=0)
+    with pytest.raises(ValueError, match="drop"):
+        degrade(scripted_expert(near), _rng(), **CLEAN_OFF, drop=True, scene=near)
+
+
+def test_a_bad_release_outside_lets_go_clearly_beside_the_bin_over_many_seeds(clean):
+    pos = np.asarray(clean.ee_pos)
+    [j] = _opens(clean)
+    i_close = clean.gripper.index(1)
+    dirs = set()
+    for seed in range(20):
+        out, issues = degrade(clean, _rng(seed), **CLEAN_OFF, bad_release="outside", scene=_scene())
+        [bad] = issues
+        assert bad.type == "bad_release" and bad.t0 == bad.t1
+        [k] = _opens(out)
+        assert k == j and bad.t0 == pytest.approx(out.t[k])
+        q = np.asarray(out.ee_pos)
+        assert _cube_gap(q[k]) >= 0.05 - 1e-9  # clearly outside the footprint
+        assert q[k, 2] == pytest.approx(pos[j, 2], abs=1e-9)  # at the usual release height
+        assert 0.40 - 1e-9 <= q[k, 0] <= 0.65 + 1e-9 and -0.30 - 1e-9 <= q[k, 1] <= 0.30 + 1e-9  # Franka's table
+        np.testing.assert_allclose(q[: i_close + 1], pos[: i_close + 1], atol=1e-12)  # same approach and grasp
+        assert np.linalg.norm(np.diff(q, axis=0), axis=1).max() <= 2 * np.linalg.norm(np.diff(pos, axis=0), axis=1).max()
+        d = q[k, :2] - pos[j, :2]
+        dirs.add(round(math.degrees(math.atan2(d[1], d[0])), 0))
+    assert len(dirs) >= 5
+
+
+def test_a_bad_release_high_lets_go_over_the_bin_more_than_12_cm_above_its_rim(clean):
+    pos = np.asarray(clean.ee_pos)
+    [j] = _opens(clean)
+    i_close = clean.gripper.index(1)
+    for seed in range(10):
+        out, [bad] = degrade(clean, _rng(seed), **CLEAN_OFF, bad_release="high", scene=_scene())
+        assert bad.type == "bad_release"
+        [k] = _opens(out)
+        q = np.asarray(out.ee_pos)
+        assert bad.t0 == bad.t1 == pytest.approx(out.t[k])
+        assert q[k, 2] - CUBE_HALF - BIN_RIM_Z > 0.12  # the cube's bottom, above the rim
+        np.testing.assert_allclose(q[k, :2], pos[j, :2], atol=1e-9)  # over the bin center
+        np.testing.assert_allclose(q[: i_close + 1], pos[: i_close + 1], atol=1e-12)
+        assert np.linalg.norm(np.diff(q, axis=0), axis=1).max() <= 2 * np.linalg.norm(np.diff(pos, axis=0), axis=1).max()
+
+
+def test_a_bad_release_survives_the_timing_degradations(clean):
+    out, issues = degrade(clean, _rng(6), n_pauses=1, jitter_mm=2.0, grasp_offset_mm=8.0, slow_factor=1.2,
+                          idle_end_s=0.8, bad_release="outside", scene=_scene())
+    [bad] = _of(issues, "bad_release")
+    [k] = _opens(out)
+    assert bad.t0 == pytest.approx(out.t[k])
+    assert {i.type for i in issues} == {"pause", "jitter", "grasp_off_center", "slow", "idle_start_end", "bad_release"}
+
+
+def test_without_drop_or_bad_release_the_draws_are_unchanged(clean):
+    """Old sets (s1, pilot) rebuild bit for bit: the new options draw nothing when they are off."""
+    kw = dict(n_pauses=1, jitter_mm=2.0, grasp_offset_mm=8.0)
+    a, ia = degrade(clean, _rng(7), **kw)
+    b, ib = degrade(clean, _rng(7), **kw, drop=False, bad_release=None, scene=_scene())
+    assert a == b and ia == ib
+
+
+def test_a_carry_below_5_cm_has_no_room_for_a_drop(clean):
+    a = clean.to_arrays()
+    a["ee_pos"][:, 2] = np.minimum(a["ee_pos"][:, 2], CUBE_HALF + 0.045)  # the cube's bottom 4.5 cm up, at most
+    low = Trajectory.from_arrays(a["t"], a["ee_pos"], a["ee_quat"], a["gripper"])
+    with pytest.raises(ValueError, match="drop"):
+        degrade(low, _rng(), **CLEAN_OFF, drop=True, scene=_scene())
+
+
+def test_a_bad_release_leaves_an_approach_from_the_bin_side_alone(clean):
+    """A start pose on the bin's side (like a fixed home pose) moves toward the bin's side of the carry
+    before the grasp; only the carry and what follows may change."""
+    a = clean.to_arrays()
+    i_close = int(np.argmax(a["gripper"] == 1))
+    start = np.array([0.5, 0.3, 0.25])  # over the bin
+    s = np.linspace(0.0, 1.0, i_close + 1)[:, None]
+    a["ee_pos"][: i_close + 1] = start + s * (a["ee_pos"][i_close] - start)
+    home = Trajectory.from_arrays(a["t"], a["ee_pos"], a["ee_quat"], a["gripper"])
+    for kind in ("outside", "high"):
+        out, _ = degrade(home, _rng(2), **CLEAN_OFF, bad_release=kind, scene=_scene())
+        np.testing.assert_allclose(np.asarray(out.ee_pos)[: i_close + 1], a["ee_pos"][: i_close + 1], atol=1e-12)
