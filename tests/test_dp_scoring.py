@@ -137,3 +137,52 @@ def test_baseline_script_scores_the_rules_on_degraded_demos():
     assert s.per_type["grasp_off_center"].fn == 8
     again = run(n=8, seed0=0, jitter_levels=[0.0])[0.0]
     assert again == s  # seeded: the same demos every time
+
+
+# --- don't-care truth (the expert's own stops) ---------------------------------------------------
+
+def _dc(kind, t0, t1):
+    return InjectedIssue(type=kind, t0=t0, t1=t1, dont_care=True)
+
+
+def test_a_prediction_on_a_dont_care_stop_is_ignored_not_a_false_positive():
+    s = score_diagnosis(_diag(_rng("pause", 5.0, 5.4)), [_dc("pause", 4.9, 5.3)])  # 75% inside
+    p = s.per_type["pause"]
+    assert (p.tp, p.fp, p.fn, p.ignored) == (0, 0, 0, 1)
+    assert p.precision is None
+
+
+def test_a_missed_dont_care_stop_is_not_a_false_negative():
+    s = score_diagnosis(_diag(), [_dc("pause", 4.9, 5.3), _truth("pause", 1.0, 2.0)])
+    assert (s.per_type["pause"].fn, s.per_type["pause"].ignored) == (1, 0)
+
+
+def test_a_prediction_mostly_outside_the_dont_care_stop_is_still_a_false_positive():
+    s = score_diagnosis(_diag(_rng("pause", 5.0, 6.0)), [_dc("pause", 4.9, 5.3)])  # 30% inside
+    assert _counts(s, "pause") == (0, 1, 0) and s.per_type["pause"].ignored == 0
+
+
+def test_real_truth_is_matched_before_dont_care_and_types_stay_separate():
+    s = score_diagnosis(_diag(_rng("pause", 1.0, 2.0), _rng("jitter", 4.9, 5.3)),
+                        [_truth("pause", 1.0, 2.0), _dc("pause", 1.0, 2.0)])
+    assert _counts(s, "pause") == (1, 0, 0) and s.per_type["pause"].ignored == 0
+    assert _counts(s, "jitter") == (0, 1, 0)  # a pause don't-care does not excuse a jitter finding
+
+
+def test_aggregate_sums_ignored():
+    a = score_diagnosis(_diag(_rng("pause", 5.0, 5.4)), [_dc("pause", 4.9, 5.3)])
+    assert aggregate([a, a]).per_type["pause"].ignored == 2
+
+
+def test_baseline_script_counts_the_expert_stops_it_flags_as_ignored_not_false():
+    from scripts.score_rules_on_degraded import run
+
+    s = run(n=80, seed0=0, jitter_levels=[0.0])[0.0].per_type["pause"]  # seeds 16, 53, 74, 75 hit slowed stops
+    assert s.fp == 0 and s.ignored >= 4
+
+
+def test_under_tremor_every_rules_pause_is_injected_or_an_expert_stop():
+    from scripts.score_rules_on_degraded import run
+
+    s = run(n=40, seed0=0, jitter_levels=[2.0])[2.0].per_type["pause"]
+    assert s.fp == 0 and s.tp > 0 and s.ignored > 0

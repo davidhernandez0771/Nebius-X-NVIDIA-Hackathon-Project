@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms, speed_profile
+from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms, position_noise, smoothed_speed, speed_profile
 from demo_pipeline.schemas import SimSignals, Trajectory
 
 DT = 0.02
@@ -103,3 +103,96 @@ def test_gripper_events_uses_last_open_after_regrasp_and_none_if_never_reopened(
     t_close, t_open = gripper_events(held)
     assert t_close == pytest.approx(0.02)
     assert t_open is None
+
+
+# --- smoothed_speed: speed that tremor cannot hold above the still threshold -------------------
+
+def _with_hold(hold_from: float, hold_s: float, duration: float = 4.0, speed: float = 0.1) -> Trajectory:
+    """A line at `speed` that stops dead for hold_s seconds from hold_from."""
+    n = int(round(duration / DT)) + 1
+    t = np.arange(n) * DT
+    moving = ~((t > hold_from + 1e-9) & (t <= hold_from + hold_s + 1e-9))
+    moving[0] = False
+    x = 0.4 + np.cumsum(np.where(moving, speed * DT, 0.0))
+    pos = np.stack([x, np.zeros(n), np.full(n, 0.2)], axis=1)
+    return Trajectory.from_arrays(t, pos, np.tile(IDENTITY, (n, 1)), np.zeros(n, int))
+
+
+def test_smoothed_speed_with_zero_sigma_is_the_raw_speed():
+    tr = _line(2.0, speed=0.1, noise_m=0.002)
+    assert np.array_equal(smoothed_speed(tr, 0.0), speed_profile(tr))
+
+
+def test_smoothed_speed_keeps_constant_velocity_up_to_both_ends():
+    # a plain edge pad would slow the hand near the ends and fake idle time there
+    tr = _line(2.0, speed=0.1)
+    s = smoothed_speed(tr, 0.2)
+    assert s.shape == (len(tr.t),)
+    assert np.allclose(s, 0.1, atol=1e-9)
+
+
+def test_smoothed_speed_puts_2_mm_tremor_well_below_the_still_threshold():
+    tr = _line(4.0, speed=0.0, noise_m=0.002)  # holding still, 2 mm white noise
+    assert np.median(speed_profile(tr)) > 0.1
+    assert np.percentile(smoothed_speed(tr, 0.2), 99) < 0.01
+
+
+def test_smoothed_speed_still_shows_a_hold_inside_motion():
+    tr = _with_hold(hold_from=1.5, hold_s=1.0)
+    s = smoothed_speed(tr, 0.2)
+    t = np.asarray(tr.t)
+    assert s[np.argmin(np.abs(t - 2.0))] < 0.002  # the middle of the hold
+    assert s[np.argmin(np.abs(t - 0.6))] == pytest.approx(0.1, abs=1e-3)  # far from it
+    assert s[np.argmin(np.abs(t - 3.4))] == pytest.approx(0.1, abs=1e-3)
+
+
+def test_smoothed_speed_rejects_negative_sigma():
+    with pytest.raises(ValueError):
+        smoothed_speed(_line(1.0), -0.1)
+
+
+# --- position_noise: how much tremor rides on the path ------------------------------------------
+
+def test_position_noise_of_a_smooth_path_is_its_tiny_curvature():
+    assert position_noise(_line(2.0, speed=0.1)) < 1e-12  # a straight line has no second difference
+    n = 101
+    t = np.arange(n) * DT
+    pos = np.stack([0.5 * 1.0 * t**2, np.zeros(n), np.zeros(n)], axis=1)  # 1 m/s^2
+    tr = Trajectory.from_arrays(t, pos, np.tile(IDENTITY, (n, 1)), np.zeros(n, int))
+    assert position_noise(tr) == pytest.approx(1.0 * DT**2)  # a * dt^2 = 0.4 mm
+
+
+def test_position_noise_grows_with_tremor():
+    quiet, loud = _line(4.0, noise_m=0.0005), _line(4.0, noise_m=0.002)
+    assert 0.0 < position_noise(quiet) < position_noise(loud)
+    assert position_noise(loud) == pytest.approx(4 * position_noise(quiet), rel=0.2)
+
+
+def _trembling_hold(duration: float, mm: float, seed: int) -> Trajectory:
+    """A resting hand with tremor-like noise: white noise low-passed at ~6 Hz, std mm per axis."""
+    n = int(round(duration / DT)) + 1
+    k = np.exp(-0.5 * (np.arange(-5, 6) * DT / 0.022) ** 2)
+    raw = np.random.default_rng(seed).standard_normal((n + 10, 3))
+    noise = np.stack([np.convolve(raw[:, i], k / k.sum(), mode="valid") for i in range(3)], axis=1)
+    pos = np.array([0.5, 0.0, 0.2]) + noise / noise.std(axis=0) * mm / 1000
+    return Trajectory.from_arrays(np.arange(n) * DT, pos, np.tile(IDENTITY, (n, 1)), np.zeros(n, int))
+
+
+def test_smoothed_speed_of_a_trembling_hold_stays_low_up_to_both_ends():
+    # a line fitted to pure noise still has a random slope; padding along it faked motion at the ends
+    # (plain line pad: median 0.015 m/s, 27 / 200 over 0.02). The ends stay ~sqrt(2) noisier than the
+    # middle, since only one side has real samples, so this bounds the rate rather than every seed.
+    edge = np.array([max(s[:15].max(), s[-15:].max())
+                     for s in (smoothed_speed(_trembling_hold(3.0, 4.0, seed), 0.2) for seed in range(200))])
+    assert np.median(edge) < 0.012
+    assert (edge > 0.02).mean() <= 0.05
+
+
+def test_smoothed_speed_of_a_trembling_moving_hand_keeps_its_speed_at_the_ends():
+    # the significance test must not flatten real motion, or the ends would fake a slow-down (and idle)
+    for seed in range(10):
+        tr = _trembling_hold(3.0, 4.0, seed)
+        pos = np.asarray(tr.ee_pos) + np.outer(np.asarray(tr.t), [0.1, 0.0, 0.0])  # 0.1 m/s along x
+        moving = Trajectory.from_arrays(tr.t, pos, tr.ee_quat, tr.gripper)
+        s = smoothed_speed(moving, 0.2)
+        assert s[:5].mean() == pytest.approx(0.1, abs=0.03) and s[-5:].mean() == pytest.approx(0.1, abs=0.03), seed

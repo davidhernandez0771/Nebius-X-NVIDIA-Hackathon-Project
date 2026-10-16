@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import rules
-from .measure import gripper_events, speed_profile
+from .measure import gripper_events
 from .schemas import Diagnosis, Issue, Trajectory
 
 _TOL = 1e-9
@@ -25,7 +25,7 @@ class _Stillness:
         t, g = np.asarray(traj.t), np.asarray(traj.gripper)
         n = len(t)
         self.start, self.end = float(t[0]), float(t[-1])
-        long = [r for r in rules._still_runs(t, speed_profile(traj)) if r[3] - r[2] >= rules.MIN_STILL_S - _TOL]
+        long = [r for r in rules.still_runs(traj) if r[3] - r[2] >= rules.MIN_STILL_S - _TOL]
         # a pause is an interior still run with the gripper unchanged; a hold while it acts is not one
         self.pauses: list[Span] = [(f, u) for a, b, f, u in long
                                    if a > 0 and b < n - 1 and np.all(g[a - 1 : b + 1] == g[a - 1])]

@@ -4,9 +4,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from demo_pipeline.measure import compute_windows, gripper_events
+from demo_pipeline import rules
+from demo_pipeline.degrade import degrade
+from demo_pipeline.measure import compute_windows, gripper_events, speed_profile, position_noise
 from demo_pipeline.rules import TASK_TEXT, detect_rules
-from demo_pipeline.schemas import SimSignals, Trajectory
+from demo_pipeline.schemas import Pose, Scene, SimSignals, Trajectory
+from scripts.score_rules_on_degraded import make_case
+from sim_worker.scripted import scripted_expert
 
 DT = 0.02
 IDENTITY = (1.0, 0.0, 0.0, 0.0)
@@ -148,3 +152,100 @@ def test_output_passes_diagnosis_check_times():
     diag = _detect(tr)
     assert {"pause", "idle_start_end"} <= {i.type for i in diag.issues}
     diag.check_times(tr.duration)  # raises on any time past the end or overlapping segments
+
+
+# --- stillness under webcam-like tremor ---------------------------------------------------------
+
+BASE = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1.0, 0.0, 0.0, 0.0)),
+             bin_pose=Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=(1.0, 0.0, 0.0, 0.0)), robot="franka", seed=0)
+
+
+def _paused(jitter_mm: float, seed: int = 2, **kw):
+    """The base-scene expert with one 0.9 s pause (or kw), degraded with the given tremor."""
+    settings = {"n_pauses": 1, "pause_s": (0.9, 0.9), "grasp_offset_mm": 0.0, **kw}
+    return degrade(scripted_expert(BASE), np.random.default_rng(seed), jitter_mm=jitter_mm, **settings)
+
+
+def test_the_noise_gate_separates_clean_demos_from_quarter_millimetre_tremor():
+    for seed in range(20):
+        clean, _, _ = make_case(seed, 0.0)
+        shaky, _, _ = make_case(seed, 0.25)
+        assert position_noise(clean) < rules.NOISE_GATE_M < position_noise(shaky), seed
+
+
+def test_noise_free_demos_take_the_raw_path_unchanged(monkeypatch):
+    clean = [make_case(seed, 0.0)[0] for seed in range(20)]
+    default = [_detect(tr) for tr in clean]
+    monkeypatch.setattr(rules, "NOISE_GATE_M", float("inf"))  # force the raw-speed path
+    assert [_detect(tr) for tr in clean] == default
+
+
+def test_without_smoothing_tremor_hides_the_pause(monkeypatch):
+    tr, _ = _paused(2.0)
+    assert _issues(_detect(tr), "pause")
+    monkeypatch.setattr(rules, "NOISE_GATE_M", float("inf"))
+    assert _issues(_detect(tr), "pause") == []
+
+
+@pytest.mark.parametrize("jitter_mm", [1.0, 2.0, 4.0])
+def test_a_pause_under_tremor_is_found_close_to_its_true_times(jitter_mm):
+    tr, truth = _paused(jitter_mm)
+    [p] = [i for i in truth if i.type == "pause"]
+    diag = _detect(tr)
+    [found] = [i for i in _issues(diag, "pause") if i.t0 < p.t1 and p.t0 < i.t1]
+    assert found.t0 == pytest.approx(p.t0, abs=0.15) and found.t1 == pytest.approx(p.t1, abs=0.15)
+    assert [(r.t0, r.t1) for r in _repairs(diag, "remove_pause") if r.t0 < p.t1 and p.t0 < r.t1] == [(found.t0, found.t1)]
+
+
+def test_idle_start_and_end_under_tremor_are_found_and_trimmed():
+    tr, truth = _paused(2.0, n_pauses=0, idle_start_s=1.0, idle_end_s=1.0)
+    diag = _detect(tr)
+    got = sorted((i.t0, i.t1) for i in _issues(diag, "idle_start_end"))
+    want = sorted((i.t0, i.t1) for i in truth if i.type == "idle_start_end")
+    np.testing.assert_allclose(got, want, atol=0.15)
+    [trim] = _repairs(diag, "trim")
+    assert (trim.t0, trim.t1) == pytest.approx((got[0][1], got[1][0]))
+
+
+def test_tremor_never_invents_a_pause_where_the_hand_was_moving():
+    for seed in range(30):
+        shaky, truth, _ = make_case(seed, 2.0)
+        calm, _, _ = make_case(seed, 0.0)  # the same demo without the noise (noise is drawn last)
+        calm_speed, t = speed_profile(calm), np.asarray(calm.t)
+        for p in _issues(_detect(shaky), "pause"):
+            inside = (t >= p.t0 - 1e-9) & (t <= p.t1 + 1e-9)
+            assert calm_speed[inside].min() < rules.STILL_SPEED, (seed, p)  # the real hand did stop there
+
+
+def test_widened_still_runs_that_overlap_become_one_pause():
+    pos, grip = _hold_inserted(*_clean_arrays(), at_index=250, seconds=0.9)  # t = 5.0 s, mid-carry
+    pos, grip = _hold_inserted(pos, grip, at_index=250 + 45 + 2, seconds=0.9)  # 0.04 s of motion between
+    pos = pos + np.random.default_rng(0).normal(0.0, 0.002, size=pos.shape)
+    diag = _detect(_traj(pos, grip))
+    spans = sorted((i.t0, i.t1) for i in _issues(diag, "pause"))
+    # smoothing sees two still cores 7 steps apart; widened by 10 steps each they overlap
+    assert [s for s in spans if s[1] > 4.9 and s[0] < 7.0] == [pytest.approx((5.08, 6.74), abs=0.05)]
+    assert all(a[1] <= b[0] for a, b in zip(spans, spans[1:]))
+    cuts = sorted((r.t0, r.t1) for r in _repairs(diag, "remove_pause"))
+    assert all(a[1] <= b[0] for a, b in zip(cuts, cuts[1:]))
+
+
+@pytest.mark.parametrize("jitter_mm", [0.5, 1.0, 4.0])
+def test_tremor_over_the_whole_demo_is_one_jitter_finding_and_one_smooth(jitter_mm):
+    # a limit relative to the demo's own median window can never flag noise that is everywhere
+    tr, _ = _paused(jitter_mm, n_pauses=0)
+    diag = _detect(tr)
+    [jit] = _issues(diag, "jitter")
+    assert (jit.t0, jit.t1) == pytest.approx((0.0, tr.t[-1]))
+    [sm] = _repairs(diag, "smooth")
+    assert (sm.t0, sm.t1, sm.strength) == (jit.t0, jit.t1, "med")
+
+
+def test_idle_at_the_ends_under_strong_tremor_is_idle_not_a_pause():
+    # seen at 4 mm on seeds 6, 20 and 25: the hand rests, but the ends' smoothed speed sat just above the limit
+    for seed in range(60):
+        tr, truth, _ = make_case(seed, 4.0)
+        idle = [(i.t0, i.t1) for i in truth if i.type == "idle_start_end"]
+        for p in _issues(_detect(tr), "pause"):
+            inside = sum(max(0.0, min(p.t1, b) - max(p.t0, a)) for a, b in idle)
+            assert inside < 0.5 * (p.t1 - p.t0), (seed, p, idle)
