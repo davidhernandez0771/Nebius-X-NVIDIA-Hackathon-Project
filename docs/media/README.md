@@ -38,14 +38,14 @@ They are built from `results.json` (`"sample": false`). A value nobody has measu
 
 | file | what it shows today | source |
 |---|---|---|
-| `charts/success.svg` | Policy success against the number of human demos. **All pending:** T3's cells raw_5, raw_10 and raw_13 are trained but not yet evaluated. | `C:\dev\pm-t3\data\results\registry.jsonl` |
+| `charts/success.svg` | Policy success against the number of demos. **Raw: 0% at 5, 10 and 13 demos** (0/20 each, 20 unseen scenes, seed0 5000; T3's sprint 3 grid `sprint3_clean_expert`, evaluated 2026-10-16). Those cells were trained on the **clean scripted expert's** demos, each starting above its own cube, not on degraded human demos. Raw + multiply and perfected + multiply: **pending**. The x axis is 5, 10, 13 because those are the cells that exist. | `C:\dev\pm-t3\data\results\registry.jsonl` lines 1-3 (each line names its eval file) |
 | `charts/ablation.svg` | Rules-only against rules + Nemotron repair. **Both pending.** | the same registry (no rules_multiply / perfected_multiply cells yet) |
 | `charts/yield.svg` | Multiplication yield: Franka **90%** (27/30) against MimicGen's published 38–74%. That run predates the handover fix (`f1e21d9`). The 3 failures were the fixed-time swing, so a re-run should be higher (T2, sprint 4). | `C:\dev\pm-t2\data\multiply_franka\yield.json`; MimicGen from the spec, section 5 |
 
 **To refresh** after new runs:
 
 ```
-uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --t2-data C:\dev\pm-t2\data
+uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --t2-data C:\dev\pm-t2\data --demos 5,10,13
 uv run python scripts/render_charts.py --results data/results/results.json --out docs/media/charts
 ```
 
