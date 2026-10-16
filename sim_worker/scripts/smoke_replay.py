@@ -26,6 +26,7 @@ if not args_cli.no_cameras:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
 
+from demo_pipeline.episode_io import load_signals  # noqa: E402
 from demo_pipeline.schemas import Pose, Scene  # noqa: E402
 from sim_worker.replay import bin_pose_for, make_sim_cfg, replay  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
@@ -51,6 +52,11 @@ def main() -> None:
               f"arm_table_steps={int(signals.contact_arm_table.sum())} "
               f"final_cube={signals.cube_pos[-1].round(4).tolist()}")
         print(f"[smoke] wall time: total {t_done - t0:.1f} s, replay {t_done - t_sim:.1f} s")
+        if args_cli.out is not None:
+            reloaded = load_signals(args_cli.out)
+            assert reloaded is not None, f"no signals.npz in {args_cli.out}"
+            assert reloaded.n_steps == signals.n_steps == len(traj.t), (reloaded.n_steps, signals.n_steps, len(traj.t))
+            print(f"[smoke] signals reloaded: {reloaded.n_steps} steps")
         print("RESULT_JSON " + json.dumps(result.model_dump()), flush=True)
 
 

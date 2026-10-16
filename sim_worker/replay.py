@@ -19,7 +19,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import instantiate
 from isaaclab.utils.math import quat_apply, subtract_frame_transforms
 
-from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode
+from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
 from demo_pipeline.schemas import Pose, Scene, SimSignals, Trajectory, VerificationResult
 from demo_pipeline.success import check_success
 
@@ -243,6 +243,7 @@ def replay(
             "ee_quat": np.asarray(rec["ee_quat"], dtype=np.float32),
             "gripper": arr["gripper"].astype(np.int8),
         })
+        save_signals(ep_dir, signals)
         if frames:
             from PIL import Image
 
