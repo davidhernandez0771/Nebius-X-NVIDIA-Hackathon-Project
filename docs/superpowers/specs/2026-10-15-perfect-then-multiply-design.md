@@ -400,7 +400,7 @@ Sim worker jobs run asynchronously; the UI polls job status.
 | LeRobot ACT training on Windows unverified | Check on day 1 of training work; WSL2 → Nebius GPU fallback |
 | OpenArm IK / reach differs from Franka | Sample the workspace inside both arms' reach; report the yield honestly |
 | 16 GB VRAM | 1–4 environments; small images (e.g. 128×128) for training |
-| Sim-only eligibility for the Physical AI track | Ask in the Nebius Discord; screenshot the answer |
+| Sim-only eligibility for the Physical AI track | **Resolved (2026-10-15):** the official FAQ says yes. See the screenshot in `docs/superpowers/notes/` |
 | Judges ask "why AI?" | Ablation + examples of semantic issues the rules miss |
 
 ## 12. Milestones
@@ -435,6 +435,16 @@ Sim worker jobs run asynchronously; the UI polls job status.
   tokens per 256×256 image, ~$0.0013 per diagnose call, ~2.5 s latency.
 - The teleop message (`HandPoseMsg`) and the hand → end-effector mapping live
   in `demo_pipeline/teleop.py` (pure, testable). The sim worker applies them.
+- **Sim-only eligibility confirmed.** The official FAQ
+  (https://nebiusglobalaihackathon.devpost.com/details/faqs) answers "Can
+  Physical AI track submissions use simulation instead of a physical robot?"
+  with "Yes ... you can build with simulation tools like Isaac Sim ... as long
+  as the project runs on Nebius Token Factory or AI Cloud and uses at least one
+  NVIDIA open-source model."
+- The Official Rules define "runs on Token Factory" as "the project makes a
+  runtime call to the Token Factory inference API". Running Isaac Sim locally is
+  therefore fine.
+- Physical AI submissions need no demo URL.
 - Python environments live outside OneDrive (`C:\venvs\...`) and uv runs with
   `UV_LINK_MODE=copy`. A `.venv` inside OneDrive fails to install (os errors
   5 and 396).
