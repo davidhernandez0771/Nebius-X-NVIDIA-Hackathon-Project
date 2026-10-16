@@ -203,16 +203,45 @@ Not re-run for this runbook (that would install `node_modules`).
 - `npm --prefix web ci` warns that esbuild's install script isn't covered by `allowScripts`. The
   build works without it. <!-- src: web-pages note "For the human / other tracks" -->
 
-### 2.6 MediaPipe hand-tracking files — UNVERIFIED gap
+### 2.6 MediaPipe hand-tracking files
 
 The Record page loads `/mediapipe/wasm` and `/models/hand_landmarker.task` from `web/public/`.
 <!-- src: web/src/hand/tracking/mediapipeTracker.ts (WASM_BASE_PATH, MODEL_ASSET_PATH) -->
-Both are git-ignored ("large binaries fetched from Google's CDN by setup, not committed").
-<!-- src: .gitignore -->
+Both are git-ignored, so a fresh clone has neither. <!-- src: .gitignore; HAND_INTERACTION_PLAN.md (Assets) -->
+After `npm --prefix web ci` (§2.5), run once from the repo root:
 
-- **No note or script in this repo records where to get them or how,** and no checkout on this
-  machine has them (checked 2026-10-16). Until they are in place, the Record page's camera can't
-  track a hand. A live hand on the Record page has never been checked. <!-- src: web-pages note "Not checked live" -->
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\launch\fetch_mediapipe.ps1
+```
+
+It does the README's two steps: <!-- src: README "Web app + MediaPipe hand-tracking assets"; HAND_INTERACTION_PLAN.md (Assets) -->
+
+1. It copies `web\node_modules\@mediapipe\tasks-vision\wasm\*` to `web\public\mediapipe\wasm\`,
+   so the files match the pinned package (0.10.17).
+2. It downloads the pinned model (`float16/1`, not `latest`, about 7.8 MB) from
+   `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`
+   to `web\public\models\hand_landmarker.task`. It skips the download if a non-empty file is
+   already there; `-Force` downloads it again.
+
+Expected output (from T6's tests, run against a fake server with 3 fake WASM files):
+
+```text
+wasm:  copied 3 files to ...\web\public\mediapipe\wasm
+model: downloading https://storage.googleapis.com/...
+model: saved <bytes> bytes to ...\web\public\models\hand_landmarker.task
+```
+
+A second run prints `model: already there (<bytes> bytes): <path>; not downloaded (-Force to download again)`. <!-- src: tests/test_launch_fetch_mediapipe.py -->
+
+- **Without `web\node_modules`,** it prints `REFUSED: ... npm --prefix web ci` and exits 1
+  without copying or downloading anything.
+- **A failed or cut-off download leaves nothing behind.** The download goes to a `.part` file.
+  That file replaces the model only when its size matches the server's `Content-Length`, so a
+  model already in place stays as it was. The script exits 1 and prints `model: FAILED: ...`.
+- **UNVERIFIED:** T6 has never run the real download (the user runs it). The script's own steps
+  are tested only against a fake local server. The README's copy-and-download commands do the
+  same by hand; they were tested in a scratch copy on 2026-10-16. <!-- src: README, same section -->
+  A live hand on the Record page has never been checked. <!-- src: web-pages note "Not checked live" -->
 
 ### 2.7 One shared `DATA_DIR` (recommended)
 
@@ -683,7 +712,7 @@ Cost: about $0.0013–0.0016 per diagnose call, 2.3–3.9 s. Every call is logge
 |---|---|
 | A page says the backend or sim worker is down | Start them (§3.2); every page shows this instead of a blank screen. <!-- src: web-pages note --> |
 | Results shows "SAMPLE DATA" | `GET /results` has no file, or the file lacks `"sample": false`. Build it (§8). <!-- src: web-pages note sprint 3b --> |
-| The Record page can't track a hand | The MediaPipe files are missing (§2.6). |
+| The Record page can't track a hand | The MediaPipe files are missing. Run `scripts\launch\fetch_mediapipe.ps1` (§2.6). |
 | `status.ps1` calls the web DOWN although Vite runs | UNVERIFIED guess: Vite 5 binds `localhost`, which may be IPv6-only. `status.ps1` also tries `localhost:5173`; open the page in a browser to be sure. <!-- src: t6-status Task 3 --> |
 
 ### 9.5 LeRobot and training
