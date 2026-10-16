@@ -81,8 +81,8 @@ class IsaacEvalEnv:
             put(name, np.asarray(bp.pos) + _yaw_rotate(bp.quat_wxyz, center), bp.quat_wxyz)
         sc.reset()
         if self.cameras:
-            eye = torch.tensor([np.asarray(FRONT_EYE) + origin], dtype=torch.float32, device=dev)
-            target = torch.tensor([np.asarray(FRONT_TARGET) + origin], dtype=torch.float32, device=dev)
+            eye = torch.tensor((np.asarray(FRONT_EYE) + origin)[None], dtype=torch.float32, device=dev)
+            target = torch.tensor((np.asarray(FRONT_TARGET) + origin)[None], dtype=torch.float32, device=dev)
             sc["front"].set_world_poses_from_view(eye, target)
         # Hold the default pose for a few steps so the renderer produces real frames before the first observation.
         hold = robot.data.default_joint_pos.torch[0].cpu().numpy()

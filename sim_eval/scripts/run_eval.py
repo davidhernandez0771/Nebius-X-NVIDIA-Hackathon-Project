@@ -50,6 +50,7 @@ from lerobot_tools.policy_client import PolicyClient, PolicyServerError  # noqa:
 from sim_eval.eval_policy import evaluate  # noqa: E402
 from sim_eval.registry import update_registry  # noqa: E402
 from sim_eval.report import default_results_path, preflight, write_results  # noqa: E402
+from sim_eval.retry import RetryingPolicy  # noqa: E402
 from sim_eval.scenes import eval_scenes  # noqa: E402
 from sim_worker.replay import make_sim_cfg  # noqa: E402
 from sim_worker.scene_cfg import IMAGE_SIZE  # noqa: E402
@@ -116,17 +117,22 @@ def main() -> None:
         build_s = time.time() - t_build
         print(f"[eval] scene built in {build_s:.1f} s; joints {env.joint_names}", flush=True)
 
-        def progress(i, ep):
-            print(f"[eval] {i + 1}/{len(scenes)} seed={ep.seed} success={ep.success} ended_by={ep.ended_by} "
-                  f"steps={ep.steps} sim_s={ep.sim_s:.2f} wall_s={ep.wall_s:.1f} reasons={ep.reasons}"
-                  + (f" error={ep.error}" if ep.error else ""), flush=True)
+        policy = RetryingPolicy(client)  # absorbs Windows loopback connection resets; see sim_eval/retry.py
+        retries_per_episode = []
 
-        episodes, summary = evaluate(env, client, scenes, on_episode=progress, max_seconds=args_cli.max_seconds)
+        def progress(i, ep):
+            retries_per_episode.append(policy.retries - sum(retries_per_episode))
+            print(f"[eval] {i + 1}/{len(scenes)} seed={ep.seed} success={ep.success} ended_by={ep.ended_by} "
+                  f"steps={ep.steps} sim_s={ep.sim_s:.2f} wall_s={ep.wall_s:.1f} reasons={ep.reasons} "
+                  f"retries={retries_per_episode[-1]}" + (f" error={ep.error}" if ep.error else ""), flush=True)
+
+        episodes, summary = evaluate(env, policy, scenes, on_episode=progress, max_seconds=args_cli.max_seconds)
         poller.stop()
         run.update(
             scene_build_s=round(build_s, 1),
             wall_s_total=round(time.time() - t0, 1),
             wall_s_per_episode=[round(e.wall_s, 2) for e in episodes],
+            connection_retries_per_episode=retries_per_episode,
             vram_baseline_mib=vram_baseline,
             vram_peak_mib=max(poller.samples) if poller.samples else None,
         )
