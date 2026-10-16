@@ -255,3 +255,55 @@ def test_wrist_turns_from_the_cube_frame_to_the_bin_frame_over_the_carry():
     turn = 2 * np.degrees(np.arccos(np.clip(np.abs((q[1:] * q[:-1]).sum(axis=1)), 0, 1)))
     # 90 deg over the 2 s carry peaks at ~3.2 deg/step (the old 0.5 s blend: ~6.8); a snap would be 90
     assert turn.max() < 4.0
+
+
+# --- per-robot sampling ranges (sprint 3, T1 Task 2) ---
+
+from demo_pipeline import multiply  # noqa: E402
+
+
+def test_franka_ranges_are_the_confirmed_ones():
+    r = multiply.SCENE_RANGES["franka"]
+    assert (r.cube_x, r.cube_y, r.bin_x, r.bin_y) == ((0.40, 0.60), (-0.20, 0.20), (0.40, 0.65), (-0.30, 0.30))
+    assert r.cube_yaw == (-math.pi / 2, math.pi / 2)
+
+
+def test_franka_scenes_are_unchanged_by_the_table():
+    # T2's yield seeds must keep naming the same scenes (seed 115: one of its three failures).
+    s = sample_scene(np.random.default_rng(115), "franka", 115)
+    np.testing.assert_allclose(s.cube_pose.pos, (0.540467604837756, 0.041483628586139604, 0.025), atol=1e-15)
+    np.testing.assert_allclose(s.cube_pose.quat_wxyz, (0.9975941315822444, 0.0, 0.0, 0.06932494956844566), atol=1e-15)
+    np.testing.assert_allclose(s.bin_pose.pos, (0.6052868061282477, -0.2995369307149335, 0.0), atol=1e-15)
+
+
+@pytest.mark.parametrize("robot", ["openarm", "flexiv"])
+def test_new_arms_start_with_frankas_ranges(robot):
+    assert multiply.SCENE_RANGES[robot] == multiply.SCENE_RANGES["franka"]
+
+
+def test_ranges_are_honored_per_robot(monkeypatch):
+    narrow = multiply.SceneRanges(cube_x=(0.30, 0.32), cube_y=(0.10, 0.12), cube_yaw=(0.0, 0.1),
+                                  bin_x=(0.30, 0.32), bin_y=(-0.30, -0.28))
+    monkeypatch.setitem(multiply.SCENE_RANGES, "openarm", narrow)
+    rng = np.random.default_rng(5)
+    for i in range(200):
+        s = sample_scene(rng, "openarm", i)
+        cx, cy, _ = s.cube_pose.pos
+        bx, by, _ = s.bin_pose.pos
+        assert 0.30 <= cx <= 0.32 and 0.10 <= cy <= 0.12 and 0.0 <= _yaw(s.cube_pose.quat_wxyz) <= 0.1 + 1e-12
+        assert 0.30 <= bx <= 0.32 and -0.30 <= by <= -0.28
+        f = sample_scene(rng, "franka", i)  # franka keeps its own table
+        assert f.bin_pose.pos[0] >= 0.40 and f.cube_pose.pos[0] >= 0.40
+
+
+def test_a_robot_without_ranges_is_refused():
+    with pytest.raises(ValueError, match="so101"):
+        sample_scene(np.random.default_rng(0), "so101", 0)
+
+
+def test_ranges_that_cannot_keep_the_gap_fail_clearly(monkeypatch):
+    same = multiply.SceneRanges(cube_x=(0.5, 0.5), cube_y=(0.0, 0.0), cube_yaw=(0.0, 0.0), bin_x=(0.5, 0.5), bin_y=(0.0, 0.0))
+    monkeypatch.setitem(multiply.SCENE_RANGES, "flexiv", same)
+    monkeypatch.setattr(multiply, "MAX_SAMPLE_TRIES", 50)
+    with pytest.raises(RuntimeError, match="flexiv"):
+        sample_scene(np.random.default_rng(0), "flexiv", 0)

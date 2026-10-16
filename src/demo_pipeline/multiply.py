@@ -8,6 +8,7 @@ translation and yaw change between scenes (the table stays flat).
 from __future__ import annotations
 
 import math
+from typing import NamedTuple
 
 import numpy as np
 
@@ -18,8 +19,28 @@ from .schemas import Pose, RobotName, Scene, Trajectory
 LIFT_S = 1.0  # degrade's grasp offset fades out from this long after the first close
 MIN_CHORD = 1e-3  # m; a grasp and release closer than this leave no carry to map
 
-CUBE_X, CUBE_Y, CUBE_YAW = (0.40, 0.60), (-0.20, 0.20), (-math.pi / 2, math.pi / 2)
-BIN_X, BIN_Y = (0.40, 0.65), (-0.30, 0.30)
+
+class SceneRanges(NamedTuple):
+    """Uniform sampling ranges for one robot's scenes (m, rad; world frame, robot base at the origin)."""
+
+    cube_x: tuple[float, float]
+    cube_y: tuple[float, float]
+    cube_yaw: tuple[float, float]
+    bin_x: tuple[float, float]
+    bin_y: tuple[float, float]
+
+
+_FRANKA = SceneRanges(cube_x=(0.40, 0.60), cube_y=(-0.20, 0.20), cube_yaw=(-math.pi / 2, math.pi / 2),
+                      bin_x=(0.40, 0.65), bin_y=(-0.30, 0.30))  # spec 8.6; confirmed reachable by T2 (2026-10-16)
+SCENE_RANGES: dict[RobotName, SceneRanges] = {
+    "franka": _FRANKA,
+    # Placeholders equal to the Franka's: T2 will tune them (the OpenArm's +-45 deg wrist confines
+    # a vertical grasp to a ~0.2 m band, T2 note 2026-10-16, Task 5).
+    "openarm": _FRANKA,
+    "flexiv": _FRANKA,
+}
+CUBE_X, CUBE_Y, CUBE_YAW = _FRANKA.cube_x, _FRANKA.cube_y, _FRANKA.cube_yaw  # the Franka's, for older callers
+BIN_X, BIN_Y = _FRANKA.bin_x, _FRANKA.bin_y
 CUBE_HALF, BIN_HALF = 0.025, 0.11  # m, footprint half-sizes
 MIN_EDGE_GAP = 0.15  # m between the cube's and the bin's footprints
 CUBE_Z, BIN_Z = 0.025, 0.0
@@ -114,11 +135,14 @@ def _edge_gap(cube_xy, cube_yaw: float, bin_xy) -> float:
 
 
 def sample_scene(rng: np.random.Generator, robot: RobotName, seed: int) -> Scene:
-    """A random scene in the spec 8.6 ranges, rejection-sampled until the cube and bin are 0.15 m apart."""
+    """A random scene in the robot's SCENE_RANGES, rejection-sampled until the cube and bin are 0.15 m apart."""
+    r = SCENE_RANGES.get(robot)
+    if r is None:
+        raise ValueError(f"no scene sampling ranges for robot {robot!r} (have: {', '.join(SCENE_RANGES)})")
     for _ in range(MAX_SAMPLE_TRIES):
-        cube_xy = (float(rng.uniform(*CUBE_X)), float(rng.uniform(*CUBE_Y)))
-        yaw = float(rng.uniform(*CUBE_YAW))
-        bin_xy = (float(rng.uniform(*BIN_X)), float(rng.uniform(*BIN_Y)))
+        cube_xy = (float(rng.uniform(*r.cube_x)), float(rng.uniform(*r.cube_y)))
+        yaw = float(rng.uniform(*r.cube_yaw))
+        bin_xy = (float(rng.uniform(*r.bin_x)), float(rng.uniform(*r.bin_y)))
         if _edge_gap(cube_xy, yaw, bin_xy) >= MIN_EDGE_GAP:
             return Scene(
                 cube_pose=Pose(pos=(*cube_xy, CUBE_Z), quat_wxyz=_yaw_quat(yaw)),
@@ -126,4 +150,4 @@ def sample_scene(rng: np.random.Generator, robot: RobotName, seed: int) -> Scene
                 robot=robot,
                 seed=seed,
             )
-    raise RuntimeError(f"no scene with a {MIN_EDGE_GAP} m cube-bin gap in {MAX_SAMPLE_TRIES} tries")
+    raise RuntimeError(f"no {robot} scene with a {MIN_EDGE_GAP} m cube-bin gap in {MAX_SAMPLE_TRIES} tries")
