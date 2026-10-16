@@ -1,7 +1,8 @@
 """Multiplier math (spec 8.6): move one perfected demo into new scenes. numpy only.
 
-Up to the end of the lift the hand path is rigid in the cube's frame; from then on it is rigid
-in the bin's frame. Only translation and yaw change between scenes (the table stays flat).
+Up to the grasp the hand path is rigid in the cube's frame; from the release on it is rigid in
+the bin's frame. In between (the carry) it follows the new grasp-to-release chord. Only
+translation and yaw change between scenes (the table stays flat).
 """
 
 from __future__ import annotations
@@ -14,8 +15,8 @@ from .measure import gripper_events
 from .repair import _slerp
 from .schemas import Pose, RobotName, Scene, Trajectory
 
-LIFT_S = 1.0  # the lift ends this long after the first close
-BLEND_S = 0.5  # minimum-jerk blend from the cube-relative to the bin-relative part
+LIFT_S = 1.0  # degrade's grasp offset fades out from this long after the first close
+MIN_CHORD = 1e-3  # m; a grasp and release closer than this leave no carry to map
 
 CUBE_X, CUBE_Y, CUBE_YAW = (0.40, 0.60), (-0.20, 0.20), (-math.pi / 2, math.pi / 2)
 BIN_X, BIN_Y = (0.40, 0.65), (-0.30, 0.30)
@@ -55,20 +56,53 @@ def _move_with(src: Pose, dst: Pose, pos: np.ndarray, quat: np.ndarray) -> tuple
     return moved, _quat_mul(np.asarray(_yaw_quat(dyaw)), quat)
 
 
+def _chord_map(x: np.ndarray, a: np.ndarray, b: np.ndarray, a2: np.ndarray, b2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Map points from the chord a->b onto a2->b2: progress along the chord (xy) scales with the
+    chord's length, sideways and vertical offsets from it are kept (turned with the chord's heading).
+    Returns the mapped points and each point's progress u (0 at a, 1 at b)."""
+    d, d2 = (b - a)[:2], (b2 - a2)[:2]
+    L, L2 = float(np.linalg.norm(d)), float(np.linalg.norm(d2))
+    if L < MIN_CHORD or L2 < MIN_CHORD:
+        raise ValueError(f"the grasp and the release are {min(L, L2) * 1000:.1f} mm apart, so there is no carry to map")
+    e, e2 = d / L, d2 / L2
+    n, n2 = np.array([-e[1], e[0]]), np.array([-e2[1], e2[0]])
+    r = x - a
+    u = (r[:, :2] @ e) / L
+    side = r[:, :2] @ n
+    xy = a2[:2] + np.outer(u * L2, e2) + np.outer(side, n2)
+    z = a2[2] + r[:, 2] + u * ((b2[2] - a2[2]) - (b[2] - a[2]))
+    return np.column_stack([xy, z]), u
+
+
 def transform_trajectory(traj: Trajectory, src: Scene, dst: Scene) -> Trajectory:
-    """The demo as it would be in dst: cube-relative through the lift, bin-relative after, min-jerk blend between."""
-    t_close, _ = gripper_events(traj)
+    """The demo as it would be in dst. Through the grasp the hand is rigid in the cube's frame, from
+    the release on in the bin's; the carry between them (lift, move, descent) is re-planned along
+    the new grasp-to-release chord, keeping the source's timing and its sideways and vertical shape.
+
+    The handover is at the gripper events, where the hand is at the grasp or release point, so the
+    path is continuous. A fixed-time handover (1.0 s + 0.5 s after the close) swung every variant
+    to the source cube's place relative to the new bin, past the Franka's reach for bins on the -y
+    side (T2 status note, 2026-10-16, Task 4). With no release, the carry runs to the last step.
+    """
+    t_close, t_open = gripper_events(traj)
     if t_close is None:
         raise ValueError("the demo never closes the gripper, so it has no grasp to transform")
     a = traj.to_arrays()
-    t = a["t"]
-    p_cube, q_cube = _move_with(src.cube_pose, dst.cube_pose, a["ee_pos"], a["ee_quat"])
-    p_bin, q_bin = _move_with(src.bin_pose, dst.bin_pose, a["ee_pos"], a["ee_quat"])
-    s = np.clip((t - (t_close + LIFT_S)) / BLEND_S, 0.0, 1.0)
-    b = 10 * s**3 - 15 * s**4 + 6 * s**5
-    pos = (1 - b)[:, None] * p_cube + b[:, None] * p_bin
+    t, pos = a["t"], a["ee_pos"]
+    i_close = int(np.argmin(np.abs(t - t_close)))
+    i_open = len(t) - 1 if t_open is None else int(np.argmin(np.abs(t - t_open)))
+    p_cube, q_cube = _move_with(src.cube_pose, dst.cube_pose, pos, a["ee_quat"])
+    p_bin, q_bin = _move_with(src.bin_pose, dst.bin_pose, pos, a["ee_quat"])
+    p_carry, u = _chord_map(pos, pos[i_close], pos[i_open], p_cube[i_close], p_bin[i_open])
+    idx = np.arange(len(t))
+    before, after = idx < i_close, idx >= i_open
+    if t_open is None:
+        after[:] = False
+    out = np.where(before[:, None], p_cube, np.where(after[:, None], p_bin, p_carry))
+    s = np.clip(u, 0.0, 1.0)
+    b = np.where(before, 0.0, np.where(after, 1.0, 10 * s**3 - 15 * s**4 + 6 * s**5))
     quat = np.where((b == 0)[:, None], q_cube, np.where((b == 1)[:, None], q_bin, _slerp(q_cube, q_bin, b)))
-    return Trajectory.from_arrays(t, pos, quat, a["gripper"])
+    return Trajectory.from_arrays(t, out, quat, a["gripper"])
 
 
 def _edge_gap(cube_xy, cube_yaw: float, bin_xy) -> float:
