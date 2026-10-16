@@ -134,3 +134,52 @@ def test_side_by_side_marks_the_shorter_episode_done(tmp_path, monkeypatch):
     mm.render_side_by_side(a, b, tmp_path / "p.gif")
     short = seen[1::2]  # the right panel's calls
     assert short[0] == (0.0, []) and short[-1] == (0.18, ["done"])  # its clock stops at 9 / 50 s
+
+
+def _gif_rgb_frames(path):
+    with Image.open(path) as gif:
+        out = []
+        for k in range(gif.n_frames):
+            gif.seek(k)
+            out.append(np.asarray(gif.convert("RGB")))
+    return out
+
+
+def test_gifs_share_one_small_palette_that_keeps_the_timeline_colours_exact(tmp_path):
+    ep = _episode(tmp_path, n=40)
+    out = mm.render_gif(ep, tmp_path / "small.gif", diagnosis=_diag(), colors=16)
+    frames = _gif_rgb_frames(out)
+    used = {tuple(c) for f in frames for c in f.reshape(-1, 3)}
+    assert len(used) <= 16
+    top = 32 * mm.SCALE
+    lay = media.timeline_layout(_diag(), duration=40 / FPS, width=32 * mm.SCALE)
+    pause = lay.issues[0]
+    for f in frames:  # the marks must not drift to a neighbouring palette colour
+        assert tuple(f[top + mm.ISSUE_Y + 2, (pause.x0 + pause.x1) // 2]) == _hex(media.ISSUE_COLORS["pause"])
+
+
+def test_a_small_saturated_object_keeps_its_colour(tmp_path):
+    # A small saturated object (the bin's blue) in a noisy grey scene: a palette fitted to pixel counts alone
+    # washes it out (measured on s1_0002: (111, 167, 218) for a (80, 157, 232) bin; with the reservation (83, 157, 230)).
+    ep = tmp_path / "cube"
+    n = 10
+    save_episode(ep, EpisodeMeta(demo_id="cube", robot="franka", task_text=TASK_TEXT, fps=FPS, n_steps=n,
+                                 cameras=["front"]),
+                 {"joint_pos": np.zeros((n, 9)), "action": np.zeros((n, 9)), "ee_pos": np.zeros((n, 3)),
+                  "ee_quat": np.tile([0.0, 1.0, 0.0, 0.0], (n, 1)), "gripper": np.zeros(n, np.int8)})
+    rng = np.random.default_rng(0)
+    for i in range(n):  # a noisy grey floor, like the render, with many distinct greys competing for entries
+        grey = rng.integers(90, 230, (32, 32, 1)).astype(np.uint8)
+        img = Image.fromarray(np.concatenate([grey, grey, grey + 5], axis=2))
+        img.paste((80, 157, 232), (10, 10, 13, 13))
+        img.save(image_path(ep, "front", i))
+    frames = _gif_rgb_frames(mm.render_gif(ep, tmp_path / "cube.gif", colors=24))
+    got = frames[0][11 * mm.SCALE + 1, 11 * mm.SCALE + 1].astype(int)
+    assert np.abs(got - (80, 157, 232)).max() <= 12, got
+
+
+def test_colors_zero_keeps_full_per_frame_palettes(tmp_path):
+    ep = _episode(tmp_path, n=20)
+    small = mm.render_gif(ep, tmp_path / "a.gif", colors=16).stat().st_size
+    full = mm.render_gif(ep, tmp_path / "b.gif", colors=0).stat().st_size
+    assert full > small

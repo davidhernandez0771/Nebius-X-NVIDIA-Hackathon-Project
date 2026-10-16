@@ -46,6 +46,9 @@ GAP = 8
 CURSOR = (17, 24, 39)
 STRIP_BG = (249, 250, 251)
 BG = (255, 255, 255)
+COLORS = 64  # one palette shared by every GIF frame: ~4x smaller files than per-frame 256-colour palettes
+SATURATED = 60  # max - min channel spread above which a scene pixel counts as saturated (cube, bin, arm decals)
+N_SATURATED = 8  # palette entries reserved for those few pixels, so the cube and bin keep their colours
 
 
 def _font(size: int):
@@ -103,15 +106,53 @@ def compose_frame(frame: Image.Image, layout: media.Layout, t: float, labels: li
     return out
 
 
-def _save_gif(frames: list[Image.Image], delays: list[int], out: Path) -> Path:
+def _median_cut(px: np.ndarray, n: int) -> list[tuple[int, int, int]]:
+    """Up to n representative colours of an [M, 3] pixel array."""
+    w = 256
+    px = np.resize(px, (max(len(px) // w, 1) * w, 3)).astype(np.uint8)
+    q = Image.fromarray(px.reshape(-1, w, 3)).quantize(colors=n, method=Image.Quantize.MEDIANCUT,
+                                                       dither=Image.Dither.NONE)
+    pal = q.getpalette()[: 3 * n]
+    return [tuple(pal[3 * i:3 * i + 3]) for i in np.unique(np.asarray(q))]
+
+
+def shared_palette(frames: list[Image.Image], colors: int) -> Image.Image:
+    """One palette for the whole GIF. Exact entries come first: the timeline and label colours, then up to
+    N_SATURATED colours of the scene's few saturated pixels: a palette fitted to pixel counts alone spends its
+    entries on the floor's greys and washes the bin out (s1_0002: (111, 167, 218) for an (80, 157, 232) bin).
+    The rest is a median cut of evenly sampled frames."""
+    reserved = [_rgb(c) for c in (*media.SEGMENT_COLORS.values(), *media.ISSUE_COLORS.values(), media.DEFAULT_COLOR)]
+    reserved += [CURSOR, STRIP_BG, BG, (229, 231, 235), (255, 255, 255)]
+    picks = np.linspace(0, len(frames) - 1, min(8, len(frames))).astype(int)
+    px = np.concatenate([np.asarray(frames[i].convert("RGB")).reshape(-1, 3) for i in picks]).astype(int)
+    entries = list(dict.fromkeys(reserved))
+    sat = px[(px.max(axis=1) - px.min(axis=1)) > SATURATED]
+    if len(sat):
+        entries += [c for c in _median_cut(sat, N_SATURATED) if c not in entries]
+    if len(entries) < colors:
+        entries += [c for c in _median_cut(px, colors - len(entries)) if c not in entries]
+    entries = entries[:colors]
+    flat = [v for c in entries for v in c]
+    pal = Image.new("P", (1, 1))
+    pal.putpalette(flat + flat[-3:] * (256 - len(entries)))
+    return pal
+
+
+def _save_gif(frames: list[Image.Image], delays: list[int], out: Path, colors: int = COLORS) -> Path:
+    """colors > 0: every frame mapped (no dithering) onto one shared palette of that many colours; 0: Pillow's
+    own adaptive 256-colour palette per frame (about 4x larger files)."""
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    if colors:
+        pal = shared_palette(frames, colors)
+        frames = [f.convert("RGB").quantize(palette=pal, dither=Image.Dither.NONE) for f in frames]
     frames[0].save(out, save_all=True, append_images=frames[1:], duration=delays, loop=0, optimize=True)
     return out
 
 
 def render_gif(ep_dir: Path, out: Path, diagnosis: Diagnosis | None = None, *, camera: str = "front",
-               gif_fps: float = 10.0, max_frames: int | None = 300, scale: int = SCALE) -> Path:
+               gif_fps: float = 10.0, max_frames: int | None = 300, scale: int = SCALE,
+               colors: int = COLORS) -> Path:
     _, n, fps, paths = _frames(ep_dir, camera)
     steps, delays = media.gif_frames(n, fps, gif_fps, max_frames)
     first = _open(paths[0], scale)
@@ -120,12 +161,13 @@ def render_gif(ep_dir: Path, out: Path, diagnosis: Diagnosis | None = None, *, c
     for s in steps:
         t = media.step_time(s, fps)
         frames.append(compose_frame(_open(paths[s], scale), layout, t, media.active_labels(diagnosis, t), scale))
-    return _save_gif(frames, delays, out)
+    return _save_gif(frames, delays, out, colors)
 
 
 def render_side_by_side(ep_a: Path, ep_b: Path, out: Path, *, labels: tuple[str, str] = ("raw", "perfected"),
                         diagnoses: tuple[Diagnosis | None, Diagnosis | None] = (None, None), camera: str = "front",
-                        gif_fps: float = 10.0, max_frames: int | None = 300, scale: int = SCALE) -> Path:
+                        gif_fps: float = 10.0, max_frames: int | None = 300, scale: int = SCALE,
+                        colors: int = COLORS) -> Path:
     _, n_a, fps_a, pa = _frames(ep_a, camera)
     _, n_b, fps_b, pb = _frames(ep_b, camera)
     if fps_a != fps_b:
@@ -149,7 +191,7 @@ def render_side_by_side(ep_a: Path, ep_b: Path, out: Path, *, labels: tuple[str,
             img.paste(panel, (x, LABEL_H))
             d.text((x + 4, 4), label, fill=(17, 24, 39), font=font)
         frames.append(img)
-    return _save_gif(frames, delays, out)
+    return _save_gif(frames, delays, out, colors)
 
 
 def render_contact_sheet(ep_dir: Path, out: Path, diagnosis: Diagnosis | None = None, *, camera: str = "front",
@@ -201,6 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--camera", default="front")
     p.add_argument("--gif-fps", type=float, default=10.0)
     p.add_argument("--scale", type=int, default=SCALE, help="GIF pixels per sim pixel")
+    p.add_argument("--colors", type=int, default=COLORS, help="shared GIF palette size (0: 256 per frame)")
     p.add_argument("--out", type=Path, required=True)
     args = p.parse_args(argv)
 
@@ -210,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     diag = rules_diagnosis(args.episode) if args.rules else read(args.diagnosis)
     meta, _, _ = load_episode(args.episode)
     written = [render_gif(args.episode, args.out / f"{meta.demo_id}.gif", diag, camera=args.camera, gif_fps=args.gif_fps,
-                          scale=args.scale),
+                          scale=args.scale, colors=args.colors),
                render_contact_sheet(args.episode, args.out / f"{meta.demo_id}_sheet.png", diag, camera=args.camera)]
     if args.compare is not None:
         other, _, _ = load_episode(args.compare)
@@ -218,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         written.append(render_side_by_side(args.episode, args.compare,
                                            args.out / f"{meta.demo_id}_vs_{other.demo_id}.gif", labels=labels,
                                            diagnoses=(diag, read(args.compare_diagnosis)), camera=args.camera,
-                                           gif_fps=args.gif_fps, scale=args.scale))
+                                           gif_fps=args.gif_fps, scale=args.scale, colors=args.colors))
     for w in written:
         print(f"wrote {w}")
     return 0

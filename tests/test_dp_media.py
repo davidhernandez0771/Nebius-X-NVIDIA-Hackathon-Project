@@ -123,11 +123,11 @@ def test_a_finished_side_by_side_panel_stops_its_clock_at_its_own_end():
     assert media.panel_time(3.98, n_steps=200, fps=50) == (3.98, False)
 
 
-def test_every_curated_media_file_is_at_most_5_mb():
-    # docs/media is for the README and the video: GitHub renders it inline, so each file stays <= 5 MB.
+def test_every_curated_media_file_is_at_most_2_mb():
+    # docs/media is for the README and the video: GitHub renders it inline, so each file stays <= 2 MB.
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1] / "docs" / "media"
     big = [(str(p.relative_to(root)), p.stat().st_size) for p in root.rglob("*") if p.is_file()
-           and p.stat().st_size > 5 * 1024 * 1024]
+           and p.stat().st_size > 2 * 1024 * 1024]
     assert big == []

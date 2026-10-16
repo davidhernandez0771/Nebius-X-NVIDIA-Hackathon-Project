@@ -2,7 +2,15 @@
 
 These files were made on 2026-10-16 from recorded simulator episodes (Isaac Lab, Franka, front camera, 50 Hz),
 with `scripts/make_media.py`, and from the measured results, with `scripts/build_results_json.py` and
-`scripts/render_charts.py`. Each file is at most 5 MB; `tests/test_dp_media.py` enforces that.
+`scripts/render_charts.py`. Each file is at most 2 MB; `tests/test_dp_media.py` enforces that.
+
+**The GIFs:**
+- **Timing and size:** 10 frames per second, real time, with the 128 px sim frames shown at 256 px.
+- **Palette:** all frames share one 64-colour palette. It reserves exact entries for the timeline and
+  label colours and for the scene's saturated colours (red cube, blue bin); the rest of the palette
+  is fitted to the frames. That made them about 4× smaller than per-frame 256-colour palettes
+  (s1_0002 side by side: 4.6 MB → 0.96 MB) with the same frames.
+- **Settings:** `make_media.py --colors 64` is the default; `--colors 0` restores per-frame palettes.
 
 All the human demos here are **synthetic**. They are the scripted expert, degraded with
 `demo_pipeline.degrade`: hand tremor, pauses, slowness, idle time and off-center grasps, each with
