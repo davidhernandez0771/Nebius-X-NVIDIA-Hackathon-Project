@@ -3,6 +3,7 @@
     python scripts/launch/health.py status [--json] [--require backend,web,sim] [--timeout 3]
     python scripts/launch/health.py wait <service> [--timeout 60] [--interval 1]
     python scripts/launch/health.py port-free <port>
+    python scripts/launch/health.py isaac [--isaac-venv DIR]
 
 Services and their checks (base URLs can be overridden, see `default_services`):
 
@@ -138,7 +139,7 @@ def check_service(spec: ServiceSpec, timeout: float = 3.0) -> CheckResult:
             status, body = _fetch(url, timeout)
         except (OSError, ValueError) as e:  # refused, timeout, DNS; ValueError: bad URL
             reason = getattr(e, "reason", e)
-            last_error = f"unreachable ({type(reason).__name__}: {reason})"
+            last_error = f"unreachable ({type(reason).__name__})"
             continue
         if not 200 <= status < 300:
             return CheckResult(spec.name, spec.label, "DOWN", url, f"HTTP {status}")
@@ -308,6 +309,17 @@ def _wait(args: argparse.Namespace) -> int:
     return 0 if is_up(r) else 1
 
 
+def _isaac(args: argparse.Namespace) -> int:
+    rows = list_python_processes()
+    if rows is None:
+        print("could not list processes", file=sys.stderr)
+        return 2
+    procs = isaac_processes(rows, args.isaac_venv)
+    for proc in procs:
+        print(f"pid {proc.pid}: {proc.args}")
+    return 1 if procs else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Read-only health checks for the local services.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -325,12 +337,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     wt.add_argument("--interval", type=float, default=1.0)
     pf = sub.add_parser("port-free", help="exit 0 if nothing listens on 127.0.0.1:<port>, else 1")
     pf.add_argument("port", type=int)
+    iz = sub.add_parser("isaac", help="list Isaac python processes: exit 0 none, 1 some, 2 unknown")
+    iz.add_argument("--isaac-venv", default=ISAAC_VENV)
     args = p.parse_args(argv)
     try:
         if args.cmd == "status":
             return _status(args)
         if args.cmd == "wait":
             return _wait(args)
+        if args.cmd == "isaac":
+            return _isaac(args)
         return 1 if port_in_use(args.port) else 0
     except ValueError as e:
         print(str(e), file=sys.stderr)

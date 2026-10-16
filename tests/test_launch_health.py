@@ -391,6 +391,17 @@ def test_cli_wait(two_up, monkeypatch):
     assert h.main(["wait", "web", "--timeout", "0.3", "--interval", "0.1"]) == 1
 
 
+def test_cli_isaac_exit_codes(monkeypatch, capsys):
+    monkeypatch.setattr(h, "list_python_processes", lambda: ISAAC_ROWS)
+    assert h.main(["isaac"]) == 1
+    out = capsys.readouterr().out
+    assert "37300" in out and "30460" in out and "9996" not in out
+    monkeypatch.setattr(h, "list_python_processes", lambda: ISAAC_ROWS[2:3])
+    assert h.main(["isaac"]) == 0
+    monkeypatch.setattr(h, "list_python_processes", lambda: None)
+    assert h.main(["isaac"]) == 2  # unknown: the caller must not assume "none"
+
+
 def test_cli_port_free():
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
