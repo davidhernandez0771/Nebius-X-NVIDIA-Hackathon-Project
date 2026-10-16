@@ -1,6 +1,7 @@
 """Backend demo routes: /demos CRUD and /demos/{id}/diagnose with the rules fallback (Review Focus 5)."""
 from __future__ import annotations
 
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -426,3 +427,45 @@ def test_corrupt_gated_list_is_422(demos_api, store):
     store.save_diagnosis("human_1", _diagnosis(), "rules", None)
     (store.root / "demos" / "human_1" / "gated.json").write_text("{not json", encoding="utf-8")
     assert demos_api.get("/demos/human_1/diagnosis").status_code == 422
+
+
+# --- scripts/diagnose_real_episode.py --tag: a new run never overwrites an older result -----
+
+def test_result_dir_puts_a_tagged_run_in_its_own_folder(tmp_path):
+    script = _load_script()
+    assert script.result_dir(tmp_path, None) == tmp_path
+    assert script.result_dir(tmp_path, "calibrated") == tmp_path / "calibrated"
+    with pytest.raises(ValueError):
+        script.result_dir(tmp_path, "../escape")
+
+
+def test_tagged_run_refuses_when_its_result_exists_and_makes_no_call(store, tmp_path):
+    ep = _write_episode(store)
+    (tmp_path / "out" / "calibrated").mkdir(parents=True)
+    (tmp_path / "out" / "calibrated" / "result.json").write_text("{}", encoding="utf-8")
+    script = _load_script()
+    with patch.object(script, "diagnose_gated") as call:
+        code = script.main(["--episode", str(ep), "--out", str(tmp_path / "out"), "--tag", "calibrated"])
+    assert code == 1
+    call.assert_not_called()
+
+
+def test_tagged_run_keeps_the_untagged_result_and_records_what_was_gated(store, tmp_path):
+    ep = _write_episode(store)
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "result.json").write_text('{"original": true}', encoding="utf-8")
+    gated = ["dropped issue rim_contact 1.00-1.50: no arm-bin contact (B) in any overlapping window",
+             "dropped repair replan_transit 1.00-1.50: it only served dropped issues",
+             "decision repair -> keep: no issues remain"]
+    script = _load_script()
+    with patch.object(script, "diagnose_gated", return_value=(_diagnosis(), gated)), \
+         patch.object(script, "_vl_calls", return_value=[]), patch("dotenv.load_dotenv"):
+        code = script.main(["--episode", str(ep), "--out", str(out), "--tag", "calibrated"])
+    assert code == 0
+    assert (out / "result.json").read_text(encoding="utf-8") == '{"original": true}'
+    result = json.loads((out / "calibrated" / "result.json").read_text(encoding="utf-8"))
+    assert result["tag"] == "calibrated"
+    assert result["gated"] == gated
+    assert result["issues_reported_by_model"] == 1  # 0 kept + 1 dropped by the gate
+    assert result["nemotron"]["decision"] == "keep"

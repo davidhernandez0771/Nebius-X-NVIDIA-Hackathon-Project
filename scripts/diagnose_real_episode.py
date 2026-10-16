@@ -1,6 +1,11 @@
 """One real Nemotron VL diagnosis of a recorded sim episode (sprint 2, T4 Task 6).
 
-Run:  uv run python scripts/diagnose_real_episode.py [--episode DIR] [--dry-run]
+Run:  uv run python scripts/diagnose_real_episode.py [--episode DIR] [--tag NAME] [--dry-run]
+
+--tag NAME writes <out>/NAME/result.json, so each calibration run keeps its own result
+(the first, untagged run is <out>/result.json). The model's reply goes through
+diagnose_gated(): result.json records what the gate dropped and how many issues the model
+reported before it.
 
 The default episode is T2's clean scripted Franka demo, C:\\dev\\pm-t2\\data\\smoke_cam,
 read-only: front + wrist frames, steps.npz and signals.npz. The trajectory diagnosed is the
@@ -13,23 +18,24 @@ the model reports is a false positive; the rules detector runs on the same windo
 comparison.
 
 Cost: one diagnose() call, 8 images of 128x128 (7 front + 1 wrist), plus at most one
-retry if the reply is invalid, so at most 2 calls, ~$0.0013 each. It refuses to run
-again once <out>/result.json exists (use --force to override), so the task's cap of
-3 calls cannot be exceeded by accident. --dry-run builds every input and runs the
-rules, with no call.
+retry if the reply is invalid, so at most 2 calls, ~$0.0016 each. It refuses to run
+again once that run's result.json exists (use --force to override), so a call budget
+cannot be exceeded by accident. --dry-run builds every input and runs the rules, with
+no call.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from app.ai.diagnose import DIAGNOSE_TIER, MAX_IMAGES, DiagnosisError, build_diagnosis_prompt, diagnose
+from app.ai.diagnose import DIAGNOSE_TIER, MAX_IMAGES, DiagnosisError, build_diagnosis_prompt, diagnose_gated
 from app.routers.demos import FRONT, WRIST, load_frames
 from demo_pipeline.episode_io import load_episode, load_signals
 from demo_pipeline.measure import compute_windows
@@ -101,15 +107,26 @@ def _summary(diag: Diagnosis) -> dict:
     }
 
 
+def result_dir(out: Path, tag: str | None) -> Path:
+    """<out> for an untagged run, <out>/<tag> for a tagged one; a tag must be a plain folder name."""
+    if tag is None:
+        return out
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", tag):
+        raise ValueError(f"--tag {tag!r} may only contain letters, digits, '_' and '-'")
+    return out / tag
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--episode", type=Path, default=DEFAULT_EPISODE)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--dry-run", action="store_true", help="build the inputs and run the rules; no model call")
     parser.add_argument("--force", action="store_true", help="run the model again even if result.json exists")
+    parser.add_argument("--tag", help="write <out>/<tag>/result.json, so earlier results are kept")
     args = parser.parse_args(argv)
 
-    result_path = args.out / "result.json"
+    out_dir = result_dir(args.out, args.tag)
+    result_path = out_dir / "result.json"
     if not args.dry_run and result_path.exists() and not args.force:
         print(f"REFUSED: {result_path} exists, so the real call already ran. Use --force to spend another.")
         return 1
@@ -141,10 +158,10 @@ def main(argv: list[str] | None = None) -> int:
 
     load_dotenv()
     before = len(_vl_calls())
-    diagnosis, error = None, None
+    diagnosis, gated, error = None, [], None
     try:
-        diagnosis = diagnose(inputs.frames, inputs.wrist, inputs.windows, inputs.task_text, replay_success,
-                             inputs.traj.duration)
+        diagnosis, gated = diagnose_gated(inputs.frames, inputs.wrist, inputs.windows, inputs.task_text,
+                                          replay_success, inputs.traj.duration)
     except (DiagnosisError, TokenFactoryError) as e:
         error = f"{type(e).__name__}: {e}"
     calls = _vl_calls()[before:]
@@ -156,22 +173,29 @@ def main(argv: list[str] | None = None) -> int:
     print(f"this run: {len(calls)} calls, ${cost:.6f} estimated")
 
     result = {
+        "tag": args.tag,
         "episode": str(args.episode),
         "replay_success": inputs.replay_success,
         "notes": inputs.notes,
         "calls": calls,
         "est_cost_usd": cost,
         "error": error,
+        # what the model said before the gate: the issues it kept plus the ones the gate dropped
+        "issues_reported_by_model": (len(diagnosis.issues) + sum(g.startswith("dropped issue") for g in gated))
+        if diagnosis else None,
+        "gated": gated,
         "nemotron": _summary(diagnosis) if diagnosis else None,
         "rules": _summary(rules),
     }
-    args.out.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"wrote {result_path}")
     if error:
         print(f"\nFAILED: {error}")
         return 1
-    print("\nNemotron diagnosis:")
+    print(f"\nModel reported {result['issues_reported_by_model']} issues; the gate dropped:")
+    print("\n".join(f"  {g}" for g in gated) or "  nothing")
+    print("\nNemotron diagnosis (gated):")
     print(json.dumps(_summary(diagnosis), indent=2))
     return 0
 
