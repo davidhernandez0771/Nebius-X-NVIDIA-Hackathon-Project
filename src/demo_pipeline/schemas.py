@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 Vec3 = tuple[float, float, float]
 Quat = tuple[float, float, float, float]  # (w, x, y, z)
-RobotName = Literal["franka", "openarm", "so101"]
+RobotName = Literal["franka", "openarm", "so101", "flexiv"]
 
 UNIT_QUAT_TOL = 1e-3
 TIME_TOL = 1e-6
