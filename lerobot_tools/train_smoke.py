@@ -129,9 +129,23 @@ def train(dataset_root: Path, out_dir: Path, steps: int, batch_size: int, log_pa
 
 
 _STEP_LINE = re.compile(
-    r"step:(?P<step>\d+)K?\s.*?\sloss:(?P<loss>[\d.]+)\s.*?updt_s:(?P<updt>[\d.]+)\s+data_s:(?P<data>[\d.]+)"
+    r"step:(?P<step>\d+)(?P<k>K?)\s.*?\sloss:(?P<loss>[\d.]+)\s.*?updt_s:(?P<updt>[\d.]+)\s+data_s:(?P<data>[\d.]+)"
     r"(?:.*?mem_gb:(?P<mem>[\d.]+))?"
 )
+
+
+def _logged_steps(rows: list[dict]) -> list[int]:
+    """lerobot prints steps >= 1000 as "1K", "2K" (no decimals), so 1000 and 1050 look alike. Continue the interval
+    seen between the last two exact steps; without one, read "NK" as N*1000."""
+    steps: list[int] = []
+    for r in rows:
+        if not r["k"]:
+            steps.append(int(r["step"]))
+        elif len(steps) >= 2 and steps[-1] - steps[-2] > 0:
+            steps.append(steps[-1] + steps[-1] - steps[-2])
+        else:
+            steps.append(int(r["step"]) * 1000)
+    return steps
 
 
 def parse_train_log(text: str) -> dict:
@@ -146,7 +160,7 @@ def parse_train_log(text: str) -> dict:
     steady = s_per_step[1:] or s_per_step
     mems = [float(r["mem"]) for r in rows if r["mem"]]
     return {
-        "logged_steps": [int(r["step"]) for r in rows],
+        "logged_steps": _logged_steps(rows),
         "s_per_step_first_window": round(s_per_step[0], 3),
         "steps_per_s_steady": round(1.0 / float(np.mean(steady)), 1),
         "loss_first_last": [float(rows[0]["loss"]), float(rows[-1]["loss"])],
