@@ -170,3 +170,35 @@ def test_length_mismatch_raises():
     )
     with pytest.raises(ValueError):
         check_success(traj, short, BIN)
+
+
+def _tcp_error(n: int, start_s: float, dur_s: float, err: float = 0.03) -> np.ndarray:
+    e = np.full(n, 0.002)
+    i0 = round(start_s / DT)
+    e[i0 : i0 + round(dur_s / DT)] = err
+    return e
+
+
+def test_ik_residual_over_2cm_for_more_than_1s_is_unreachable():
+    traj, sim = _clean()
+    res = check_success(traj, sim, BIN, tcp_error=_tcp_error(len(traj.t), 1.0, 1.2))
+    assert not res.success
+    assert "unreachable" in res.reasons
+
+
+def test_short_ik_residual_spike_is_not_unreachable():
+    traj, sim = _clean()
+    res = check_success(traj, sim, BIN, tcp_error=_tcp_error(len(traj.t), 1.0, 0.8))
+    assert res.success, res.reasons
+
+
+def test_small_ik_residual_is_not_unreachable_however_long():
+    traj, sim = _clean()
+    res = check_success(traj, sim, BIN, tcp_error=_tcp_error(len(traj.t), 0.0, 5.0, err=0.015))
+    assert res.success, res.reasons
+
+
+def test_tcp_error_length_mismatch_raises():
+    traj, sim = _clean()
+    with pytest.raises(ValueError):
+        check_success(traj, sim, BIN, tcp_error=np.zeros(len(traj.t) - 1))

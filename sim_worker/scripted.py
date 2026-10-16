@@ -46,7 +46,8 @@ def _min_jerk(tau: np.ndarray) -> np.ndarray:
     return 10 * tau**3 - 15 * tau**4 + 6 * tau**5
 
 
-def scripted_expert(scene: Scene, rate_hz: int = 50) -> Trajectory:
+def scripted_expert(scene: Scene, rate_hz: int = 50, hold_s: float = HOLD_S) -> Trajectory:
+    """hold_s: how long the hand waits at the close and at the open (0.15 is closer to human demos)."""
     dt = 1.0 / rate_hz
     cube = np.asarray(scene.cube_pose.pos, dtype=float)
     bin_c = np.asarray(scene.bin_pose.pos, dtype=float)
@@ -64,11 +65,11 @@ def scripted_expert(scene: Scene, rate_hz: int = 50) -> Trajectory:
     # (target pos, target quat, gripper during this segment, hold seconds or None for a move)
     plan = [
         (cube, q_grasp, 0, None),            # 2. descend to cube center
-        (cube, q_grasp, 1, HOLD_S),          # 3. close
+        (cube, q_grasp, 1, hold_s),          # 3. close
         (lifted, DOWN_WXYZ, 1, None),        # 4. lift
         (above_bin, DOWN_WXYZ, 1, None),     # 5. above the bin
         (release, DOWN_WXYZ, 1, None),       # 6. descend
-        (release, DOWN_WXYZ, 0, HOLD_S),     # 7. open
+        (release, DOWN_WXYZ, 0, hold_s),     # 7. open
         (retreat, DOWN_WXYZ, 0, None),       # 8. retreat
     ]
 
