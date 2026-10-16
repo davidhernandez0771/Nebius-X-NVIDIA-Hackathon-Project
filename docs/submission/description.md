@@ -1,8 +1,8 @@
 # Perfect, then multiply: Devpost project description (DRAFT)
 
-<!-- Draft written 2026-10-16, refreshed in sprint 3b with the merged sprint 2-3 results.
-     Every number cites its source note in an HTML comment.
-     Sections marked PENDING must be filled in from measured results before submitting. -->
+<!-- Draft written 2026-10-16, refreshed in sprint 3b, and again after sprint 4 (sprint 4
+     results, the ablation, the teleop sink). Every number cites its source note in an HTML
+     comment. Sections marked PENDING must be filled in from measured results before submitting. -->
 
 ## Inspiration
 
@@ -22,10 +22,16 @@ You record a pick-and-place demonstration by moving your hand in front of a webc
 simulated Franka arm in NVIDIA Isaac Lab follows it. Then the pipeline runs:
 
 1. **Measure:** code computes motion metrics in 0.5 s windows. <!-- src: spec §7 -->
-2. **Diagnose:** NVIDIA **Nemotron 3.5 Super VL**, on **Nebius Token Factory**, looks at key
-   frames plus the metrics. It returns structured JSON: the demo's segments, its issues
-   with timestamps, which repairs to run, and a keep / repair / discard decision. A
-   **metric gate** then drops any claim the measurements contradict.
+2. **Diagnose:** the result is structured JSON: the demo's segments, its issues with
+   timestamps, which repairs to run, and a keep / repair / discard decision. The default
+   is a **hybrid**:
+   - a rules detector owns the timing issues (pauses, tremor, idle time);
+   - NVIDIA **Nemotron 3.5 Super VL**, on **Nebius Token Factory**, gets key frames, the
+     metrics, the rules' findings and a code-measured grasp offset;
+   - the model is asked only for what the rules never name (an off-center grasp, a bad
+     release, a drop, the wrong object) and the segments;
+   - gates drop any claim the measurements contradict.
+   <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 1) -->
 3. **Repair:** code applies those repairs from a fixed, unit-tested menu: trim,
    remove_pause, smooth, retime, recenter_grasp, replan_transit, discard.
 4. **Verify:** Isaac Lab replays the repaired demo, and pure code decides success: cube in
@@ -39,10 +45,14 @@ The design rule is **the AI decides, code acts, physics checks.** The model neve
 the robot directly. It names problems, and code computes the exact fix from the simulator
 state.
 
-A web app shows it: **Record** (webcam hand tracking and teleop status), **Review** (each
-demo's timeline in three lanes: what the model saw, the demo's phases, what code repaired,
-plus a Perfect button), **Dataset** and **Results**.
-<!-- src: docs/superpowers/notes/2026-10-16-web-pages.md -->
+The web app has four pages:
+- **Record:** webcam hand tracking that drives the sim arm, with Start, Stop and save, and
+  Reset scene.
+- **Review:** each demo's timeline in three lanes (what the model saw, the demo's phases,
+  what code repaired), plus a Perfect button.
+- **Dataset.**
+- **Results.**
+<!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3, 3b, 3c) -->
 
 ## How we built it
 
@@ -50,26 +60,38 @@ plus a Perfect button), **Dataset** and **Results**.
   rules detector, the repair ops, the multiply transform, the success check, the teleop
   mapping and a demo store. The backend, the Isaac Lab worker and the LeRobot exporter all
   import it, so all three agree on one contract.
-- **Diagnoser** (`src/app/ai/diagnose.py`): builds the prompt from the pydantic schema, so
-  the prompt and the validator cannot drift apart. It validates the reply, retries once
-  with the validation error, gates it against the metrics, and falls back to the rules
-  detector if the reply is still invalid or the API errors.
-  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2; Diagnoser calibration) -->
-- **Sim worker** (`sim_worker/`, Isaac Sim 6.2 + Isaac Lab 3.0): a pick-place scene with
-  contact sensors and front + wrist cameras, a differential-IK replay with joint-velocity
-  feedforward, batch and multiply runners, and per-robot constants for a second arm.
-  <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md -->
-- **Backend** (FastAPI): a WebSocket relay from the browser's hand tracking to the sim;
-  `/demos` routes; `POST /demos/{id}/perfect` jobs that diagnose, repair and verify through
-  the sim worker over HTTP; and `GET /results` for the chart.
+- **Diagnoser** (`src/app/ai/diagnose.py`):
+  - It builds the prompt from the pydantic schema, so the prompt and the validator cannot
+    drift apart.
+  - It validates the reply, retries once with the validation error, and gates it against
+    the metrics.
+  - The hybrid merges the model's findings with the rules'. If the model fails, the
+    backend falls back to the rules alone.
+  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2; Diagnoser calibration; sprint 4 Tasks 1-2) -->
+- **Sim worker** (`sim_worker/`, Isaac Sim 6.2 + Isaac Lab 3.0):
+  - a pick-place scene with contact sensors and front + wrist cameras;
+  - a differential-IK replay with joint-velocity feedforward;
+  - an HTTP server for replay and multiply jobs (one at a time, resumable by seed), which
+    keeps the PC awake while a job runs;
+  - the webcam-teleop sink that drives the arm from the browser and saves each recording
+    as a demo.
+  <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2-4); docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3c T5) -->
+- **Backend** (FastAPI):
+  - a WebSocket relay that carries hand poses and record/stop/reset controls to the sim, and
+    the sim's status back;
+  - `/demos` routes;
+  - `POST /demos/{id}/perfect` jobs that diagnose, repair and verify through the sim worker;
+  - `GET /results` for the chart.
   <!-- src: t4-status (sprint 3 Tasks 2-3); docs/superpowers/notes/2026-10-16-web-pages.md -->
 - **LeRobot tools:** export to the LeRobot v3.0 dataset format, a symlink-free training
   wrapper for Windows, an experiment runner, and a policy server that `sim_eval/` uses to
   evaluate policies in Isaac. <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md -->
-- Every stage was built test-first. The backend + pipeline suite is at 770 passed,
-  0 failed, 10 skipped (the skips need lerobot, torch or a GPU), and the web app at 163
-  tests, with every AI call mocked.
-  <!-- src: test output 2026-10-16, recorded in docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3b) -->
+- **Testing:**
+  - Every stage was built test-first, with every AI call mocked.
+  - The backend + pipeline suite is at 1090 passed, 0 failed, 16 skipped (the skips need
+    lerobot, torch, Isaac or a GPU).
+  - The web app has 178 tests, and the Isaac-side suites pass 539 tests.
+  <!-- src: test output 2026-10-16 on 97d1c92 (code identical to 68e4e68), recorded in docs/superpowers/notes/2026-10-16-web-pages.md (docs refresh after sprint 4) -->
 
 ## How we use NVIDIA Nemotron and Nebius Token Factory
 
@@ -78,36 +100,62 @@ plus a Perfect button), **Dataset** and **Results**.
 - **Input per diagnosis:** 7 front-camera key frames captioned with their times, plus 1
   wrist frame at the moment the gripper closes. Token Factory allows at most 8 images per
   prompt. Also the metrics table as compact text, the task sentence, and whether the
-  replay succeeded. <!-- src: t4-nemotron-vl -->
+  replay succeeded. In the hybrid, it also gets the rules' findings and the measured grasp
+  offset. <!-- src: t4-nemotron-vl; t4-status (sprint 4 Task 1) -->
 - **Output:** one JSON diagnosis, validated against the schema and gated against the
   metrics before any repair runs.
 - **Cost and speed (measured):** about $0.0013–$0.0016 and 2.3–3.9 s per diagnosis, with
-  8 images. Images are billed as prompt tokens, about 263 tokens per 256×256 image.
-  <!-- src: t4-nemotron-vl ($0.001332, 2.52 s, 263 tokens); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2 Task 6: $0.001648, 3.9 s; calibration: $0.001366, 2.3 s) -->
+  8 images. Images are billed as prompt tokens, about 263 tokens per 256×256 image. The
+  20-episode ablation cost $0.0618 for 42 calls.
+  <!-- src: t4-nemotron-vl ($0.001332, 2.52 s, 263 tokens); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2 Task 6: $0.001648, 3.9 s; calibration: $0.001366, 2.3 s; sprint 4 Task 3: 42 calls, $0.0618) -->
 - Every call is logged with its token counts and cost, under a hard budget. A batch stops
   itself, resumably, before it could pass its call or dollar budget, rather than silently
   falling back to rules. <!-- src: t4-status (sprint 3 Task 4) -->
 
 ## Challenges we ran into
 
-- **The VLM over-reported on clean demos, and we fixed it on the test episode.** On a real
-  Isaac episode of a perfect scripted demo, the first prompt made Nemotron report 5 issues,
-  all false, including a rim contact that contradicted the contact data it was given.
-  Applied as-is, its repairs would have made the demo worse. We calibrated the prompt
-  ("a clean demo is common and must be keep", normal ranges, contacts as ground truth) and
-  added a gate that drops claims the metrics contradict. The same episode now comes back
-  **0 issues, keep**, at $0.0014 and 2.3 s. That is one sample, and recall is not measured
-  yet. <!-- src: t4-status (sprint 2 Task 6; Diagnoser calibration) -->
+- **Getting the VLM's judgement right, and measuring it honestly.**
+  1. On a clean Isaac episode, our first prompt made Nemotron report 5 issues, all false.
+     We calibrated the prompt, and that episode came back clean.
+  2. On the first live pipeline run, the calibrated prompt then missed all 9 real issues
+     in 3 degraded demos. Scored on 5 demos, its recall was 0.
+  3. So we built a hybrid: the rules own timing, and the model is given a code-measured
+     grasp offset.
+  4. Then we ran an ablation on 20 rendered degraded episodes:
+     - rules **0.82** F1;
+     - hybrid **0.90**;
+     - a zero-call code grasp check **0.95**;
+     - Nemotron alone **0.00**.
+
+  On this set, the hybrid's gain comes from the code measurement, not the model's own
+  judgement, and the hybrid added 10 false `bad_release` claims. We report that as it is.
+  <!-- src: t4-status (sprint 2 Task 6; Diagnoser calibration; sprint 3 Task 3; sprint 4 Task 3); recall 0 on 5 demos: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 4 Task 2, "s1 compare") -->
 - **IK lag:** the arm trailed the target, and the cause was the joint PD drive's damping,
   not IK. Joint-velocity feedforward cut the mean tracking error from 26.8 mm to 2.1 mm
   without changing the demo. <!-- src: t2-status (sprint 2 Task 2) -->
-- **Multiplication failures:** 3 of 30 variants failed. We traced them to the transform
-  handing over from the cube's frame to the bin's at a fixed time, which swung the hand
-  past the arm's reach. The carry is now re-planned between the gripper events.
-  <!-- src: t2-status (sprint 2 Task 4); docs/superpowers/notes/2026-10-15-t1-status.md (sprint 3 Task 1) -->
-- **The second arm didn't fit.** The OpenArm runs end to end, but its ±45° wrist confines
-  a vertical grasp to a ~0.2 m height band, so its yield in the shared workspace was 0/30.
-  <!-- src: t2-status (sprint 2 Task 5) -->
+- **Multiplication failures, traced and fixed:**
+  - The cause was the old transform's fixed-time handover from the cube's frame to the
+    bin's.
+  - With human timing, that moment fell earlier in the lift, so variants swung up to
+    0.42 m off course and reached up to 1.0 m from the shoulder.
+  - Re-planning the carry between the gripper events took the clean expert from 27/30 to
+    **30/30**, and degraded and perfected demos from 34/75 to **75/75**.
+  <!-- src: t2-status (sprint 2 Task 4; sprint 4 Tasks 1, 3); docs/superpowers/notes/2026-10-15-t1-status.md (sprint 3 Task 1; sprint 4 Task 1) -->
+- **A PC going to sleep looked like a bad demo.**
+  - Five variants of one repaired demo failed with `sim_error`.
+  - Windows had logged "entering sleep" in the same second as the first CUDA error.
+    Replayed directly, all five succeed.
+  - The sim worker now asks Windows to stay awake while a job runs, without changing any
+    power setting, and retries once after the GPU recovers.
+  <!-- src: t2-status (sprint 4 Task 2) -->
+- **About 4% of localhost HTTP responses were reset** on this machine, even from a plain
+  stdlib server. The multiply client retries, which is safe because multiply is idempotent
+  by seed. <!-- src: t2-status (sprint 4 Task 3) -->
+- **The second arm didn't fit.**
+  - The OpenArm's ±45° wrist confines a vertical grasp to a ~0.2 m height band: 0/30
+    multiplied.
+  - The Flexiv Rizon 4s did better, 9/30, but its gripper physics slips.
+  <!-- src: t2-status (sprint 2 Task 5; sprint 3 Task 3) -->
 - **Webcam tremor broke the rules detector** (F1 0.00), until stillness was measured on a
   smoothed path and jitter on an absolute limit. <!-- src: t1-status (sprint 2 tremor run) -->
 - **The 8-image limit** was discovered only through an HTTP 400 on the first live call. The
@@ -115,43 +163,67 @@ plus a Perfect button), **Dataset** and **Results**.
 - **Isaac Lab 3.0 differences from older tutorials:** xyzw quaternions, nested prim paths,
   glob (not regex) filter patterns, and no window unless you pass `--viz kit`.
   <!-- src: t2-status; sprint1 plan T2 Gotchas -->
-- **Windows:** LeRobot's checkpoint symlink fails without admin rights (we wrote a
-  symlink-free wrapper), torchcodec needed a shared FFmpeg (we decode with PyAV instead),
-  Python environments inside OneDrive fail to install, and a PC going to sleep killed CUDA
-  mid-batch. <!-- src: docs/superpowers/notes/2026-10-15-t3-lerobot-windows.md; t3-status (sprint 2 Task 1); spec Changes; t2-status (sprint 2 Task 6) -->
+- **Windows:**
+  - LeRobot's checkpoint symlink fails without admin rights, so we wrote a symlink-free
+    wrapper.
+  - torchcodec needed a shared FFmpeg, so we decode with PyAV instead.
+  - Python environments inside OneDrive fail to install.
+  <!-- src: docs/superpowers/notes/2026-10-15-t3-lerobot-windows.md; t3-status (sprint 2 Task 1); spec Changes -->
 
 ## Accomplishments we're proud of
 
-- **Physics checks at scale:** 50/50 scripted demos replay and verify in Isaac Lab (20/20
-  with cameras), and **27/30 = 90%** of multiplied variants pass, next to MimicGen's
-  published 38–74%. Our task is easier than MimicGen's, so the claim we make is narrower:
-  every failure is kept out of the dataset with a named reason.
-  <!-- src: t2-status (sprint 2 Tasks 3, 4, 6); MimicGen range: spec §3 -->
-- **A strong, honest baseline:** under synthetic tremor, the rules detector's F1 on the
-  issues it detects went from 0.00 to 0.97–0.99. <!-- src: t1-status (sprint 2 Step 5) -->
-- **A VLM that stopped crying wolf** on a clean demo (5 → 0 false issues), with the gate as
-  a deterministic safety net. <!-- src: t4-status (Diagnoser calibration) -->
+- **Physics checks at scale:**
+  - 50/50 scripted demos replay and verify in Isaac Lab (20/20 with cameras).
+  - **30/30** multiplied variants of the clean expert pass.
+  - **75/75** variants of degraded and perfected demos pass.
+  - Our task is easier than MimicGen's (published 38–74%), so the claim we make is
+    narrower: every failure is kept out of the dataset with a named reason.
+  <!-- src: t2-status (sprint 2 Tasks 3, 6; sprint 4 Tasks 1, 3); MimicGen range: spec §3 -->
+- **The full pipeline ran live:** a 12-demo set, then 5 human demos × raw / rules /
+  Nemotron, perfected, multiplied and assembled into a training grid that the trainer's
+  dry run accepted. <!-- src: t4-status (sprint 3 Task 3) -->
+- **An ablation that tells on itself:** we scored our own model-based diagnoser against a
+  zero-cost code baseline, and published that the code baseline wins on this set.
+  <!-- src: t4-status (sprint 4 Task 3) -->
+- **Webcam teleop into Isaac, end to end:**
+  - An automated fake-hand smoke recorded 376/376 steps.
+  - The saved demo verified live, and again by an independent replay.
+  - It ran at 19.1 ms per control step headless, just inside real time.
+  <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (Sprint 3c T5 Task 3 follow-up) -->
 - **LeRobot ACT trains natively on Windows** on an RTX 5080: 20.7 steps/s at batch 8,
   under 1 GB of torch memory. <!-- src: t3-lerobot-windows -->
 - A pipeline that refuses to fake results: unmeasured values are `null` end to end, and the
-  web Results page shows them as "pending".
-  <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3b) -->
+  web Results page and the charts show them as "pending".
+  <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3b); docs/media/README.md (Charts) -->
 
 ## Results
 
 > **PENDING.** The headline chart: policy success on 50 fixed test positions against the
 > number of human demos (5, 10, 20), for raw, raw + multiply (a MimicGen-style baseline),
-> and perfected + multiply (ours). Also the ablation at 10 demos (rules-only vs rules +
-> Nemotron repair) and the logged human minutes. <!-- src: spec §3 -->
+> and perfected + multiply (ours). Also the policy ablation at 10 demos (rules-only vs
+> rules + Nemotron repair) and the logged human minutes. <!-- src: spec §3 -->
+> ACT cells of 5, 10 and 13 clean-expert episodes are trained, but not yet evaluated in
+> Isaac. <!-- src: t3-status (sprint 3 Tasks 3-4) -->
 
 Measured so far (details in the README's Results):
 
-- Multiplication yield, Franka: 27/30 = 90%. The Isaac re-run after the handover fix is
-  PENDING. <!-- src: t2-status (sprint 2 Task 4); t1-status (sprint 3 Task 1) -->
-- OpenArm: 0/30 multiplied, 2/30 scripted, in the shared workspace (a negative result).
-  <!-- src: t2-status (sprint 2 Task 5) -->
-- Nemotron on a clean episode: 0 false issues after calibration (n = 1). Recall: PENDING.
-  <!-- src: t4-status (Diagnoser calibration) -->
+- **Multiplication yield, Franka:**
+  - clean expert **30/30**, up from 27/30 before the handover fix;
+  - degraded and perfected sources **75/75**, up from 34/75.
+  <!-- src: t2-status (sprint 2 Task 4; sprint 4 Tasks 1, 3) -->
+- **Diagnosis ablation** (20 degraded episodes, F1 over all issue types):
+
+  | Diagnoser | F1 |
+  |---|---|
+  | rules | 0.82 |
+  | hybrid | 0.90 |
+  | code-only grasp check | 0.95 |
+  | Nemotron alone | 0.00 |
+
+  **The model's value is still open.** Showing it needs a test set with grasp negatives and
+  real release, drop and wrong-object issues. <!-- src: t4-status (sprint 4 Task 3) -->
+- **Second arm** (a negative result): OpenArm 0/30, Flexiv 9/30 multiplied.
+  <!-- src: t2-status (sprint 2 Task 5; sprint 3 Task 3) -->
 
 ## Prior art, and what's new
 
@@ -163,17 +235,21 @@ feedback to the human), and handrobot and AnyTeleop (webcam teleoperation).
 Our claim, to our knowledge: *"A VLM's structured, timestamped diagnosis drives the
 automatic repair of webcam teleoperation demos, verified by physics replay, then
 multiplied across positions and similar arms."* We do not claim to be the first at any of
-the individual pieces.
+the individual pieces. Our own ablation does not yet show the VLM beating a code-only
+check, so the "VLM-driven" part of the claim is still to be shown.
+<!-- src: t4-status (sprint 4 Task 3) -->
 
 ## What we built during the submission period
 
 <!-- Dates are from git history. Confirm them against the official submission-period dates before submitting. -->
 
-- **2026-10-15:** the design spec (commit `8072315`). Then, in four parallel tracks: the
-  pure-Python core (measure, rules, repair, multiply); the Isaac Lab scene, replay and
-  success check; LeRobot export and the ACT training smoke; and the Nemotron VL diagnoser
-  with its first live calls. Also the teleop hand → end-effector mapping, the WebSocket
-  relay and the browser client.
+- **2026-10-15:** the design spec (commit `8072315`). Then, in four parallel tracks:
+  - the pure-Python core (measure, rules, repair, multiply);
+  - the Isaac Lab scene, replay and success check;
+  - LeRobot export and the ACT training smoke;
+  - the Nemotron VL diagnoser with its first live calls.
+
+  Also the teleop hand → end-effector mapping, the WebSocket relay and the browser client.
   <!-- src: t1-status, t2-status, t3-status, t4-status (all 2026-10-15) -->
 - **2026-10-16:**
   - the demo store and `/demos` routes, the first Nemotron diagnosis on real Isaac frames,
@@ -184,20 +260,30 @@ the individual pieces.
   - the symlink-free training wrapper, the policy server, the experiment runner and the
     Isaac eval harness;
   - the perfect jobs, the sim worker client and the resumable pipeline batch;
-  - the four web pages and `GET /results`.
-  <!-- src: t4-status, t2-status, t1-status, t3-status (sprint 2-3 entries); docs/superpowers/notes/2026-10-16-web-pages.md -->
+  - the sim worker's HTTP server, the Flexiv trial and 20 rendered degraded demos;
+  - the first live pipeline run and ACT training on sim episodes;
+  - the multiply fix confirmed in Isaac (30/30, 75/75), the sleep root cause and the
+    keep-awake fix;
+  - the hybrid diagnoser and its ablation;
+  - the media in `docs/media/`;
+  - the four web pages, `GET /results`, and the webcam-teleop sink.
+  <!-- src: t4-status, t2-status, t1-status, t3-status (sprint 2-4 entries); docs/superpowers/notes/2026-10-16-web-pages.md -->
 - **Reused from earlier in this repo** (started 2026-09-13 as *SANT*, a room-organizer app
   for the same hackathon): the Token Factory client and usage logging, the FastAPI backend
   shell, and the browser MediaPipe hand tracking.
-- **PENDING:** the sim worker's HTTP server and the first live pipeline run, the webcam →
-  sim teleop loop, the OpenArm workspace, and the experiments behind the chart and the
-  ablation.
+- **PENDING:**
+  - a webcam demo recorded by a real person;
+  - the Isaac evaluation of the trained policies, which is the chart;
+  - the policy ablation;
+  - a demo-grade second arm.
 
 ## What's next
 
-Run the perfect pipeline live through the sim worker. Score Nemotron against ground truth
-on degraded episodes, to measure its recall. Then run the experiments behind the chart and
-the ablation, and report them, whatever they show.
+- Evaluate the trained policies in Isaac, and run the experiments behind the chart and the
+  policy ablation. Report them, whatever they show.
+- Record real webcam demos.
+- Build a diagnosis test set with grasp negatives and real release, drop and wrong-object
+  issues, so the model's contribution can be measured rather than assumed.
 
 ## Built with
 

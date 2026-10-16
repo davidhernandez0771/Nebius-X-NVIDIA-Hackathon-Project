@@ -1,5 +1,7 @@
 # Architecture
 
+> **Historical: SANT era.** Written for SANT, the room-organizer app this repo started as (Best Apps and Agents track); parts are out of date. The current submission is *Perfect, then multiply* (Physical AI track, no demo URL needed); see the [README](../README.md).
+
 Status: 2026-09-18. The foundation in §5 is built: a FastAPI backend with the
 full data model (§7), every route in §3 except the entry scene, and a React
 frontend shell with one page per screen. None of it has been run against the

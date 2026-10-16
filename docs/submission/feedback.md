@@ -1,6 +1,6 @@
 # Tool feedback (DRAFT)
 
-<!-- Draft written 2026-10-16 from the project's dated notes, refreshed in sprint 3b. Each finding cites its source.
+<!-- Draft written 2026-10-16 from the project's dated notes, refreshed in sprint 3b and again after sprint 4. Each finding cites its source.
      The "would we build with it again" answers are a draft for the team to confirm. -->
 
 Context: one developer machine, Windows 11, RTX 5080 16 GB. Simulation-only Physical AI
@@ -28,8 +28,9 @@ OpenAI Python SDK.
 - **Cheap and fast enough for a per-demo pipeline step:** about $0.0013–$0.0016 and
   2.3–3.9 s per 8-image diagnosis. <!-- src: t4-nemotron-vl; docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2 Task 6; Diagnoser calibration) -->
 - **Usage fields in every response** let us log exact prompt/completion tokens and keep a
-  hard budget per sprint. Our whole diagnoser track spent about $0.0017.
-  <!-- src: t4-nemotron-vl -->
+  hard budget per sprint. Through the 20-episode ablation, the usage log totals 51 calls
+  and $0.0737.
+  <!-- src: t4-nemotron-vl; docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 3: "usage log 9 → 51 calls, $0.011922 → $0.073744") -->
 
 **What needs work**
 
@@ -70,9 +71,10 @@ repairs from a fixed menu, and a keep / repair / discard decision.
 
 **What worked**
 
-- **Format compliance:** valid JSON on the first try in all three live diagnoses (no fences,
-  no prose, times inside the demo), against a fairly strict schema-generated prompt.
-  <!-- src: t4-nemotron-vl; t4-status sprint 2 Task 6 and Diagnoser calibration (1 call each) -->
+- **Format compliance:** valid JSON (no fences, no prose, times inside the demo), against a
+  fairly strict schema-generated prompt. It was valid on the first try in the first three
+  live diagnoses, and the 42 ablation calls needed no retries or fallbacks.
+  <!-- src: t4-nemotron-vl; t4-status sprint 2 Task 6 and Diagnoser calibration (1 call each); sprint 4 Task 3 -->
 - **Semantic segmentation:** on a real Isaac episode it split the demo into approach
   0–1 s, grasp 1–1.5, lift 1.5–3.5, carry 3.5–6, release 6–6.5 and retreat 6.5–7.5. That
   matches the gripper events and is finer than our rules' three segments.
@@ -82,10 +84,34 @@ repairs from a fixed menu, and a keep / repair / discard decision.
 - **It responds to calibration.** Telling it that a clean demo is common and must be
   `keep`, giving it the normal metric ranges, and making the contact columns ground truth
   took the clean episode from 5 false issues to 0, with a shorter reply (633 → 188
-  completion tokens) and a lower cost (/usr/bin/bash.001648 → /usr/bin/bash.001366).
+  completion tokens) and a lower cost ($0.001648 → $0.001366).
   <!-- src: t4-status (Diagnoser calibration, Before / after and Tokens) -->
 
-**What needs work** (our measurements; the sample is small, 3 live diagnoses)
+**What needs work** (our measurements: 3 early live diagnoses, 5 in the first pipeline run,
+and 42 in a 20-episode ablation)
+<!-- src: t4-nemotron-vl; t4-status (sprint 2 Task 6; calibration; sprint 3 Task 3; sprint 4 Task 3) -->
+
+- **Calibrating it is a seesaw, and on our ablation its own judgement added nothing
+  measurable over code.**
+  - After we calibrated it against false positives (below), it kept every degraded demo:
+    it reported 0 of 9 real issues on 3 demos, and its recall over 5 scored demos was 0.
+  - In a hybrid prompt, it was told the rules' timing findings and a code-measured grasp
+    offset. It then claimed `grasp_off_center` on all 21 episodes, the clean one included.
+    The measured-offset gate dropped the clean one, so the 20 claims left were all true.
+  - It also reported 10 `bad_release`s ("released … outside the bin") on replays that
+    verified the cube in the bin.
+  - F1 over all issue types:
+
+    | Diagnoser | F1 |
+    |---|---|
+    | rules | 0.82 |
+    | hybrid | 0.90 |
+    | zero-call code grasp check | 0.95 |
+    | Nemotron alone | 0.00 |
+
+  - The set has no grasp negatives, so it cannot show whether the model really reads the
+    wrist frame. That question is still open.
+  <!-- src: t4-status (sprint 3 Task 3; sprint 4 Task 3); t1-status (sprint 4 Task 2, "s1 compare") -->
 
 - **Out of the box, it over-reported on a clean demo.** With our first prompt, on a
   perfect scripted demo that our rules correctly rated `keep`, it returned `repair` with
@@ -110,10 +136,13 @@ repairs from a fixed menu, and a keep / repair / discard decision.
 **Onboarding:** fast, because it sits behind the same Token Factory API as the text
 Nemotron models.
 
-**Would we build with it again?** *Draft: yes, for what code cannot see.* Here that means
-segment labels, and (still to be tested) wrong object, drops and grasp quality from the
-wrist view. We gate its kinematic claims against measured metrics, which our architecture
-already assumed ("the AI decides, code acts, physics checks").
+**Would we build with it again?** *Draft: yes, but only behind code checks, and only for
+what code cannot see.*
+- Here that means segment labels and, still to be shown, wrong object, drops and grasp
+  quality from the wrist view.
+- Our ablation says to measure the model against a zero-cost code baseline before trusting
+  it, and to gate every kinematic claim. Our architecture already assumed this ("the AI
+  decides, code acts, physics checks").
 
 ---
 
@@ -133,8 +162,10 @@ and feeds a pure-Python success check. <!-- src: t2-status -->
   reported 287 N max; into a bin wall, 116 N. A second replay in the same process reset
   correctly. <!-- src: t2-status, Extra verification -->
 - **It holds up over batches:** 50/50 scripted demos verified (13 s each without cameras),
-  20/20 with cameras at a median 38.0 s and a 5980 MiB GPU peak, and 27/30 multiplied
-  variants. <!-- src: t2-status (sprint 2 Tasks 3, 4, 6) -->
+  20/20 with cameras at a median 38.0 s and a 5980 MiB GPU peak.
+  - Multiplied variants: 27/30 at first. After our own handover fix (pipeline-side, not
+    Isaac), 30/30 clean, and 75/75 from degraded and perfected demos.
+  <!-- src: t2-status (sprint 2 Tasks 3, 4, 6; sprint 4 Tasks 1, 3) -->
 - **The bundled tutorials** (`scripts/tutorials/05_controllers/run_diff_ik.py`, the
   scene, rigid-object and sensor tutorials) were the reliable API reference.
   <!-- src: sprint1 plan, T2 API source of truth -->
@@ -169,8 +200,11 @@ and feeds a pure-Python success check. <!-- src: t2-status -->
   <!-- src: t2-status (sprint 2 Task 2) -->
 - **Joint limits matter more than reach for the OpenArm.** Its ±45° wrist confines a
   vertical grasp to a ~0.2 m height band, so it scored 0/30 in our shared workspace while
-  the Franka scored 27/30. A per-robot workspace hint in the asset docs would help.
-  <!-- src: t2-status (sprint 2 Task 5) -->
+  the Franka scored 27/30 (30/30 after our handover fix). A per-robot workspace hint in the
+  asset docs would help. <!-- src: t2-status (sprint 2 Task 5; sprint 4 Task 1) -->
+- **Gripper finger masses on the Flexiv Rizon 4s + Grav.** The near-massless finger bodies
+  slip or drag the cube, so it scored only 9/30 multiplied. Realistic finger masses need a
+  grip re-tune. <!-- src: t2-status (sprint 3 Task 3 and final summary, Open items 3) -->
 - The first launch downloads assets (37 s here). Fine, but worth saying in the quickstart.
   <!-- src: t2-status -->
 
@@ -246,3 +280,22 @@ Not an NVIDIA or Nebius tool, but it cost us time, and other Windows hackers wil
   copies instead of hardlinking. <!-- src: spec Changes; sprint1 plan Global Constraints -->
 - Install guides for Isaac Sim, Isaac Lab and LeRobot could mention this, since all three
   use large pip environments.
+
+## Cross-cutting: long GPU runs on a Windows desktop
+
+- **Windows idle sleep kills CUDA mid-run, and it looks like a bad input.**
+  - Five multiply variants of one repaired demo failed with `sim_error`, in 8.3 s in total.
+    The worker log showed `CUDA error: unknown error` and then `Warp CUDA error 999`.
+  - The Windows System log had `Kernel-Power 42` ("entering sleep") in the same second.
+  - Replayed directly, the same variants all succeed.
+  - **Fix:** while a job runs, the sim worker calls
+    `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`, which changes no power
+    setting and needs no admin. After a failed replay, it waits for the GPU to answer and
+    retries once.
+  - A hint in the Isaac Lab docs ("long headless runs: keep the system awake") would have
+    saved us a debugging session.
+  <!-- src: t2-status (sprint 4 Task 2) -->
+- **About 4% of localhost HTTP responses were reset** (`WinError 10054`) on this machine,
+  even from a plain stdlib `ThreadingHTTPServer`. The likely cause, unproven, is security
+  software inspecting traffic. Retrying idempotent calls makes it harmless.
+  <!-- src: t2-status (sprint 4 Task 3) -->
