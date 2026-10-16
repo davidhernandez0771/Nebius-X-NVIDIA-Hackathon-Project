@@ -106,7 +106,7 @@ def test_pauses_over_many_seeds_start_while_moving_away_from_events_with_smooth_
 def test_idle_start_and_end_are_holds_with_their_times(clean):
     out, issues = degrade(clean, _rng(), **CLEAN_OFF, idle_start_s=1.0, idle_end_s=0.8)
     idle = sorted(_of(issues, "idle_start_end"), key=lambda i: i.t0)
-    assert [(i.t0, i.t1) for i in idle] == pytest.approx([(0.0, 1.0), (out.t[-1] - 0.8, out.t[-1])], abs=DT)
+    np.testing.assert_allclose([(i.t0, i.t1) for i in idle], [(0.0, 1.0), (out.t[-1] - 0.8, out.t[-1])], atol=DT)
     pos = np.asarray(out.ee_pos)
     assert np.ptp(pos[: 50], axis=0).max() < 1e-9  # the first 1.0 s
     assert np.ptp(pos[-40:], axis=0).max() < 1e-9  # the last 0.8 s
