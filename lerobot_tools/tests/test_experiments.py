@@ -44,13 +44,16 @@ class Fakes:
         self.assembled.append(cell.name)
         return out
 
-    def train(self, dataset: Path, out_dir: Path, steps: int, batch_size: int, log_path: Path) -> TrainResult:
+    def train(self, dataset: Path, out_dir: Path, steps: int, batch_size: int, log_path: Path,
+              save_freq: int | None = None) -> TrainResult:
         self.trained.append((dataset.name, steps, batch_size))
+        self.save_freqs = getattr(self, "save_freqs", []) + [save_freq]
         if dataset.name in self.fail_train:
             return TrainResult(exit_code=1, checkpoint=None, train_time_s=1.5, final_loss=None,
                                error="OSError: boom")
-        return TrainResult(exit_code=0, checkpoint=out_dir / "checkpoints" / f"{steps:06d}" / "pretrained_model",
-                           train_time_s=2.0, final_loss=1.25, error=None)
+        ckpts = [out_dir / "checkpoints" / f"{s:06d}" / "pretrained_model" for s in (steps // 2, steps)]
+        return TrainResult(exit_code=0, checkpoint=ckpts[-1], train_time_s=2.0, final_loss=1.25, error=None,
+                           loss_curve=[[50, 3.0], [100, 1.25]], checkpoints=ckpts)
 
 
 def _rows(registry: Path) -> list[dict]:
@@ -130,7 +133,28 @@ def test_dry_run_writes_nothing_and_reports_invalid_cells(grid_file, tmp_path, c
 
 def test_budget_is_enforced_before_any_work(grid_file):
     with pytest.raises(SystemExit):
-        main(["--grid", str(grid_file), "--steps", "5000", "--dry-run"])
+        main(["--grid", str(grid_file), "--steps", "10001", "--dry-run"])
+    with pytest.raises(SystemExit):
+        main(["--grid", str(grid_file), "--steps", "1000", "--save-freq", "0", "--dry-run"])
+
+
+def test_sprint3_budget_allows_10k_steps(grid_file, capsys):
+    assert main(["--grid", str(grid_file), "--steps", "10000", "--save-freq", "2500", "--dry-run"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["steps"] == 10000 and plan["save_freq"] == 2500
+
+
+def test_rows_record_the_loss_curve_and_every_checkpoint(grid_file, tmp_path):
+    fakes, registry = Fakes(), tmp_path / "registry.jsonl"
+    run_grid(load_grid(grid_file), steps=200, batch_size=8, runs_root=tmp_path / "exp", registry=registry,
+             assemble_fn=fakes.assemble, train_fn=fakes.train, save_freq=100)
+    assert fakes.save_freqs == [100, 100]
+    row = _rows(registry)[0]
+    assert row["loss_curve"] == [[50, 3.0], [100, 1.25]]
+    assert [Path(c).parent.name for c in row["checkpoints"]] == ["000100", "000200"]
+    assert row["checkpoint"] == row["checkpoints"][-1]
+    assert row["save_freq"] == 100
+    assert row["log"].endswith("raw_2.log")
 
 
 @pytest.mark.skipif(os.environ.get("T3_GPU_TESTS") != "1", reason="GPU integration run; set T3_GPU_TESTS=1")

@@ -4,11 +4,14 @@ the results file. No Isaac imports."""
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
 from sim_eval.eval_policy import ACTION_DIM
+from sim_eval.registry import find_row
 from sim_eval.results import EpisodeResult, EvalSummary
+from sim_eval.start_state import START_STATE_FILE, check_start, load_starts
 
 SIM_CAMERAS = ("front", "wrist")  # what sim_worker.scene_cfg renders
 
@@ -29,8 +32,97 @@ def preflight(health: dict, *, cameras: bool, image_size: int, sim_cameras=SIM_C
     return problems
 
 
+MIN_FREE_MIB = 8192  # sprint-3 rule: T3 evaluates only with >= 8 GB of GPU memory free
+
+
+def _ancestors(processes: list[tuple[int, int, str]], pid: int) -> set[int]:
+    parent = {p: pp for p, pp, _ in processes}
+    chain = {pid}
+    while parent.get(pid) is not None and parent[pid] not in chain:
+        pid = parent[pid]
+        chain.add(pid)
+    return chain
+
+
+def isaac_gate(processes: list[tuple[int, int, str]], *, own_pid: int, free_mib: int | None,
+               min_free_mib: int = MIN_FREE_MIB) -> tuple[bool, dict]:
+    """May this eval run? Only if no *other* python process runs from Isaac (command line contains 'isaac') and
+    nvidia-smi reports enough free memory. `processes` is [(pid, parent pid, command line)] of python.exe
+    processes; this process and its ancestors (venv launchers, the eval_cells driver) don't count as other."""
+    mine = _ancestors(processes, own_pid)
+    others = [{"pid": pid, "cmd": cmd[:200]} for pid, _, cmd in processes
+              if pid not in mine and "isaac" in (cmd or "").lower()]
+    reasons = []
+    if others:
+        reasons.append("another Isaac process is running: " + "; ".join(f"{o['pid']} {o['cmd']}" for o in others))
+    if free_mib is None:
+        reasons.append("nvidia-smi gave no free-memory reading")
+    elif free_mib < min_free_mib:
+        reasons.append(f"GPU has {free_mib} MiB free, need >= {min_free_mib}")
+    return not reasons, {"other_isaac": others, "free_mib": free_mib, "min_free_mib": min_free_mib,
+                         "ok": not reasons, "reason": " | ".join(reasons) or None}
+
+
+def python_processes() -> list[tuple[int, int, str]]:
+    """(pid, parent pid, command line) of every python.exe, via CIM (what the sprint rule says to check)."""
+    cmd = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+           "Select-Object ProcessId, ParentProcessId, CommandLine | ConvertTo-Json -Compress")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True, text=True,
+                         timeout=60).stdout.strip()
+    rows = json.loads(out) if out else []
+    rows = [rows] if isinstance(rows, dict) else rows
+    return [(int(r["ProcessId"]), int(r.get("ParentProcessId") or 0), r.get("CommandLine") or "") for r in rows]
+
+
+def resolve_start(mode: str, *, start_state: Path | None = None, registry: Path | None = None,
+                  cell: str | None = None, checkpoint: str | None = None) -> tuple[list[float] | None, dict]:
+    """Choose the eval reset pose (Review Focus 4). Returns (pose, record); pose None = the robot's default pose.
+
+    The start states come from `start_state` (a start_state.json or the dataset root holding one), else from the
+    dataset of the cell's registry row. Without any, "auto" and "default" fall back to the default pose and record
+    why; "dataset" raises FileNotFoundError."""
+    source, reason = start_state, None
+    if source is None and registry is not None and cell is not None:
+        try:
+            source = find_row(registry, cell, checkpoint).get("dataset")
+            if source is None:
+                reason = f"registry row for {cell!r} has no dataset"
+        except (OSError, LookupError, ValueError) as e:
+            reason = f"registry lookup failed: {type(e).__name__}: {e}"
+    starts = None
+    if source is not None:
+        try:
+            starts = load_starts(Path(source))
+        except (OSError, ValueError, KeyError) as e:
+            reason = f"cannot read {START_STATE_FILE} from {source}: {type(e).__name__}: {e}"
+    if starts is None:
+        reason = reason or f"no {START_STATE_FILE} given (--start-state) and no --cell registry row to find one"
+        if mode == "dataset":
+            raise FileNotFoundError(reason)
+        return None, {"available": False, "mode": mode, "chosen": "default", "reason": reason}
+    check = check_start(starts, mode=mode)
+    record = {"available": True, "mode": mode, "source": str(source), **check.model_dump()}
+    return (check.reset_pose if check.chosen == "dataset_mean" else None), record
+
+
 def default_results_path(data_root: Path, cell: str | None) -> Path:
     return Path(data_root) / "evals" / f"{cell or 'adhoc'}_{datetime.now():%Y%m%d_%H%M%S}.json"
+
+
+def episode_log_path(results: Path) -> Path:
+    """The per-episode log (sim_eval.progress) of the run whose final results go to `results`."""
+    results = Path(results)
+    return results.with_name(results.stem + ".episodes.jsonl")
+
+
+def infra_failures(results: Path) -> int | None:
+    """Episodes in a results file that ended in sim_error or policy_error (None if there is no results file).
+    These say nothing about the policy (e.g. CUDA died when Windows slept), so the run should be resumed."""
+    results = Path(results)
+    if not results.is_file():
+        return None
+    episodes = json.loads(results.read_text(encoding="utf-8"))["episodes"]
+    return sum(e["ended_by"] in ("sim_error", "policy_error") for e in episodes)
 
 
 def write_results(path: Path, run: dict, episodes: list[EpisodeResult], summary: EvalSummary) -> Path:

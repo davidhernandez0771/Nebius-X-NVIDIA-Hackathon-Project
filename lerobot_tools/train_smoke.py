@@ -155,12 +155,14 @@ def parse_train_log(text: str) -> dict:
     """
     rows = [m.groupdict() for m in _STEP_LINE.finditer(text)]
     if not rows:
-        return {"logged_steps": []}
+        return {"logged_steps": [], "loss_curve": []}
     s_per_step = [float(r["updt"]) + float(r["data"]) for r in rows]
     steady = s_per_step[1:] or s_per_step
     mems = [float(r["mem"]) for r in rows if r["mem"]]
+    steps = _logged_steps(rows)
     return {
-        "logged_steps": _logged_steps(rows),
+        "logged_steps": steps,
+        "loss_curve": [[s, float(r["loss"])] for s, r in zip(steps, rows)],
         "s_per_step_first_window": round(s_per_step[0], 3),
         "steps_per_s_steady": round(1.0 / float(np.mean(steady)), 1),
         "loss_first_last": [float(rows[0]["loss"]), float(rows[-1]["loss"])],

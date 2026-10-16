@@ -22,7 +22,7 @@ def _same_path(a: str | None, b: str) -> bool:
     return a is not None and Path(a).resolve() == Path(b).resolve()
 
 
-def _apply(lines: list[str], cell: str, checkpoint: str | None, payload: dict) -> tuple[list[str], int]:
+def _matches(lines: list[str], cell: str, checkpoint: str | None) -> list[tuple[int, dict]]:
     matches = []
     for i, line in enumerate(lines):
         if not line.strip():
@@ -38,6 +38,22 @@ def _apply(lines: list[str], cell: str, checkpoint: str | None, payload: dict) -
         raise LookupError(f"no successfully trained row for cell {cell!r}{where}")
     if len(matches) > 1 and checkpoint is None:
         raise ValueError(f"cell {cell!r} has {len(matches)} rows (trained more than once); pass the checkpoint")
+    return matches
+
+
+def trained_rows(registry: Path, run_id: str) -> list[dict]:
+    """Every successfully trained row of one experiment run, in file order."""
+    rows = [json.loads(line) for line in Path(registry).read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [r for r in rows if r.get("run_id") == run_id and r.get("status") == "ok" and r.get("checkpoint")]
+
+
+def find_row(registry: Path, cell: str, checkpoint: str | None = None) -> dict:
+    """The successfully trained row for `cell` (matched like update_registry; the last if one checkpoint has several)."""
+    return _matches(Path(registry).read_text(encoding="utf-8").splitlines(), cell, checkpoint)[-1][1]
+
+
+def _apply(lines: list[str], cell: str, checkpoint: str | None, payload: dict) -> tuple[list[str], int]:
+    matches = _matches(lines, cell, checkpoint)
     out = list(lines)
     for i, row in matches:
         row["eval_success"] = payload["success_rate"]

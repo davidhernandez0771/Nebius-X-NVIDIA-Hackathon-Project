@@ -140,3 +140,16 @@ def test_registry_rewrite_keeps_every_other_line_byte_for_byte(tmp_path, summary
     after = reg.read_text(encoding="utf-8").splitlines()
     assert after[0] == before[0] and after[1] != before[1]
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_trained_rows_of_one_run_in_file_order(tmp_path):
+    from sim_eval.registry import trained_rows
+
+    reg = tmp_path / "registry.jsonl"
+    rows = [{"run_id": "a", "cell": {"name": "raw_5"}, "status": "ok", "checkpoint": "c5"},
+            {"run_id": "b", "cell": {"name": "raw_5"}, "status": "ok", "checkpoint": "x"},
+            {"run_id": "a", "cell": {"name": "raw_10"}, "status": "failed", "checkpoint": None},
+            {"run_id": "a", "cell": {"name": "raw_13"}, "status": "ok", "checkpoint": "c13"}]
+    reg.write_text("".join(json.dumps(r) + "\n" for r in rows) + "\n", encoding="utf-8")
+    assert [r["checkpoint"] for r in trained_rows(reg, "a")] == ["c5", "c13"]
+    assert trained_rows(reg, "zzz") == []

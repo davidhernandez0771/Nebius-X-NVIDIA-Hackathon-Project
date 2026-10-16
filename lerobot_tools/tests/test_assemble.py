@@ -114,3 +114,13 @@ def test_assemble_exports_matching_counts_and_writes_manifest(multiply_eps, tmp_
     assert manifest["n_episodes"] == ds.num_episodes and manifest["n_frames"] == ds.num_frames
     with pytest.raises(FileExistsError):
         assemble(cell, tmp_path / "datasets")
+
+
+def test_assemble_writes_the_start_state_of_every_episode(multiply_eps, tmp_path):
+    pytest.importorskip("lerobot")
+    from demo_pipeline.episode_io import load_episode
+    from sim_eval.start_state import load_starts
+
+    out = assemble(Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps), tmp_path / "datasets")
+    expected = [load_episode(Path(d))[1]["joint_pos"][0] for d in multiply_eps]
+    np.testing.assert_allclose(load_starts(out), expected, rtol=1e-6)

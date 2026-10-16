@@ -10,6 +10,8 @@ Routes (JSON):
     POST /act    {"state": [9 floats], "images": {"front": "<base64 raw uint8 HxWx3>", ...}, "h": 128, "w": 128}
                  -> {"action": [9 floats]}
 Errors: 400 for a bad request (with the reason), 404 for an unknown route, 500 if the policy raises.
+Connections are HTTP/1.1 keep-alive (one TCP connection per client for a whole eval); the server drops a
+connection after `idle_timeout` seconds without a request.
 Client: lerobot_tools/policy_client.py (stdlib + numpy).
 """
 
@@ -29,6 +31,7 @@ import numpy as np
 
 log = logging.getLogger("policy_server")
 IMAGE_PREFIX = "observation.images."
+IDLE_TIMEOUT_S = 60.0  # drop a client's keep-alive connection after this long without a request
 
 
 class Runner(Protocol):
@@ -130,10 +133,16 @@ class PolicyRunner:
         return action.squeeze(0).float().cpu().numpy()
 
 
-def make_server(runner: Runner, host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
+def make_server(runner: Runner, host: str = "127.0.0.1", port: int = 8765,
+                idle_timeout: float = IDLE_TIMEOUT_S) -> ThreadingHTTPServer:
     lock = threading.Lock()  # the policy is stateful (action queue): one request at a time
 
     class Handler(BaseHTTPRequestHandler):
+        # Keep-alive: every response carries Content-Length, and every request body is read in full (even on a 404),
+        # so the next request on the same connection parses cleanly.
+        protocol_version = "HTTP/1.1"
+        timeout = idle_timeout
+
         def log_message(self, fmt, *args):
             log.debug("%s " + fmt, self.address_string(), *args)
 
@@ -145,24 +154,41 @@ def make_server(runner: Runner, host: str = "127.0.0.1", port: int = 8765) -> Th
             self.end_headers()
             self.wfile.write(data)
 
-        def _body(self) -> dict:
-            n = int(self.headers.get("Content-Length") or 0)
+        def _read_body(self) -> bytes | None:
+            """The raw request body, or None after answering 400 (and closing) for a bad Content-Length."""
             try:
-                return json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
+                n = int(self.headers.get("Content-Length") or 0)
+                if n < 0:
+                    raise ValueError(n)
+            except ValueError:
+                self.close_connection = True  # can't tell where this body ends
+                self._send(400, {"error": f"bad Content-Length {self.headers.get('Content-Length')!r}"})
+                return None
+            return self.rfile.read(n) if n else b""
+
+        @staticmethod
+        def _json(raw: bytes) -> dict:
+            try:
+                return json.loads(raw.decode("utf-8")) if raw else {}
             except (UnicodeDecodeError, json.JSONDecodeError) as e:
                 raise BadRequest(f"invalid JSON: {e}") from e
 
         def do_GET(self):
+            if self._read_body() is None:
+                return
             if self.path != "/health":
                 return self._send(404, {"error": f"no route GET {self.path}"})
             self._send(200, {"ok": True, "state_dim": runner.state_dim,
                              "cameras": {c: list(hw) for c, hw in runner.cameras.items()}, **runner.describe()})
 
         def do_POST(self):
+            raw = self._read_body()
+            if raw is None:
+                return
             if self.path not in ("/reset", "/act"):
                 return self._send(404, {"error": f"no route POST {self.path}"})
             try:
-                body = self._body()
+                body = self._json(raw)
                 if self.path == "/reset":
                     with lock:
                         runner.reset()

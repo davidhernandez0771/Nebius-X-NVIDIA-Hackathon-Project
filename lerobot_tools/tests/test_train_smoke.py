@@ -26,3 +26,9 @@ def test_k_suffix_without_a_known_interval_falls_back_to_thousands():
 def test_loss_is_the_total_not_kld():
     out = parse_train_log("\n".join([_line("50", 14.974), _line("100", 1.773)]))
     assert out["loss_first_last"] == [14.974, 1.773]
+
+
+def test_loss_curve_pairs_each_logged_step_with_its_loss():
+    text = "\n".join([_line("950", 0.5), _line("1K", 0.4), _line("1K", 0.3), _line("10K", 0.1)])
+    assert parse_train_log(text)["loss_curve"] == [[950, 0.5], [1000, 0.4], [1050, 0.3], [1100, 0.1]]
+    assert parse_train_log("no training lines")["loss_curve"] == []

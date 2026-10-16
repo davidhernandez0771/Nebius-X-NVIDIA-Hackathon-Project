@@ -20,6 +20,7 @@ from isaaclab.utils.math import quat_apply
 
 from demo_pipeline.schemas import Scene
 from sim_eval.eval_policy import FINGER_IDS, Observation, StepRecord, gripper_command
+from sim_eval.start_state import FRANKA_DEFAULT_JOINT_POS
 from sim_worker.replay import CAMERA_WARMUP_STEPS, CONTACT_N, DECIMATION, PHYSICS_DT, TCP_OFFSET, make_sim_cfg
 from sim_worker.scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, BIN_PARTS, FRONT_EYE, FRONT_TARGET, make_scene_cfg
 
@@ -48,7 +49,8 @@ def _max_pair_force(sensor) -> float:
 class IsaacEvalEnv:
     bin_inner = BIN_INNER
 
-    def __init__(self, cameras: bool, device: str = "cuda:0"):
+    def __init__(self, cameras: bool, device: str = "cuda:0", start_joint_pos=None):
+        """start_joint_pos: 9 joint positions to reset to (sim_eval.start_state picks it); None = the asset default."""
         self.sim = sim_utils.SimulationContext(make_sim_cfg(device))
         self.scene = instantiate(make_scene_cfg(cameras=cameras))
         self.sim.reset()
@@ -61,13 +63,24 @@ class IsaacEvalEnv:
         fingers = tuple(self.joint_names.index(n) for n in ("panda_finger_joint1", "panda_finger_joint2"))
         if fingers != FINGER_IDS or robot.num_joints != 9:
             raise RuntimeError(f"unexpected Franka joints {self.joint_names}: eval assumes fingers at {FINGER_IDS}")
+        default = robot.data.default_joint_pos.torch[0].cpu().numpy()
+        if not np.allclose(default, FRANKA_DEFAULT_JOINT_POS, atol=1e-3):
+            raise RuntimeError(f"Franka default pose {default.tolist()} != sim_eval.start_state "
+                               f"FRANKA_DEFAULT_JOINT_POS {FRANKA_DEFAULT_JOINT_POS}; update the constant")
+        if start_joint_pos is None:
+            self.start_q = robot.data.default_joint_pos.torch.clone()
+        else:
+            q = np.asarray(start_joint_pos, dtype=np.float32).reshape(1, -1)
+            if q.shape != (1, robot.num_joints) or not np.isfinite(q).all():
+                raise ValueError(f"start_joint_pos: expected {robot.num_joints} finite values, got {q.shape}")
+            self.start_q = torch.tensor(q, device=self.sim.device)
 
     # -- EvalEnv ----------------------------------------------------------------------------------------------------
 
     def reset(self, scene: Scene) -> None:
         sc, robot, dev = self.scene, self.scene["robot"], self.sim.device
         origin = sc.env_origins[0].cpu().numpy()
-        robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch.clone())
+        robot.write_joint_position_to_sim_index(position=self.start_q.clone())
         robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch.clone())
 
         def put(name: str, pos, quat_wxyz) -> None:
@@ -84,8 +97,8 @@ class IsaacEvalEnv:
             eye = torch.tensor((np.asarray(FRONT_EYE) + origin)[None], dtype=torch.float32, device=dev)
             target = torch.tensor((np.asarray(FRONT_TARGET) + origin)[None], dtype=torch.float32, device=dev)
             sc["front"].set_world_poses_from_view(eye, target)
-        # Hold the default pose for a few steps so the renderer produces real frames before the first observation.
-        hold = robot.data.default_joint_pos.torch[0].cpu().numpy()
+        # Hold the start pose for a few steps so the renderer produces real frames before the first observation.
+        hold = self.start_q[0].cpu().numpy()
         for _ in range(CAMERA_WARMUP_STEPS):
             self._apply(hold)
 
