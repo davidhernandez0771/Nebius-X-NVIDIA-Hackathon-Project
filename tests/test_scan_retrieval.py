@@ -14,6 +14,7 @@ from app import models
 from app.db import _get_session_factory, init_db
 from app.main import app
 from app.storage import scan_path
+from conftest import close_db
 
 GLB = b"glTF-fake-glb-bytes"
 
@@ -34,6 +35,7 @@ class ScanRetrievalTests(unittest.TestCase):
 
     def tearDown(self):
         self._env_patch.stop()
+        close_db()
         self._tmpdir.cleanup()
 
     def _room(self) -> int:

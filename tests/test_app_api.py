@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.db import init_db
 from app.main import app
+from conftest import close_db
 
 
 class AppApiTests(unittest.TestCase):
@@ -30,6 +31,7 @@ class AppApiTests(unittest.TestCase):
 
     def tearDown(self):
         self._env_patch.stop()
+        close_db()
         self._tmpdir.cleanup()
 
     def _make_room_and_location(self) -> tuple[int, int]:
