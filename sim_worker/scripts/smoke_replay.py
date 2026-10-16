@@ -16,6 +16,8 @@ parser = argparse.ArgumentParser(description="Replay the scripted expert once an
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--no-cameras", action="store_true", help="state-only episode (no front/wrist images)")
 parser.add_argument("--out", type=Path, default=None, help="episode folder to write (omit to skip writing)")
+parser.add_argument("--robot", default="franka", choices=["franka", "openarm"])
+parser.add_argument("--lift-z", type=float, default=0.25, help="scripted expert carry/retreat height (m)")
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -26,6 +28,7 @@ if not args_cli.no_cameras:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
 
+from demo_pipeline.episode_io import load_signals  # noqa: E402
 from demo_pipeline.schemas import Pose, Scene  # noqa: E402
 from sim_worker.replay import bin_pose_for, make_sim_cfg, replay  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
@@ -36,10 +39,10 @@ def main() -> None:
     scene = Scene(
         cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1.0, 0.0, 0.0, 0.0)),
         bin_pose=bin_pose_for(0.5, 0.3),
-        robot="franka",
+        robot=args_cli.robot,
         seed=args_cli.seed,
     )
-    traj = scripted_expert(scene)
+    traj = scripted_expert(scene, lift_z=args_cli.lift_z)
     with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
         t_sim = time.time()
         result, signals = replay(traj, scene, ep_dir=args_cli.out, record_cameras=not args_cli.no_cameras)
@@ -51,6 +54,11 @@ def main() -> None:
               f"arm_table_steps={int(signals.contact_arm_table.sum())} "
               f"final_cube={signals.cube_pos[-1].round(4).tolist()}")
         print(f"[smoke] wall time: total {t_done - t0:.1f} s, replay {t_done - t_sim:.1f} s")
+        if args_cli.out is not None:
+            reloaded = load_signals(args_cli.out)
+            assert reloaded is not None, f"no signals.npz in {args_cli.out}"
+            assert reloaded.n_steps == signals.n_steps == len(traj.t), (reloaded.n_steps, signals.n_steps, len(traj.t))
+            print(f"[smoke] signals reloaded: {reloaded.n_steps} steps")
         print("RESULT_JSON " + json.dumps(result.model_dump()), flush=True)
 
 

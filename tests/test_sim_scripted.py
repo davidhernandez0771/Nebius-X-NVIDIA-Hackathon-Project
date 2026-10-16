@@ -83,3 +83,41 @@ def test_cube_yaw_is_wrapped_to_the_nearest_square_face(yaw_deg, wrapped_deg):
     w = math.radians(wrapped_deg)
     want = np.array([0.0, math.cos(w / 2), math.sin(w / 2), 0.0])
     assert abs(abs(np.asarray(traj.ee_quat[close]) @ want) - 1.0) < 1e-6
+
+
+@pytest.mark.parametrize("hold_s, steps", [(0.5, 25), (0.15, 8)])
+def test_hold_s_sets_how_long_the_hand_waits_at_each_gripper_event(hold_s, steps):
+    traj = scripted_expert(_scene(), hold_s=hold_s)
+    close, opening = _events(traj)
+    ee = np.asarray(traj.ee_pos)
+    for event in (close, opening):
+        assert np.allclose(ee[event : event + steps + 1], ee[event], atol=1e-9)
+        assert not np.allclose(ee[event + steps + 2], ee[event], atol=1e-6)
+
+
+def test_fast_variant_is_shorter_by_the_two_saved_holds():
+    slow, fast = scripted_expert(_scene()), scripted_expert(_scene(), hold_s=0.15)
+    assert len(slow.t) - len(fast.t) == 2 * (25 - 8)
+
+
+def test_default_demo_is_unchanged_by_the_lift_z_option():
+    traj = scripted_expert(_scene())
+    ee = np.asarray(traj.ee_pos)
+    assert len(traj.t) == 376  # sprint 1 smoke length
+    assert ee[:, 2].max() == pytest.approx(0.25)
+    assert ee[-1, 2] == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize("lift_z", [0.18, 0.30])
+def test_lift_z_sets_the_carry_and_retreat_height(lift_z):
+    traj = scripted_expert(_scene(), lift_z=lift_z)
+    ee = np.asarray(traj.ee_pos)
+    close, opening = _events(traj)
+    assert ee[close:opening, 2].max() == pytest.approx(lift_z)
+    assert ee[-1, 2] == pytest.approx(lift_z)
+    assert ee[:, 2].max() == pytest.approx(max(lift_z, 0.175))  # the start above the cube stays at 0.175
+
+
+def test_lift_z_must_clear_the_bin_rim_with_the_cube():
+    with pytest.raises(ValueError):
+        scripted_expert(_scene(), lift_z=0.12)

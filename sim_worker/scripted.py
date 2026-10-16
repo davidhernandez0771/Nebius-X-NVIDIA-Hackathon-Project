@@ -19,6 +19,7 @@ ABOVE_CUBE = 0.15
 LIFT_Z = 0.25
 RELEASE_ABOVE_FLOOR = 0.10
 RETREAT_UP = 0.15
+MIN_LIFT_Z = 0.145  # held cube's bottom (z - 0.025) clears the 0.09 m bin rim by 3 cm
 
 
 def _yaw_of(q_wxyz) -> float:
@@ -46,7 +47,11 @@ def _min_jerk(tau: np.ndarray) -> np.ndarray:
     return 10 * tau**3 - 15 * tau**4 + 6 * tau**5
 
 
-def scripted_expert(scene: Scene, rate_hz: int = 50) -> Trajectory:
+def scripted_expert(scene: Scene, rate_hz: int = 50, hold_s: float = HOLD_S, lift_z: float = LIFT_Z) -> Trajectory:
+    """hold_s: how long the hand waits at the close and at the open (0.15 is closer to human demos).
+    lift_z: carry and retreat height (0.18 keeps the OpenArm's top-down grasp in reach; see the T2 note)."""
+    if lift_z < MIN_LIFT_Z:
+        raise ValueError(f"lift_z {lift_z} m would drag the cube through the bin rim (min {MIN_LIFT_Z} m)")
     dt = 1.0 / rate_hz
     cube = np.asarray(scene.cube_pose.pos, dtype=float)
     bin_c = np.asarray(scene.bin_pose.pos, dtype=float)
@@ -56,19 +61,19 @@ def scripted_expert(scene: Scene, rate_hz: int = 50) -> Trajectory:
     q_grasp = _down_with_yaw(yaw)
 
     above_cube = cube + [0, 0, ABOVE_CUBE]
-    lifted = np.array([cube[0], cube[1], LIFT_Z])
-    above_bin = np.array([bin_c[0], bin_c[1], LIFT_Z])
+    lifted = np.array([cube[0], cube[1], lift_z])
+    above_bin = np.array([bin_c[0], bin_c[1], lift_z])
     release = bin_c + [0, 0, RELEASE_ABOVE_FLOOR]
-    retreat = release + [0, 0, RETREAT_UP]
+    retreat = np.array([release[0], release[1], lift_z])  # = release + RETREAT_UP at the default height
 
     # (target pos, target quat, gripper during this segment, hold seconds or None for a move)
     plan = [
         (cube, q_grasp, 0, None),            # 2. descend to cube center
-        (cube, q_grasp, 1, HOLD_S),          # 3. close
+        (cube, q_grasp, 1, hold_s),          # 3. close
         (lifted, DOWN_WXYZ, 1, None),        # 4. lift
         (above_bin, DOWN_WXYZ, 1, None),     # 5. above the bin
         (release, DOWN_WXYZ, 1, None),       # 6. descend
-        (release, DOWN_WXYZ, 0, HOLD_S),     # 7. open
+        (release, DOWN_WXYZ, 0, hold_s),     # 7. open
         (retreat, DOWN_WXYZ, 0, None),       # 8. retreat
     ]
 

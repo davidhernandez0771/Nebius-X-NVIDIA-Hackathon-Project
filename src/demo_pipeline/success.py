@@ -1,4 +1,8 @@
-"""Verifier success check (spec 8.5): did a replayed demo put the cube in the bin, cleanly?"""
+"""Verifier success check (spec 8.5): did a replayed demo put the cube in the bin, cleanly?
+
+Reason codes: not_in_bin, gripper_closed, not_settled, too_slow, collision, dropped, and
+unreachable (the arm could not follow the commanded pose: IK residual > 2 cm for > 1 s; needs tcp_error).
+"""
 
 from __future__ import annotations
 
@@ -20,6 +24,15 @@ def _to_bin_frame(points: np.ndarray, bin_pose: Pose) -> np.ndarray:
     return (points - np.asarray(bin_pose.pos)) @ rot  # row-vector form of rot.T @ p
 
 
+def _longest_run_s(t: np.ndarray, mask: np.ndarray) -> float:
+    """Duration of the longest run of consecutive True steps, counting each step as one sample period."""
+    if not mask.any():
+        return 0.0
+    edges = np.diff(np.concatenate([[0], mask.astype(np.int8), [0]]))
+    longest = int((np.flatnonzero(edges == -1) - np.flatnonzero(edges == 1)).max())
+    return longest * float(np.median(np.diff(t)))
+
+
 def _settle_time(t: np.ndarray, cube_pos: np.ndarray, settle_speed: float) -> float:
     """Seconds the cube has been below settle_speed at the end of the demo."""
     speed = np.linalg.norm(np.diff(cube_pos, axis=0), axis=1) / np.diff(t)
@@ -37,11 +50,17 @@ def check_success(
     settle_speed: float = 0.01,
     settle_s: float = 0.5,
     force_limit: float = 5.0,
+    tcp_error: np.ndarray | None = None,
+    unreachable_tol: float = 0.02,
+    unreachable_s: float = 1.0,
 ) -> VerificationResult:
+    """tcp_error: optional per-step distance (m) between the commanded and the reached tool point."""
     arr = traj.to_arrays()
     t, ee, grip = arr["t"], arr["ee_pos"], arr["gripper"]
     if sim.n_steps != len(t):
         raise ValueError(f"SimSignals has {sim.n_steps} steps but the trajectory has {len(t)}")
+    if tcp_error is not None and np.shape(tcp_error) != (len(t),):
+        raise ValueError(f"tcp_error has shape {np.shape(tcp_error)} but the trajectory has {len(t)} steps")
     half_x, half_y, height = bin_inner[0] / 2, bin_inner[1] / 2, bin_inner[2]
 
     cube_b = _to_bin_frame(sim.cube_pos, bin_pose)
@@ -66,6 +85,8 @@ def check_success(
         reasons.append("collision")
     if np.any(dropped):
         reasons.append("dropped")
+    if tcp_error is not None and _longest_run_s(t, np.asarray(tcp_error) > unreachable_tol) > unreachable_s + _EPS:
+        reasons.append("unreachable")
 
     return VerificationResult(
         success=not reasons,
