@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from pydantic import Field
 
 from .degrade import InjectedIssue
-from .schemas import Diagnosis, _Model
+from .schemas import Diagnosis, Issue, _Model
 
 POINT_HALF_S = 0.25
 DONT_CARE_INSIDE = 0.5  # a leftover prediction at least this much inside a dont_care truth is ignored
@@ -43,6 +43,11 @@ class TypeScore(_Model):
     @property
     def mean_iou(self) -> float | None:
         return self.iou_sum / self.tp if self.tp else None
+
+    def report(self) -> dict:
+        """Counts and rates as plain JSON values (rates None when undefined)."""
+        return {"tp": self.tp, "fp": self.fp, "fn": self.fn, "ignored": self.ignored, "precision": self.precision,
+                "recall": self.recall, "f1": self.f1, "mean_iou": self.mean_iou}
 
     def __add__(self, other: "TypeScore") -> "TypeScore":
         return TypeScore(tp=self.tp + other.tp, fp=self.fp + other.fp, fn=self.fn + other.fn,
@@ -90,10 +95,15 @@ def _match(pred: list[Interval], truth: list[Interval], dont_care: list[Interval
 
 
 def score_diagnosis(diag: Diagnosis, truth: list[InjectedIssue], iou_threshold: float = 0.3) -> DiagnosisScore:
+    """Per-type TP/FP/FN of the diagnosis's issues (see score_issues)."""
+    return score_issues(diag.issues, truth, iou_threshold)
+
+
+def score_issues(issues: Iterable[Issue], truth: list[InjectedIssue], iou_threshold: float = 0.3) -> DiagnosisScore:
     """Per-type TP/FP/FN. Real truths are matched first; a leftover prediction lying at least
     DONT_CARE_INSIDE inside dont_care truths of its type is `ignored`; dont_care truths are never missed."""
     pred: dict[str, list[Interval]] = {}
-    for i in diag.issues:
+    for i in issues:
         pred.setdefault(i.type, []).append(_interval(i.t, i.t) if i.t0 is None else _interval(i.t0, i.t1))
     true: dict[str, list[Interval]] = {}
     dont_care: dict[str, list[Interval]] = {}

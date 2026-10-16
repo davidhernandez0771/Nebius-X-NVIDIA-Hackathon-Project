@@ -186,3 +186,30 @@ def test_under_tremor_every_rules_pause_is_injected_or_an_expert_stop():
 
     s = run(n=40, seed0=0, jitter_levels=[2.0])[2.0].per_type["pause"]
     assert s.fp == 0 and s.tp > 0 and s.ignored > 0
+
+
+# --- sprint 3b: scoring stored issues (no Diagnosis wrapper) and a JSON report ---
+
+def test_score_issues_scores_a_bare_issue_list_like_a_diagnosis():
+    from demo_pipeline.schemas import Issue
+    from demo_pipeline.scoring import score_issues
+
+    truth = [InjectedIssue(type="pause", t0=2.0, t1=3.0), InjectedIssue(type="jitter", t0=0.0, t1=8.0),
+             InjectedIssue(type="pause", t0=5.0, t1=5.4, dont_care=True)]
+    issues = [Issue(type="pause", t0=2.1, t1=3.0, evidence="e"), Issue(type="pause", t0=5.0, t1=5.3, evidence="e"),
+              Issue(type="grasp_off_center", t=1.0, evidence="e")]
+    s = score_issues(issues, truth)
+    assert (s.per_type["pause"].tp, s.per_type["pause"].fp, s.per_type["pause"].ignored) == (1, 0, 1)
+    assert (s.per_type["jitter"].fn, s.per_type["grasp_off_center"].fp) == (1, 1)
+    diag = Diagnosis(segments=[], issues=issues, repairs=[], decision="keep", label=TASK_TEXT)
+    assert score_diagnosis(diag, truth) == s
+
+
+def test_type_score_report_has_counts_and_rates_with_none_when_undefined():
+    from demo_pipeline.scoring import TypeScore
+
+    r = TypeScore(tp=3, fp=1, fn=2, iou_sum=2.4, ignored=1).report()
+    assert r == {"tp": 3, "fp": 1, "fn": 2, "ignored": 1, "precision": 0.75, "recall": 0.6,
+                 "f1": pytest.approx(6 / 9), "mean_iou": pytest.approx(0.8)}
+    assert TypeScore().report() == {"tp": 0, "fp": 0, "fn": 0, "ignored": 0, "precision": None, "recall": None,
+                                    "f1": None, "mean_iou": None}
