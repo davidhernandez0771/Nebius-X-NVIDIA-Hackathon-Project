@@ -1,6 +1,7 @@
 """Backend demo routes: /demos CRUD and /demos/{id}/diagnose with the rules fallback (Review Focus 5)."""
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -346,3 +347,39 @@ def test_get_corrupt_diagnosis_is_422(demos_api, store):
     _post(demos_api, _demo())
     (store.root / "demos" / "human_1" / "diagnosis.json").write_text("{}", encoding="utf-8")
     assert demos_api.get("/demos/human_1/diagnosis").status_code == 422
+
+
+# --- scripts/diagnose_real_episode.py: the inputs it builds from a recorded episode --------
+
+def _load_script():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "diagnose_real_episode.py"
+    spec = importlib.util.spec_from_file_location("diagnose_real_episode", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # @dataclass looks its module up here
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_real_episode_inputs_use_the_recorded_trajectory_and_signals(store):
+    ep = _write_episode(store)
+    inputs = _load_script().build_inputs(ep, _scene().bin_pose)
+    assert inputs.traj.t == pytest.approx([i / 50 for i in range(N)])
+    assert np.allclose(inputs.traj.to_arrays()["ee_pos"], _traj().to_arrays()["ee_pos"])
+    assert inputs.traj.gripper == _traj().gripper
+    assert inputs.windows == compute_windows(inputs.traj, _signals())
+    assert len(inputs.frames) == MAX_IMAGES - 1
+    assert inputs.wrist == _png("wrist", CLOSE_STEP)
+    assert inputs.task_text == TASK_TEXT
+    assert inputs.replay_success is False  # the fixture's cube settles only 0.4 s
+    assert inputs.notes == []
+
+
+def test_real_episode_without_signals_uses_empty_contacts_and_says_so(store):
+    ep = _write_episode(store, signals=False)
+    inputs = _load_script().build_inputs(ep, _scene().bin_pose)
+    assert not any(w.contact_gripper_cube or w.contact_arm_bin or w.contact_arm_table for w in inputs.windows)
+    assert inputs.replay_success is None
+    assert any("signals" in note for note in inputs.notes)
