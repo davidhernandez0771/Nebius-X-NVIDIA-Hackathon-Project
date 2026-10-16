@@ -39,6 +39,7 @@ app.include_router(organize.router)
 app.include_router(chat.router)
 app.include_router(teleop.router)
 app.include_router(demos.router)
+app.include_router(demos.jobs_router)
 
 
 @app.get("/api/health")

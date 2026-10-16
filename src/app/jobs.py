@@ -1,0 +1,311 @@
+"""Background jobs, and the perfect job: one stored human demo through perfect_demo and the sim worker.
+
+JobRunner runs jobs one at a time on a background thread (the sim worker runs one job at a
+time anyway) and keeps their status in memory: a backend restart forgets them.
+
+perfect_stored_demo(store, client, demo_id, diagnoser):
+  1. replay the human demo as recorded ("<id>_raw"), unless the caller already did;
+  2. perfect_demo() with
+       diagnose_fn = diagnose_gated on the frames of the latest replay (diagnoser="nemotron"),
+                     or None, i.e. the rules detector (diagnoser="rules");
+       verify_fn   = the worker's /replay ("<id>_<diagnoser>_v<k>");
+  3. store the result: the human demo gets the latest diagnosis; a verified result becomes the
+     demo "<id>_<diagnoser>" (source "repaired", even when kept unchanged) with its diagnosis,
+     Passport and the verified episode.
+
+A worker that is down, hung, busy past the retries, or refusing the request (anything but a
+"sim_error") fails the job with that error and stores nothing, so the demo can be re-run.
+perfect_demo would otherwise record such a failure as "discarded". A sim_error is that
+trajectory failing in the sim, so it is a failed verification of this demo.
+"""
+from __future__ import annotations
+
+import logging
+import shutil
+import threading
+import time
+from concurrent.futures import Executor, Future, ThreadPoolExecutor
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Literal
+
+import numpy as np
+from pydantic import BaseModel, Field
+
+from demo_pipeline import PIPELINE_VERSION
+from demo_pipeline.episode_io import EpisodeMeta, load_episode
+from demo_pipeline.process import perfect_demo
+from demo_pipeline.schemas import Demo, Diagnosis, MetricsWindow, Passport, Scene, SimSignals, Trajectory
+from demo_pipeline.sim_protocol import ReplayRequest, ReplayResponse
+from demo_pipeline.store import DemoStore
+from nebius_llm.config import get_vision_model
+
+from .ai.diagnose import DIAGNOSE_TIER, diagnose_gated, select_frames
+from .sim_client import SimWorkerBusy, SimWorkerClient, SimWorkerError
+
+log = logging.getLogger(__name__)
+
+Diagnoser = Literal["nemotron", "rules"]
+JobStatus = Literal["queued", "running", "succeeded", "failed"]
+FRONT, WRIST = "front", "wrist"
+
+# Rim height above the bin origin: BIN_WALL (0.01) + inner height (0.08) in sim_worker/scene_cfg.py,
+# which imports Isaac and so cannot be imported here.
+BIN_RIM_HEIGHT = 0.09
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+# --- jobs ----------------------------------------------------------------------------------
+
+class Job(BaseModel):
+    id: str
+    kind: str
+    demo_id: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    status: JobStatus = "queued"
+    created_at: datetime = Field(default_factory=_now)
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class JobRunner:
+    def __init__(self, executor: Executor | None = None) -> None:
+        self._executor = executor or ThreadPoolExecutor(max_workers=1, thread_name_prefix="job")
+        self._jobs: dict[str, Job] = {}
+        self._futures: dict[str, Future] = {}
+        self._lock = threading.Lock()
+
+    def submit(self, kind: str, fn: Callable[[], dict], *, demo_id: str | None = None,
+               params: dict | None = None) -> Job:
+        job = Job(id=DemoStore.new_id(kind), kind=kind, demo_id=demo_id, params=params or {})
+        with self._lock:
+            self._jobs[job.id] = job
+        self._futures[job.id] = self._executor.submit(self._run, job.id, fn)
+        return self.get(job.id)
+
+    def _update(self, job_id: str, **fields) -> None:
+        with self._lock:
+            self._jobs[job_id] = self._jobs[job_id].model_copy(update=fields)
+
+    def _run(self, job_id: str, fn: Callable[[], dict]) -> None:
+        self._update(job_id, status="running", started_at=_now())
+        try:
+            result = fn()
+        except Exception as e:  # a job failure is recorded on the job, never raised into the executor
+            log.warning("job %s failed: %s: %s", job_id, type(e).__name__, e)
+            self._update(job_id, status="failed", finished_at=_now(), error=f"{type(e).__name__}: {e}")
+            return
+        self._update(job_id, status="succeeded", finished_at=_now(), result=result)
+
+    def get(self, job_id: str) -> Job | None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return None if job is None else job.model_copy(deep=True)
+
+    def wait(self, job_id: str, timeout: float | None = None) -> Job | None:
+        future = self._futures.get(job_id)
+        if future is not None:
+            future.result(timeout=timeout)
+        return self.get(job_id)
+
+
+# --- helpers for the perfect job -----------------------------------------------------------
+
+def bin_rim_z(scene: Scene) -> float:
+    return scene.bin_pose.pos[2] + BIN_RIM_HEIGHT
+
+
+def output_demo_id(demo_id: str, diagnoser: Diagnoser) -> str:
+    """One output per diagnoser, so the rules-vs-Nemotron ablation can run on the same human demo."""
+    return f"{demo_id}_{diagnoser}"
+
+
+def _stretch_index(m: int, n: int) -> np.ndarray:
+    """For each of n trajectory steps, the matching one of m replay steps; both ends line up."""
+    return np.rint(np.arange(n) * (m - 1) / max(n - 1, 1)).astype(int)
+
+
+def align_signals(signals: SimSignals, t: list[float]) -> SimSignals:
+    """Signals on the trajectory's steps. The worker's gripper gate can hold steps, so a replay may be longer
+    than the trajectory; its steps are then stretched onto the trajectory (start and end line up), an
+    approximation of a few steps around each hold."""
+    n, m = len(t), signals.n_steps
+    if m == n:
+        return signals
+    idx = _stretch_index(m, n)
+    return SimSignals(cube_pos=signals.cube_pos[idx], contact_gripper_cube=signals.contact_gripper_cube[idx],
+                      contact_arm_bin=signals.contact_arm_bin[idx], contact_arm_table=signals.contact_arm_table[idx],
+                      max_contact_force=signals.max_contact_force[idx])
+
+
+def load_frames(
+    ep_dir: Path, meta: EpisodeMeta, images: dict[str, list[Path]], t: list[float], gripper: list[int], has_wrist: bool
+) -> tuple[list[tuple[float, bytes]], bytes | None]:
+    """The front frames diagnose() will send (subsampled first, so only those are read) and the wrist frame
+    at the first gripper close, or None without a wrist camera or a close. Raises OSError for a missing image."""
+    candidates = [(t[i], images[FRONT][i]) for i in range(meta.n_steps)]
+    frames = [(ti, Path(p).read_bytes()) for ti, p in select_frames(candidates, has_wrist)]
+    wrist = None
+    if has_wrist:
+        closed = np.flatnonzero(np.asarray(gripper) == 1)
+        wrist = Path(images[WRIST][int(closed[0])]).read_bytes()
+    return frames, wrist
+
+
+def episode_frames(ep_dir: Path, t: list[float]) -> tuple[list[tuple[float, bytes]], bytes | None, str]:
+    """The front frames and wrist frame diagnose() should see from a recorded replay, captioned in the
+    trajectory's time, and the episode's task text."""
+    meta, arrays, images = load_episode(ep_dir)
+    if FRONT not in meta.cameras:
+        raise ValueError(f"replay episode {ep_dir} has no {FRONT} frames (cameras: {meta.cameras})")
+    idx = _stretch_index(len(t), meta.n_steps)  # replay step -> trajectory step
+    t_of_step = [float(t[i]) for i in idx]
+    gripper = [int(g) for g in np.asarray(arrays["gripper"])]
+    has_wrist = WRIST in meta.cameras and 1 in gripper
+    frames, wrist = load_frames(ep_dir, meta, images, t_of_step, gripper, has_wrist)
+    return frames, wrist, meta.task_text
+
+
+def _is_infrastructure(e: SimWorkerError) -> bool:
+    return e.error != "sim_error"
+
+
+def replay_with_retry(client: SimWorkerClient, req: ReplayRequest, *, busy_retries: int, busy_wait_s: float,
+                      sleep: Callable[[float], None]) -> ReplayResponse:
+    for attempt in range(busy_retries + 1):
+        try:
+            return client.replay(req)
+        except SimWorkerBusy:
+            if attempt == busy_retries:
+                raise
+            log.info("sim worker busy; retrying %s in %.0f s", req.out_name, busy_wait_s)
+            sleep(busy_wait_s)
+    raise AssertionError("unreachable")
+
+
+def _copy_episode(ep_dir: str | None, dest: Path, notes: list[str]) -> None:
+    if ep_dir is None or not Path(ep_dir).is_dir():
+        notes.append(f"episode {ep_dir} is not on this disk; not copied to {dest}")
+        return
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(ep_dir, dest)
+
+
+def _replay_summary(req: ReplayRequest, resp: ReplayResponse) -> dict:
+    return {"out_name": req.out_name, "ep_dir": resp.ep_dir, "success": resp.verification.success,
+            "reasons": resp.verification.reasons, "n_steps": resp.n_steps, "wall_s": resp.wall_s}
+
+
+# --- the perfect job -----------------------------------------------------------------------
+
+def perfect_stored_demo(
+    store: DemoStore,
+    client: SimWorkerClient,
+    demo_id: str,
+    diagnoser: Diagnoser,
+    *,
+    raw: ReplayResponse | None = None,
+    record_cameras: bool | None = None,
+    busy_retries: int = 60,
+    busy_wait_s: float = 10.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict:
+    """Perfect one stored human demo; returns a JSON-able summary. Raises SimWorkerError when the worker
+    cannot do the job (see the module docstring), ValueError for a demo that is not human."""
+    demo = store.get_demo(demo_id)
+    if demo.source != "human":
+        raise ValueError(f"demo {demo_id!r} is {demo.source!r}; only human demos are perfected")
+    cameras = (diagnoser == "nemotron") if record_cameras is None else record_cameras
+    notes: list[str] = []
+    replays: list[dict] = []
+
+    def replay(traj: Trajectory, out_name: str) -> ReplayResponse:
+        req = ReplayRequest(trajectory=traj, scene=demo.scene, record_cameras=cameras, out_name=out_name)
+        resp = replay_with_retry(client, req, busy_retries=busy_retries, busy_wait_s=busy_wait_s, sleep=sleep)
+        replays.append(_replay_summary(req, resp))
+        if resp.n_steps != len(traj.t):
+            notes.append(f"replay {out_name} has {resp.n_steps} steps for {len(traj.t)} trajectory steps "
+                         f"(gripper gate holds); signals and frames were stretched onto the trajectory")
+        return resp
+
+    if raw is None:
+        raw = replay(demo.trajectory, f"{demo_id}_raw")
+    _copy_episode(raw.ep_dir, store.episode_dir(demo_id), notes)
+    # ep_dir/success: the latest replay, i.e. of the trajectory perfect_demo diagnoses next
+    state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "gated": [],
+                             "model_id": None, "infra": None}
+
+    def diagnose_fn(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> Diagnosis:
+        # The failure reasons only reach the model through the failed replay's frames, windows and
+        # replay_success=False: diagnose_gated has no reasons input.
+        state["gated"], state["model_id"] = [], None
+        if state["ep_dir"] is None:
+            raise ValueError("the replay saved no episode, so there are no frames to show the model")
+        frames, wrist, task_text = episode_frames(Path(state["ep_dir"]), d.trajectory.t)
+        diag, gated = diagnose_gated(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1])
+        state["gated"], state["model_id"] = gated, get_vision_model(DIAGNOSE_TIER).model_id
+        return diag
+
+    def verify_fn(traj: Trajectory, scene: Scene):
+        k = sum(r["out_name"] != f"{demo_id}_raw" for r in replays) + 1
+        try:
+            resp = replay(traj, f"{output_demo_id(demo_id, diagnoser)}_v{k}")
+        except SimWorkerError as e:
+            if _is_infrastructure(e):
+                state["infra"] = e  # perfect_demo would call this a discard; the job must fail instead
+            raise
+        state["ep_dir"], state["success"] = resp.ep_dir, resp.verification.success
+        return resp.verification, align_signals(resp.signals.to_signals(), traj.t)
+
+    result = perfect_demo(demo, align_signals(raw.signals.to_signals(), demo.trajectory.t),
+                          diagnose_fn=diagnose_fn if diagnoser == "nemotron" else None, verify_fn=verify_fn,
+                          bin_rim_z=bin_rim_z(demo.scene))
+    if state["infra"] is not None:
+        raise state["infra"]
+    notes = result.notes + notes
+
+    source = result.diagnosis_source
+    model_id = state["model_id"] if source == "nemotron" else None
+    gated = state["gated"] if source == "nemotron" else []
+    if result.diagnosis is not None:
+        store.save_diagnosis(demo_id, result.diagnosis, source, model_id, gated)
+
+    out_id = None
+    if result.status in ("perfected", "kept"):
+        out_id = output_demo_id(demo_id, diagnoser)
+        store.save_demo(Demo(id=out_id, source="repaired", parent_id=demo_id, trajectory=result.trajectory,
+                             scene=demo.scene, human_seconds=0.0))
+        store.save_diagnosis(out_id, result.diagnosis, source, model_id, gated)
+        store.save_passport(out_id, Passport(
+            demo_id=out_id, lineage=store.lineage(out_id),
+            repairs_applied=result.diagnosis.repairs if result.status == "perfected" else [],
+            diagnosis_source=source, model_id=model_id, robot=demo.scene.robot,
+            verification=result.verification, pipeline_version=PIPELINE_VERSION))
+        _copy_episode(state["ep_dir"], store.episode_dir(out_id), notes)  # the successful (last) replay
+    elif store.has_demo(output_demo_id(demo_id, diagnoser)):
+        notes.append(f"an older output {output_demo_id(demo_id, diagnoser)!r} from an earlier run is still stored")
+
+    return {
+        "demo_id": demo_id,
+        "diagnoser": diagnoser,
+        "status": result.status,
+        "output_demo_id": out_id,
+        "diagnosis_source": source,
+        "model_id": model_id,
+        "gated": gated,
+        "attempts": result.attempts,
+        "decision": None if result.diagnosis is None else result.diagnosis.decision,
+        "repairs": [] if result.diagnosis is None else [r.model_dump() for r in result.diagnosis.repairs],
+        "issues": [] if result.diagnosis is None else [i.model_dump(exclude_none=True)
+                                                       for i in result.diagnosis.issues],
+        "verification": None if result.verification is None else result.verification.model_dump(),
+        "raw_verification": raw.verification.model_dump(),
+        "replays": replays,
+        "notes": notes,
+    }
