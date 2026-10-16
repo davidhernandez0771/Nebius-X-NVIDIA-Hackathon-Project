@@ -322,6 +322,10 @@
   stroke-dasharray: 4 4;
 }
 
+.pm-chart circle {
+  stroke-dasharray: none;
+}
+
 .pm-line--text {
   stroke: var(--text);
 }
@@ -469,6 +473,11 @@
   background: var(--surface);
   border: var(--border);
   overflow: hidden;
+}
+
+.pm-bar-track--pending {
+  background: transparent;
+  border-style: dashed;
 }
 
 .pm-bar-fill {

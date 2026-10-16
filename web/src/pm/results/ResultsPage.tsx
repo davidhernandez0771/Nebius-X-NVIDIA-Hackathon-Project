@@ -1,26 +1,53 @@
 import { GlassCard, Zones } from "../../components";
-import { fmtPct, PageTitle } from "../common";
+import { describeError, PmApiError, pmFetch } from "../api";
+import { fmtPct, Loading, PageTitle, useLoad, type Load } from "../common";
 import sampleResults from "../mocks/results.sample.json";
-import { chartPoints, parseResults, type Results } from "./results";
+import { chartPoints, chartRuns, parseResults, type Rate, type Results } from "./results";
 import "../pm.css";
 
 const W = 640;
 const H = 320;
 const PAD = 44;
+const BOX = { width: W, height: H, pad: PAD };
 const LINE_CLASS: Record<string, string> = { raw: "pm-line--muted", raw_multiply: "pm-line--text", ours: "pm-line--ours" };
+const fmtRate = (v: Rate) => (v === null ? "pending" : fmtPct(v));
 
-/** Series end labels, pushed apart so they never overlap. */
+interface Shown {
+  results: Results;
+  why: string | null; // why the sample is shown instead of measured results
+}
+
+/** Measured results when the backend has a valid file, else the sample with the reason. */
+function decide(load: Load<unknown>): Shown | null {
+  const sample = (why: string): Shown => ({ results: parseResults(sampleResults), why });
+  if (load.state === "loading") return null;
+  if (load.state === "error") {
+    const e = load.error;
+    if (e instanceof PmApiError && (e.kind === "not_found" || e.kind === "route_missing"))
+      return sample("No measured results yet, so this page shows the sample.");
+    if (e instanceof PmApiError && e.kind === "invalid") return sample(`The backend rejected its results file: ${e.detail}`);
+    return sample(`${describeError(e)} Showing the sample until then.`);
+  }
+  try {
+    return { results: parseResults(load.data), why: null };
+  } catch (e) {
+    return sample(`Can't show the measured results: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/** Series end labels, pushed apart so they never overlap. Series with no measured point get none. */
 function endLabels(results: Results) {
   const labels = results.series
-    .map((s) => ({ key: s.key, label: s.label, y: chartPoints(s.success, { width: W, height: H, pad: PAD }).slice(-1)[0].y }))
+    .map((s) => ({ key: s.key, label: s.label, y: chartPoints(s.success, BOX).filter((p) => p !== null).pop()?.y }))
+    .filter((l): l is { key: string; label: string; y: number } => l.y !== undefined)
     .sort((a, b) => a.y - b.y);
   for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + 14);
   return labels;
 }
 
 function SuccessChart({ results }: { results: Results }) {
-  const box = { width: W, height: H, pad: PAD };
-  const xs = chartPoints(results.demos.map(() => 0), box).map((p) => p.x);
+  const xs = chartPoints(results.demos.map(() => 0), BOX).map((p) => p!.x);
+  const nothing = results.series.every((s) => s.success.every((v) => v === null));
   return (
     <figure className="pm-chart">
       <svg viewBox={`0 0 ${W + 170} ${H}`} role="img" aria-labelledby="pm-chart-title">
@@ -44,6 +71,11 @@ function SuccessChart({ results }: { results: Results }) {
           );
         })}
         {results.sample && <rect x={PAD} y={PAD} width={W - 2 * PAD} height={H - 2 * PAD} fill="url(#pm-hatch)" />}
+        {nothing && (
+          <text className="pm-chart-label pm-chart-label--strong" x={W / 2} y={H / 2} textAnchor="middle">
+            No policy evaluated yet: every point is pending
+          </text>
+        )}
         {results.demos.map((n, i) => (
           <text key={n} className="pm-chart-label" x={xs[i]} y={H - PAD + 20} textAnchor="middle">
             {n}
@@ -53,13 +85,14 @@ function SuccessChart({ results }: { results: Results }) {
           Human demos
         </text>
         {results.series.map((s) => {
-          const pts = chartPoints(s.success, box);
+          const cls = `pm-line ${LINE_CLASS[s.key] ?? "pm-line--text"}`;
+          const pts = chartPoints(s.success, BOX);
           return (
             <g key={s.key}>
-              <polyline className={`pm-line ${LINE_CLASS[s.key] ?? "pm-line--text"}`} points={pts.map((p) => `${p.x},${p.y}`).join(" ")} />
-              {pts.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={3} className={`pm-line ${LINE_CLASS[s.key] ?? "pm-line--text"}`} />
+              {chartRuns(pts).map((run, k) => (
+                <polyline key={k} className={cls} points={run.map((p) => `${p.x},${p.y}`).join(" ")} />
               ))}
+              {pts.map((p, i) => p && <circle key={i} cx={p.x} cy={p.y} r={3} className={cls} />)}
             </g>
           );
         })}
@@ -74,20 +107,37 @@ function SuccessChart({ results }: { results: Results }) {
           </text>
         ))}
       </svg>
+      <ul className="pm-list" aria-label="Values">
+        {results.series.map((s) => (
+          <li key={s.key} data-testid={`series-${s.key}`}>
+            <span className="pm-list-time">{s.label}</span>
+            <span className="pm-num">
+              {s.success.every((v) => v === null)
+                ? "pending"
+                : s.success.map((v, i) => `${fmtRate(v)} at ${results.demos[i]}`).join(", ")}
+            </span>
+          </li>
+        ))}
+      </ul>
     </figure>
   );
 }
 
 function Ablation({ results }: { results: Results }) {
+  if (results.ablation.bars.length === 0) return <p className="small">pending</p>;
   return (
     <ul className="pm-bars">
       {results.ablation.bars.map((b) => (
         <li key={b.key} className="pm-bar-row">
           <span>{b.label}</span>
-          <span className="pm-bar-track" aria-hidden="true">
-            <span className={`pm-bar-fill${b.key === "ours" ? " pm-bar-fill--ours" : ""}`} style={{ width: fmtPct(b.success) }} />
+          <span className={`pm-bar-track${b.success === null ? " pm-bar-track--pending" : ""}`} aria-hidden="true">
+            {b.success !== null && (
+              <span className={`pm-bar-fill${b.key === "ours" ? " pm-bar-fill--ours" : ""}`} style={{ width: fmtPct(b.success) }} />
+            )}
           </span>
-          <span className="pm-num">{fmtPct(b.success)}</span>
+          <span className="pm-num" data-testid="ablation-value">
+            {fmtRate(b.success)}
+          </span>
         </li>
       ))}
     </ul>
@@ -95,30 +145,30 @@ function Ablation({ results }: { results: Results }) {
 }
 
 function Yield({ results }: { results: Results }) {
-  const [lo, hi] = results.multiply_yield.mimicgen;
-  const ours = results.multiply_yield.ours;
+  const { ours, mimicgen } = results.multiply_yield;
   return (
     <div className="stack">
-      <div className="pm-yield" role="img" aria-label={`Our yield ${fmtPct(ours)}; MimicGen published ${fmtPct(lo)} to ${fmtPct(hi)}`}>
-        <span className="pm-yield-band" style={{ left: fmtPct(lo), width: fmtPct(hi - lo) }} />
-        <span className="pm-yield-ours" style={{ left: fmtPct(ours) }} />
+      <div className="pm-yield" aria-hidden="true">
+        {mimicgen && <span className="pm-yield-band" style={{ left: fmtPct(mimicgen[0]), width: fmtPct(mimicgen[1] - mimicgen[0]) }} />}
+        {ours !== null && <span className="pm-yield-ours" style={{ left: fmtPct(ours) }} />}
       </div>
       <p className="small pm-num">
-        Ours: {fmtPct(ours)}{results.sample ? " (sample)" : ""}. MimicGen, published: {fmtPct(lo)} to {fmtPct(hi)}.
+        Ours: <span data-testid="yield-ours">{fmtRate(ours)}</span>
+        {results.sample && ours !== null ? " (sample)" : ""}.
+        {mimicgen && ` MimicGen, published: ${fmtPct(mimicgen[0])} to ${fmtPct(mimicgen[1])}.`}
       </p>
     </div>
   );
 }
 
-export default function ResultsPage({ data = sampleResults as unknown }: { data?: unknown }) {
-  let results: Results | null = null;
-  let problem = "";
-  try {
-    results = parseResults(data);
-  } catch (e) {
-    problem = e instanceof Error ? e.message : String(e);
-  }
+const fetchResults = () => pmFetch<unknown>("/results");
+
+export default function ResultsPage() {
+  const [load] = useLoad(fetchResults, "results");
+  const shown = decide(load);
+  const results = shown?.results;
   const tag = results?.sample ? " (sample)" : "";
+  const ablationAt = results?.ablation.demos;
 
   return (
     <Zones
@@ -127,22 +177,25 @@ export default function ResultsPage({ data = sampleResults as unknown }: { data?
           <PageTitle title="Results">
             Does perfecting webcam demos before multiplying them train a better policy than multiplying them raw?
           </PageTitle>
+          {!shown && <Loading what="results" />}
           {results?.sample && (
             <div className="pm-sample-banner" role="note">
               <strong>SAMPLE DATA — experiments pending</strong>
               <span>
-                Every number on this page is a placeholder from web/src/pm/mocks/results.sample.json, used to lay out
-                the page. None of it is measured, except MimicGen's published yield.
+                Every number here is a placeholder from web/src/pm/mocks/results.sample.json, used to lay out the page.
+                None of it is measured, except MimicGen's published yield.
               </span>
             </div>
           )}
-          {problem && (
-            <GlassCard variant="provisional" className="empty-state">
-              <h2>Can't show these results</h2>
-              <p className="muted" role="alert">
-                {problem}
-              </p>
-            </GlassCard>
+          {shown?.why && (
+            <p className="muted small pm-note" role="status">
+              {shown.why}
+            </p>
+          )}
+          {results && !results.sample && (
+            <p className="muted small pm-note">
+              Measured results from the backend (DATA_DIR/results/results.json). Pending means not measured yet.
+            </p>
           )}
           {results && (
             <GlassCard as="section" className="stack">
@@ -157,7 +210,9 @@ export default function ResultsPage({ data = sampleResults as unknown }: { data?
         <>
           <GlassCard as="section" className="stack">
             <h2>What the AI adds{tag}</h2>
-            <p className="muted small">Policy success at {results.ablation.demos} human demos, by how the demos were repaired.</p>
+            <p className="muted small">
+              Policy success{ablationAt != null ? ` at ${ablationAt} human demos` : ""}, by how the demos were repaired.
+            </p>
             <Ablation results={results} />
           </GlassCard>
           <GlassCard as="section" className="stack">

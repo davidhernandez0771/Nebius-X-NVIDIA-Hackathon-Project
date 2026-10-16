@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { framingCheck } from "./record/framing";
 import { layoutTimeline, speedProfile } from "./review/timeline";
 import { summarizeDemos } from "./dataset/summary";
-import { chartPoints, parseResults } from "./results/results";
+import { chartPoints, chartRuns, parseResults } from "./results/results";
 import type { Demo, Diagnosis } from "./types";
 
 // --- Record: framing against demo_pipeline.teleop.Calibration's defaults ---------------
@@ -176,6 +176,29 @@ describe("parseResults", () => {
     expect(() => parseResults({ ...valid, series: [{ key: "raw", label: "Raw", success: [0.1, 2, 0.3] }] })).toThrow();
   });
 
+  it("keeps unmeasured values as null, never 0", () => {
+    const r = parseResults({
+      ...valid,
+      sample: false,
+      series: [{ key: "raw", label: "Raw", success: [0.1, null, null] }],
+      ablation: { demos: 10, bars: [{ key: "rules", label: "Rules only", success: null }] },
+      multiply_yield: { ours: null, mimicgen: [0.38, 0.74] },
+    });
+    expect(r.series[0].success).toEqual([0.1, null, null]);
+    expect(r.ablation.bars[0].success).toBeNull();
+    expect(r.multiply_yield.ours).toBeNull();
+  });
+
+  it("ignores extra fields such as provenance", () => {
+    const r = parseResults({ ...valid, sources: { "series.raw": "evals/raw.json" } });
+    expect(r.series).toHaveLength(1);
+  });
+
+  it("rejects a file that isn't an object", () => {
+    expect(() => parseResults(null)).toThrow();
+    expect(() => parseResults([1, 2])).toThrow();
+  });
+
   it("treats any file without sample: false as sample data", () => {
     const { sample: _drop, ...unflagged } = valid;
     expect(parseResults(unflagged).sample).toBe(true);
@@ -191,10 +214,24 @@ describe("chartPoints", () => {
     ]);
   });
 
+  it("leaves a gap for a pending value", () => {
+    expect(chartPoints([0, null, 1], { width: 200, height: 100, pad: 0 })).toEqual([{ x: 0, y: 100 }, null, { x: 200, y: 0 }]);
+  });
+
   it("insets by the padding", () => {
     expect(chartPoints([0, 1], { width: 120, height: 120, pad: 10 })).toEqual([
       { x: 10, y: 110 },
       { x: 110, y: 10 },
     ]);
+  });
+});
+
+describe("chartRuns", () => {
+  it("splits a line at pending points so nothing is drawn through them", () => {
+    const a = { x: 0, y: 0 };
+    const b = { x: 1, y: 1 };
+    const c = { x: 3, y: 3 };
+    expect(chartRuns([a, b, null, c])).toEqual([[a, b], [c]]);
+    expect(chartRuns([null, null])).toEqual([]);
   });
 });
