@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms, speed_profile
+from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms, smoothed_speed, speed_profile
 from demo_pipeline.schemas import SimSignals, Trajectory
 
 DT = 0.02
@@ -103,3 +103,49 @@ def test_gripper_events_uses_last_open_after_regrasp_and_none_if_never_reopened(
     t_close, t_open = gripper_events(held)
     assert t_close == pytest.approx(0.02)
     assert t_open is None
+
+
+# --- smoothed_speed: speed that tremor cannot hold above the still threshold -------------------
+
+def _with_hold(hold_from: float, hold_s: float, duration: float = 4.0, speed: float = 0.1) -> Trajectory:
+    """A line at `speed` that stops dead for hold_s seconds from hold_from."""
+    n = int(round(duration / DT)) + 1
+    t = np.arange(n) * DT
+    moving = ~((t > hold_from + 1e-9) & (t <= hold_from + hold_s + 1e-9))
+    moving[0] = False
+    x = 0.4 + np.cumsum(np.where(moving, speed * DT, 0.0))
+    pos = np.stack([x, np.zeros(n), np.full(n, 0.2)], axis=1)
+    return Trajectory.from_arrays(t, pos, np.tile(IDENTITY, (n, 1)), np.zeros(n, int))
+
+
+def test_smoothed_speed_with_zero_sigma_is_the_raw_speed():
+    tr = _line(2.0, speed=0.1, noise_m=0.002)
+    assert np.array_equal(smoothed_speed(tr, 0.0), speed_profile(tr))
+
+
+def test_smoothed_speed_keeps_constant_velocity_up_to_both_ends():
+    # a plain edge pad would slow the hand near the ends and fake idle time there
+    tr = _line(2.0, speed=0.1)
+    s = smoothed_speed(tr, 0.2)
+    assert s.shape == (len(tr.t),)
+    assert np.allclose(s, 0.1, atol=1e-9)
+
+
+def test_smoothed_speed_puts_2_mm_tremor_well_below_the_still_threshold():
+    tr = _line(4.0, speed=0.0, noise_m=0.002)  # holding still, 2 mm white noise
+    assert np.median(speed_profile(tr)) > 0.1
+    assert np.percentile(smoothed_speed(tr, 0.2), 99) < 0.01
+
+
+def test_smoothed_speed_still_shows_a_hold_inside_motion():
+    tr = _with_hold(hold_from=1.5, hold_s=1.0)
+    s = smoothed_speed(tr, 0.2)
+    t = np.asarray(tr.t)
+    assert s[np.argmin(np.abs(t - 2.0))] < 0.002  # the middle of the hold
+    assert s[np.argmin(np.abs(t - 0.6))] == pytest.approx(0.1, abs=1e-3)  # far from it
+    assert s[np.argmin(np.abs(t - 3.4))] == pytest.approx(0.1, abs=1e-3)
+
+
+def test_smoothed_speed_rejects_negative_sigma():
+    with pytest.raises(ValueError):
+        smoothed_speed(_line(1.0), -0.1)
