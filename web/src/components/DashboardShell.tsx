@@ -20,6 +20,7 @@ const links: { to: string; label: string; icon: IconName; scoped?: boolean }[] =
   { to: "/organize", label: "Organize", icon: "organize", scoped: true },
   { to: "/chat", label: "Chat", icon: "chat", scoped: true },
   { to: "/settings", label: "Settings", icon: "settings" },
+  { to: "/pm/dataset", label: "Dataset", icon: "box" },
 ];
 
 // Destinations that need a room selected first (via `scoped`'s room_id) --
