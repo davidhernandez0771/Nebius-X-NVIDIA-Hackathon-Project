@@ -462,6 +462,7 @@
 }
 
 .pm-bar-fill {
+  display: block;
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--text-muted);

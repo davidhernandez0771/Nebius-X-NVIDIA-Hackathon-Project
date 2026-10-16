@@ -1,0 +1,18 @@
+{
+  "sample": true,
+  "note": "PLACEHOLDER NUMBERS. Invented to lay out the Results page before the experiments run. Nothing here is measured. Only mimicgen (38-74%) is a published figure (spec section 5).",
+  "demos": [5, 10, 20],
+  "series": [
+    { "key": "raw", "label": "Raw human demos", "success": [0.12, 0.22, 0.34] },
+    { "key": "raw_multiply", "label": "Raw + multiply", "success": [0.2, 0.36, 0.5] },
+    { "key": "ours", "label": "Perfected + multiply", "success": [0.3, 0.52, 0.66] }
+  ],
+  "ablation": {
+    "demos": 10,
+    "bars": [
+      { "key": "rules", "label": "Rules-only repair", "success": 0.4 },
+      { "key": "ours", "label": "Rules + Nemotron repair", "success": 0.46 }
+    ]
+  },
+  "multiply_yield": { "ours": 0.6, "mimicgen": [0.38, 0.74] }
+}
