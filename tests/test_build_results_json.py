@@ -105,3 +105,59 @@ def test_input_roots_add_their_registry_evals_yields_and_scores_with_true_proven
     assert r["diagnosis"][0]["source"] == str(t4 / "sets" / "s1" / "pipeline" / "rules" / "scores.json")
     assert r["multiply_yield"]["ours"] == 0.9
     assert (data / "results" / "results.json").is_file() and not (t3 / "results" / "results.json").exists()
+
+
+def _eval(cell, rate, ck=None):
+    return {"run": {"cell": cell, "checkpoint": ck or f"C:/ck/{cell}", "started": "2026-10-17"},
+            "summary": {"n": 20, "successes": round(rate * 20), "success_rate": rate}}
+
+
+def test_eval_files_in_per_run_folders_are_read(tmp_path):
+    """sim_eval writes evals/<run_id>/<cell>.json (sprint 5); an eval whose registry update failed still counts."""
+    data, t3 = tmp_path / "data", tmp_path / "t3data"
+    _write(t3 / "evals" / "g2" / "raw_10.json", _eval("raw_10", 0.15))
+    _write(t3 / "evals" / "g2" / "raw_10.episodes.jsonl", "{}\n")  # not a results file
+    r = json.loads(brj.build(data, input_roots=[t3]).read_text(encoding="utf-8"))
+    assert r["series"][0]["success"][1] == 0.15
+    assert r["sources"]["series.raw.success[1]"]["file"] == str(t3 / "evals" / "g2" / "raw_10.json")
+    assert r["inputs"]["evals"] == [str(t3 / "evals" / "g2" / "raw_10.json")]
+
+
+def _two_runs(t3):
+    old = {**_row("raw", 10, 0.0), "run_id": "old"}
+    new = {**_row("raw", 10, 0.3), "run_id": "home"}
+    new["eval"] = {**new["eval"], "evaluated_at": "2026-10-17T11:00:00+00:00"}
+    five = {**_row("raw", 5, 0.0), "run_id": "old"}
+    _write(t3 / "results" / "registry.jsonl", "\n".join(json.dumps(x) for x in (old, five, new)) + "\n")
+    _write(t3 / "evals" / "old" / "raw_5.json", _eval("raw_5", 0.0))
+    _write(t3 / "evals" / "home" / "raw_multiply_10.json", _eval("raw_multiply_10", 0.5))
+
+
+def test_without_a_run_id_every_run_counts_and_the_newest_wins(tmp_path):
+    data, t3 = tmp_path / "data", tmp_path / "t3data"
+    _two_runs(t3)
+    r = json.loads(brj.build(data, input_roots=[t3]).read_text(encoding="utf-8"))
+    assert r["series"][0]["success"][:2] == [0.0, 0.3]
+
+
+def test_run_ids_keep_one_experiment_on_the_chart_and_record_what_was_left_out(tmp_path):
+    data, t3 = tmp_path / "data", tmp_path / "t3data"
+    _two_runs(t3)
+    reg = t3 / "results" / "registry.jsonl"
+    r = json.loads(brj.build(data, input_roots=[t3], run_ids=["home"]).read_text(encoding="utf-8"))
+    assert r["series"][0]["success"][:2] == [None, 0.3]  # old's raw_5 is not mixed in
+    assert r["series"][1]["success"][1] == 0.5  # home's eval file (no registry row) still counts
+    assert r["sources"]["series.raw.success[1]"]["file"] == f"{reg}#L3"
+    assert "others" not in r["sources"]["series.raw.success[1]"]
+    assert r["run_ids"] == ["home"]
+    assert r["inputs"]["registry"] == [f"{reg}#L3"]
+    assert sorted(r["excluded_by_run_id"]) == sorted(
+        [f"{reg}#L1", f"{reg}#L2", str(t3 / "evals" / "old" / "raw_5.json")])
+
+
+def test_the_cli_takes_run_ids(tmp_path, capsys):
+    data, t3 = tmp_path / "data", tmp_path / "t3data"
+    _two_runs(t3)
+    brj.main(["--data-dir", str(data), "--input-root", str(t3), "--run-id", "old", "--demos", "5,10"])
+    r = json.loads((data / "results" / "results.json").read_text(encoding="utf-8"))
+    assert r["series"][0]["success"] == [0.0, 0.0] and r["run_ids"] == ["old"]
