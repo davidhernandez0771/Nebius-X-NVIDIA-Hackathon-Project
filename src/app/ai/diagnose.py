@@ -20,6 +20,7 @@ from typing import get_args
 
 from pydantic import ValidationError
 
+from demo_pipeline.rules import JITTER_MIN_JERK, MIN_STILL_S, STILL_SPEED
 from demo_pipeline.schemas import Diagnosis, IssueType, MetricsWindow, RepairOp, SegmentName
 from nebius_llm import chat_vision_images
 
@@ -31,6 +32,16 @@ MAX_IMAGES = 8
 # Thinking off: verified for Nemotron 3.5 text models (nebius_llm.client.chat);
 # the plan asks for the same switch on the VL model.
 DIAGNOSE_EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}}
+
+# Calibration (2026-10-16). On T2's clean scripted episode (pm-t2 data/smoke_cam) the model
+# reported 5 false issues. Measured there: moving 0.5 s windows run at 0.07-0.26 m/s (median
+# 0.135); single windows dip to 0.03-0.04 m/s at the grasp hold, the top of the lift and the
+# release; jerk_rms is 0.5-6, highest at the grasp.
+CLEAN_MOVING_SPEED = (0.07, 0.26)  # m/s
+# "slow" = median window speed over the span below this. 5x the rules' STILL_SPEED, about a third
+# of the clean expert's median: human teleop is naturally slower than the scripted expert, so only
+# a span ~3x slower than it is worth retiming. Above STILL_SPEED, so a pause also counts as slow.
+SLOW_SPEED = 5 * STILL_SPEED  # m/s
 
 # What each repair op does; its fields come from the schema model itself.
 _OP_HELP = {
@@ -125,8 +136,24 @@ def build_diagnosis_prompt(
         "Metrics per window, computed by code (gripper 0 = open, 1 = closed):",
         *_metrics_table(windows),
         "",
-        "Find what makes this demo a poor training example and choose repairs.",
+        "Decide whether this demo is a good training example as recorded. If it has problems, list them and "
+        "choose repairs.",
+        'A clean demo is common: then decision is "keep" with no issues, "issues": [] and "repairs": [].',
+        "Report an issue only with clear evidence in the metrics or the images; when in doubt, leave it out.",
         "All times are times in seconds from demo start; never go past the last window's end.",
+        "",
+        "What normal looks like (use these numbers):",
+        f"- speed: below {STILL_SPEED:g} m/s the hand is still; a pause is still for at least {MIN_STILL_S:g} s. "
+        f"Normal motion is {CLEAN_MOVING_SPEED[0]:g}-{CLEAN_MOVING_SPEED[1]:g} m/s, and single windows dip to "
+        "about 0.03 m/s at the grasp, the top of the lift and the release: those dips are normal.",
+        f"- slow: report slow only when the median speed over the span is below {SLOW_SPEED:g} m/s.",
+        f"- jitter: jerk_rms below {JITTER_MIN_JERK:g} is smooth motion, never jitter (a clean demo shows 0.5-6, "
+        f"highest at the grasp); report jitter only for windows with jerk_rms of {JITTER_MIN_JERK:g} or more.",
+        "- contacts: the G, B and T columns are ground truth from the simulator.",
+        "  - never report rim_contact unless a window in its span has B (arm-bin contact); "
+        "no B means no contact or force on the bin.",
+        "  - never report drop unless G (gripper-cube contact) ends in a window where gripper is still 1.",
+        "  - cube_height falling while the cube is lowered into the bin is a normal release, not a contact.",
         "",
         f"Segment names (ordered, non-overlapping, each with t0 < t1): {segment_names}.",
         "",
@@ -141,9 +168,12 @@ def build_diagnosis_prompt(
         "",
         "Reply with exactly one JSON object and nothing else: no prose, no markdown fences. Shape:",
         '{"segments": [{"name": "approach", "t0": 0.0, "t1": 1.2}], '
-        '"issues": [{"type": "jitter", "t0": 2.0, "t1": 2.5, "evidence": "jerk_rms 5x the others"}], '
+        '"issues": [{"type": "jitter", "t0": 2.0, "t1": 2.5, "evidence": "jerk_rms 85 vs about 2 elsewhere"}], '
         '"repairs": [{"op": "smooth", "t0": 2.0, "t1": 2.5, "strength": "med"}], '
         f'"decision": "repair", "label": "{task_text}"}}',
+        "A clean demo has the same shape with nothing to fix:",
+        '{"segments": [{"name": "approach", "t0": 0.0, "t1": 1.2}], '
+        f'"issues": [], "repairs": [], "decision": "keep", "label": "{task_text}"}}',
     ]
     return "\n".join(parts)
 

@@ -8,7 +8,15 @@ from unittest.mock import patch
 
 import pytest
 
-from app.ai.diagnose import DiagnosisError, build_diagnosis_prompt, diagnose, parse_diagnosis
+from app.ai.diagnose import (
+    CLEAN_MOVING_SPEED,
+    SLOW_SPEED,
+    DiagnosisError,
+    build_diagnosis_prompt,
+    diagnose,
+    parse_diagnosis,
+)
+from demo_pipeline.rules import JITTER_MIN_JERK, STILL_SPEED
 from demo_pipeline.schemas import Diagnosis, IssueType, MetricsWindow, RepairOp, SegmentName
 
 TASK = "pick up the red cube and place it in the blue bin"
@@ -176,3 +184,51 @@ def test_prompt_without_wrist_frame_does_not_mention_one():
     prompt = build_diagnosis_prompt(TASK, _windows(), [0.0, 1.5], has_wrist_frame=False, replay_success=True)
 
     assert "wrist camera" not in prompt
+
+
+# --- prompt calibration: a clean demo is keep (2026-10-16, after 5 false positives on smoke_cam) ---
+
+def _prompt(windows=None):
+    return build_diagnosis_prompt(TASK, windows or _windows(), [0.0, 1.5, 3.0], has_wrist_frame=True, replay_success=True)
+
+
+def _lines_with(prompt, *words):
+    return [line for line in prompt.splitlines() if all(w in line for w in words)]
+
+
+def test_prompt_no_longer_presumes_the_demo_has_a_problem():
+    assert "Find what makes this demo a poor training example" not in _prompt()
+
+
+def test_prompt_says_a_clean_demo_is_keep_with_no_issues_and_shows_one():
+    prompt = _prompt()
+    assert _lines_with(prompt, "clean demo", '"keep"', "no issues")
+    assert '"issues": [], "repairs": [], "decision": "keep"' in prompt
+    assert _lines_with(prompt, "when in doubt")
+
+
+def test_prompt_gives_the_rules_jitter_floor_as_the_smooth_range():
+    (line,) = _lines_with(_prompt(), "jitter", "jerk_rms", f"{JITTER_MIN_JERK:g}")
+    assert "smooth" in line
+
+
+def test_prompt_gives_normal_speeds_and_the_slow_threshold():
+    prompt = _prompt()
+    (line,) = _lines_with(prompt, "slow", f"{SLOW_SPEED:g} m/s")
+    assert "median" in line
+    lo, hi = CLEAN_MOVING_SPEED
+    assert _lines_with(prompt, f"{lo:g}-{hi:g} m/s", "normal")
+    assert _lines_with(prompt, f"{STILL_SPEED:g} m/s", "still")
+
+
+def test_prompt_says_contacts_are_ground_truth_for_rim_contact_and_drop():
+    prompt = _prompt()
+    assert _lines_with(prompt, "contact", "ground truth")
+    (rim,) = _lines_with(prompt, "never report rim_contact")
+    assert "B" in rim and "force" in rim
+    (drop,) = _lines_with(prompt, "never report drop")
+    assert "G" in drop and "gripper" in drop
+
+
+def test_slow_threshold_sits_between_still_and_clean_motion():
+    assert STILL_SPEED < SLOW_SPEED < CLEAN_MOVING_SPEED[0]
