@@ -90,3 +90,18 @@ def test_json_that_is_not_an_object_is_skipped_too(tmp_path):
     reg = str(data / "results" / "registry.jsonl")
     assert sorted(s["file"] for s in r["skipped_inputs"]) == sorted([str(data / "evals" / "list.json"), f"{reg}#L1"])
     assert r["series"][0]["success"][0] == 0.2
+
+
+def test_input_roots_add_their_registry_evals_yields_and_scores_with_true_provenance(tmp_path):
+    data, t3, t4 = tmp_path / "data", tmp_path / "t3data", tmp_path / "t4data"
+    _write(t3 / "results" / "registry.jsonl", json.dumps(_row("raw", 5, 0.25)) + "\n")
+    _write(t4 / "sets" / "s1" / "pipeline" / "rules" / "scores.json",
+           {"set": "s1", "diagnoser": "rules", "scored": 5, "not_scored": [], "counts": {}, "per_type": {},
+            "rules_types": {}, "all": {}})
+    _write(t4 / "multiply_franka" / "yield.json", {"robot": "franka", "attempts": 10, "successes": 9, "yield": 0.9})
+    r = json.loads(brj.build(data, input_roots=[t3, t4]).read_text(encoding="utf-8"))
+    assert r["series"][0]["success"][0] == 0.25
+    assert r["sources"]["series.raw.success[0]"]["file"] == f"{t3 / 'results' / 'registry.jsonl'}#L1"
+    assert r["diagnosis"][0]["source"] == str(t4 / "sets" / "s1" / "pipeline" / "rules" / "scores.json")
+    assert r["multiply_yield"]["ours"] == 0.9
+    assert (data / "results" / "results.json").is_file() and not (t3 / "results" / "results.json").exists()

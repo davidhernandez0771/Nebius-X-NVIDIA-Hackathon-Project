@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 138" width="680" height="138" role="img" aria-labelledby="t" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+<title id="t">Ablation: rules-only vs rules + Nemotron repair</title>
+<rect x="0" y="0" width="680" height="138" fill="#ffffff"/>
+<text x="16.0" y="26.0" font-size="14" text-anchor="start" fill="#111827" font-weight="600">Policy success at 10 human demos, by how the demos were repaired</text>
+<text x="210.0" y="59.0" font-size="12" text-anchor="end" fill="#111827">Rules-only repair</text>
+<rect class="track" x="220.0" y="44" width="380.0" height="22" fill="#f3f4f6"/>
+<g class="pending"><rect x="220.0" y="44" width="380.0" height="22" fill="none" stroke="#9ca3af" stroke-dasharray="4 3"/><text x="228.0" y="59.0" font-size="11" text-anchor="start" fill="#9ca3af">pending</text></g>
+<text x="210.0" y="93.0" font-size="12" text-anchor="end" fill="#111827">Rules + Nemotron repair</text>
+<rect class="track" x="220.0" y="78" width="380.0" height="22" fill="#f3f4f6"/>
+<g class="pending"><rect x="220.0" y="78" width="380.0" height="22" fill="none" stroke="#9ca3af" stroke-dasharray="4 3"/><text x="228.0" y="93.0" font-size="11" text-anchor="start" fill="#9ca3af">pending</text></g>
+</svg>

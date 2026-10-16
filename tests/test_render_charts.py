@@ -160,3 +160,8 @@ def test_cli_defaults_to_data_dir_results(tmp_path, monkeypatch):
 def test_cli_reports_a_missing_results_file(tmp_path, capsys):
     assert rc.main(["--results", str(tmp_path / "nope.json"), "--out", str(tmp_path)]) == 1
     assert "results.sample.json" in capsys.readouterr().out
+
+
+def test_written_svgs_use_lf_line_endings_on_every_platform(tmp_path):
+    for p in rc.render_all(build_results([], [], [], []), tmp_path):
+        assert b"\r" not in p.read_bytes()

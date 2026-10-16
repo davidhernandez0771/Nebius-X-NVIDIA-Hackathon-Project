@@ -65,6 +65,13 @@ def step_time(step: int, fps: float) -> float:
     return step / fps
 
 
+def panel_time(t: float, n_steps: int, fps: float) -> tuple[float, bool]:
+    """(the time a side-by-side panel shows, whether its episode is over): a finished episode's clock and
+    cursor stop at its last step, rather than running on over its held last frame."""
+    end = step_time(n_steps - 1, fps)
+    return (end, True) if t > end + 1e-9 else (t, False)
+
+
 class TimelineBar(NamedTuple):
     """Maps seconds onto pixels: 0 s at x = pad, `duration` at x = width - pad, clipped to the bar."""
 

@@ -188,7 +188,7 @@ def render_all(results: dict, out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, draw in CHARTS.items():
-        (out_dir / name).write_text(draw(results), encoding="utf-8")
+        (out_dir / name).write_text(draw(results), encoding="utf-8", newline="\n")  # LF, as git stores it
         paths.append(out_dir / name)
     return paths
 
