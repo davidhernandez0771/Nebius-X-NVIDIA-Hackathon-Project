@@ -115,3 +115,19 @@ def test_side_by_side_timelines_share_one_time_scale():
     a, b = media.side_by_side_layouts((_diag(), None), n_a=100, n_b=200, fps=50, width=384, pad=8)
     assert a.bar.duration == b.bar.duration == 4.0
     assert a.bar.x(2.0) == 192 and a.segments[-1].x1 == 376  # retreat ends at 8 s: clipped to the bar's end
+
+
+def test_a_finished_side_by_side_panel_stops_its_clock_at_its_own_end():
+    assert media.panel_time(3.0, n_steps=200, fps=50) == (3.0, False)
+    assert media.panel_time(5.0, n_steps=200, fps=50) == (3.98, True)  # its last step is at 199 / 50
+    assert media.panel_time(3.98, n_steps=200, fps=50) == (3.98, False)
+
+
+def test_every_curated_media_file_is_at_most_5_mb():
+    # docs/media is for the README and the video: GitHub renders it inline, so each file stays <= 5 MB.
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "docs" / "media"
+    big = [(str(p.relative_to(root)), p.stat().st_size) for p in root.rglob("*") if p.is_file()
+           and p.stat().st_size > 5 * 1024 * 1024]
+    assert big == []

@@ -137,8 +137,11 @@ def render_side_by_side(ep_a: Path, ep_b: Path, out: Path, *, labels: tuple[str,
     frames = []
     for (ia, ib), s in zip(pairs, media.gif_frames(max(n_a, n_b), fps_a, gif_fps, max_frames)[0]):
         t = media.step_time(s, fps_a)
-        panels = [compose_frame(_open(pa[ia], scale), lays[0], t, media.active_labels(diagnoses[0], t), scale),
-                  compose_frame(_open(pb[ib], scale), lays[1], t, media.active_labels(diagnoses[1], t), scale)]
+        panels = []
+        for paths, i, n, lay, diag in ((pa, ia, n_a, lays[0], diagnoses[0]), (pb, ib, n_b, lays[1], diagnoses[1])):
+            shown, done = media.panel_time(t, n, fps_a)
+            active = ["done"] if done else media.active_labels(diag, shown)
+            panels.append(compose_frame(_open(paths[i], scale), lay, shown, active, scale))
         img = Image.new("RGB", (2 * w + GAP, LABEL_H + panels[0].height), BG)
         d = ImageDraw.Draw(img)
         for k, (panel, label) in enumerate(zip(panels, labels)):

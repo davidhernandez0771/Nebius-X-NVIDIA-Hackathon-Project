@@ -1,12 +1,15 @@
 """Write the real results file, DATA_DIR/results/results.json, from whatever has been measured so far.
 
     uv run python scripts/build_results_json.py --data-dir data --t2-data C:\\dev\\pm-t2\\data
+    uv run python scripts/build_results_json.py --input-root C:\\dev\\pm-t3\\data --input-root C:\\dev\\pm-t4\\data
 
 Collects (demo_pipeline.results has the rules; nothing measured stays null and is listed as pending):
   <data-dir>/results/registry.jsonl            T3's experiment registry (eval_success per cell)
   <data-dir>/evals/*.json                      T3's sim eval results files
   <root>/*/yield.json, <root>/*/*/yield.json   T2's multiply yields, for root in --data-dir and each --t2-data
   <data-dir>/sets/*/pipeline/*/scores.json     scripts/score_pipeline_run.py
+Each --input-root (another track's data folder) contributes its registry, evals, yields and scores in place,
+so every source path stays the file that was measured; only results.json is written, under --data-dir.
 A file or registry line that cannot be read is skipped and listed in "skipped_inputs". The file is
 replaced atomically, so the page never reads half of it.
 """
@@ -67,16 +70,17 @@ def _files(paths, skipped: list[dict]) -> list[tuple[str, dict]]:
     return out
 
 
-def build(data: Path, *, t2_data: list[Path] = (), out: Path | None = None, robot: str = "franka",
-          demos=DEMOS, ablation_demos: int = ABLATION_DEMOS) -> Path:
+def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (), out: Path | None = None,
+          robot: str = "franka", demos=DEMOS, ablation_demos: int = ABLATION_DEMOS) -> Path:
     data = Path(data)
+    roots = [data, *map(Path, input_roots)]
     skipped: list[dict] = []
-    registry = _registry(data / "results" / "registry.jsonl", skipped)
-    evals = _files(sorted((data / "evals").glob("*.json")), skipped)
-    yield_paths = {p.resolve(): p for root in [data, *map(Path, t2_data)]
+    registry = [row for root in roots for row in _registry(root / "results" / "registry.jsonl", skipped)]
+    evals = _files([p for root in roots for p in sorted((root / "evals").glob("*.json"))], skipped)
+    yield_paths = {p.resolve(): p for root in [*roots, *map(Path, t2_data)]
                    for pattern in ("yield.json", "*/yield.json", "*/*/yield.json") for p in root.glob(pattern)}
     yields = _files(sorted(yield_paths.values(), key=lambda p: (p.stat().st_mtime, str(p))), skipped)  # oldest first
-    scores = _files(sorted(data.glob("sets/*/pipeline/*/scores.json")), skipped)
+    scores = _files([p for root in roots for p in sorted(root.glob("sets/*/pipeline/*/scores.json"))], skipped)
 
     results = build_results(registry, evals, yields, scores, demos=demos, ablation_demos=ablation_demos, robot=robot)
     results["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -102,12 +106,15 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data-dir", type=Path, default=None, help="default DATA_DIR")
     p.add_argument("--t2-data", type=Path, action="append", default=[], help="another root with multiply yield.json files")
+    p.add_argument("--input-root", type=Path, action="append", default=[],
+                   help="another data folder read in place: registry, evals, yields and scores")
     p.add_argument("--out", type=Path, default=None, help="default <data-dir>/results/results.json")
     p.add_argument("--robot", default="franka", help="whose multiply yield is shown")
     p.add_argument("--demos", default=",".join(map(str, DEMOS)), help="human demo counts on the x axis")
     p.add_argument("--ablation-demos", type=int, default=ABLATION_DEMOS)
     args = p.parse_args(argv)
-    out = build(args.data_dir if args.data_dir is not None else data_dir(), t2_data=args.t2_data, out=args.out,
+    out = build(args.data_dir if args.data_dir is not None else data_dir(), t2_data=args.t2_data,
+                input_roots=args.input_root, out=args.out,
                 robot=args.robot, demos=[int(x) for x in args.demos.split(",")], ablation_demos=args.ablation_demos)
     r = json.loads(out.read_text(encoding="utf-8"))
     filled = [k for k, v in r["sources"].items() if v["value"] is not None and v.get("file")]

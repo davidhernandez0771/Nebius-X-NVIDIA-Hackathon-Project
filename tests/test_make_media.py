@@ -123,3 +123,14 @@ def test_scale_sets_the_gif_size(tmp_path):
     ep = _episode(tmp_path, n=20)
     with Image.open(mm.render_gif(ep, tmp_path / "s.gif", scale=1)) as gif:
         assert gif.size == (32, 32 + mm.TIMELINE_H)
+
+
+def test_side_by_side_marks_the_shorter_episode_done(tmp_path, monkeypatch):
+    a, b = _episode(tmp_path, "long", n=40), _episode(tmp_path, "short", n=10)
+    seen = []
+    real = mm.compose_frame
+    monkeypatch.setattr(mm, "compose_frame", lambda frame, lay, t, labels=(), scale=mm.SCALE:
+                        (seen.append((round(t, 2), list(labels))), real(frame, lay, t, labels, scale))[1])
+    mm.render_side_by_side(a, b, tmp_path / "p.gif")
+    short = seen[1::2]  # the right panel's calls
+    assert short[0] == (0.0, []) and short[-1] == (0.18, ["done"])  # its clock stops at 9 / 50 s
