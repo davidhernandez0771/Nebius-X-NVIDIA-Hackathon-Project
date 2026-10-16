@@ -106,12 +106,12 @@ def _post(api, demo):
     return api.post("/demos", content=demo.model_dump_json(), headers={"content-type": "application/json"})
 
 
-def _diagnose(api, demo_id="human_1", *, returns=None, raises=None):
-    with patch("app.routers.demos.diagnose") as mock:
+def _diagnose(api, demo_id="human_1", *, returns=None, raises=None, gated=()):
+    with patch("app.routers.demos.diagnose_gated") as mock:
         if raises is not None:
             mock.side_effect = raises
         else:
-            mock.return_value = returns or _diagnosis()
+            mock.return_value = (returns or _diagnosis(), list(gated))
         return api.post(f"/demos/{demo_id}/diagnose"), mock
 
 
@@ -383,3 +383,46 @@ def test_real_episode_without_signals_uses_empty_contacts_and_says_so(store):
     assert not any(w.contact_gripper_cube or w.contact_arm_bin or w.contact_arm_table for w in inputs.windows)
     assert inputs.replay_success is None
     assert any("signals" in note for note in inputs.notes)
+
+
+# --- diagnose: what the gate dropped is returned and kept with the diagnosis ----------------
+
+GATED = ["dropped issue rim_contact 6.00-6.50: no arm-bin contact (B) in any overlapping window",
+         "decision repair -> keep: no issues remain"]
+
+
+def test_diagnose_returns_what_the_gate_dropped(demos_api, store):
+    _post(demos_api, _demo())
+    _write_episode(store)
+    r, _ = _diagnose(demos_api, gated=GATED)
+    assert r.json()["gated"] == GATED
+
+
+def test_gated_items_are_read_back_with_the_diagnosis(demos_api, store):
+    _post(demos_api, _demo())
+    _write_episode(store)
+    _diagnose(demos_api, gated=GATED)
+    assert demos_api.get("/demos/human_1/diagnosis").json()["gated"] == GATED
+
+
+def test_rules_fallback_gates_nothing_and_clears_an_older_gated_list(demos_api, store):
+    _post(demos_api, _demo())
+    _write_episode(store)
+    _diagnose(demos_api, gated=GATED)
+    r, _ = _diagnose(demos_api, raises=DiagnosisError("bad reply"))
+    assert r.json()["source"] == "rules"
+    assert r.json()["gated"] == []
+    assert demos_api.get("/demos/human_1/diagnosis").json()["gated"] == []
+
+
+def test_a_diagnosis_saved_without_a_gated_list_reads_back_as_empty(demos_api, store):
+    _post(demos_api, _demo())
+    store.save_diagnosis("human_1", _diagnosis(), "rules", None)
+    assert demos_api.get("/demos/human_1/diagnosis").json()["gated"] == []
+
+
+def test_corrupt_gated_list_is_422(demos_api, store):
+    _post(demos_api, _demo())
+    store.save_diagnosis("human_1", _diagnosis(), "rules", None)
+    (store.root / "demos" / "human_1" / "gated.json").write_text("{not json", encoding="utf-8")
+    assert demos_api.get("/demos/human_1/diagnosis").status_code == 422
