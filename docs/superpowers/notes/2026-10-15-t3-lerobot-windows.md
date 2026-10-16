@@ -45,6 +45,7 @@ $env:UV_LINK_MODE="copy"
 uv venv --python 3.12 C:\venvs\lerobot                     # CPython 3.12.14
 uv pip install --python C:\venvs\lerobot\Scripts\python.exe torch torchvision --index-url https://download.pytorch.org/whl/cu128
 uv pip install --python C:\venvs\lerobot\Scripts\python.exe "lerobot[dataset,training]==0.6.1" pytest
+uv pip install --python C:\venvs\lerobot\Scripts\python.exe pydantic   # explicit (sprint 2); demo_pipeline needs it
 uv pip install --python C:\venvs\lerobot\Scripts\python.exe -e C:\dev\pm-t3 --no-deps
 ```
 
