@@ -31,6 +31,26 @@ def preflight(health: dict, *, cameras: bool, image_size: int, sim_cameras=SIM_C
     return problems
 
 
+MIN_FREE_MIB = 8192  # sprint-3 rule: T3 evaluates only with >= 8 GB of GPU memory free
+
+
+def isaac_gate(processes: list[tuple[int, str]], *, own_pids: set[int], free_mib: int | None,
+               min_free_mib: int = MIN_FREE_MIB) -> tuple[bool, dict]:
+    """May this eval run? Only if no *other* python process (not in own_pids: this one and its venv launcher) runs
+    from Isaac (command line contains 'isaac') and nvidia-smi reports enough free memory. `processes` is [(pid, command line)] of python.exe processes."""
+    others = [{"pid": pid, "cmd": cmd[:200]} for pid, cmd in processes
+              if pid not in own_pids and "isaac" in (cmd or "").lower()]
+    reasons = []
+    if others:
+        reasons.append("another Isaac process is running: " + "; ".join(f"{o['pid']} {o['cmd']}" for o in others))
+    if free_mib is None:
+        reasons.append("nvidia-smi gave no free-memory reading")
+    elif free_mib < min_free_mib:
+        reasons.append(f"GPU has {free_mib} MiB free, need >= {min_free_mib}")
+    return not reasons, {"other_isaac": others, "free_mib": free_mib, "min_free_mib": min_free_mib,
+                         "ok": not reasons, "reason": " | ".join(reasons) or None}
+
+
 def resolve_start(mode: str, *, start_state: Path | None = None, registry: Path | None = None,
                   cell: str | None = None, checkpoint: str | None = None) -> tuple[list[float] | None, dict]:
     """Choose the eval reset pose (Review Focus 4). Returns (pose, record); pose None = the robot's default pose.
@@ -64,6 +84,12 @@ def resolve_start(mode: str, *, start_state: Path | None = None, registry: Path 
 
 def default_results_path(data_root: Path, cell: str | None) -> Path:
     return Path(data_root) / "evals" / f"{cell or 'adhoc'}_{datetime.now():%Y%m%d_%H%M%S}.json"
+
+
+def episode_log_path(results: Path) -> Path:
+    """The per-episode log (sim_eval.progress) of the run whose final results go to `results`."""
+    results = Path(results)
+    return results.with_name(results.stem + ".episodes.jsonl")
 
 
 def write_results(path: Path, run: dict, episodes: list[EpisodeResult], summary: EvalSummary) -> Path:
