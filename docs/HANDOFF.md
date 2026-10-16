@@ -1,5 +1,7 @@
 # Handoff brief for any AI coding assistant working on this repo
 
+> **Historical: SANT era.** Written for SANT, the room-organizer app this repo started as (Best Apps and Agents track); parts are out of date. The current submission is *Perfect, then multiply* (Physical AI track, no demo URL needed); see the [README](../README.md).
+
 Read this whole file before touching anything.
 
 ## Current direction (2026-09-18)
