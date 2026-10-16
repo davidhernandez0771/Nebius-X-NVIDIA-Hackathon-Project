@@ -19,10 +19,20 @@ import json
 import statistics
 from typing import get_args
 
+import numpy as np
 from pydantic import ValidationError
 
-from demo_pipeline.rules import JITTER_MIN_JERK, MIN_STILL_S, STILL_SPEED
-from demo_pipeline.schemas import Diagnosis, IssueType, MetricsWindow, RepairOp, SegmentName
+from demo_pipeline.rules import JITTER_MIN_JERK, MIN_STILL_S, STILL_SPEED, detect_rules
+from demo_pipeline.schemas import (
+    Diagnosis,
+    Issue,
+    IssueType,
+    MetricsWindow,
+    RepairOp,
+    SegmentName,
+    SimSignals,
+    Trajectory,
+)
 from nebius_llm import chat_vision_images
 
 DIAGNOSE_TIER = "nemotron-vl"
@@ -326,7 +336,11 @@ def diagnose_gated(
         task_text, windows, [t for t, _ in frames], wrist_frame is not None, replay_success, failure_reasons
     )
     images = [png for _, png in frames] + ([wrist_frame] if wrist_frame is not None else [])
+    return gate_diagnosis(_ask_model(prompt, images, duration, max_attempts), windows)
 
+
+def _ask_model(prompt: str, images: list[bytes], duration: float, max_attempts: int) -> Diagnosis:
+    """One validated Diagnosis from Nemotron VL; an invalid reply is retried with the error appended."""
     attempt_prompt = prompt
     error: DiagnosisError | None = None
     for _ in range(max_attempts):
@@ -338,7 +352,7 @@ def diagnose_gated(
             extra_body=DIAGNOSE_EXTRA_BODY,
         )
         try:
-            return gate_diagnosis(parse_diagnosis(result.text, duration), windows)
+            return parse_diagnosis(result.text, duration)
         except DiagnosisError as e:
             error = e
             attempt_prompt = (
@@ -346,3 +360,199 @@ def diagnose_gated(
                 "Reply again with one corrected JSON object only."
             )
     raise DiagnosisError(f"no valid diagnosis after {max_attempts} attempts; last error: {error}")
+
+
+# --- hybrid: the rules own timing, the model adds what they never name (sprint 4) -------------------
+
+RULES_TYPES = ("pause", "jitter", "idle_start_end")  # rules F1 0.97-0.99 under tremor (spec Changes)
+MODEL_TYPES = ("grasp_off_center", "bad_release", "drop", "wrong_object", "rim_contact")
+_TIMING_OPS = ("trim", "remove_pause", "smooth", "retime")
+MODEL_OPS = ("recenter_grasp", "replan_transit", "discard")
+# An off-center claim needs the measured offset at the close to exceed the IK tracking error there (3.3 mm
+# after the joint-velocity feedforward fix, spec Changes 2026-10-16): below it, "off-center" is noise.
+GRASP_CENTERED_MM = 3.3
+
+
+def first_close(traj: Trajectory) -> float | None:
+    """Time of the first gripper close, or None if it never closes."""
+    k = next((i for i, g in enumerate(traj.gripper) if g == 1), None)
+    return None if k is None else float(traj.t[k])
+
+
+def grasp_offset_mm(traj: Trajectory, signals: SimSignals | None) -> float | None:
+    """Horizontal distance (mm) from the gripper to the cube center at the first close; None without signals
+    on the trajectory's steps or without a close."""
+    if signals is None or signals.n_steps != len(traj.t):
+        return None
+    k = next((i for i, g in enumerate(traj.gripper) if g == 1), None)
+    if k is None:
+        return None
+    d = np.asarray(traj.ee_pos[k], dtype=float) - signals.cube_pos[k]
+    return float(np.hypot(d[0], d[1]) * 1000.0)
+
+
+def _fmt_item(item) -> str:
+    """An issue's or repair's time as text: a point "1.30" or a range "1.20-2.00"."""
+    if getattr(item, "t0", None) is None:
+        return f"{item.t:.2f}"
+    return _fmt((item.t0, item.t1))
+
+
+def build_hybrid_prompt(
+    task_text: str,
+    windows: list[MetricsWindow],
+    frame_times: list[float],
+    has_wrist_frame: bool,
+    replay_success: bool,
+    rules: Diagnosis,
+    t_close: float | None,
+    *,
+    offset_mm: float | None = None,
+    failure_reasons: list[str] | None = None,
+) -> str:
+    """The hybrid prompt: the code's timing findings are stated as done; the model looks only for what the
+    rules never name. No "leave it out" bias; contacts stay ground truth."""
+    captions = [f"Image {i}: front camera at t={t:.2f} s" for i, t in enumerate(frame_times, start=1)]
+    if has_wrist_frame:
+        captions.append(f"Image {len(frame_times) + 1}: wrist camera at the first gripper close")
+    found = [f"- {i.type} {_fmt_item(i)} s: {i.evidence}" for i in rules.issues]
+    if t_close is None:
+        grasp_fact = "The gripper never closes."
+    else:
+        grasp_fact = f"Measured by code: first gripper close at t={t_close:.2f} s"
+        if offset_mm is not None:
+            grasp_fact += (f"; the gripper center was {offset_mm:.1f} mm (horizontally) from the cube center. "
+                           f"Offsets up to {GRASP_CENTERED_MM:g} mm are within the arm's tracking error")
+        grasp_fact += "."
+    issue_lines = [f"- {name}: {_ISSUE_HELP[name]}" for name in MODEL_TYPES]
+    menu = [line for line in _repair_menu() if line.split()[1] in MODEL_OPS]
+    parts = [
+        "You are reviewing one robot demonstration recorded by a human teleoperating a robot arm in simulation.",
+        f'Task: "{task_text}"',
+        f"Replaying the demo in simulation {'SUCCEEDED' if replay_success else 'FAILED'}.",
+        *([f"This is a re-diagnosis: the previous repair failed verification because: {', '.join(failure_reasons)}. "
+           "The images and metrics below are of that failed replay; choose repairs that fix those reasons."]
+          if failure_reasons else []),
+        "",
+        "Timing issues are already handled by code; do not report pause, jitter, idle_start_end or slow.",
+        *(["The code found these, and will repair them:", *found] if found else ["the code found no timing issues."]),
+        "",
+        "Images, in order:",
+        *captions,
+        "",
+        grasp_fact,
+        "",
+        "Metrics per window, computed by code (gripper 0 = open, 1 = closed):",
+        *_metrics_table(windows),
+        "",
+        "Your job: look for the problems code cannot name, and report every one you see evidence for. "
+        "A missed problem spoils the training data as much as a false alarm.",
+        "- grasp_off_center: in the wrist image, is the cube centered between the fingers? Use the measured offset. "
+        "Report it as a point issue at the close time, with a recenter_grasp repair at that time.",
+        "- bad_release: is the cube released outside the bin, or dropped from too high?",
+        "- drop: does the cube fall out of the gripper before the bin?",
+        "- wrong_object: does the gripper go for something other than the red cube?",
+        "- segments: split the demo into its phases.",
+        "Contacts: the G, B and T columns are ground truth from the simulator.",
+        "  - never report rim_contact unless a window in its span has B (arm-bin contact).",
+        "  - never report drop unless G (gripper-cube contact) ends in a window where gripper is still 1.",
+        "",
+        f"Segment names (ordered, non-overlapping, each with t0 < t1): {', '.join(get_args(SegmentName))}.",
+        "",
+        "Issue types you may report (each issue has a point time t, or a range t0 and t1, plus short evidence):",
+        *issue_lines,
+        "",
+        "Repair menu (use only these ops with exactly these fields):",
+        *menu,
+        "",
+        'decision is "keep" (no issues of yours), "repair" (fixed by your repairs), or "discard" (unfixable, e.g. the '
+        'wrong object; then repairs is [{"op": "discard"}]). label is the task sentence.',
+        "",
+        "Reply with exactly one JSON object and nothing else: no prose, no markdown fences. Shape:",
+        '{"segments": [{"name": "approach", "t0": 0.0, "t1": 1.2}, {"name": "grasp", "t0": 1.2, "t1": 1.6}], '
+        '"issues": [{"type": "grasp_off_center", "t": 1.3, "evidence": "cube against the left finger"}], '
+        '"repairs": [{"op": "recenter_grasp", "t": 1.3}], '
+        f'"decision": "repair", "label": "{task_text}"}}',
+    ]
+    return "\n".join(parts)
+
+
+def _overlap_any(a, others) -> bool:
+    sa = _span(a)
+    return sa is not None and any((sb := _span(b)) is not None and _overlaps(sa, sb) for b in others)
+
+
+def merge_hybrid(rules: Diagnosis, model: Diagnosis, *, t_close: float | None,
+                 offset_mm: float | None) -> tuple[Diagnosis, list[str]]:
+    """Rules issues and repairs, plus the model's issues and repairs of the types it owns. Returns the merged
+    diagnosis and one line per model item left out. The decision follows from the merged repairs."""
+    dropped: list[str] = []
+    issues = list(rules.issues)
+    repairs = list(rules.repairs)
+    grasp_noise = offset_mm is not None and offset_mm < GRASP_CENTERED_MM
+    for issue in model.issues:
+        where = f"model issue {issue.type} {_fmt_item(issue)}"
+        if issue.type not in MODEL_TYPES:
+            dropped.append(f"dropped {where}: the rules own timing ({', '.join(RULES_TYPES)}, slow) and the hybrid "
+                           f"prompt asks only for {', '.join(MODEL_TYPES)}")
+            continue
+        if issue.type == "grasp_off_center":
+            if grasp_noise:
+                dropped.append(f"dropped {where}: measured offset {offset_mm:.1f} mm is within the "
+                               f"{GRASP_CENTERED_MM:g} mm tracking error")
+                continue
+            if t_close is not None:
+                issue = Issue(type=issue.type, t=t_close, evidence=issue.evidence)
+        issues.append(issue)
+    for rep in model.repairs:
+        where = f"model repair {rep.op}" + (f" {_fmt_item(rep)}" if _span(rep) else "")
+        if rep.op not in MODEL_OPS:
+            dropped.append(f"dropped {where}: the rules own timing repairs ({', '.join(_TIMING_OPS)})")
+            continue
+        if rep.op == "recenter_grasp":
+            if grasp_noise:
+                dropped.append(f"dropped {where}: measured offset {offset_mm:.1f} mm is within tracking error")
+                continue
+            if t_close is not None:
+                rep = rep.model_copy(update={"t": t_close})
+        if _overlap_any(rep, [r for r in repairs if r.op == rep.op]):
+            dropped.append(f"dropped {where}: overlaps the rules' {rep.op}")
+            continue
+        repairs.append(rep)
+    if any(r.op == "discard" for r in repairs):
+        decision, repairs = "discard", [r for r in repairs if r.op == "discard"][:1]
+    else:
+        decision = "repair" if repairs else "keep"
+    segments = model.segments or rules.segments
+    merged = Diagnosis(segments=segments, issues=issues, repairs=repairs, decision=decision, label=rules.label)
+    return merged, dropped
+
+
+def diagnose_hybrid(
+    frames: list[tuple[float, bytes]],
+    wrist_frame: bytes | None,
+    windows: list[MetricsWindow],
+    traj: Trajectory,
+    task_text: str,
+    replay_success: bool,
+    duration: float,
+    *,
+    signals: SimSignals | None = None,
+    max_attempts: int = 2,
+    failure_reasons: list[str] | None = None,
+) -> tuple[Diagnosis, list[str]]:
+    """Rules + Nemotron. detect_rules finds the timing issues; Nemotron, told what the rules found, looks only for
+    MODEL_TYPES and the segments; its reply is gated with the metrics (gate_diagnosis, plus the measured grasp
+    offset) and merged (merge_hybrid). Returns (diagnosis, what was left out of the model's reply).
+
+    Raises DiagnosisError after max_attempts invalid replies; nebius_llm errors propagate. The caller falls back
+    to the rules alone."""
+    rules = detect_rules(traj, windows, task_text)
+    t_close, offset = first_close(traj), grasp_offset_mm(traj, signals)
+    frames = select_frames(frames, wrist_frame is not None)
+    prompt = build_hybrid_prompt(task_text, windows, [t for t, _ in frames], wrist_frame is not None, replay_success,
+                                 rules, t_close, offset_mm=offset, failure_reasons=failure_reasons)
+    images = [png for _, png in frames] + ([wrist_frame] if wrist_frame is not None else [])
+    model, gated = gate_diagnosis(_ask_model(prompt, images, duration, max_attempts), windows)
+    merged, dropped = merge_hybrid(rules, model, t_close=t_close, offset_mm=offset)
+    return merged, gated + dropped
