@@ -1,6 +1,7 @@
 """Backend demo routes: /demos CRUD and /demos/{id}/diagnose with the rules fallback (Review Focus 5)."""
 from __future__ import annotations
 
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
@@ -106,12 +107,12 @@ def _post(api, demo):
     return api.post("/demos", content=demo.model_dump_json(), headers={"content-type": "application/json"})
 
 
-def _diagnose(api, demo_id="human_1", *, returns=None, raises=None):
-    with patch("app.routers.demos.diagnose") as mock:
+def _diagnose(api, demo_id="human_1", *, returns=None, raises=None, gated=()):
+    with patch("app.routers.demos.diagnose_gated") as mock:
         if raises is not None:
             mock.side_effect = raises
         else:
-            mock.return_value = returns or _diagnosis()
+            mock.return_value = (returns or _diagnosis(), list(gated))
         return api.post(f"/demos/{demo_id}/diagnose"), mock
 
 
@@ -383,3 +384,88 @@ def test_real_episode_without_signals_uses_empty_contacts_and_says_so(store):
     assert not any(w.contact_gripper_cube or w.contact_arm_bin or w.contact_arm_table for w in inputs.windows)
     assert inputs.replay_success is None
     assert any("signals" in note for note in inputs.notes)
+
+
+# --- diagnose: what the gate dropped is returned and kept with the diagnosis ----------------
+
+GATED = ["dropped issue rim_contact 6.00-6.50: no arm-bin contact (B) in any overlapping window",
+         "decision repair -> keep: no issues remain"]
+
+
+def test_diagnose_returns_what_the_gate_dropped(demos_api, store):
+    _post(demos_api, _demo())
+    _write_episode(store)
+    r, _ = _diagnose(demos_api, gated=GATED)
+    assert r.json()["gated"] == GATED
+
+
+def test_gated_items_are_read_back_with_the_diagnosis(demos_api, store):
+    _post(demos_api, _demo())
+    _write_episode(store)
+    _diagnose(demos_api, gated=GATED)
+    assert demos_api.get("/demos/human_1/diagnosis").json()["gated"] == GATED
+
+
+def test_rules_fallback_gates_nothing_and_clears_an_older_gated_list(demos_api, store):
+    _post(demos_api, _demo())
+    _write_episode(store)
+    _diagnose(demos_api, gated=GATED)
+    r, _ = _diagnose(demos_api, raises=DiagnosisError("bad reply"))
+    assert r.json()["source"] == "rules"
+    assert r.json()["gated"] == []
+    assert demos_api.get("/demos/human_1/diagnosis").json()["gated"] == []
+
+
+def test_a_diagnosis_saved_without_a_gated_list_reads_back_as_empty(demos_api, store):
+    _post(demos_api, _demo())
+    store.save_diagnosis("human_1", _diagnosis(), "rules", None)
+    assert demos_api.get("/demos/human_1/diagnosis").json()["gated"] == []
+
+
+def test_corrupt_gated_list_is_422(demos_api, store):
+    _post(demos_api, _demo())
+    store.save_diagnosis("human_1", _diagnosis(), "rules", None)
+    (store.root / "demos" / "human_1" / "gated.json").write_text("{not json", encoding="utf-8")
+    assert demos_api.get("/demos/human_1/diagnosis").status_code == 422
+
+
+# --- scripts/diagnose_real_episode.py --tag: a new run never overwrites an older result -----
+
+def test_result_dir_puts_a_tagged_run_in_its_own_folder(tmp_path):
+    script = _load_script()
+    assert script.result_dir(tmp_path, None) == tmp_path
+    assert script.result_dir(tmp_path, "calibrated") == tmp_path / "calibrated"
+    with pytest.raises(ValueError):
+        script.result_dir(tmp_path, "../escape")
+
+
+def test_tagged_run_refuses_when_its_result_exists_and_makes_no_call(store, tmp_path):
+    ep = _write_episode(store)
+    (tmp_path / "out" / "calibrated").mkdir(parents=True)
+    (tmp_path / "out" / "calibrated" / "result.json").write_text("{}", encoding="utf-8")
+    script = _load_script()
+    with patch.object(script, "diagnose_gated") as call:
+        code = script.main(["--episode", str(ep), "--out", str(tmp_path / "out"), "--tag", "calibrated"])
+    assert code == 1
+    call.assert_not_called()
+
+
+def test_tagged_run_keeps_the_untagged_result_and_records_what_was_gated(store, tmp_path):
+    ep = _write_episode(store)
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "result.json").write_text('{"original": true}', encoding="utf-8")
+    gated = ["dropped issue rim_contact 1.00-1.50: no arm-bin contact (B) in any overlapping window",
+             "dropped repair replan_transit 1.00-1.50: it only served dropped issues",
+             "decision repair -> keep: no issues remain"]
+    script = _load_script()
+    with patch.object(script, "diagnose_gated", return_value=(_diagnosis(), gated)), \
+         patch.object(script, "_vl_calls", return_value=[]), patch("dotenv.load_dotenv"):
+        code = script.main(["--episode", str(ep), "--out", str(out), "--tag", "calibrated"])
+    assert code == 0
+    assert (out / "result.json").read_text(encoding="utf-8") == '{"original": true}'
+    result = json.loads((out / "calibrated" / "result.json").read_text(encoding="utf-8"))
+    assert result["tag"] == "calibrated"
+    assert result["gated"] == gated
+    assert result["issues_reported_by_model"] == 1  # 0 kept + 1 dropped by the gate
+    assert result["nemotron"]["decision"] == "keep"

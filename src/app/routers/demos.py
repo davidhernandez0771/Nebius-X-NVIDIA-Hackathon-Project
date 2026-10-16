@@ -3,8 +3,11 @@
     POST /demos                  body: Demo JSON -> 201 {"id"}; 409 if the id exists
     GET  /demos?source=          newest first
     GET  /demos/{id}             404 if missing
-    POST /demos/{id}/diagnose    Nemotron VL, or the rules detector if it fails -> {source, model_id, diagnosis}
-    GET  /demos/{id}/diagnosis   the saved one; 404 if none yet
+    POST /demos/{id}/diagnose    Nemotron VL, or the rules detector if it fails -> {source, model_id, diagnosis, gated}
+    GET  /demos/{id}/diagnosis   the saved one, same shape; 404 if none yet
+
+`gated` lists what diagnose_gated() dropped from the model's reply because the measured
+windows contradict it ([] for the rules), kept in <demo>/gated.json beside diagnosis.json.
 
 Diagnose reads the demo's recorded episode (store.episode_dir(id)): front frames,
 the wrist frame at the first gripper close, and signals.npz. Windows are computed
@@ -16,6 +19,7 @@ The store root is DATA_DIR (demo_pipeline.paths.data_dir), read on every request
 """
 from __future__ import annotations
 
+import json
 import logging
 import zipfile
 from pathlib import Path
@@ -23,17 +27,18 @@ from typing import Literal
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import TypeAdapter
 
 from demo_pipeline.episode_io import EpisodeMeta, load_episode, load_signals
 from demo_pipeline.measure import compute_windows
 from demo_pipeline.rules import detect_rules
 from demo_pipeline.schemas import Demo, SimSignals, Trajectory
-from demo_pipeline.store import DemoStore
+from demo_pipeline.store import DemoStore, _write_atomic
 from demo_pipeline.success import check_success
 from nebius_llm import TokenFactoryError
 from nebius_llm.config import get_vision_model
 
-from ..ai.diagnose import DIAGNOSE_TIER, DiagnosisError, diagnose, select_frames
+from ..ai.diagnose import DIAGNOSE_TIER, DiagnosisError, diagnose_gated, select_frames
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +52,14 @@ _CORRUPT = (ValueError, OSError, KeyError, EOFError, zipfile.BadZipFile)
 
 def get_store() -> DemoStore:
     return DemoStore()
+
+
+_GATED = TypeAdapter(list[str])
+
+
+def _gated_path(store: DemoStore, demo_id: str) -> Path:
+    """What diagnose_gated() dropped, beside diagnosis.json. The store has no field for it yet."""
+    return store.episode_dir(demo_id).parent / "gated.json"
 
 
 def _get_demo(store: DemoStore, demo_id: str) -> Demo:
@@ -134,15 +147,18 @@ def diagnose_demo(demo_id: str, store: DemoStore = Depends(get_store)) -> dict:
         raise HTTPException(422, f"episode of {demo_id!r} is unreadable: {type(e).__name__}: {e}") from None
 
     try:
-        diag = diagnose(frames, wrist, windows, meta.task_text, replay_success, traj.duration)
+        diag, gated = diagnose_gated(frames, wrist, windows, meta.task_text, replay_success, traj.duration)
         source, model_id = "nemotron", get_vision_model(DIAGNOSE_TIER).model_id
     except (DiagnosisError, TokenFactoryError) as e:
         log.warning("diagnose(%s) fell back to rules: %s: %s", demo_id, type(e).__name__, e)
-        diag = detect_rules(traj, windows, meta.task_text)
+        diag, gated = detect_rules(traj, windows, meta.task_text), []
         source, model_id = "rules", None
+    for item in gated:
+        log.info("diagnose(%s) gate: %s", demo_id, item)
 
     store.save_diagnosis(demo_id, diag, source, model_id)
-    return {"source": source, "model_id": model_id, "diagnosis": diag.model_dump(mode="json")}
+    _write_atomic(_gated_path(store, demo_id), json.dumps(gated, indent=2))  # always, so none is stale
+    return {"source": source, "model_id": model_id, "diagnosis": diag.model_dump(mode="json"), "gated": gated}
 
 
 @router.get("/{demo_id}/diagnosis")
@@ -155,4 +171,9 @@ def get_diagnosis(demo_id: str, store: DemoStore = Depends(get_store)) -> dict:
     if saved is None:
         raise HTTPException(404, f"demo {demo_id!r} has no diagnosis yet")
     diag, source, model_id = saved
-    return {"source": source, "model_id": model_id, "diagnosis": diag.model_dump(mode="json")}
+    path = _gated_path(store, demo_id)
+    try:
+        gated = _GATED.validate_json(path.read_bytes()) if path.is_file() else []
+    except ValueError as e:
+        raise HTTPException(422, f"gated list of {demo_id!r} is corrupt: {e}") from None
+    return {"source": source, "model_id": model_id, "diagnosis": diag.model_dump(mode="json"), "gated": gated}

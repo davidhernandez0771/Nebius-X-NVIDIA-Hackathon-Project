@@ -16,10 +16,12 @@ validator cannot drift apart.
 from __future__ import annotations
 
 import json
+import statistics
 from typing import get_args
 
 from pydantic import ValidationError
 
+from demo_pipeline.rules import JITTER_MIN_JERK, MIN_STILL_S, STILL_SPEED
 from demo_pipeline.schemas import Diagnosis, IssueType, MetricsWindow, RepairOp, SegmentName
 from nebius_llm import chat_vision_images
 
@@ -31,6 +33,16 @@ MAX_IMAGES = 8
 # Thinking off: verified for Nemotron 3.5 text models (nebius_llm.client.chat);
 # the plan asks for the same switch on the VL model.
 DIAGNOSE_EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}}
+
+# Calibration (2026-10-16). On T2's clean scripted episode (pm-t2 data/smoke_cam) the model
+# reported 5 false issues. Measured there: moving 0.5 s windows run at 0.07-0.26 m/s (median
+# 0.135); single windows dip to 0.03-0.04 m/s at the grasp hold, the top of the lift and the
+# release; jerk_rms is 0.5-6, highest at the grasp.
+CLEAN_MOVING_SPEED = (0.07, 0.26)  # m/s
+# "slow" = median window speed over the span below this. 5x the rules' STILL_SPEED, about a third
+# of the clean expert's median: human teleop is naturally slower than the scripted expert, so only
+# a span ~3x slower than it is worth retiming. Above STILL_SPEED, so a pause also counts as slow.
+SLOW_SPEED = 5 * STILL_SPEED  # m/s
 
 # What each repair op does; its fields come from the schema model itself.
 _OP_HELP = {
@@ -125,8 +137,24 @@ def build_diagnosis_prompt(
         "Metrics per window, computed by code (gripper 0 = open, 1 = closed):",
         *_metrics_table(windows),
         "",
-        "Find what makes this demo a poor training example and choose repairs.",
+        "Decide whether this demo is a good training example as recorded. If it has problems, list them and "
+        "choose repairs.",
+        'A clean demo is common: then decision is "keep" with no issues, "issues": [] and "repairs": [].',
+        "Report an issue only with clear evidence in the metrics or the images; when in doubt, leave it out.",
         "All times are times in seconds from demo start; never go past the last window's end.",
+        "",
+        "What normal looks like (use these numbers):",
+        f"- speed: below {STILL_SPEED:g} m/s the hand is still; a pause is still for at least {MIN_STILL_S:g} s. "
+        f"Normal motion is {CLEAN_MOVING_SPEED[0]:g}-{CLEAN_MOVING_SPEED[1]:g} m/s, and single windows dip to "
+        "about 0.03 m/s at the grasp, the top of the lift and the release: those dips are normal.",
+        f"- slow: report slow only when the median speed over the span is below {SLOW_SPEED:g} m/s.",
+        f"- jitter: jerk_rms below {JITTER_MIN_JERK:g} is smooth motion, never jitter (a clean demo shows 0.5-6, "
+        f"highest at the grasp); report jitter only for windows with jerk_rms of {JITTER_MIN_JERK:g} or more.",
+        "- contacts: the G, B and T columns are ground truth from the simulator.",
+        "  - never report rim_contact unless a window in its span has B (arm-bin contact); "
+        "no B means no contact or force on the bin.",
+        "  - never report drop unless G (gripper-cube contact) ends in a window where gripper is still 1.",
+        "  - cube_height falling while the cube is lowered into the bin is a normal release, not a contact.",
         "",
         f"Segment names (ordered, non-overlapping, each with t0 < t1): {segment_names}.",
         "",
@@ -141,9 +169,12 @@ def build_diagnosis_prompt(
         "",
         "Reply with exactly one JSON object and nothing else: no prose, no markdown fences. Shape:",
         '{"segments": [{"name": "approach", "t0": 0.0, "t1": 1.2}], '
-        '"issues": [{"type": "jitter", "t0": 2.0, "t1": 2.5, "evidence": "jerk_rms 5x the others"}], '
+        '"issues": [{"type": "jitter", "t0": 2.0, "t1": 2.5, "evidence": "jerk_rms 85 vs about 2 elsewhere"}], '
         '"repairs": [{"op": "smooth", "t0": 2.0, "t1": 2.5, "strength": "med"}], '
         f'"decision": "repair", "label": "{task_text}"}}',
+        "A clean demo has the same shape with nothing to fix:",
+        '{"segments": [{"name": "approach", "t0": 0.0, "t1": 1.2}], '
+        f'"issues": [], "repairs": [], "decision": "keep", "label": "{task_text}"}}',
     ]
     return "\n".join(parts)
 
@@ -165,6 +196,87 @@ def parse_diagnosis(text: str, duration: float) -> Diagnosis:
     return diagnosis
 
 
+def _span(item) -> tuple[float, float] | None:
+    """(t0, t1) of an issue or repair; (t, t) for a point time; None for one without times (discard)."""
+    if getattr(item, "t", None) is not None:
+        return item.t, item.t
+    if getattr(item, "t0", None) is not None:
+        return item.t0, item.t1
+    return None
+
+
+def _overlaps(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    """Ranges must share more than an endpoint; a point counts if it lies in the other span."""
+    lo, hi = max(a[0], b[0]), min(a[1], b[1])
+    return lo <= hi if (a[0] == a[1] or b[0] == b[1]) else lo < hi
+
+
+def _fmt(span: tuple[float, float]) -> str:
+    return f"t={span[0]:.2f}" if span[0] == span[1] else f"{span[0]:.2f}-{span[1]:.2f}"
+
+
+def _gate_reason(issue, windows: list[MetricsWindow]) -> str | None:
+    """Why the metrics contradict this issue, or None to keep it. Only kinematic and contact
+    issues are gated; the rest (pause, grasp_off_center, wrong_object, drop, ...) pass."""
+    if issue.type not in ("rim_contact", "jitter", "slow"):
+        return None
+    span = _span(issue)
+    ws = [w for w in windows if _overlaps(span, (w.t0, w.t1))]
+    if not ws:
+        return "no metrics window overlaps it"
+    if issue.type == "rim_contact" and not any(w.contact_arm_bin for w in ws):
+        return "no arm-bin contact (B) in any overlapping window"
+    if issue.type == "jitter" and all(w.jerk_rms < JITTER_MIN_JERK for w in ws):
+        return f"jerk_rms max {max(w.jerk_rms for w in ws):.3g} is below the jitter floor {JITTER_MIN_JERK:g}"
+    if issue.type == "slow":
+        speed = statistics.median(w.speed for w in ws)
+        if speed >= SLOW_SPEED:
+            return f"median speed {speed:.3f} m/s is not below the slow threshold {SLOW_SPEED:g} m/s"
+    return None
+
+
+def gate_diagnosis(diag: Diagnosis, windows: list[MetricsWindow]) -> tuple[Diagnosis, list[str]]:
+    """Drop model issues the measured windows contradict, and the repairs that only served them.
+
+    rim_contact needs contact_arm_bin, jitter needs a window at or above JITTER_MIN_JERK, and slow
+    needs a median window speed below SLOW_SPEED, in the windows overlapping the issue. A repair
+    is dropped when it overlaps a dropped issue and no kept one. If that leaves no issues, the
+    decision becomes "keep" and any remaining repairs go too. Returns the gated diagnosis and one
+    line per dropped item (empty when nothing changed).
+    """
+    kept, dropped, gated = [], [], []
+    for issue in diag.issues:
+        reason = _gate_reason(issue, windows)
+        if reason is None:
+            kept.append(issue)
+        else:
+            dropped.append(issue)
+            gated.append(f"dropped issue {issue.type} {_fmt(_span(issue))}: {reason}")
+    if not dropped:
+        return diag, []
+
+    repairs = []
+    for repair in diag.repairs:
+        span = _span(repair)
+        def tied(issues) -> bool:
+            return span is not None and any(_overlaps(span, _span(i)) for i in issues)
+        if tied(dropped) and not tied(kept):
+            gated.append(f"dropped repair {repair.op} {_fmt(span)}: it only served dropped issues")
+        else:
+            repairs.append(repair)
+
+    decision = diag.decision
+    if not kept:
+        for repair in repairs:
+            span = _span(repair)
+            gated.append(f"dropped repair {repair.op}{' ' + _fmt(span) if span else ''}: no issues remain")
+        repairs = []
+        if decision != "keep":
+            gated.append(f"decision {decision} -> keep: no issues remain")
+            decision = "keep"
+    return diag.model_copy(update={"issues": kept, "repairs": repairs, "decision": decision}), gated
+
+
 def diagnose(
     frames: list[tuple[float, bytes]],
     wrist_frame: bytes | None,
@@ -175,7 +287,24 @@ def diagnose(
     *,
     max_attempts: int = 2,
 ) -> Diagnosis:
-    """Ask Nemotron VL for a Diagnosis; retry with the validation error until max_attempts.
+    """diagnose_gated() without the list of gated items."""
+    return diagnose_gated(
+        frames, wrist_frame, windows, task_text, replay_success, duration, max_attempts=max_attempts
+    )[0]
+
+
+def diagnose_gated(
+    frames: list[tuple[float, bytes]],
+    wrist_frame: bytes | None,
+    windows: list[MetricsWindow],
+    task_text: str,
+    replay_success: bool,
+    duration: float,
+    *,
+    max_attempts: int = 2,
+) -> tuple[Diagnosis, list[str]]:
+    """Ask Nemotron VL for a Diagnosis; retry with the validation error until max_attempts; then
+    gate it against the windows (gate_diagnosis). Returns (diagnosis, what the gate dropped).
 
     frames are (t, PNG bytes) front-camera images in time order; they are
     subsampled with select_frames() if they would exceed MAX_IMAGES.
@@ -200,7 +329,7 @@ def diagnose(
             extra_body=DIAGNOSE_EXTRA_BODY,
         )
         try:
-            return parse_diagnosis(result.text, duration)
+            return gate_diagnosis(parse_diagnosis(result.text, duration), windows)
         except DiagnosisError as e:
             error = e
             attempt_prompt = (

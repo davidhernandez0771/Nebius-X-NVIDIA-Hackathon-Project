@@ -8,7 +8,17 @@ from unittest.mock import patch
 
 import pytest
 
-from app.ai.diagnose import DiagnosisError, build_diagnosis_prompt, diagnose, parse_diagnosis
+from app.ai.diagnose import (
+    CLEAN_MOVING_SPEED,
+    SLOW_SPEED,
+    DiagnosisError,
+    build_diagnosis_prompt,
+    diagnose,
+    diagnose_gated,
+    gate_diagnosis,
+    parse_diagnosis,
+)
+from demo_pipeline.rules import JITTER_MIN_JERK, STILL_SPEED
 from demo_pipeline.schemas import Diagnosis, IssueType, MetricsWindow, RepairOp, SegmentName
 
 TASK = "pick up the red cube and place it in the blue bin"
@@ -176,3 +186,200 @@ def test_prompt_without_wrist_frame_does_not_mention_one():
     prompt = build_diagnosis_prompt(TASK, _windows(), [0.0, 1.5], has_wrist_frame=False, replay_success=True)
 
     assert "wrist camera" not in prompt
+
+
+# --- prompt calibration: a clean demo is keep (2026-10-16, after 5 false positives on smoke_cam) ---
+
+def _prompt(windows=None):
+    return build_diagnosis_prompt(TASK, windows or _windows(), [0.0, 1.5, 3.0], has_wrist_frame=True, replay_success=True)
+
+
+def _lines_with(prompt, *words):
+    return [line for line in prompt.splitlines() if all(w in line for w in words)]
+
+
+def test_prompt_no_longer_presumes_the_demo_has_a_problem():
+    assert "Find what makes this demo a poor training example" not in _prompt()
+
+
+def test_prompt_says_a_clean_demo_is_keep_with_no_issues_and_shows_one():
+    prompt = _prompt()
+    assert _lines_with(prompt, "clean demo", '"keep"', "no issues")
+    assert '"issues": [], "repairs": [], "decision": "keep"' in prompt
+    assert _lines_with(prompt, "when in doubt")
+
+
+def test_prompt_gives_the_rules_jitter_floor_as_the_smooth_range():
+    (line,) = _lines_with(_prompt(), "jitter", "jerk_rms", f"{JITTER_MIN_JERK:g}")
+    assert "smooth" in line
+
+
+def test_prompt_gives_normal_speeds_and_the_slow_threshold():
+    prompt = _prompt()
+    (line,) = _lines_with(prompt, "slow", f"{SLOW_SPEED:g} m/s")
+    assert "median" in line
+    lo, hi = CLEAN_MOVING_SPEED
+    assert _lines_with(prompt, f"{lo:g}-{hi:g} m/s", "normal")
+    assert _lines_with(prompt, f"{STILL_SPEED:g} m/s", "still")
+
+
+def test_prompt_says_contacts_are_ground_truth_for_rim_contact_and_drop():
+    prompt = _prompt()
+    assert _lines_with(prompt, "contact", "ground truth")
+    (rim,) = _lines_with(prompt, "never report rim_contact")
+    assert "B" in rim and "force" in rim
+    (drop,) = _lines_with(prompt, "never report drop")
+    assert "G" in drop and "gripper" in drop
+
+
+def test_slow_threshold_sits_between_still_and_clean_motion():
+    assert STILL_SPEED < SLOW_SPEED < CLEAN_MOVING_SPEED[0]
+
+
+# --- gate_diagnosis: model issues must agree with the measured metrics ---------------------------
+
+def _w(i, **kw):
+    base = dict(t0=i * 0.5, t1=(i + 1) * 0.5, speed=0.15, jerk_rms=2.0, gripper=1, dist_ee_cube=0.005,
+                cube_height=0.2, contact_gripper_cube=True, contact_arm_bin=False, contact_arm_table=False)
+    base.update(kw)
+    return MetricsWindow(**base)
+
+
+def _ws(per_window=None, n=6):
+    """n clean 0.5 s windows; per_window maps a window index to field overrides."""
+    return [_w(i, **(per_window or {}).get(i, {})) for i in range(n)]
+
+
+def _diag(issues, repairs, decision="repair"):
+    return Diagnosis.model_validate({
+        "segments": [{"name": "carry", "t0": 0.0, "t1": 3.0}],
+        "issues": issues, "repairs": repairs, "decision": decision, "label": TASK,
+    })
+
+
+def _issue(type, t0=None, t1=None, t=None):
+    d = {"type": type, "evidence": "model says so"}
+    d.update({k: v for k, v in (("t0", t0), ("t1", t1), ("t", t)) if v is not None})
+    return d
+
+
+RIM = _issue("rim_contact", 1.0, 1.5)
+REPLAN = {"op": "replan_transit", "t0": 1.0, "t1": 1.5}
+
+
+def test_gate_drops_rim_contact_without_arm_bin_contact_and_its_repair():
+    diag, gated = gate_diagnosis(_diag([RIM], [REPLAN]), _ws())
+    assert diag.issues == [] and diag.repairs == []
+    assert any("rim_contact" in g and "1.00-1.50" in g for g in gated)
+    assert any("replan_transit" in g for g in gated)
+
+
+def test_gate_keeps_rim_contact_with_arm_bin_contact_in_an_overlapping_window():
+    diag, gated = gate_diagnosis(_diag([RIM], [REPLAN]), _ws({2: {"contact_arm_bin": True}}))
+    assert [i.type for i in diag.issues] == ["rim_contact"]
+    assert [r.op for r in diag.repairs] == ["replan_transit"]
+    assert gated == []
+
+
+def test_gate_ignores_contact_in_a_window_that_only_touches_the_issue_span():
+    _, gated = gate_diagnosis(_diag([RIM], [REPLAN]), _ws({3: {"contact_arm_bin": True}}))  # 1.5-2.0
+    assert any("rim_contact" in g for g in gated)
+
+
+def test_gate_uses_the_window_containing_a_point_time():
+    diag, _ = gate_diagnosis(_diag([_issue("rim_contact", t=1.2)], []), _ws({2: {"contact_arm_bin": True}}))
+    assert [i.type for i in diag.issues] == ["rim_contact"]
+    diag, gated = gate_diagnosis(_diag([_issue("rim_contact", t=1.2)], []), _ws())
+    assert diag.issues == [] and gated
+
+
+def test_gate_drops_jitter_when_every_window_is_below_the_rules_floor():
+    jitter = _issue("jitter", 1.0, 2.0)
+    smooth = {"op": "smooth", "t0": 1.0, "t1": 2.0, "strength": "med"}
+    below = _ws({2: {"jerk_rms": JITTER_MIN_JERK - 0.1}, 3: {"jerk_rms": 6.0}})
+    diag, gated = gate_diagnosis(_diag([jitter], [smooth]), below)
+    assert diag.issues == [] and diag.repairs == []
+    assert any("jitter" in g and f"{JITTER_MIN_JERK:g}" in g for g in gated)
+
+
+def test_gate_keeps_jitter_when_one_window_reaches_the_floor():
+    jitter = _issue("jitter", 1.0, 2.0)
+    diag, gated = gate_diagnosis(_diag([jitter], []), _ws({3: {"jerk_rms": JITTER_MIN_JERK}}))
+    assert [i.type for i in diag.issues] == ["jitter"]
+    assert gated == []
+
+
+def test_gate_drops_slow_unless_the_median_speed_is_below_the_slow_threshold():
+    slow = _issue("slow", 1.0, 2.5)
+    retime = {"op": "retime", "t0": 1.0, "t1": 2.5, "target_speed": 0.2}
+    # windows 2, 3, 4: a dip at the grasp is not a slow span
+    dip = _ws({2: {"speed": 0.03}, 3: {"speed": 0.15}, 4: {"speed": 0.2}})
+    diag, gated = gate_diagnosis(_diag([slow], [retime]), dip)
+    assert diag.issues == [] and diag.repairs == []
+    assert any("slow" in g and f"{SLOW_SPEED:g}" in g for g in gated)
+
+    crawl = _ws({2: {"speed": 0.03}, 3: {"speed": 0.04}, 4: {"speed": 0.2}})
+    diag, gated = gate_diagnosis(_diag([slow], [retime]), crawl)
+    assert [i.type for i in diag.issues] == ["slow"] and [r.op for r in diag.repairs] == ["retime"]
+    assert gated == []
+
+
+def test_gate_keeps_a_repair_that_also_serves_a_kept_issue():
+    pause = _issue("pause", 1.0, 1.5)
+    rm = {"op": "remove_pause", "t0": 1.0, "t1": 1.5}
+    diag, gated = gate_diagnosis(_diag([pause, RIM], [rm]), _ws())
+    assert [i.type for i in diag.issues] == ["pause"]
+    assert [r.op for r in diag.repairs] == ["remove_pause"]
+    assert diag.decision == "repair"
+    assert len(gated) == 1
+
+
+def test_gate_leaves_other_issue_types_and_unrelated_repairs_alone():
+    issues = [_issue(t, 0.5, 1.0) for t in ("pause", "grasp_off_center", "wrong_object", "drop", "other")]
+    repairs = [{"op": "trim", "t0": 0.0, "t1": 2.5}, REPLAN]
+    diag = _diag(issues, repairs)
+    gated_diag, gated = gate_diagnosis(diag, _ws())
+    assert gated_diag == diag
+    assert gated == []
+
+
+def test_gate_turns_the_decision_to_keep_when_no_issues_remain():
+    trim = {"op": "trim", "t0": 0.0, "t1": 2.5}  # tied to no issue
+    diag, gated = gate_diagnosis(_diag([RIM], [REPLAN, trim]), _ws())
+    assert diag.decision == "keep"
+    assert diag.issues == [] and diag.repairs == []
+    assert any("keep" in g for g in gated)
+
+
+def test_gate_turns_a_discard_over_only_false_issues_into_keep():
+    diag, _ = gate_diagnosis(_diag([RIM], [{"op": "discard"}], decision="discard"), _ws())
+    assert diag.decision == "keep" and diag.repairs == []
+
+
+def test_gate_does_not_touch_a_diagnosis_it_dropped_nothing_from():
+    diag = _diag([], [{"op": "discard"}], decision="discard")  # odd, but not the gate's call
+    assert gate_diagnosis(diag, _ws()) == (diag, [])
+
+
+def test_gate_drops_an_issue_with_no_overlapping_window():
+    _, gated = gate_diagnosis(_diag([_issue("jitter", 1.0, 1.5)], []), [])
+    assert any("jitter" in g for g in gated)
+
+
+def test_diagnose_applies_the_gate_to_the_model_reply():
+    false_rim = _diag([RIM], [REPLAN]).model_dump(mode="json")
+    with patch("app.ai.diagnose.chat_vision_images") as vision:
+        vision.return_value = _reply(json.dumps(false_rim))
+        diag = _diagnose(windows=_ws())
+    assert diag.decision == "keep" and diag.issues == []
+
+
+def test_diagnose_gated_returns_what_was_dropped():
+    false_rim = _diag([RIM], [REPLAN]).model_dump(mode="json")
+    with patch("app.ai.diagnose.chat_vision_images") as vision:
+        vision.return_value = _reply(json.dumps(false_rim))
+        kwargs = dict(frames=[(0.0, b"f0")], wrist_frame=None, windows=_ws(), task_text=TASK,
+                      replay_success=True, duration=DURATION)
+        diag, gated = diagnose_gated(**kwargs)
+    assert diag.decision == "keep"
+    assert len(gated) == 3  # the issue, its repair, the decision
