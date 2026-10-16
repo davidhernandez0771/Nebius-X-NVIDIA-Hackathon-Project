@@ -94,6 +94,19 @@
   text-align: center;
 }
 
+.pm-command {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius-control);
+}
+
 .pm-clock {
   font-size: var(--fs-xl);
   font-weight: var(--fw-light);
