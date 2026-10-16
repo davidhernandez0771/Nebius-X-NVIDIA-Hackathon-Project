@@ -228,3 +228,14 @@ def test_widened_still_runs_that_overlap_become_one_pause():
     assert all(a[1] <= b[0] for a, b in zip(spans, spans[1:]))
     cuts = sorted((r.t0, r.t1) for r in _repairs(diag, "remove_pause"))
     assert all(a[1] <= b[0] for a, b in zip(cuts, cuts[1:]))
+
+
+@pytest.mark.parametrize("jitter_mm", [0.5, 1.0, 4.0])
+def test_tremor_over_the_whole_demo_is_one_jitter_finding_and_one_smooth(jitter_mm):
+    # a limit relative to the demo's own median window can never flag noise that is everywhere
+    tr, _ = _paused(jitter_mm, n_pauses=0)
+    diag = _detect(tr)
+    [jit] = _issues(diag, "jitter")
+    assert (jit.t0, jit.t1) == pytest.approx((0.0, tr.t[-1]))
+    [sm] = _repairs(diag, "smooth")
+    assert (sm.t0, sm.t1, sm.strength) == (jit.t0, jit.t1, "med")

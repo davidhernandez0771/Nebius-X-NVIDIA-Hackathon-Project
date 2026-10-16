@@ -16,8 +16,9 @@ TASK_TEXT = "pick up the red cube and place it in the blue bin"
 
 STILL_SPEED = 0.01  # m/s; below this the hand counts as still
 MIN_STILL_S = 0.4  # a still span this long is a pause (inside) or idle time (at the start or end)
-JITTER_RATIO = 3.0  # a window is jittery above this multiple of the median window jerk_rms...
-JITTER_MIN_JERK = 20.0  # ...and above this floor (m/s^3). Smooth min-jerk motion stays under ~5; 1 mm noise gives ~100.
+JITTER_MIN_JERK = 20.0  # m/s^3; a window above it is jittery. Smooth min-jerk motion stays under ~5; 0.5 mm tremor exceeds it.
+# An absolute limit, not "3x the demo's median window" (spec 8.4): webcam tremor is everywhere, so no
+# window stands out from the median and the relative rule found none of it (T1 status note, 2026-10-16).
 RELEASE_MARGIN_S = 0.5  # a trim keeps this long after the last open, so the release can finish
 
 # Tremor (webcam noise) keeps the raw speed far above STILL_SPEED, so a noisy demo is judged on a
@@ -82,10 +83,10 @@ def _segments(t_close: float, t_open: float | None, end: float) -> list[Segment]
 
 
 def _jitter_spans(windows: list[MetricsWindow]) -> list[tuple[float, float]]:
-    """Runs of consecutive jittery windows, merged into one span each."""
+    """Runs of consecutive windows above JITTER_MIN_JERK, merged into one span each."""
     if not windows:
         return []
-    limit = max(JITTER_RATIO * float(np.median([w.jerk_rms for w in windows])), JITTER_MIN_JERK)
+    limit = JITTER_MIN_JERK
     spans: list[tuple[float, float]] = []
     for w in windows:
         if w.jerk_rms <= limit:
@@ -141,7 +142,7 @@ def detect_rules(traj: Trajectory, windows: list[MetricsWindow], task_text: str 
 
     for t0, t1 in _jitter_spans(windows):
         issues.append(Issue(type="jitter", t0=t0, t1=t1,
-                            evidence=f"jerk_rms above {JITTER_RATIO:g}x the median window over [{t0:.2f}, {t1:.2f}] s"))
+                            evidence=f"jerk_rms above {JITTER_MIN_JERK:g} m/s^3 over [{t0:.2f}, {t1:.2f}] s"))
         repairs.append(Smooth(op="smooth", t0=t0, t1=t1, strength="med"))
 
     issues.sort(key=lambda i: i.t0 if i.t0 is not None else i.t)
