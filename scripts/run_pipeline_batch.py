@@ -134,14 +134,14 @@ def run_batch(
         _write_json(out / "summary.json", data)
         return data
 
-    def guarded_diagnose(*args):
+    def guarded_diagnose(*args, **kwargs):
         calls, cost = model_usage()
         calls, cost = calls - calls0, cost - cost0
         if (calls + CALLS_PER_DIAGNOSE > max_model_calls
                 or cost + CALLS_PER_DIAGNOSE * RESERVE_USD_PER_CALL > max_cost_usd):
             raise PipelineAbort(f"model budget reached: {calls} calls, ${cost:.4f} used of {max_model_calls} calls, "
                                 f"${max_cost_usd}; the next diagnose could exceed it")
-        return diagnose_gated(*args)
+        return diagnose_gated(*args, **kwargs)
 
     try:
         health = client.health()

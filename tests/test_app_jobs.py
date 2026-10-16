@@ -294,7 +294,7 @@ def test_a_custom_diagnose_function_is_used_instead_of_diagnose_gated(store, tmp
     store.save_demo(_demo())
     calls = []
 
-    def diagnose(*args):
+    def diagnose(*args, **kwargs):
         calls.append(args)
         return _keep(), []
 
@@ -307,7 +307,7 @@ def test_a_custom_diagnose_function_is_used_instead_of_diagnose_gated(store, tmp
 def test_an_abort_from_the_diagnoser_fails_the_job_instead_of_falling_back(store, tmp_path):
     store.save_demo(_demo())
 
-    def diagnose(*args):
+    def diagnose(*args, **kwargs):
         raise PipelineAbort("model call budget reached: 10 of 10 calls used")
 
     with pytest.raises(PipelineAbort, match="budget"):
@@ -396,3 +396,58 @@ def test_busy_beyond_the_retries_fails_the_job(store, tmp_path):
     busy = SimWorkerBusy("busy", status=409, error="busy")
     with pytest.raises(SimWorkerBusy):
         _perfect(store, FakeSim(tmp_path / "worker", errors={0: busy, 1: busy, 2: busy}), busy_retries=2)
+
+
+# --- re-diagnosis: failure reasons and every round's repairs (sprint 3b, Task 1) ------------------
+
+def _repair_diag(t0, t1):
+    return Diagnosis.model_validate({"segments": [], "issues": [{"type": "jitter", "t0": t0, "t1": t1, "evidence": "e"}],
+                                     "repairs": [{"op": "smooth", "t0": t0, "t1": t1}], "decision": "repair",
+                                     "label": TASK_TEXT})
+
+
+def test_rediagnosis_tells_nemotron_why_the_previous_repair_failed(store, tmp_path):
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker", results=[verification(), verification(False, ["not_in_bin", "not_settled"]),
+                                                verification()])
+    with patch("app.jobs.diagnose_gated", side_effect=[(_repair_diag(0.5, 1.0), []),
+                                                       (_repair_diag(1.0, 1.5), [])]) as model:
+        _perfect(store, sim, diagnoser="nemotron")
+    first, second = model.call_args_list
+    assert not first.kwargs.get("failure_reasons")
+    assert second.kwargs["failure_reasons"] == ["not_in_bin", "not_settled"]
+
+
+def test_passport_lists_the_repairs_of_every_round_in_order(store, tmp_path):
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker", results=[verification(), verification(False), verification()])
+    with patch("app.jobs.diagnose_gated", side_effect=[(_repair_diag(0.5, 1.0), []),
+                                                       (_repair_diag(1.0, 1.5), [])]):
+        out = _perfect(store, sim, diagnoser="nemotron")
+    assert out["status"] == "perfected" and out["attempts"] == 2
+    applied = store.get_passport("human_1_nemotron").repairs_applied
+    assert [(r.op, r.t0) for r in applied] == [("smooth", 0.5), ("smooth", 1.0)]
+    assert [r["source"] for r in out["rounds"]] == ["nemotron", "nemotron"]
+    assert out["rounds"][1]["reasons"] == ["not_in_bin"]
+
+
+def test_a_round_that_fell_back_to_rules_is_recorded_as_rules(store, tmp_path):
+    store.save_demo(_demo(pause_steps=50))
+    sim = FakeSim(tmp_path / "worker", results=[verification(), verification(False), verification()])
+    with patch("app.jobs.diagnose_gated", side_effect=[(_repair_diag(0.2, 0.6), []), DiagnosisError("bad reply")]):
+        out = _perfect(store, sim, diagnoser="nemotron")
+    assert out["status"] == "perfected"
+    assert [r["source"] for r in out["rounds"]] == ["nemotron", "rules"]
+    passport = store.get_passport("human_1_nemotron")
+    assert passport.diagnosis_source == "rules" and passport.model_id is None  # the last round decides
+    assert [r.op for r in passport.repairs_applied][0] == "smooth"
+    assert "remove_pause" in [r.op for r in passport.repairs_applied]
+    assert any("DiagnosisError" in n for n in out["notes"])
+
+
+def test_rules_rounds_are_recorded_too(store, tmp_path):
+    store.save_demo(_demo(pause_steps=50))
+    out = _perfect(store, FakeSim(tmp_path / "worker"))
+    assert [r["source"] for r in out["rounds"]] == ["rules"]
+    assert "remove_pause" in [r["op"] for r in out["rounds"][0]["repairs"]]
+    assert out["diagnosis_source"] == "rules"

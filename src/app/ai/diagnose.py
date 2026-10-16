@@ -117,8 +117,10 @@ def build_diagnosis_prompt(
     frame_times: list[float],
     has_wrist_frame: bool,
     replay_success: bool,
+    failure_reasons: list[str] | None = None,
 ) -> str:
-    """The full instruction text that precedes the images in the request."""
+    """The full instruction text that precedes the images in the request. failure_reasons: why the previous
+    repair of this demo failed verification (a re-diagnosis); the frames and metrics are of that failed replay."""
     captions = [f"Image {i}: front camera at t={t:.2f} s" for i, t in enumerate(frame_times, start=1)]
     if has_wrist_frame:
         captions.append(f"Image {len(frame_times) + 1}: wrist camera at the first gripper close")
@@ -130,6 +132,9 @@ def build_diagnosis_prompt(
         "You are reviewing one robot demonstration recorded by a human teleoperating a robot arm in simulation.",
         f'Task: "{task_text}"',
         f"Replaying the demo in simulation {'SUCCEEDED' if replay_success else 'FAILED'}.",
+        *([f"This is a re-diagnosis: the previous repair failed verification because: {', '.join(failure_reasons)}. "
+           "The images and metrics below are of that failed replay; choose repairs that fix those reasons."]
+          if failure_reasons else []),
         "",
         "Images, in order:",
         *captions,
@@ -286,10 +291,12 @@ def diagnose(
     duration: float,
     *,
     max_attempts: int = 2,
+    failure_reasons: list[str] | None = None,
 ) -> Diagnosis:
     """diagnose_gated() without the list of gated items."""
     return diagnose_gated(
-        frames, wrist_frame, windows, task_text, replay_success, duration, max_attempts=max_attempts
+        frames, wrist_frame, windows, task_text, replay_success, duration, max_attempts=max_attempts,
+        failure_reasons=failure_reasons,
     )[0]
 
 
@@ -302,19 +309,21 @@ def diagnose_gated(
     duration: float,
     *,
     max_attempts: int = 2,
+    failure_reasons: list[str] | None = None,
 ) -> tuple[Diagnosis, list[str]]:
     """Ask Nemotron VL for a Diagnosis; retry with the validation error until max_attempts; then
     gate it against the windows (gate_diagnosis). Returns (diagnosis, what the gate dropped).
 
     frames are (t, PNG bytes) front-camera images in time order; they are
-    subsampled with select_frames() if they would exceed MAX_IMAGES.
+    subsampled with select_frames() if they would exceed MAX_IMAGES. failure_reasons, on a re-diagnosis,
+    are the reasons the previous repair failed verification; the prompt states them.
 
     Raises: DiagnosisError after max_attempts invalid replies; nebius_llm errors
     (AuthError, RateLimitError, ...) propagate unchanged.
     """
     frames = select_frames(frames, wrist_frame is not None)
     prompt = build_diagnosis_prompt(
-        task_text, windows, [t for t, _ in frames], wrist_frame is not None, replay_success
+        task_text, windows, [t for t, _ in frames], wrist_frame is not None, replay_success, failure_reasons
     )
     images = [png for _, png in frames] + ([wrist_frame] if wrist_frame is not None else [])
 

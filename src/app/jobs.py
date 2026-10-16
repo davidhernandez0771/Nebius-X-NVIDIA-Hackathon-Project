@@ -35,6 +35,8 @@ from pydantic import BaseModel, Field
 from demo_pipeline import PIPELINE_VERSION
 from demo_pipeline.episode_io import EpisodeMeta, load_episode
 from demo_pipeline.process import perfect_demo
+from demo_pipeline.refine import refine_diagnosis
+from demo_pipeline.rules import detect_rules
 from demo_pipeline.schemas import Demo, Diagnosis, MetricsWindow, Passport, Scene, SimSignals, Trajectory
 from demo_pipeline.sim_protocol import HealthResponse, ReplayRequest, ReplayResponse
 from demo_pipeline.store import DemoStore
@@ -261,22 +263,38 @@ def perfect_stored_demo(
     _copy_episode(raw.ep_dir, store.episode_dir(demo_id), notes)
     # ep_dir/success: the latest replay, i.e. of the trajectory perfect_demo diagnoses next
     # abort: an error that must fail the job; perfect_demo turns any step exception into a fallback or a discard
-    state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "gated": [],
-                             "model_id": None, "abort": None}
+    state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "abort": None}
+    # One entry per perfect_demo round. perfect_demo returns only the last diagnosis, so diagnose_fn records each
+    # round's refined repairs (refine_diagnosis is pure: the same call perfect_demo makes) and its real source.
+    rounds: list[dict[str, Any]] = []
 
-    def diagnose_fn(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> Diagnosis:
-        # The failure reasons only reach the model through the failed replay's frames, windows and
-        # replay_success=False: diagnose_gated has no reasons input.
-        state["gated"], state["model_id"] = [], None
+    def nemotron(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> tuple[Diagnosis, list[str]]:
         if state["ep_dir"] is None:
             raise ValueError("the replay saved no episode, so there are no frames to show the model")
         frames, wrist, task_text = episode_frames(Path(state["ep_dir"]), d.trajectory.t)
-        try:
-            diag, gated = diagnose(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1])
-        except PipelineAbort as e:
-            state["abort"] = e
-            raise
-        state["gated"], state["model_id"] = gated, get_vision_model(DIAGNOSE_TIER).model_id
+        diag, gated = diagnose(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1],
+                               failure_reasons=reasons)
+        diag.check_times(d.trajectory.t[-1])  # what perfect_demo checks; failing it means the rules, as there
+        return diag, gated
+
+    def diagnose_fn(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> Diagnosis:
+        record: dict[str, Any] = {"source": "rules", "model_id": None, "gated": [], "reasons": list(reasons)}
+        diag = None
+        if diagnoser == "nemotron":
+            try:
+                diag, record["gated"] = nemotron(d, windows, reasons)
+                record.update(source="nemotron", model_id=get_vision_model(DIAGNOSE_TIER).model_id)
+            except PipelineAbort as e:
+                state["abort"] = e
+                raise
+            except Exception as e:  # an invalid reply, an API error, no frames: this round uses the rules
+                notes.append(f"round {len(rounds) + 1}: nemotron failed ({type(e).__name__}: {e}); "
+                             f"used the rules detector")
+        if diag is None:
+            diag = detect_rules(d.trajectory, windows)
+        refined = refine_diagnosis(diag, d.trajectory)
+        record.update(decision=refined.decision, repairs=list(refined.repairs))
+        rounds.append(record)
         return diag
 
     def verify_fn(traj: Trajectory, scene: Scene):
@@ -291,17 +309,18 @@ def perfect_stored_demo(
         return resp.verification, align_signals(resp.signals.to_signals(), traj.t)
 
     result = perfect_demo(demo, align_signals(raw.signals.to_signals(), demo.trajectory.t),
-                          diagnose_fn=diagnose_fn if diagnoser == "nemotron" else None, verify_fn=verify_fn,
-                          bin_rim_z=bin_rim_z(demo.scene))
+                          diagnose_fn=diagnose_fn, verify_fn=verify_fn, bin_rim_z=bin_rim_z(demo.scene))
     if state["abort"] is not None:
         raise state["abort"]
     notes = result.notes + notes
 
-    source = result.diagnosis_source
-    model_id = state["model_id"] if source == "nemotron" else None
-    gated = state["gated"] if source == "nemotron" else []
+    # perfect_demo labels every diagnose_fn result "nemotron"; the rounds know which one really answered
+    last = rounds[-1] if rounds else {"source": "none", "model_id": None, "gated": []}
+    source, model_id, gated = last["source"], last["model_id"], last["gated"]
     if result.diagnosis is not None:
         store.save_diagnosis(demo_id, result.diagnosis, source, model_id, gated)
+    # every round's repairs, in order: each round repaired the trajectory the previous one left
+    applied = [op for r in rounds if r["decision"] == "repair" for op in r["repairs"]]
 
     out_id = None
     if result.status in ("perfected", "kept"):
@@ -311,7 +330,7 @@ def perfect_stored_demo(
         store.save_diagnosis(out_id, result.diagnosis, source, model_id, gated)
         store.save_passport(out_id, Passport(
             demo_id=out_id, lineage=store.lineage(out_id),
-            repairs_applied=result.diagnosis.repairs if result.status == "perfected" else [],
+            repairs_applied=applied if result.status == "perfected" else [],
             diagnosis_source=source, model_id=model_id, robot=demo.scene.robot,
             verification=result.verification, pipeline_version=PIPELINE_VERSION))
         _copy_episode(state["ep_dir"], store.episode_dir(out_id), notes)  # the successful (last) replay
@@ -333,6 +352,7 @@ def perfect_stored_demo(
                                                        for i in result.diagnosis.issues],
         "verification": None if result.verification is None else result.verification.model_dump(),
         "raw_verification": raw.verification.model_dump(),
+        "rounds": [{**r, "repairs": [op.model_dump() for op in r["repairs"]]} for r in rounds],
         "replays": replays,
         "notes": notes,
     }

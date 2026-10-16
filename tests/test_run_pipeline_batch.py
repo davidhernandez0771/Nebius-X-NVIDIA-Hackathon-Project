@@ -226,7 +226,7 @@ def test_nemotron_calls_are_counted_and_the_budget_stops_the_batch(batch, env, c
     sim = cam_sim
     usage = Usage()
 
-    def model(*args):
+    def model(*args, **kwargs):
         usage.calls += 1
         return _keep(), []
 
@@ -245,7 +245,7 @@ def test_the_cost_budget_also_stops_the_batch(batch, env, cam_sim):
     sim = cam_sim
     usage = Usage()
 
-    def model(*args):
+    def model(*args, **kwargs):
         usage.calls += 1
         return _keep(), []
 
