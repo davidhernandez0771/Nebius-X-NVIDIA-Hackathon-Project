@@ -25,14 +25,10 @@ class FrameRecorder:
         self._frames: dict[str, list[np.ndarray]] = {}
         self._k = 0
 
-    # EvalEnv passthroughs
-    @property
-    def cameras(self):
-        return self.env.cameras
-
-    @property
-    def bin_inner(self):
-        return self.env.bin_inner
+    def __getattr__(self, name):  # everything else (cameras, bin_inner, joint_names, ...) is the wrapped env's
+        if name == "env":
+            raise AttributeError(name)
+        return getattr(self.env, name)
 
     def reset(self, scene: Scene) -> None:
         self._flush()

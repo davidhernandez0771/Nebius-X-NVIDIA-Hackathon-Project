@@ -112,3 +112,10 @@ def test_recorder_saves_every_kth_frame_for_chosen_seeds_only(tmp_path):
     assert frames["front"][:, 0, 0, 0].tolist() == list(range(0, 10, 2))  # 10 observations, every 2nd kept
     meta = json.loads((tmp_path / "seed_5001.json").read_text(encoding="utf-8"))
     assert meta["every"] == 2 and meta["n_frames"] == 5 and meta["seed"] == 5001
+
+
+def test_recorder_exposes_the_wrapped_env_attributes(tmp_path):
+    inner = ImageEnv()
+    inner.joint_names = ["panda_joint1"]
+    env = FrameRecorder(inner, seeds=set(), out_dir=tmp_path)
+    assert env.joint_names == ["panda_joint1"] and env.cameras == ["front"]

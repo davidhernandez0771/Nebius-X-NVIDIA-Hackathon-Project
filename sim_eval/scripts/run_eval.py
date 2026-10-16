@@ -169,7 +169,7 @@ def main() -> None:
         "gate": gate, "episode_log": str(episode_log.path), "resumed_episodes": len(done),
     }
     print(f"[eval] policy {health.get('checkpoint')} ({health.get('policy_type')}, {health.get('device')}); "
-          f"{args_cli.n} scenes from seed {args_cli.seed0}; cameras={args_cli.cameras}", flush=True)
+          f"{len(all_scenes)} scenes {groups}; cameras={args_cli.cameras}", flush=True)
 
     vram_baseline = VramPoller.read_mib()
     poller = VramPoller()
