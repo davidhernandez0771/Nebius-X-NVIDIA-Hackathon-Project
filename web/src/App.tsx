@@ -12,6 +12,7 @@ import Organize from "./pages/Organize";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import DatasetPage from "./pm/dataset/DatasetPage";
+import ReviewPage from "./pm/review/ReviewPage";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
 import { HandToggle } from "./hand/integration/HandToggle";
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/organize" element={<Organize />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/pm/review" element={<ReviewPage />} />
           <Route path="/pm/dataset" element={<DatasetPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
