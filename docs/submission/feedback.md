@@ -1,6 +1,6 @@
 # Tool feedback (DRAFT)
 
-<!-- Draft written 2026-10-16 from the project's dated notes. Each finding cites its source.
+<!-- Draft written 2026-10-16 from the project's dated notes, refreshed in sprint 3b. Each finding cites its source.
      The "would we build with it again" answers are a draft for the team to confirm. -->
 
 Context: one developer machine, Windows 11, RTX 5080 16 GB. Simulation-only Physical AI
@@ -26,7 +26,7 @@ OpenAI Python SDK.
   all without spending anything. We used it as the source of truth for our cost config.
   <!-- src: docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md -->
 - **Cheap and fast enough for a per-demo pipeline step:** about $0.0013–$0.0016 and
-  2.5–3.9 s per 8-image diagnosis. <!-- src: t4-nemotron-vl; docs/superpowers/notes/2026-10-15-t4-status.md -->
+  2.3–3.9 s per 8-image diagnosis. <!-- src: t4-nemotron-vl; docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2 Task 6; Diagnoser calibration) -->
 - **Usage fields in every response** let us log exact prompt/completion tokens and keep a
   hard budget per sprint. Our whole diagnoser track spent about $0.0017.
   <!-- src: t4-nemotron-vl -->
@@ -70,23 +70,30 @@ repairs from a fixed menu, and a keep / repair / discard decision.
 
 **What worked**
 
-- **Format compliance:** valid JSON on the first try in both live diagnoses (no fences, no
-  prose, times inside the demo), against a fairly strict schema-generated prompt.
-  <!-- src: t4-nemotron-vl; t4-status sprint 2 Task 6 -->
+- **Format compliance:** valid JSON on the first try in all three live diagnoses (no fences,
+  no prose, times inside the demo), against a fairly strict schema-generated prompt.
+  <!-- src: t4-nemotron-vl; t4-status sprint 2 Task 6 and Diagnoser calibration (1 call each) -->
 - **Semantic segmentation:** on a real Isaac episode it split the demo into approach
   0–1 s, grasp 1–1.5, lift 1.5–3.5, carry 3.5–6, release 6–6.5 and retreat 6.5–7.5. That
   matches the gripper events and is finer than our rules' three segments.
   <!-- src: t4-status sprint 2 Task 6 -->
-- **Latency** of 2.5–3.9 s with thinking off is fine for a per-demo step.
-  <!-- src: t4-nemotron-vl; t4-status -->
+- **Latency** of 2.3–3.9 s with thinking off is fine for a per-demo step.
+  <!-- src: t4-nemotron-vl; t4-status (sprint 2 Task 6; Diagnoser calibration) -->
+- **It responds to calibration.** Telling it that a clean demo is common and must be
+  `keep`, giving it the normal metric ranges, and making the contact columns ground truth
+  took the clean episode from 5 false issues to 0, with a shorter reply (633 → 188
+  completion tokens) and a lower cost (/usr/bin/bash.001648 → /usr/bin/bash.001366).
+  <!-- src: t4-status (Diagnoser calibration, Before / after and Tokens) -->
 
-**What needs work** (our measurements; the sample is small, 2 valid diagnoses)
+**What needs work** (our measurements; the sample is small, 3 live diagnoses)
 
-- **False positives on a clean demo.** On a perfect scripted demo, which our rules
-  correctly rated `keep`, it returned `repair` with **5 issues, all false**: two jitter, two
-  slow, and one `rim_contact`. The rim contact contradicted the contact columns in the
-  table it was given (no arm-bin contact, 0 N max force). Its proposed repairs would have
-  degraded the demo. <!-- src: t4-status sprint 2 Task 6 -->
+- **Out of the box, it over-reported on a clean demo.** With our first prompt, on a
+  perfect scripted demo that our rules correctly rated `keep`, it returned `repair` with
+  **5 issues, all false**: two jitter, two slow, and one `rim_contact`. The rim contact
+  contradicted the contact columns in the table it was given (no arm-bin contact, 0 N max
+  force). The calibrated prompt fixed this on that episode (above), and a metric gate now
+  drops contradicted claims either way. One sample does not give a false-positive rate,
+  and recall is not measured yet. <!-- src: t4-status sprint 2 Task 6; Diagnoser calibration -->
 - **Misreading the numeric table.** On a synthetic demo it said "gripper remains open"
   while the table said closed throughout. It also read a constant `dist_ee_cube = 0.000`
   column as "no motion" and invented two idle periods, although speed was 0.11–0.12 m/s
@@ -94,9 +101,9 @@ repairs from a fixed menu, and a keep / repair / discard decision.
 - **Time bounds snap to the input windows.** It bounded a true 1.0–1.9 s pause as
   1.0–1.5 s. That is partly our fault (0.5 s metric windows), but it never interpolated.
   <!-- src: t4-nemotron-vl -->
-- Part of this is our prompt: "find what makes this demo a poor training example"
-  presumes a problem exists. We will recalibrate the prompt before blaming the model
-  further. <!-- src: t4-status sprint 2 Task 6, Recommendations -->
+- Part of this was our prompt: "find what makes this demo a poor training example"
+  presumed a problem existed. Rewording it to "decide whether this demo is a good training
+  example as recorded" was part of the fix. <!-- src: t4-status (Diagnoser calibration, What changed) -->
 - There is no video input (the modality is text+image→text), so we sample key frames.
   Native short-video input would suit robot demos well. <!-- src: t4-nemotron-vl -->
 
@@ -105,9 +112,8 @@ Nemotron models.
 
 **Would we build with it again?** *Draft: yes, for what code cannot see.* Here that means
 segment labels, and (still to be tested) wrong object, drops and grasp quality from the
-wrist view. We would not trust its kinematic claims without gating them against measured
-metrics. Our architecture already assumes this ("the AI decides, code acts, physics
-checks").
+wrist view. We gate its kinematic claims against measured metrics, which our architecture
+already assumed ("the AI decides, code acts, physics checks").
 
 ---
 
@@ -126,6 +132,9 @@ and feeds a pure-Python success check. <!-- src: t2-status -->
 - **Contact sensors are trustworthy.** A probe that drove the fingertips into the table
   reported 287 N max; into a bin wall, 116 N. A second replay in the same process reset
   correctly. <!-- src: t2-status, Extra verification -->
+- **It holds up over batches:** 50/50 scripted demos verified (13 s each without cameras),
+  20/20 with cameras at a median 38.0 s and a 5980 MiB GPU peak, and 27/30 multiplied
+  variants. <!-- src: t2-status (sprint 2 Tasks 3, 4, 6) -->
 - **The bundled tutorials** (`scripts/tutorials/05_controllers/run_diff_ik.py`, the
   scene, rigid-object and sensor tutorials) were the reliable API reference.
   <!-- src: sprint1 plan, T2 API source of truth -->
@@ -152,9 +161,16 @@ and feeds a pure-Python success check. <!-- src: t2-status -->
   <!-- src: t2-status Decision 12, Errors hit -->
 - Filtered contacts need one sensing body per environment, so we put the sensors on the
   table and bin parts rather than on each arm link. <!-- src: t2-status Decision 3 -->
-- **IK tracking lag** with the high-PD Franka preset: mean TCP error 24.6 mm (max 51 mm)
-  during motion, about 0.1 s behind the target. This matters for faster, human-like demos.
-  <!-- src: t2-status Risks -->
+- **IK tracking lag** with the high-PD Franka preset: the arm trailed the target (mean TCP
+  error 26.8 mm in our fast-demo comparison). The cause was the joint PD drive damping a
+  moving target, not IK; more IK iterations changed nothing. Sending the commanded twist as
+  joint velocity targets cut it to 2.1 mm. A note in the diff-IK tutorial that position-only
+  targets lag by about damping / stiffness would help.
+  <!-- src: t2-status (sprint 2 Task 2) -->
+- **Joint limits matter more than reach for the OpenArm.** Its ±45° wrist confines a
+  vertical grasp to a ~0.2 m height band, so it scored 0/30 in our shared workspace while
+  the Franka scored 27/30. A per-robot workspace hint in the asset docs would help.
+  <!-- src: t2-status (sprint 2 Task 5) -->
 - The first launch downloads assets (37 s here). Fine, but worth saying in the quickstart.
   <!-- src: t2-status -->
 
@@ -192,7 +208,8 @@ We'd ask for clearer 3.0 migration notes and better error messages.
   Windows allows symlinks only for admins or in Developer Mode, so a long run dies at its
   first `--save_freq`. The checkpoint is written first, so nothing is lost, but the run
   stops. Suggestion: fall back to a copy or a `last.txt` pointer when `symlink_to` fails.
-  <!-- src: t3-lerobot-windows -->
+  We did the latter in a small wrapper (`lerobot_tools/train.py`); a 1,000-step run with 4
+  saves now exits 0 and resumes. <!-- src: t3-lerobot-windows; t3-status (sprint 2 Task 1) -->
 - **torchcodec fails to load:** `Could not load libtorchcodec ... We support versions 4, 5, 6, 7, and 8`
   / `Could not find module '...libtorchcodec_core8.dll'`. The only system FFmpeg was a
   static 9.0 build, and torchcodec needs a shared FFmpeg 4–8. `lerobot-info` crashes on the
