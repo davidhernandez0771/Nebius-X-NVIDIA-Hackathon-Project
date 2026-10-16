@@ -6,6 +6,9 @@ Start the policy server first (lerobot venv), then run this with the Isaac Pytho
         --n 50 --seed0 5000 --cell raw_multiply_10 --cameras
 
 Never run two Isaac processes at once (the GPU is shared with Terminal 2).
+Start pose (Review Focus 4): with --start-pose auto (default) the robot resets to the training dataset's mean start
+pose when it differs from the Franka default by > 0.1 rad on any arm joint (sim_eval/start_state.py). The start
+states come from --start-state (a dataset root with start_state.json) or from the --cell registry row's dataset.
 With --cell, eval_success is written into that cell's row of DATA_DIR/results/registry.jsonl (matched by the
 checkpoint the server reports). Results go to DATA_DIR/evals/<cell>_<timestamp>.json unless --out is given.
 The last stdout line is "RESULT_JSON {...summary...}".
@@ -37,6 +40,10 @@ parser.add_argument("--max-seconds", type=float, default=30.0, help="per-episode
 parser.add_argument("--out", type=Path, default=None, help="results JSON (default DATA_DIR/evals/...)")
 parser.add_argument("--registry", type=Path, default=None, help="default DATA_DIR/results/registry.jsonl")
 parser.add_argument("--no-registry", action="store_true", help="do not touch the registry even with --cell")
+parser.add_argument("--start-pose", choices=("auto", "default", "dataset"), default="auto",
+                    help="reset pose: dataset mean start if it differs from the default (auto), or force one")
+parser.add_argument("--start-state", type=Path, default=None,
+                    help="start_state.json or the dataset root holding it (default: the --cell registry row's dataset)")
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -49,7 +56,7 @@ from demo_pipeline.paths import data_dir  # noqa: E402
 from lerobot_tools.policy_client import PolicyClient, PolicyServerError  # noqa: E402
 from sim_eval.eval_policy import evaluate  # noqa: E402
 from sim_eval.registry import update_registry  # noqa: E402
-from sim_eval.report import default_results_path, preflight, write_results  # noqa: E402
+from sim_eval.report import default_results_path, preflight, resolve_start, write_results  # noqa: E402
 from sim_eval.retry import RetryingPolicy  # noqa: E402
 from sim_eval.scenes import eval_scenes  # noqa: E402
 from sim_worker.replay import make_sim_cfg  # noqa: E402
@@ -95,13 +102,27 @@ def main() -> None:
     if problems:
         print("[eval] refusing to start:\n  " + "\n  ".join(problems), flush=True)
         sys.exit(2)
+    registry = args_cli.registry or data_dir() / "results" / "registry.jsonl"
+    try:
+        start_pose, start_check = resolve_start(args_cli.start_pose, start_state=args_cli.start_state,
+                                                registry=registry, cell=args_cli.cell,
+                                                checkpoint=health.get("checkpoint"))
+    except FileNotFoundError as e:
+        print(f"[eval] refusing to start: --start-pose dataset but {e}", flush=True)
+        sys.exit(2)
+    if start_check["available"]:
+        print(f"[eval] start pose: {start_check['chosen']} (arm joints differ from the default by up to "
+              f"{start_check['max_abs_diff']:.3f} rad on joint {start_check['worst_joint'] + 1}; threshold "
+              f"{start_check['threshold_rad']} rad; {start_check['n_episodes']} training starts)", flush=True)
+    else:
+        print(f"[eval] start pose: default (start-state check unavailable: {start_check['reason']})", flush=True)
     scenes = eval_scenes(args_cli.n, args_cli.seed0)
     out = args_cli.out or default_results_path(data_dir(), args_cli.cell)
     run = {
         "cell": args_cli.cell, "checkpoint_url": args_cli.checkpoint_url, "checkpoint": health.get("checkpoint"),
         "policy_type": health.get("policy_type"), "policy_device": health.get("device"), "n": args_cli.n,
         "seed0": args_cli.seed0, "max_seconds": args_cli.max_seconds, "cameras": args_cli.cameras,
-        "started": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "started": datetime.now(timezone.utc).isoformat(timespec="seconds"), "start_check": start_check,
     }
     print(f"[eval] policy {health.get('checkpoint')} ({health.get('policy_type')}, {health.get('device')}); "
           f"{args_cli.n} scenes from seed {args_cli.seed0}; cameras={args_cli.cameras}", flush=True)
@@ -113,7 +134,7 @@ def main() -> None:
         from sim_eval.isaac_env import IsaacEvalEnv
 
         t_build = time.time()
-        env = IsaacEvalEnv(cameras=args_cli.cameras, device=args_cli.device)
+        env = IsaacEvalEnv(cameras=args_cli.cameras, device=args_cli.device, start_joint_pos=start_pose)
         build_s = time.time() - t_build
         print(f"[eval] scene built in {build_s:.1f} s; joints {env.joint_names}", flush=True)
 
@@ -137,7 +158,6 @@ def main() -> None:
             vram_peak_mib=max(poller.samples) if poller.samples else None,
         )
         if args_cli.cell and not args_cli.no_registry:
-            registry = args_cli.registry or data_dir() / "results" / "registry.jsonl"
             try:
                 n = update_registry(registry, args_cli.cell, summary, seed0=args_cli.seed0,
                                     checkpoint=health.get("checkpoint"), results_file=str(out))

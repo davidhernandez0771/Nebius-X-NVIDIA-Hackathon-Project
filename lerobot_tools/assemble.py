@@ -81,6 +81,7 @@ def build_manifest(cell: Cell) -> dict:
 def assemble(cell: Cell, out_root: Path, fps: int = 50) -> Path:
     """Export the cell to `out_root/<cell.name>/` (must not exist yet) and write its manifest. Returns that path."""
     from lerobot_tools.export import export_episodes
+    from lerobot_tools.start_state import write_start_state
 
     manifest = build_manifest(cell)  # validate before writing anything
     out = Path(out_root) / cell.name
@@ -88,6 +89,7 @@ def assemble(cell: Cell, out_root: Path, fps: int = 50) -> Path:
         raise FileExistsError(f"{out} already exists; each cell is exported once")
     repo_id = f"local/{cell.name}"
     export_episodes(list(cell.episode_dirs), out, repo_id=repo_id, fps=fps)
+    write_start_state(out)  # first-frame joint positions, for sim_eval's start-state check
     manifest = {"dataset": str(out.resolve()), "repo_id": repo_id, "fps": fps, **manifest}
     (out / MANIFEST_FILE).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return out
