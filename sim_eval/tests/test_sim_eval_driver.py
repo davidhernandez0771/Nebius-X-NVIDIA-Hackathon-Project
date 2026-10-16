@@ -33,3 +33,15 @@ def test_every_flag_the_driver_passes_is_declared_by_run_eval(tmp_path):
 @pytest.mark.parametrize("rc, retry", [(2, False), (1, True), (0, True)])
 def test_usage_errors_and_refusals_are_not_retried(rc, retry):
     assert _load_driver().retryable(rc) is retry
+
+
+def test_a_shared_start_state_is_passed_to_every_cell(tmp_path):
+    # Sprint 6 Task B: every cell starts from the same home pose (the raw cell's start state), for a fair comparison.
+    cmd = _load_driver().run_eval_command(python="py", port=8765, n=20, seed0=5000, cell="raw_multiply_10",
+                                          out=tmp_path / "o.json", registry=tmp_path / "r.jsonl",
+                                          start_state=tmp_path / "raw_10", start_pose="dataset")
+    assert cmd[cmd.index("--start-state") + 1] == str(tmp_path / "raw_10")
+    assert cmd[cmd.index("--start-pose") + 1] == "dataset"
+    plain = _load_driver().run_eval_command(python="py", port=8765, n=20, seed0=5000, cell="raw_5",
+                                            out=tmp_path / "o.json", registry=tmp_path / "r.jsonl")
+    assert "--start-state" not in plain and "--start-pose" not in plain
