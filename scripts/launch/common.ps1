@@ -26,6 +26,13 @@ function Invoke-Health($HelperPython, [string[]]$HealthArgs) {
     return $LASTEXITCODE
 }
 
+function Invoke-HealthCapture($HelperPython, [string[]]$HealthArgs) {
+    # Runs health.py quietly: @{ Code = exit code; Output = its lines }.
+    $allArgs = @($HelperPython.Args) + @($script:HealthPy) + $HealthArgs
+    $out = & $HelperPython.Exe @allArgs 2>&1 | ForEach-Object { "$_" }
+    return @{ Code = $LASTEXITCODE; Output = @($out) }
+}
+
 function Get-DefaultLogDir { return (Join-Path $script:RepoRoot "data\logs") }
 
 function Read-PidFile([string]$LogDir) {
