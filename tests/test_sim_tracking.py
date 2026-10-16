@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
+
+# torch only exists in Isaac's env; skip (don't abort the whole run) in the SANT venv.
+torch = pytest.importorskip("torch")
 
 from sim_worker.tracking import (
     TrackingOptions,

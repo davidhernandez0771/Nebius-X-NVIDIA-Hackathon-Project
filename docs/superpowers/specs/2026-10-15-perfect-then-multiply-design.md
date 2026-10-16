@@ -445,6 +445,30 @@ Sim worker jobs run asynchronously; the UI polls job status.
   runtime call to the Token Factory inference API". Running Isaac Sim locally is
   therefore fine.
 - Physical AI submissions need no demo URL.
+**2026-10-16, measured in sprint 2:**
+
+- **Jitter rule (8.4):** an absolute window limit, `JITTER_MIN_JERK = 20 m/s³`,
+  not "3× median". Pooled F1 on tremor demos went from 0.78 to 0.99.
+- **Pause and idle on noisy demos (8.4):**
+  - When `position_noise ≥ 0.2 mm`, stillness = smoothed speed (Gaussian
+    σ 0.2 s) below 0.02 m/s, with run edges widened by 0.2 s.
+  - Cleaner demos keep the raw 0.01 m/s rule.
+  - Rules F1 under tremor went from 0.00 to 0.97–0.99.
+- **The expert's own waypoint stops** count as don't-care truth when scoring.
+- **IK lag fixed** with joint-velocity feedforward. Mean tracking error went
+  from 26.8 to 2.1 mm; error at gripper close went from 16 to 3.3 mm.
+- **Multiplication yield** (8.6):
+  - Franka 27/30 = 90%. The 3 failures come from the fixed-time cube→bin
+    frame handover in `transform_trajectory`.
+  - OpenArm 0/30 in the shared ranges: its ±45° wrist confines a vertical grasp
+    to a ~0.2 m band. The second-arm choice is under review.
+- **Nemotron diagnosis (8.3):**
+  - Prompt calibrated: "a clean demo is keep", with normal ranges and contacts
+    as ground truth.
+  - `gate_diagnosis` drops model issues the metrics contradict.
+  - On a clean episode, 5 false positives went to 0. Recall is not yet measured.
+- **Policy evaluation** lives in `sim_eval/`. It talks to the LeRobot policy
+  server over HTTP, because it runs in a separate venv.
 - Python environments live outside OneDrive (`C:\venvs\...`) and uv runs with
   `UV_LINK_MODE=copy`. A `.venv` inside OneDrive fails to install (os errors
   5 and 396).
