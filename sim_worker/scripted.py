@@ -20,6 +20,10 @@ LIFT_Z = 0.25
 RELEASE_ABOVE_FLOOR = 0.10
 RETREAT_UP = 0.15
 MIN_LIFT_Z = 0.145  # held cube's bottom (z - 0.025) clears the 0.09 m bin rim by 3 cm
+# One start pose for every demo (home_start): above the middle of the Franka cube range (x 0.40-0.60, y +-0.20),
+# 10 cm over the carry height, pointing down with no yaw. Without it each demo starts 15 cm above its own cube,
+# so the start state tells a policy where the cube is (T3 status note, sprint 3 Task 2).
+HOME_TCP = np.array([0.45, 0.0, 0.35])
 
 
 def _yaw_of(q_wxyz) -> float:
@@ -47,9 +51,11 @@ def _min_jerk(tau: np.ndarray) -> np.ndarray:
     return 10 * tau**3 - 15 * tau**4 + 6 * tau**5
 
 
-def scripted_expert(scene: Scene, rate_hz: int = 50, hold_s: float = HOLD_S, lift_z: float = LIFT_Z) -> Trajectory:
+def scripted_expert(scene: Scene, rate_hz: int = 50, hold_s: float = HOLD_S, lift_z: float = LIFT_Z,
+                    home_start: bool = False) -> Trajectory:
     """hold_s: how long the hand waits at the close and at the open (0.15 is closer to human demos).
-    lift_z: carry and retreat height (0.18 keeps the OpenArm's top-down grasp in reach; see the T2 note)."""
+    lift_z: carry and retreat height (0.18 keeps the OpenArm's top-down grasp in reach; see the T2 note).
+    home_start: start at HOME_TCP (pointing down) and move to above the cube first; the rest is unchanged."""
     if lift_z < MIN_LIFT_Z:
         raise ValueError(f"lift_z {lift_z} m would drag the cube through the bin rim (min {MIN_LIFT_Z} m)")
     dt = 1.0 / rate_hz
@@ -77,8 +83,12 @@ def scripted_expert(scene: Scene, rate_hz: int = 50, hold_s: float = HOLD_S, lif
         (retreat, DOWN_WXYZ, 0, None),       # 8. retreat
     ]
 
-    pos, quat, grip = [above_cube], [q_grasp], [0]  # 1. start above the cube
-    p0, q0 = above_cube, q_grasp
+    if home_start:
+        plan.insert(0, (above_cube, q_grasp, 0, None))  # 0. home -> above the cube
+        p0, q0 = HOME_TCP, DOWN_WXYZ
+    else:
+        p0, q0 = above_cube, q_grasp  # 1. start above the cube
+    pos, quat, grip = [p0], [q0], [0]
     for p1, q1, g, hold in plan:
         span = hold if hold is not None else max(np.linalg.norm(p1 - p0) / SPEED, MIN_MOVE_S)
         n = max(1, math.ceil(span * rate_hz - 1e-9))

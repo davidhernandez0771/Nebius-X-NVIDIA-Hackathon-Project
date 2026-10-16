@@ -33,6 +33,7 @@ parser.add_argument("--robot", default="franka", choices=["franka", "openarm", "
 parser.add_argument("--lift-z", type=float, default=0.25, help="scripted expert carry/retreat height (m)")
 parser.add_argument("--resume", action="store_true", help="reuse finished episodes (<out>/rows/) by seed")
 parser.add_argument("--hold-s", type=float, default=0.5, help="scripted expert hold at each gripper event")
+parser.add_argument("--home-start", action="store_true", help="start every demo at scripted.HOME_TCP")
 add_tracking_args(parser)
 add_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -68,7 +69,8 @@ def main() -> None:
                 print("RESUMED " + json.dumps(done), flush=True)
                 continue
             t_ep = time.time()
-            traj = scripted_expert(scene, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z)
+            traj = scripted_expert(scene, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z,
+                                   home_start=args_cli.home_start)
             st: dict = {}
             try:
                 result, _ = replay(traj, scene, ep_dir=ep, record_cameras=args_cli.cameras, tracking=opts, stats=st)
@@ -89,6 +91,7 @@ def main() -> None:
         wall = sum(r["wall_s"] for r in rows) if args_cli.resume else time.time() - t0
         summary = summarize(rows, wall_s=wall)
         summary.update(robot=args_cli.robot, cameras=args_cli.cameras, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z,
+                       home_start=args_cli.home_start,
                        tracking=vars(opts), corners=args_cli.corners, episodes=rows)
         (out / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
         print("SUMMARY " + json.dumps({k: v for k, v in summary.items() if k != "episodes"}), flush=True)

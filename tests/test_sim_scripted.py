@@ -121,3 +121,39 @@ def test_lift_z_sets_the_carry_and_retreat_height(lift_z):
 def test_lift_z_must_clear_the_bin_rim_with_the_cube():
     with pytest.raises(ValueError):
         scripted_expert(_scene(), lift_z=0.12)
+
+
+# --- home start (sprint 5 Task 1): one fixed start pose, so the start state no longer encodes the cube ---
+
+from sim_worker.scripted import DOWN_WXYZ, HOME_TCP  # noqa: E402
+
+
+@pytest.mark.parametrize("cube_xy,yaw", [((0.40, -0.20), 0.7), ((0.60, 0.20), -1.2), ((0.5, 0.0), 0.0)])
+def test_home_start_begins_every_demo_at_the_same_pose_pointing_down(cube_xy, yaw):
+    traj = scripted_expert(_scene(cube_xy=cube_xy, cube_yaw=yaw), home_start=True)
+    assert np.allclose(traj.ee_pos[0], HOME_TCP)
+    assert np.allclose(traj.ee_quat[0], DOWN_WXYZ)
+    assert traj.gripper[0] == 0
+
+
+def test_home_start_then_follows_the_default_demo_from_above_the_cube():
+    scene = _scene(cube_xy=(0.45, -0.1), bin_xy=(0.55, 0.25), cube_yaw=0.4)
+    plain, home = scripted_expert(scene), scripted_expert(scene, home_start=True)
+    k = len(home.t) - len(plain.t)  # the extra home -> above-cube move
+    assert k > 0
+    assert np.allclose(np.asarray(home.ee_pos)[k:], plain.ee_pos)
+    assert np.allclose(np.asarray(home.ee_quat)[k:], plain.ee_quat)
+    assert list(home.gripper[k:]) == list(plain.gripper) and not any(home.gripper[:k])
+
+
+def test_home_start_move_is_smooth_and_within_the_speed_bound():
+    traj = scripted_expert(_scene(cube_xy=(0.40, -0.20)), home_start=True)
+    p = np.asarray(traj.ee_pos)
+    speed = np.linalg.norm(np.diff(p, axis=0), axis=1) / 0.02
+    assert speed.max() <= 1.875 * 0.15 + 1e-3  # min-jerk peak at SPEED average, as for the other moves
+    assert np.all(p[:, 2] >= 0.025 - 1e-9)
+
+
+def test_default_demo_is_unchanged_by_the_home_start_option():
+    scene = _scene()
+    assert scripted_expert(scene, home_start=False) == scripted_expert(scene)

@@ -202,3 +202,78 @@ def test_tcp_error_length_mismatch_raises():
     traj, sim = _clean()
     with pytest.raises(ValueError):
         check_success(traj, sim, BIN, tcp_error=np.zeros(len(traj.t) - 1))
+
+
+# --- sprint 5 Task 2: injected drops and bad releases must fail verification ---
+
+
+def _demo(keys, t_close, t_open, rest, fall_s=0.2):
+    """Like _clean, with the keys, the open time and where the cube comes to rest as arguments."""
+    t = np.arange(0.0, keys[-1][0] + 1e-9, DT)
+    kt = [k[0] for k in keys]
+    ee = np.stack([np.interp(t, kt, [k[1][i] for k in keys]) for i in range(3)], axis=1)
+    grip = ((t >= t_close - 1e-9) & (t < t_open - 1e-9)).astype(int)
+    cube = np.tile([0.5, 0.0, 0.025], (len(t), 1))
+    held = grip == 1
+    cube[held] = ee[held]
+    after = t >= t_open - 1e-9
+    fall = np.clip((t[after] - t_open) / fall_s, 0.0, 1.0)[:, None]
+    cube[after] = ee[np.argmax(after)] * (1 - fall) + np.asarray(rest) * fall
+    n = len(t)
+    traj = Trajectory.from_arrays(t, ee, np.tile(DOWN, (n, 1)), grip)
+    sim = SimSignals(cube_pos=cube, contact_gripper_cube=held.copy(), contact_arm_bin=np.zeros(n, dtype=bool),
+                     contact_arm_table=np.zeros(n, dtype=bool), max_contact_force=np.zeros(n))
+    return traj, sim
+
+
+def test_gripper_opened_mid_carry_fails_with_the_cube_on_the_table():
+    """T1's drop: the gripper opens mid-carry, >= 5 cm from the bin footprint; the rest of the demo goes on."""
+    keys = [(0.0, (0.5, 0.0, 0.2)), (1.0, (0.5, 0.0, 0.025)), (2.0, (0.5, 0.0, 0.25)), (2.6, (0.5, 0.1, 0.25)),
+            (3.5, (0.5, 0.3, 0.25)), (4.5, (0.5, 0.3, 0.135)), (5.0, (0.5, 0.3, 0.30)), (6.0, (0.5, 0.3, 0.30))]
+    traj, sim = _demo(keys, t_close=1.0, t_open=2.6, rest=(0.5, 0.11, 0.025), fall_s=0.25)
+    res = check_success(traj, sim, BIN)
+    assert not res.success
+    assert "not_in_bin" in res.reasons
+
+
+def test_release_beside_the_bin_fails_not_in_bin():
+    """T1's bad_release, first kind: the gripper opens clearly outside the bin footprint."""
+    keys = [(0.0, (0.5, 0.0, 0.2)), (1.0, (0.5, 0.0, 0.025)), (2.0, (0.5, 0.0, 0.25)), (3.5, (0.5, 0.15, 0.25)),
+            (4.5, (0.5, 0.15, 0.135)), (5.0, (0.5, 0.15, 0.30)), (6.0, (0.5, 0.15, 0.30))]
+    traj, sim = _demo(keys, t_close=1.0, t_open=4.5, rest=(0.5, 0.15, 0.025))
+    res = check_success(traj, sim, BIN)
+    assert not res.success
+    assert res.reasons == ["not_in_bin"]
+
+
+def test_opening_at_carry_height_over_the_bin_is_a_high_release_even_if_the_cube_lands_in_it():
+    """T1's bad_release, second kind: no descent, the cube falls ~0.2 m. It can land in the bin, so in_bin alone
+    would call this a success."""
+    keys = [(0.0, (0.5, 0.0, 0.2)), (1.0, (0.5, 0.0, 0.025)), (2.0, (0.5, 0.0, 0.25)), (3.5, (0.5, 0.3, 0.25)),
+            (4.0, (0.5, 0.3, 0.25)), (5.0, (0.5, 0.3, 0.30)), (6.0, (0.5, 0.3, 0.30))]
+    traj, sim = _demo(keys, t_close=1.0, t_open=4.0, rest=CUBE_REST, fall_s=0.25)
+    res = check_success(traj, sim, BIN)
+    assert not res.success
+    assert res.reasons == ["high_release"]
+
+
+@pytest.mark.parametrize("cube_z,flagged", [(0.10, False), (0.135, False), (0.17, False), (0.19, True), (0.25, True)])
+def test_high_release_threshold_is_the_cube_center_018_m_above_the_bin(cube_z, flagged):
+    """The scripted expert opens with the cube center 0.10 m above the bin origin; the fixture above, 0.135."""
+    keys = [(0.0, (0.5, 0.0, 0.2)), (1.0, (0.5, 0.0, 0.025)), (2.0, (0.5, 0.0, 0.25)), (3.5, (0.5, 0.3, 0.25)),
+            (4.5, (0.5, 0.3, cube_z)), (5.0, (0.5, 0.3, 0.30)), (6.0, (0.5, 0.3, 0.30))]
+    traj, sim = _demo(keys, t_close=1.0, t_open=4.5, rest=CUBE_REST)
+    assert ("high_release" in check_success(traj, sim, BIN).reasons) is flagged
+
+
+def test_high_release_measures_the_cube_not_the_hand():
+    """A cube that already fell out of the hand is not released high, wherever the hand opens."""
+    keys = [(0.0, (0.5, 0.0, 0.2)), (1.0, (0.5, 0.0, 0.025)), (2.0, (0.5, 0.0, 0.25)), (3.5, (0.5, 0.3, 0.25)),
+            (4.0, (0.5, 0.3, 0.25)), (5.0, (0.5, 0.3, 0.30)), (6.0, (0.5, 0.3, 0.30))]
+    traj, sim = _demo(keys, t_close=1.0, t_open=4.0, rest=CUBE_REST)
+    cube = sim.cube_pos.copy()
+    t = np.asarray(traj.t)
+    cube[t >= 3.0 - 1e-9] = CUBE_REST  # slipped into the bin a second before the open
+    contact = sim.contact_gripper_cube & (t < 3.0 - 1e-9)
+    res = check_success(traj, _replace(sim, cube_pos=cube, contact_gripper_cube=contact), BIN)
+    assert "high_release" not in res.reasons
