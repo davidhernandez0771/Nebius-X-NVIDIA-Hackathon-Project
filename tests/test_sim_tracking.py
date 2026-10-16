@@ -112,3 +112,10 @@ def test_cli_flags_select_every_option():
 
 def test_cli_gate_zero_means_off():
     assert _parse(["--gate-mm", "0"]).gate_tol is None
+
+
+def test_residual_is_a_reach_signal_only_with_velocity_feedforward():
+    """Without feedforward the 0.2 s drive lag alone keeps the residual > 2 cm for > 1 s (measured: the base
+    scene fails as `unreachable` with --no-vel-ff), so it can't tell lag from an out-of-reach target."""
+    assert TrackingOptions().residual_is_reach_signal
+    assert not TrackingOptions(vel_ff=False).residual_is_reach_signal

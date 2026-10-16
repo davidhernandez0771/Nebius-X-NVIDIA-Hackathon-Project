@@ -41,6 +41,12 @@ class TrackingOptions:
             raise ValueError(f"gate_max_s must be >= 0, got {self.gate_max_s}")
 
     @property
+    def residual_is_reach_signal(self) -> bool:
+        """With feedforward the TCP tracks within ~8 mm, so a residual > 2 cm for > 1 s means out of reach.
+        Without it the drive lag alone exceeds that, so `unreachable` is not checked."""
+        return self.vel_ff
+
+    @property
     def gate_max_steps(self) -> int:
         return math.ceil(self.gate_max_s / CONTROL_DT - 1e-9)
 

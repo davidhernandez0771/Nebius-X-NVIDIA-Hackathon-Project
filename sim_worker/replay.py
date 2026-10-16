@@ -291,7 +291,8 @@ def replay(
         contact_arm_table=np.asarray(contacts["arm_table"], dtype=bool),
         max_contact_force=np.asarray(max_force, dtype=np.float64),
     )
-    result = check_success(executed, signals, scene.bin_pose, bin_inner=BIN_INNER, tcp_error=np.asarray(ik_residual))
+    reach = np.asarray(ik_residual) if opts.residual_is_reach_signal else None
+    result = check_success(executed, signals, scene.bin_pose, bin_inner=BIN_INNER, tcp_error=reach)
     if stats is not None:
         stats.update(track, hold_steps=hold_steps, preroll_mm=preroll_err * 1000, trajectory=executed)
 
