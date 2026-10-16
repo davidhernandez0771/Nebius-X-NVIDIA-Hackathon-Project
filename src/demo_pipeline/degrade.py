@@ -24,14 +24,21 @@ PAUSE_GAP_S = 1.0  # source-time spacing between two pauses, so they never merge
 PAUSE_MIN_SPEED = 0.05  # m/s; a pause only starts where the hand is visibly moving
 TREMOR_HZ = 6.0  # jitter is low-passed here (-3 dB), so it looks like hand tremor
 OFFSET_RAMP_S = 1.0  # after the lift, the grasp offset fades out over this long (min-jerk)
+EXPERT_STOP_SPEED = 0.03  # m/s; the clean expert slows below this at its waypoints (any still threshold is lower)
+EXPERT_STOP_MIN_S = 0.1  # shorter dips are not worth reporting
 
 
 class InjectedIssue(_Model):
-    """One ground-truth issue. A point issue (grasp_off_center) has t0 == t1."""
+    """One ground-truth issue. A point issue (grasp_off_center) has t0 == t1.
+
+    dont_care marks the clean expert's own stop at a waypoint (degrade(..., expert_stops=True)):
+    not injected, so missing it is no miss, but a real stop, so flagging it is no false alarm.
+    """
 
     type: IssueType
     t0: float = Field(ge=0)
     t1: float
+    dont_care: bool = False
 
     @model_validator(mode="after")
     def _ordered(self) -> "InjectedIssue":
@@ -123,6 +130,31 @@ def _warp(t_src: np.ndarray, pauses, r0: float, idle_start: float, idle_end: flo
     return grid, s_out, spans
 
 
+def _expert_stops(t: np.ndarray, pos: np.ndarray, grip: np.ndarray,
+                  held: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Interior spans where the noise-free hand moves slower than EXPERT_STOP_SPEED for at least
+    EXPERT_STOP_MIN_S with the gripper unchanged, outside the injected holds (pauses, idle).
+
+    Spans follow the rules' convention: still steps a..b mean "still from t[a-1] to t[b]".
+    """
+    step = np.linalg.norm(np.diff(pos, axis=0), axis=1) / np.diff(t)
+    still = np.concatenate([step[:1], step]) < EXPERT_STOP_SPEED
+    for h0, h1 in held:
+        still &= ~((t > h0 + 1e-9) & (t <= h1 + 1e-9))
+    n, spans, i = len(t), [], 0
+    while i < n:
+        if not still[i]:
+            i += 1
+            continue
+        a = i
+        while i < n and still[i]:
+            i += 1
+        b = i - 1
+        if a > 0 and b < n - 1 and t[b] - t[a - 1] >= EXPERT_STOP_MIN_S - 1e-9 and np.all(grip[a - 1 : b + 1] == grip[a - 1]):
+            spans.append((float(t[a - 1]), float(t[b])))
+    return spans
+
+
 def _tremor(n: int, mm: float, rng: np.random.Generator) -> np.ndarray:
     """[n, 3] zero-mean Gaussian noise, low-passed at TREMOR_HZ, with std mm/1000 per axis."""
     sigma = math.sqrt(math.log(2)) / (2 * math.pi * TREMOR_HZ)  # Gaussian kernel with -3 dB at TREMOR_HZ
@@ -146,8 +178,14 @@ def degrade(
     slow_factor: float = 1.0,
     idle_start_s: float = 0.0,
     idle_end_s: float = 0.0,
+    expert_stops: bool = False,
 ) -> tuple[Trajectory, list[InjectedIssue]]:
-    """A webcam-like copy of a clean demo, and the issues injected into it (degraded-timeline times)."""
+    """A webcam-like copy of a clean demo, and the issues injected into it (degraded-timeline times).
+
+    expert_stops=True also returns the clean expert's own waypoint stops as dont_care pauses, found
+    on the path before the tremor is added (for honest scoring; off by default, so the list is
+    exactly what was injected).
+    """
     if slow_factor <= 0:
         raise ValueError(f"slow_factor must be > 0, got {slow_factor}")
     if not 0 < pause_s[0] <= pause_s[1]:
@@ -174,5 +212,9 @@ def degrade(
         issues.append(InjectedIssue(type="slow", t0=0.0, t1=end))
     if jitter_mm > 0:
         issues.append(InjectedIssue(type="jitter", t0=0.0, t1=end))
+    if expert_stops:
+        held = [(t0, t1) for _, t0, t1 in spans]
+        issues += [InjectedIssue(type="pause", t0=t0, t1=t1, dont_care=True)
+                   for t0, t1 in _expert_stops(grid, out["ee_pos"], out["gripper"], held)]
     issues.sort(key=lambda i: (i.t0, i.t1))
     return result, issues

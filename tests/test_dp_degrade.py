@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from demo_pipeline.degrade import InjectedIssue, degrade
-from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms
+from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms, speed_profile
 from demo_pipeline.rules import detect_rules
 from demo_pipeline.schemas import Pose, Scene, SimSignals, Trajectory
 from sim_worker.scripted import scripted_expert
@@ -188,3 +188,57 @@ def test_same_seed_same_output_and_another_seed_differs(clean):
 def test_too_many_pauses_for_the_demo_raise(clean):
     with pytest.raises(ValueError, match="pause"):
         degrade(clean, _rng(), **{**CLEAN_OFF, "n_pauses": 50})
+
+
+# --- the expert's own stops, reported as don't-care so scoring stays honest ---------------------
+
+def _stops(issues):
+    return [i for i in issues if i.dont_care]
+
+
+def test_expert_stops_are_not_reported_unless_asked(clean):
+    _, issues = degrade(clean, _rng(1), n_pauses=1)
+    assert _stops(issues) == []
+    assert all(i.dont_care is False for i in issues)
+
+
+def test_expert_stops_mark_where_the_noise_free_hand_nearly_stops_between_moves(clean):
+    out, issues = degrade(clean, _rng(1), **CLEAN_OFF, expert_stops=True)
+    stops = _stops(issues)
+    # the expert rests between lift and carry and between carry and descent; its other waypoints are
+    # the close and open holds (gripper changes) and the end of the demo (idle time, not a pause)
+    assert len(stops) == 2
+    t_close, t_open = gripper_events(out)
+    assert all(t_close < s.t0 < s.t1 < t_open for s in stops)
+    t, speed, g = np.asarray(out.t), speed_profile(out), np.asarray(out.gripper)
+    for s in stops:
+        assert s.type == "pause" and s.t1 - s.t0 >= 0.1 - 1e-9
+        inside = (t > s.t0 + 1e-9) & (t <= s.t1 + 1e-9)
+        assert speed[inside].max() < 0.03  # the hand is (nearly) still throughout
+        assert len(set(g[(t >= s.t0 - 1e-9) & (t <= s.t1 + 1e-9)])) == 1  # not a gripper hold
+        assert 0.0 < s.t0 and s.t1 < out.t[-1]  # interior: the ends are idle time, not pauses
+    assert [i for i in issues if not i.dont_care] == []  # nothing was injected
+
+
+def test_expert_stops_avoid_injected_holds_and_ignore_the_tremor(clean):
+    kw = dict(n_pauses=2, grasp_offset_mm=0.0, idle_start_s=1.0, idle_end_s=1.0, expert_stops=True)
+    calm, truth = degrade(clean, _rng(3), jitter_mm=0.0, **kw)
+    shaky, shaky_truth = degrade(clean, _rng(3), jitter_mm=4.0, **kw)
+    held = [(i.t0, i.t1) for i in truth if not i.dont_care and i.type in ("pause", "idle_start_end")]
+    for s in _stops(truth):
+        assert all(s.t1 <= h0 + 1e-9 or s.t0 >= h1 - 1e-9 for h0, h1 in held), (s, held)
+    # computed on the path before the noise, so the tremor does not move them
+    assert [(s.t0, s.t1) for s in _stops(shaky_truth)] == [(s.t0, s.t1) for s in _stops(truth)]
+
+
+def test_a_slow_factor_stretches_the_expert_stops(clean):
+    _, normal = degrade(clean, _rng(1), **CLEAN_OFF, expert_stops=True)
+    _, slowed = degrade(clean, _rng(1), **CLEAN_OFF, slow_factor=1.5, expert_stops=True)
+    longest = lambda issues: max(s.t1 - s.t0 for s in _stops(issues))  # noqa: E731
+    # time stretches by 1.5, and the slower hand also spends more of each ramp under the fixed threshold
+    assert longest(slowed) >= 1.5 * longest(normal) - DT
+
+
+def test_slowed_start_and_end_of_the_expert_are_not_reported_as_stops(clean):
+    out, issues = degrade(clean, _rng(1), **CLEAN_OFF, slow_factor=1.6, expert_stops=True)
+    assert all(DT < s.t0 and s.t1 < out.t[-1] - DT for s in _stops(issues))  # those are idle time

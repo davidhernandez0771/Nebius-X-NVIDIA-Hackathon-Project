@@ -2,7 +2,8 @@
 
 Each seed samples a scene (multiply.sample_scene), runs the scripted expert, and degrades it
 with seeded settings; only jitter_mm is set from the command line, so every jitter level sees
-the same scenes, pauses, offsets and idle times.
+the same scenes, pauses, offsets and idle times. The expert's own waypoint stops come back as
+dont_care truth: a rules pause on one is counted as "ignored", not as a false positive.
 
     uv run python scripts/score_rules_on_degraded.py --n 200 --jitter-mm 0 1 2 4
     uv run python scripts/score_rules_on_degraded.py --still-speed 0.05 --jitter-min-jerk 40 --json out.json
@@ -41,7 +42,7 @@ def make_case(seed: int, jitter_mm: float) -> tuple[Trajectory, list[InjectedIss
         idle_start_s=0.0 if rng.random() < 0.5 else float(rng.uniform(0.5, 1.5)),
         idle_end_s=0.0 if rng.random() < 0.5 else float(rng.uniform(0.5, 1.5)),
     )
-    traj, truth = degrade(scripted_expert(scene), rng, jitter_mm=jitter_mm, **settings)
+    traj, truth = degrade(scripted_expert(scene), rng, jitter_mm=jitter_mm, expert_stops=True, **settings)
     return traj, truth, scene
 
 
@@ -74,12 +75,12 @@ def _fmt(x: float | None) -> str:
 
 
 def table(results: dict[float, DiagnosisScore]) -> str:
-    lines = ["| jitter_mm | type | TP | FP | FN | precision | recall | F1 | mean IoU |",
-             "|---|---|---|---|---|---|---|---|---|"]
+    lines = ["| jitter_mm | type | TP | FP | FN | ignored | precision | recall | F1 | mean IoU |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for jitter_mm, score in results.items():
         rows = list(score.per_type.items()) + [("**rules' types**", subtotal(score)), ("**all types**", score.total)]
         for kind, s in rows:
-            lines.append(f"| {jitter_mm:g} | {kind} | {s.tp} | {s.fp} | {s.fn} | {_fmt(s.precision)} | "
+            lines.append(f"| {jitter_mm:g} | {kind} | {s.tp} | {s.fp} | {s.fn} | {s.ignored} | {_fmt(s.precision)} | "
                          f"{_fmt(s.recall)} | {_fmt(s.f1)} | {_fmt(s.mean_iou)} |")
     return "\n".join(lines)
 
