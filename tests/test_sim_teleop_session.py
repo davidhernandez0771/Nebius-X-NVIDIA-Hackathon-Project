@@ -1,0 +1,388 @@
+"""sim_worker.teleop_session: the sim-side teleop state machine (pure; a fake driver stands in for Isaac)."""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from demo_pipeline.schemas import Demo, Pose, Scene
+from demo_pipeline.store import DemoStore
+from demo_pipeline.episode_io import load_episode, load_signals
+from demo_pipeline.teleop import Calibration, HandPoseMsg, to_ee_target
+from sim_worker.teleop_session import (
+    LOST_PAUSE_S,
+    TELEOP_DT,
+    Recording,
+    StepState,
+    TeleopSession,
+    make_store_saver,
+)
+
+DOWN = (0.0, 1.0, 0.0, 0.0)
+SCENE = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1.0, 0.0, 0.0, 0.0)),
+              bin_pose=Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=(1.0, 0.0, 0.0, 0.0)), robot="franka", seed=7)
+START_TCP = (0.4, 0.0, 0.3)
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.t = 1000.0
+
+    def __call__(self) -> float:
+        return self.t
+
+    def advance(self, s: float) -> None:
+        self.t += s
+
+
+class FakeDriver:
+    """Moves the TCP straight to each target; the cube follows the TCP while the gripper is closed."""
+
+    def __init__(self) -> None:
+        self.resets: list[Scene] = []
+        self.applied: list[tuple[Pose, int]] = []
+        self.tcp = np.array(START_TCP)
+        self.cube = np.array(SCENE.cube_pose.pos)
+        self.gripper = 0
+
+    def reset(self, scene: Scene) -> None:
+        self.resets.append(scene)
+        self.tcp = np.array(START_TCP)
+        self.cube = np.array(scene.cube_pose.pos)
+        self.gripper = 0
+
+    def apply(self, target: Pose, gripper: int) -> None:
+        self.applied.append((target, gripper))
+        self.tcp = np.array(target.pos)
+        self.gripper = gripper
+        if gripper and np.linalg.norm(self.tcp - self.cube) < 0.03:
+            self.cube = self.tcp.copy()
+
+    def read_state(self) -> StepState:
+        return StepState(
+            joint_pos=np.zeros(9), action=np.zeros(9), ee_pos=self.tcp.copy(), ee_quat=np.array(DOWN),
+            cube_pos=self.cube.copy(), contact_gripper_cube=bool(self.gripper), contact_arm_bin=False,
+            contact_arm_table=False, max_contact_force=0.0,
+        )
+
+
+def hand(u=0.5, v=0.5, palm=0.1, pinch=0.8, ok=True, t_ms=0.0) -> HandPoseMsg:
+    return HandPoseMsg(t_ms=t_ms, tracking_ok=ok, wrist_uv=(u, v), palm_width=palm, pinch_ratio=pinch,
+                       yaw_rad=0.0, frame_w=640, frame_h=480)
+
+
+@pytest.fixture
+def rig():
+    clock, driver, saved = FakeClock(), FakeDriver(), []
+
+    def save(rec: Recording) -> str:
+        saved.append(rec)
+        return f"saved {rec.demo.id}"
+
+    ids = iter(f"human_test_{i}" for i in range(100))
+    session = TeleopSession(driver, SCENE, save, clock=clock, new_id=lambda: next(ids))
+    return session, driver, clock, saved
+
+
+def run(session, clock, steps: int, msg: HandPoseMsg | None = None) -> None:
+    """`steps` control ticks at 50 Hz wall time, the browser sending `msg` before each."""
+    for _ in range(steps):
+        if msg is not None:
+            session.on_hand(msg)
+        session.step()
+        clock.advance(TELEOP_DT)
+
+
+# --- states -----------------------------------------------------------------------------
+
+def test_starts_idle_and_places_the_scene(rig):
+    session, driver, _, _ = rig
+    assert session.state == "idle"
+    assert driver.resets == [SCENE]
+    assert session.status() == {"type": "sim_status", "recording": False, "steps": 0, "demo_id": None,
+                                "last_result": None, "paused": False}
+
+
+def test_idle_follows_the_hand_without_recording(rig):
+    session, driver, clock, _ = rig
+    run(session, clock, 5, hand(u=0.3))
+    assert len(driver.applied) == 5
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+    assert session.status()["steps"] == 0
+
+
+def test_holds_the_start_pose_before_any_hand(rig):
+    session, driver, clock, _ = rig
+    run(session, clock, 3)
+    assert [tuple(p.pos) for p, _ in driver.applied] == [START_TCP] * 3
+    assert [g for _, g in driver.applied] == [0, 0, 0]
+
+
+def test_start_stop_records_and_saves_a_human_demo(rig):
+    session, driver, clock, saved = rig
+    session.on_control("record_start")
+    assert session.state == "recording"
+    run(session, clock, 10, hand())
+    assert session.status()["steps"] == 10 and session.status()["recording"] is True
+    session.on_control("record_stop")
+
+    assert session.state == "idle"
+    assert len(saved) == 1
+    demo = saved[0].demo
+    assert isinstance(demo, Demo) and Demo.model_validate(demo.model_dump()) == demo
+    assert demo.source == "human" and demo.parent_id is None and demo.scene == SCENE
+    assert len(demo.trajectory.t) == 10 and len(saved[0].states) == 10
+    assert session.status() == {"type": "sim_status", "recording": False, "steps": 10,
+                                "demo_id": "human_test_0", "last_result": "saved human_test_0", "paused": False}
+
+
+def test_saving_is_the_state_while_save_fn_runs():
+    seen = []
+    clock = FakeClock()
+
+    def save(rec):
+        seen.append(session.state)
+        return "ok"
+
+    session = TeleopSession(FakeDriver(), SCENE, save, clock=clock, new_id=lambda: "human_x")
+    session.on_control("record_start")
+    run(session, clock, 3, hand())
+    session.on_control("record_stop")
+    assert seen == ["saving"] and session.state == "idle"
+
+
+def test_human_seconds_is_wall_clock_from_start_to_stop(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 50, hand())  # 1.0 s of ticks
+    clock.advance(2.5)  # the person pauses before pressing stop
+    session.on_control("record_stop")
+    assert saved[0].demo.human_seconds == pytest.approx(3.5)
+
+
+def test_trajectory_is_50_hz_sim_time_whatever_the_wall_clock(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    for i in range(6):
+        session.on_hand(hand())
+        session.step()
+        clock.advance(0.05 if i % 2 else 0.01)  # jittery wall-clock ticks
+    session.on_control("record_stop")
+    assert saved[0].demo.trajectory.t == pytest.approx([k * 0.02 for k in range(6)])
+    assert TELEOP_DT == 0.02
+
+
+def test_trajectory_records_the_commanded_targets(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 2, hand(u=0.3, v=0.4, palm=0.08))
+    session.on_control("record_stop")
+    want = to_ee_target(hand(u=0.3, v=0.4, palm=0.08))
+    traj = saved[0].demo.trajectory
+    assert traj.ee_pos[0] == pytest.approx(want.pos) and traj.ee_quat[0] == pytest.approx(want.quat_wxyz)
+
+
+def test_uses_the_given_calibration():
+    clock, driver = FakeClock(), FakeDriver()
+    calib = Calibration(x_range=(0.35, 0.45))
+    session = TeleopSession(driver, SCENE, lambda r: "ok", calib=calib, clock=clock, new_id=lambda: "h")
+    run(session, clock, 1, hand())
+    assert driver.applied[-1][0] == to_ee_target(hand(), calib)
+
+
+def test_gripper_hysteresis_passes_through(rig):
+    session, driver, clock, saved = rig
+    session.on_control("record_start")
+    for pinch in (0.8, 0.30, 0.40, 0.50, 0.40, 0.30):  # latch: close below 0.35, open above 0.45
+        run(session, clock, 1, hand(pinch=pinch))
+    session.on_control("record_stop")
+    assert saved[0].demo.trajectory.gripper == [0, 1, 1, 0, 0, 1]
+    assert [g for _, g in driver.applied] == [0, 1, 1, 0, 0, 1]
+
+
+# --- lost tracking (spec 8.1) -------------------------------------------------------------
+
+def test_brief_tracking_loss_holds_the_target_and_keeps_recording(rig):
+    session, driver, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 5, hand(u=0.3, pinch=0.2))
+    run(session, clock, 10, hand(u=0.9, pinch=0.9, ok=False))  # 0.2 s lost: under the 0.3 s limit
+    assert session.status()["paused"] is False
+    assert session.status()["steps"] == 15
+    held = to_ee_target(hand(u=0.3))
+    assert driver.applied[-1] == (held, 1)
+    session.on_control("record_stop")
+    assert saved[0].demo.trajectory.gripper[-1] == 1
+
+
+def test_tracking_lost_over_the_limit_pauses_and_resumes(rig):
+    session, driver, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    run(session, clock, 25, hand(ok=False))  # 0.5 s lost
+    status = session.status()
+    assert status["paused"] is True and status["recording"] is True
+    paused_steps = status["steps"]
+    assert paused_steps < 5 + 25
+    run(session, clock, 5, hand())
+    assert session.status()["paused"] is False
+    assert session.status()["steps"] == paused_steps + 5
+    session.on_control("record_stop")
+    traj = saved[0].demo.trajectory
+    assert traj.t == pytest.approx([k * TELEOP_DT for k in range(len(traj.t))])  # the pause is cut out
+
+
+def test_pause_starts_just_after_the_limit(rig):
+    session, _, clock, _ = rig
+    session.on_control("record_start")
+    run(session, clock, 1, hand())  # last good message at t0
+    lost_ticks = 0
+    while not session.status()["paused"]:
+        run(session, clock, 1, hand(ok=False))
+        lost_ticks += 1
+    # Paused on the first tick more than LOST_PAUSE_S after the last tracked message, not before.
+    assert LOST_PAUSE_S - 1e-9 <= lost_ticks * TELEOP_DT <= LOST_PAUSE_S + TELEOP_DT + 1e-9
+    assert LOST_PAUSE_S == 0.3
+
+
+def test_no_messages_at_all_counts_as_lost(rig):
+    session, _, clock, _ = rig
+    session.on_control("record_start")
+    run(session, clock, 1, hand())
+    run(session, clock, 20)  # the browser went silent
+    assert session.status()["paused"] is True
+
+
+def test_recording_with_no_hand_yet_is_paused(rig):
+    session, _, clock, _ = rig
+    session.on_control("record_start")
+    run(session, clock, 3)
+    assert session.status()["paused"] is True and session.status()["steps"] == 0
+
+
+# --- edge cases ---------------------------------------------------------------------------
+
+def test_stop_with_too_few_steps_saves_nothing(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 1, hand())
+    session.on_control("record_stop")
+    assert saved == []
+    assert session.state == "idle"
+    assert "not saved" in session.status()["last_result"]
+    assert session.status()["demo_id"] is None
+
+
+def test_a_failing_save_is_reported_and_the_session_recovers(rig):
+    clock = FakeClock()
+
+    def broken(rec):
+        raise OSError("disk full")
+
+    session = TeleopSession(FakeDriver(), SCENE, broken, clock=clock, new_id=lambda: "human_y")
+    session.on_control("record_start")
+    run(session, clock, 3, hand())
+    session.on_control("record_stop")
+    assert session.state == "idle"
+    assert "disk full" in session.status()["last_result"]
+    assert session.status()["demo_id"] is None
+    session.on_control("record_start")
+    assert session.state == "recording"
+
+
+def test_start_while_recording_does_not_restart(rig):
+    session, _, clock, _ = rig
+    session.on_control("record_start")
+    run(session, clock, 4, hand())
+    session.on_control("record_start")
+    assert session.status()["steps"] == 4
+    assert "already recording" in session.status()["last_result"]
+
+
+def test_stop_while_idle_is_a_no_op(rig):
+    session, _, _, saved = rig
+    session.on_control("record_stop")
+    assert saved == [] and session.state == "idle"
+    assert "not recording" in session.status()["last_result"]
+
+
+def test_reset_scene_while_idle_resets_the_driver_and_the_hold_pose(rig):
+    session, driver, clock, _ = rig
+    run(session, clock, 2, hand(u=0.3))
+    session.on_control("reset_scene")
+    assert driver.resets == [SCENE, SCENE]
+    run(session, clock, 1)  # no new hand message: hold the start pose again, not the old target
+    assert tuple(driver.applied[-1][0].pos) == START_TCP
+    assert session.status()["last_result"] == "scene reset"
+
+
+def test_reset_scene_is_refused_while_recording(rig):
+    session, driver, clock, _ = rig
+    session.on_control("record_start")
+    run(session, clock, 2, hand())
+    session.on_control("reset_scene")
+    assert driver.resets == [SCENE]
+    assert session.state == "recording"
+    assert "stop" in session.status()["last_result"]
+
+
+def test_unknown_control_is_rejected(rig):
+    session, _, _, _ = rig
+    with pytest.raises(ValueError):
+        session.on_control("self_destruct")
+
+
+def test_each_recording_gets_a_new_id_and_starts_empty(rig):
+    session, _, clock, saved = rig
+    for _ in range(2):
+        session.on_control("record_start")
+        run(session, clock, 3, hand())
+        session.on_control("record_stop")
+    assert [r.demo.id for r in saved] == ["human_test_0", "human_test_1"]
+    assert [len(r.demo.trajectory.t) for r in saved] == [3, 3]
+
+
+# --- the store saver (episode_io + save_signals + DemoStore) ------------------------------
+
+def _recording(n: int = 60) -> Recording:
+    clock, saved = FakeClock(), []
+    session = TeleopSession(FakeDriver(), SCENE, lambda r: saved.append(r) or "ok", clock=clock,
+                            new_id=lambda: "human_store_1")
+    session.on_control("record_start")
+    run(session, clock, n, hand())
+    session.on_control("record_stop")
+    return saved[0]
+
+
+def test_store_saver_writes_demo_episode_and_signals(tmp_path):
+    store = DemoStore(tmp_path)
+    rec = _recording()
+    result = make_store_saver(store)(rec)
+
+    assert store.get_demo(rec.demo.id) == rec.demo
+    meta, arrays, _ = load_episode(store.episode_dir(rec.demo.id))
+    assert meta.n_steps == 60 and meta.robot == "franka" and meta.fps == 50 and meta.cameras == []
+    assert arrays["ee_pos"].shape == (60, 3) and arrays["gripper"].shape == (60,)
+    signals = load_signals(store.episode_dir(rec.demo.id))
+    assert signals is not None and signals.n_steps == 60
+    assert result.startswith(f"saved {rec.demo.id}")
+
+
+def test_store_saver_reports_the_success_check(tmp_path):
+    rec = _recording()  # the fake hand never moves the cube to the bin
+    result = make_store_saver(DemoStore(tmp_path))(rec)
+    assert "not verified" in result and "not_in_bin" in result
+
+
+def test_store_saver_writes_camera_frames(tmp_path):
+    pytest.importorskip("PIL")
+    rec = _recording(3)
+    frames = [{"front": np.full((8, 8, 3), k, np.uint8)} for k in range(3)]
+    rec = Recording(demo=rec.demo, states=[
+        StepState(**{**s.__dict__, "frames": f}) for s, f in zip(rec.states, frames)
+    ])
+    store = DemoStore(tmp_path)
+    make_store_saver(store)(rec)
+    meta, _, images = load_episode(store.episode_dir(rec.demo.id))
+    assert meta.cameras == ["front"]
+    assert all(p.is_file() for p in images["front"])
