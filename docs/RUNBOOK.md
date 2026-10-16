@@ -5,7 +5,8 @@ repo's dated notes (`docs/superpowers/notes/`), the README, or the code's own `-
 one cites its source in an HTML comment. Steps nobody has run on this machine are marked
 **UNVERIFIED**. Expected outputs are the ones the notes recorded, with their dates.
 
-Written 2026-10-16 at commit `c32a3d2` + the T6 launch scripts. Verified machine: Windows 11 Home,
+Written 2026-10-16 at commit `c32a3d2` + the T6 launch scripts. Updated for sprint 5 at `a3e91ae`
+(§2.6 `fetch_mediapipe.ps1`, §2.7 the one-`DATA_DIR` proposal). Verified machine: Windows 11 Home,
 RTX 5080 16 GB.
 
 **Contents**
@@ -203,16 +204,45 @@ Not re-run for this runbook (that would install `node_modules`).
 - `npm --prefix web ci` warns that esbuild's install script isn't covered by `allowScripts`. The
   build works without it. <!-- src: web-pages note "For the human / other tracks" -->
 
-### 2.6 MediaPipe hand-tracking files — UNVERIFIED gap
+### 2.6 MediaPipe hand-tracking files
 
 The Record page loads `/mediapipe/wasm` and `/models/hand_landmarker.task` from `web/public/`.
 <!-- src: web/src/hand/tracking/mediapipeTracker.ts (WASM_BASE_PATH, MODEL_ASSET_PATH) -->
-Both are git-ignored ("large binaries fetched from Google's CDN by setup, not committed").
-<!-- src: .gitignore -->
+Both are git-ignored, so a fresh clone has neither. <!-- src: .gitignore; HAND_INTERACTION_PLAN.md (Assets) -->
+After `npm --prefix web ci` (§2.5), run once from the repo root:
 
-- **No note or script in this repo records where to get them or how,** and no checkout on this
-  machine has them (checked 2026-10-16). Until they are in place, the Record page's camera can't
-  track a hand. A live hand on the Record page has never been checked. <!-- src: web-pages note "Not checked live" -->
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\launch\fetch_mediapipe.ps1
+```
+
+It does the README's two steps: <!-- src: README "Web app + MediaPipe hand-tracking assets"; HAND_INTERACTION_PLAN.md (Assets) -->
+
+1. It copies `web\node_modules\@mediapipe\tasks-vision\wasm\*` to `web\public\mediapipe\wasm\`,
+   so the files match the pinned package (0.10.17).
+2. It downloads the pinned model (`float16/1`, not `latest`, about 7.8 MB) from
+   `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`
+   to `web\public\models\hand_landmarker.task`. It skips the download if a non-empty file is
+   already there; `-Force` downloads it again.
+
+Expected output (from T6's tests, run against a fake server with 3 fake WASM files):
+
+```text
+wasm:  copied 3 files to ...\web\public\mediapipe\wasm
+model: downloading https://storage.googleapis.com/...
+model: saved <bytes> bytes to ...\web\public\models\hand_landmarker.task
+```
+
+A second run prints `model: already there (<bytes> bytes): <path>; not downloaded (-Force to download again)`. <!-- src: tests/test_launch_fetch_mediapipe.py -->
+
+- **Without `web\node_modules`,** it prints `REFUSED: ... npm --prefix web ci` and exits 1
+  without copying or downloading anything.
+- **A failed or cut-off download leaves nothing behind.** The download goes to a `.part` file.
+  That file replaces the model only when its size matches the server's `Content-Length`, so a
+  model already in place stays as it was. The script exits 1 and prints `model: FAILED: ...`.
+- **UNVERIFIED:** T6 has never run the real download (the user runs it). The script's own steps
+  are tested only against a fake local server. The README's copy-and-download commands do the
+  same by hand; they were tested in a scratch copy on 2026-10-16. <!-- src: README, same section -->
+  A live hand on the Record page has never been checked. <!-- src: web-pages note "Not checked live" -->
 
 ### 2.7 One shared `DATA_DIR` (recommended)
 
@@ -223,15 +253,118 @@ Demos, episodes, sets, datasets, the training registry and the results all live 
   `demo_pipeline` was imported from. The Isaac and LeRobot venvs have editable installs from other
   checkouts, so without care the worker, the trainer and the backend write to three different
   `data\` folders. <!-- src: src/demo_pipeline/paths.py (REPO_ROOT from the module's own path); t1-status sprint 3b "For others" 3 -->
-- So set it once per PowerShell, before anything else, for example:
+- So set it once per PowerShell, before anything else:
 
   ```powershell
-  $env:DATA_DIR = "C:\dev\pm-data"   # any folder outside OneDrive; example name
+  $env:DATA_DIR = "C:\dev\pm-data"
   ```
 
   `start.ps1` passes it on to everything it starts. The backend and the sim worker must also run
   on the same machine, because the backend reads the worker's episode folders by path.
   <!-- src: t4-status sprint 3 Task 5 ("Worker and backend must share a disk") -->
+
+#### 2.7.1 Today: four `data\` folders (checked 2026-10-16, read-only)
+
+No terminal ever set `DATA_DIR` (it is unset for the user, the machine and the session). So each
+track's data sits in its own worktree. <!-- src: T6 listing, 2026-10-16; the editable installs: Isaac → pm-t2, LeRobot → pm-t3; sim_eval scripts put their own checkout's src first (run_eval.py / eval_cells.py line 30) -->
+Everything the final results, charts, media and the sprint 5 ablation need:
+
+| Track | Folder | What the final run needs from it | Size |
+|---|---|---|---|
+| T2 | `C:\dev\pm-t2\data` | `episodes\` (`degraded_*`, `s1_*`, the v2 render to come), `smoke_cam\`, `batch_franka_cam*\` (the training source), `multiply_*\yield.json`, `yield\` (`clean_franka_s4.json`: 30/30) | 1.25 GB |
+| T3 | `C:\dev\pm-t3\data` | `results\registry.jsonl`, `evals\sprint3_clean_expert_20261016_144514\`, `experiments\sprint3_clean_expert_20261016_144514\` (datasets + final `010000` checkpoints), `experiments\grids\` | 1.74 GB without the resume checkpoints |
+| T4 | `C:\dev\pm-t4\data` | `demos\` (the backend's DemoStore), `sets\s1\` (complete, with `experiment\`), `ablation\20261016_s4\` and the v2 ablation to come | 0.48 GB |
+| T1 | `C:\dev\pm-t1\data` | `sets\v2\` (the frozen set v2; only here), `sets\s1\pipeline\*\scores.json` (only here) | 2 MB |
+
+<!-- src: build_results_json.py lines 78-83 (registry, evals/*.json, */yield.json, sets/*/pipeline/*/scores.json); t2-status (degraded index, yield/clean_franka_s4.json, s4_s1); t3-status sprint 3 Tasks 3-4; t4-status sprint 3 Task 5 + sprint 4; plan sprint 5 (v2 set, render, ablation); sizes from robocopy /L on 2026-10-16 -->
+
+Not needed for the final run, so left where they are: T3's `runs\` (the sprint 1 smoke, 0.6 GB);
+the `002500`/`005000`/`007500` resume checkpoints (5.2 GB, only for resuming training); T1's
+`results\results.json` (stale: it was built before the first eval and is rebuilt below); T1's
+`media\` (the README uses `docs\media\`). <!-- src: t3-lerobot-windows; t3-status sprint 3 Task 3; docs/media/README.md -->
+
+**Checked before writing this:**
+
+- **The only path in two folders is `sets\s1`** (T1 and T4).
+  - Its 25 shared files are byte-identical (SHA-256, 2026-10-16).
+  - T1 adds only the two `pipeline\*\scores.json` files. T4 adds 29 files (`demo.json`s, `experiment\`).
+  - `results\` is in T1 and T3, but with different file names.
+
+#### 2.7.2 Proposal: one folder, `C:\dev\pm-data` — UNVERIFIED (not run; T6 copied nothing)
+
+**Why a new folder:** it is outside OneDrive and outside every track's worktree, so no single
+track's checkout owns the final data.
+
+**Copy, never move.** The data stores absolute paths into the old folders, and those must keep
+resolving:
+
+- T3's `registry.jsonl` `checkpoint`/`dataset`;
+- the grid and dataset manifests (into `pm-t2\data\batch_franka_cam`);
+- `ep_dir` in the yield files, `degraded_index.json` and the `sets\s1\pipeline` results;
+- T4's grid (into `pm-t4\data\demos`).
+
+`eval_cells` serves the registry row's checkpoint, and `--resume` checks it. With a copy, all of
+these still point at files that exist. <!-- src: grep of C:\dev\pm-t* in the data, 2026-10-16; t3-status "registry row matched by checkpoint path" and "--resume checks the checkpoint" -->
+**Keep `C:\dev\pm-t1..t4\data` until after Oct 30.**
+
+**When:** only after all three are done:
+
+- T3's eval `sprint3_clean_expert_20261016_144514` has exited and T3's note records it. It was
+  still writing `raw_13` at 19:04 on 2026-10-16.
+- T2 has rendered set v2.
+- T4's v2 ablation has run.
+
+Until then, the producers are still writing into their own folders. <!-- src: plan sprint 5 "GPU" and T2/T4 tasks -->
+
+**Commands** (any PowerShell; `robocopy` ships with Windows). Each one first lists only (`/L`),
+then copies:
+
+```powershell
+$dst = "C:\dev\pm-data"
+# 1. dry run: lists what would be copied, copies nothing (exit 1 = "files would be copied")
+robocopy C:\dev\pm-t2\data $dst /E /XJ /L /NFL /NDL /NP
+# 2. the copies, in this order (T4 before T1, so T4's complete sets\s1 wins)
+robocopy C:\dev\pm-t2\data             $dst              /E /XJ /R:1 /W:1 /NP /LOG:"$env:TEMP\pm-data-t2.log"
+robocopy C:\dev\pm-t4\data             $dst              /E /XJ /R:1 /W:1 /NP /LOG:"$env:TEMP\pm-data-t4.log"
+robocopy C:\dev\pm-t3\data\results     $dst\results      /E /XJ /R:1 /W:1 /NP /LOG:"$env:TEMP\pm-data-t3r.log"
+robocopy C:\dev\pm-t3\data\evals       $dst\evals        /E /XJ /R:1 /W:1 /NP /LOG:"$env:TEMP\pm-data-t3e.log"
+robocopy C:\dev\pm-t3\data\experiments $dst\experiments  /E /XJ /R:1 /W:1 /NP /XD 002500 005000 007500 /LOG:"$env:TEMP\pm-data-t3x.log"
+# T1: only files T4 did not already provide (sets\v2, the two scores.json); /XC /XN /XO never overwrite
+robocopy C:\dev\pm-t1\data\sets        $dst\sets         /E /XJ /R:1 /W:1 /NP /XC /XN /XO /LOG:"$env:TEMP\pm-data-t1.log"
+```
+
+<!-- src: robocopy /? on this machine (/E /XJ /L /XD /XC /XN /XO /R /W /NP /NFL /NDL /LOG); dry runs (/L) of every line above on 2026-10-16: t2 131,110 files 1.247 GB; t4 50,069 files 483 MB; t3 results 1 file, evals 12 files, experiments 70 files 1.744 GB (9 resume dirs excluded); t1 sets 92 files 1.9 MB (fewer once T4's sets\s1 is in place) -->
+
+- **Expected:** about 3.5 GB in total, plus the v2 render.
+- **Exit codes:** 0–7 are success (1 = files copied). 8 or more means some files failed; read the
+  log. <!-- UNVERIFIED: from Microsoft's robocopy documentation; only exit 1 was seen here -->
+- **The copy uses more space than the originals.** T4's `demos\` frames are hard links into
+  `pm-t2\data\episodes`, so `demos\` becomes real files. That adds about 0.5 GB, and the disk has
+  1 TB free. <!-- src: fsutil hardlink list on demos\s1_0000\episode\signals.npz, 2026-10-16 -->
+
+#### 2.7.3 After the copy
+
+1. Set `$env:DATA_DIR = "C:\dev\pm-data"` in every terminal before starting anything. That
+   includes T2's sim worker restart: without it, the worker writes new episodes to `pm-t2\data`
+   again.
+2. Rebuild the results from the one folder. No `--input-root` or `--t2-data` is needed any more:
+
+   ```powershell
+   uv run python scripts/build_results_json.py --data-dir C:\dev\pm-data
+   uv run python scripts/render_charts.py --results C:\dev\pm-data\results\results.json --out C:\dev\pm-data\results\charts
+   ```
+
+   Then check that `inputs` in `results.json` lists `C:\dev\pm-data\results\registry.jsonl`, the
+   `multiply_*\yield.json` files and both `scores.json` files. <!-- src: build_results_json.py (--data-dir, inputs) ; render_charts --results/--out (§8) -->
+
+**Known gaps in what the builder picks up (T1's code, not changed here):**
+
+- **The 30/30 yield is missed.** `yield\clean_franka_s4.json` is not named `yield.json`, so
+  `results.json` keeps T2's older 27/30 `multiply_franka\yield.json`.
+- **Nested eval files are missed.** `evals\<run_id>\<cell>.json` sit one level below the
+  `evals\*.json` glob, so the success numbers come from the registry rows alone.
+
+<!-- src: build_results_json.py lines 79-81; t2-status sprint 4 (clean_franka_s4.json 30/30) -->
 
 ---
 
@@ -683,7 +816,7 @@ Cost: about $0.0013–0.0016 per diagnose call, 2.3–3.9 s. Every call is logge
 |---|---|
 | A page says the backend or sim worker is down | Start them (§3.2); every page shows this instead of a blank screen. <!-- src: web-pages note --> |
 | Results shows "SAMPLE DATA" | `GET /results` has no file, or the file lacks `"sample": false`. Build it (§8). <!-- src: web-pages note sprint 3b --> |
-| The Record page can't track a hand | The MediaPipe files are missing (§2.6). |
+| The Record page can't track a hand | The MediaPipe files are missing. Run `scripts\launch\fetch_mediapipe.ps1` (§2.6). |
 | `status.ps1` calls the web DOWN although Vite runs | UNVERIFIED guess: Vite 5 binds `localhost`, which may be IPv6-only. `status.ps1` also tries `localhost:5173`; open the page in a browser to be sure. <!-- src: t6-status Task 3 --> |
 
 ### 9.5 LeRobot and training
