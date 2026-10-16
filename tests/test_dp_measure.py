@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms, smoothed_speed, speed_profile
+from demo_pipeline.measure import compute_windows, gripper_events, jerk_rms, position_noise, smoothed_speed, speed_profile
 from demo_pipeline.schemas import SimSignals, Trajectory
 
 DT = 0.02
@@ -149,3 +149,20 @@ def test_smoothed_speed_still_shows_a_hold_inside_motion():
 def test_smoothed_speed_rejects_negative_sigma():
     with pytest.raises(ValueError):
         smoothed_speed(_line(1.0), -0.1)
+
+
+# --- position_noise: how much tremor rides on the path ------------------------------------------
+
+def test_position_noise_of_a_smooth_path_is_its_tiny_curvature():
+    assert position_noise(_line(2.0, speed=0.1)) < 1e-12  # a straight line has no second difference
+    n = 101
+    t = np.arange(n) * DT
+    pos = np.stack([0.5 * 1.0 * t**2, np.zeros(n), np.zeros(n)], axis=1)  # 1 m/s^2
+    tr = Trajectory.from_arrays(t, pos, np.tile(IDENTITY, (n, 1)), np.zeros(n, int))
+    assert position_noise(tr) == pytest.approx(1.0 * DT**2)  # a * dt^2 = 0.4 mm
+
+
+def test_position_noise_grows_with_tremor():
+    quiet, loud = _line(4.0, noise_m=0.0005), _line(4.0, noise_m=0.002)
+    assert 0.0 < position_noise(quiet) < position_noise(loud)
+    assert position_noise(loud) == pytest.approx(4 * position_noise(quiet), rel=0.2)

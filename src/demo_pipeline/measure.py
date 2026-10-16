@@ -18,6 +18,18 @@ def speed_profile(traj: Trajectory) -> np.ndarray:
     return np.concatenate([step[:1], step])
 
 
+def position_noise(traj: Trajectory) -> float:
+    """Median norm of the second difference of ee_pos (m): how much tremor rides on the path.
+
+    A smooth path scores a*dt^2 (sub-millimetre); on 50 Hz demos degraded with tremor of std J per
+    axis it measures about 0.9 J. The median ignores the few steps around abrupt stops.
+    """
+    p = np.asarray(traj.ee_pos, dtype=np.float64)
+    if len(p) < 3:
+        return 0.0
+    return float(np.median(np.linalg.norm(p[2:] - 2 * p[1:-1] + p[:-2], axis=1)))
+
+
 def _line_pad(pos: np.ndarray, n_fit: int, n_pad: int) -> np.ndarray:
     """n_pad samples before pos[0], on the least-squares line through the first n_fit samples."""
     x = np.arange(n_fit, dtype=np.float64)

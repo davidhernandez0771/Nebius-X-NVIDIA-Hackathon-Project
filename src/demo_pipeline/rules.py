@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .measure import gripper_events, speed_profile
+from .measure import gripper_events, position_noise, smoothed_speed, speed_profile
 from .schemas import Diagnosis, Discard, Issue, MetricsWindow, RemovePause, Segment, Smooth, Trajectory, Trim
 
 TASK_TEXT = "pick up the red cube and place it in the blue bin"
@@ -19,25 +19,57 @@ MIN_STILL_S = 0.4  # a still span this long is a pause (inside) or idle time (at
 JITTER_RATIO = 3.0  # a window is jittery above this multiple of the median window jerk_rms...
 JITTER_MIN_JERK = 20.0  # ...and above this floor (m/s^3). Smooth min-jerk motion stays under ~5; 1 mm noise gives ~100.
 RELEASE_MARGIN_S = 0.5  # a trim keeps this long after the last open, so the release can finish
+
+# Tremor (webcam noise) keeps the raw speed far above STILL_SPEED, so a noisy demo is judged on a
+# smoothed path instead. The values were chosen on the scorer; see the T1 status note (2026-10-16).
+NOISE_GATE_M = 0.0002  # position_noise above this means tremor: clean 50 Hz demos <= 0.14 mm, 0.25 mm tremor >= 0.23 mm
+STILL_SIGMA_S = 0.2  # Gaussian smoothing of the path for noisy demos
+STILL_SPEED_NOISY = 0.02  # m/s on the smoothed path; tremor alone gives p99 0.004 / 0.007 / 0.014 at 1 / 2 / 4 mm
+STILL_WIDEN_S = 0.2  # smoothing shrinks a stop by about this much at each moving edge, so the run is widened back
 _TOL = 1e-9
 
+StillRun = tuple[int, int, float, float]
 
-def _still_runs(t: np.ndarray, speed: np.ndarray) -> list[tuple[int, int, float, float]]:
+
+def _still_runs(t: np.ndarray, speed: np.ndarray, threshold: float | None = None) -> list[StillRun]:
     """(first index, last index, still-from time, still-until time) for each run of still steps.
 
     speed[i] is the motion between steps i-1 and i, so a run a..b means the hand was still from t[a-1] to t[b].
     """
+    limit = STILL_SPEED if threshold is None else threshold
     runs, i, n = [], 0, len(speed)
     while i < n:
-        if speed[i] >= STILL_SPEED:
+        if speed[i] >= limit:
             i += 1
             continue
         a = i
-        while i < n and speed[i] < STILL_SPEED:
+        while i < n and speed[i] < limit:
             i += 1
         b = i - 1
         runs.append((a, b, float(t[max(a - 1, 0)]), float(t[b])))
     return runs
+
+
+def still_runs(traj: Trajectory) -> list[StillRun]:
+    """Where the hand is still, in the detector's terms (shared with refine).
+
+    A noise-free demo uses the raw speed against STILL_SPEED, exactly as before. A demo with
+    tremor (position_noise >= NOISE_GATE_M) uses the speed of a path smoothed by STILL_SIGMA_S
+    against STILL_SPEED_NOISY; each run is widened by STILL_WIDEN_S at both edges (clipped to the
+    demo), and runs that then touch are merged.
+    """
+    t = np.asarray(traj.t)
+    if position_noise(traj) < NOISE_GATE_M:
+        return _still_runs(t, speed_profile(traj))
+    n, w = len(t), int(round(STILL_WIDEN_S / float(np.median(np.diff(t)))))
+    merged: list[list[int]] = []
+    for a, b, _, _ in _still_runs(t, smoothed_speed(traj, STILL_SIGMA_S), STILL_SPEED_NOISY):
+        a, b = max(a - w, 0), min(b + w, n - 1)
+        if merged and a <= merged[-1][1] + 1:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    return [(a, b, float(t[max(a - 1, 0)]), float(t[b])) for a, b in merged]
 
 
 def _segments(t_close: float, t_open: float | None, end: float) -> list[Segment]:
@@ -83,7 +115,7 @@ def detect_rules(traj: Trajectory, windows: list[MetricsWindow], task_text: str 
     issues: list[Issue] = []
     repairs = []
     keep_from, keep_to = start, end
-    for a, b, still_from, still_to in _still_runs(t, speed_profile(traj)):
+    for a, b, still_from, still_to in still_runs(traj):
         if still_to - still_from < MIN_STILL_S - _TOL:
             continue
         if a == 0:  # idle start; never trim past the first close

@@ -5,7 +5,10 @@ import numpy as np
 import pytest
 
 from demo_pipeline.refine import refine_diagnosis
-from demo_pipeline.rules import TASK_TEXT
+from demo_pipeline.degrade import degrade
+from demo_pipeline.measure import compute_windows
+from demo_pipeline.rules import TASK_TEXT, detect_rules
+from scripts.score_rules_on_degraded import _signals, make_case
 from demo_pipeline.schemas import Diagnosis, Trajectory
 
 DT = 0.02
@@ -161,3 +164,36 @@ def test_two_model_pauses_on_one_still_run_become_one():
     out = refine_diagnosis(_diag([_pause(1.0, 1.5), _pause(1.5, 2.0)], [_remove(1.0, 1.5), _remove(1.5, 2.0)], 5.0), tr)
     assert len(_ranges(out.issues, "pause")) == 1
     assert len(_ranges(out.repairs, "remove_pause")) == 1
+
+
+# --- under webcam-like tremor, refine snaps to the same stillness the rules see -----------------
+
+def _shaky_with_pause(jitter_mm: float = 2.0):
+    from demo_pipeline.schemas import Pose, Scene
+    from sim_worker.scripted import scripted_expert
+    scene = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1.0, 0.0, 0.0, 0.0)),
+                  bin_pose=Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=(1.0, 0.0, 0.0, 0.0)), robot="franka", seed=0)
+    tr, truth = degrade(scripted_expert(scene), np.random.default_rng(2), n_pauses=1, pause_s=(0.9, 0.9),
+                        jitter_mm=jitter_mm, grasp_offset_mm=0.0)
+    [p] = [i for i in truth if i.type == "pause"]
+    return tr, (p.t0, p.t1)
+
+
+def test_window_aligned_pause_on_a_tremor_demo_snaps_close_to_the_true_pause():
+    tr, (p0, p1) = _shaky_with_pause()
+    w0 = np.floor(p0 * 2) / 2
+    end = tr.t[-1]
+    diag = Diagnosis.model_validate({
+        "segments": [{"name": "approach", "t0": 0.0, "t1": end}],
+        "issues": [_pause(w0, w0 + 0.5)], "repairs": [_remove(w0, w0 + 0.5)], "decision": "repair", "label": TASK_TEXT})
+    out = refine_diagnosis(diag, tr)
+    _near(_ranges(out.issues, "pause"), [(p0, p1)], tol=0.15)
+    _near(_ranges(out.repairs, "remove_pause"), [(p0, p1)], tol=0.15)
+
+
+def test_refining_the_rules_own_diagnosis_changes_nothing_under_tremor():
+    # rules and refine must share one stillness detector, or refine would move what the rules found
+    for seed in range(15):
+        tr, _, scene = make_case(seed, 2.0)
+        diag = detect_rules(tr, compute_windows(tr, _signals(tr, scene)))
+        assert refine_diagnosis(diag, tr) == diag, seed
