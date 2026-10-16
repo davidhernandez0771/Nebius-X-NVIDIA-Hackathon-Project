@@ -29,6 +29,7 @@ parser.add_argument("--n", type=int, default=30)
 parser.add_argument("--seed0", type=int, default=100)
 parser.add_argument("--out", type=Path, required=True)
 parser.add_argument("--robot", default="franka", choices=["franka", "openarm"])
+parser.add_argument("--lift-z", type=float, default=0.25, help="scripted expert carry/retreat height (m)")
 parser.add_argument("--hold-s", type=float, default=0.5, help="the source demo's hold at each gripper event")
 parser.add_argument("--cameras", action="store_true")
 add_tracking_args(parser)
@@ -68,7 +69,7 @@ def main() -> None:
         robot=args_cli.robot,
         seed=0,
     )
-    src_traj = scripted_expert(src_scene, hold_s=args_cli.hold_s)
+    src_traj = scripted_expert(src_scene, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z)
     rows, t0 = [], time.time()
     with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
         source = _run(src_traj, src_scene, out / "source", opts)
@@ -93,7 +94,7 @@ def main() -> None:
             rows.append(row)
             print("ROW " + json.dumps(row), flush=True)
         report = yield_report(rows, wall_s=time.time() - t_var)
-        report.update(robot=args_cli.robot, hold_s=args_cli.hold_s, tracking=vars(opts), seed0=args_cli.seed0,
+        report.update(robot=args_cli.robot, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z, tracking=vars(opts), seed0=args_cli.seed0,
                       source=source, total_wall_s=time.time() - t0, variants=rows)
         (out / "yield.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
         print("YIELD " + json.dumps({k: v for k, v in report.items() if k != "variants"}), flush=True)

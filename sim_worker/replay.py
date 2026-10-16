@@ -1,4 +1,4 @@
-"""Replay a Trajectory on the Franka with differential IK, record the episode, and verify it (spec 8.5).
+"""Replay a Trajectory on the Franka or OpenArm with differential IK, record the episode, and verify it (spec 8.5).
 
 The caller must already be inside ``isaaclab.app.launch_simulation(make_sim_cfg(...), args)``.
 Isaac Lab 3.0 quaternions are (x, y, z, w); everything that crosses into demo_pipeline is (w, x, y, z).
@@ -17,21 +17,20 @@ import isaaclab.sim as sim_utils
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import instantiate
-from isaaclab.utils.math import compute_pose_error, quat_apply, subtract_frame_transforms
+from isaaclab.utils.math import compute_pose_error, subtract_frame_transforms
 
 from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
 from demo_pipeline.schemas import Pose, Scene, SimSignals, Trajectory, VerificationResult
 from demo_pipeline.success import check_success
 
 from .scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, BIN_PARTS, FRONT_EYE, FRONT_TARGET, make_scene_cfg
+from .robots import RobotSpec, hand_from_tool, robot_spec, tool_from_hand
 from .tracking import CONTROL_DT, TrackingOptions, dls_iterate, gate_hold, lookahead_index, tracking_stats
 
 TASK_TEXT = "pick up the red cube and place it in the blue bin"
 PHYSICS_DT = 0.01
 DECIMATION = 2
 FPS = 50
-TCP_OFFSET = 0.1034  # m, panda_hand origin -> point between the fingertips, along hand +z
-GRIPPER_OPEN, GRIPPER_CLOSED = 0.04, 0.0  # finger joint targets (m)
 CONTACT_N = 0.1  # newtons; below this a pair is "not in contact"
 PREROLL_MAX_STEPS = 200  # control steps to reach the first pose before recording starts
 PREROLL_POS_TOL = 0.003
@@ -67,6 +66,7 @@ class _Session:
     sim: sim_utils.SimulationContext
     scene: object
     cameras: bool
+    spec: RobotSpec
     ik: DifferentialIKController
     arm: SceneEntityCfg
     finger_ids: list[int]
@@ -76,27 +76,35 @@ class _Session:
 _SESSION: _Session | None = None
 
 
-def _session(record_cameras: bool) -> _Session:
-    """One SimulationContext + scene per process; built on first use."""
+def _session(record_cameras: bool, robot_name: str = "franka") -> _Session:
+    """One SimulationContext + scene (one robot) per process; built on first use."""
     global _SESSION
     if _SESSION is not None:
         if record_cameras and not _SESSION.cameras:
             raise RuntimeError("this sim session was built without cameras")
+        if robot_name != _SESSION.spec.name:
+            raise RuntimeError(f"this sim session was built for {_SESSION.spec.name}, not {robot_name}")
         return _SESSION
+    spec = robot_spec(robot_name)
     sim = sim_utils.SimulationContext(make_sim_cfg())
-    scene = instantiate(make_scene_cfg(cameras=record_cameras))
+    scene = instantiate(make_scene_cfg(cameras=record_cameras, robot=robot_name))
     sim.reset()
     robot = scene["robot"]
-    arm = SceneEntityCfg("robot", joint_names=["panda_joint.*"], body_names=["panda_hand"])
+    arm = SceneEntityCfg("robot", joint_names=[spec.arm_joints], body_names=[spec.hand_body])
     arm.resolve(scene)
     ik = DifferentialIKController(
-        DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+        DifferentialIKControllerCfg(
+            command_type="pose", use_relative_mode=False, ik_method="dls", joint_limit_avoidance_gain=spec.ik_limit_gain
+        ),
         num_envs=scene.num_envs,
         device=sim.device,
     )
-    finger_ids = [robot.joint_names.index("panda_finger_joint1"), robot.joint_names.index("panda_finger_joint2")]
+    if spec.ik_limit_gain > 0:
+        limits = robot.data.joint_pos_limits.torch[0, arm.joint_ids]
+        ik.set_joint_pos_limits(limits[:, 0], limits[:, 1])
+    finger_ids = [robot.joint_names.index(j) for j in spec.finger_joints]
     jacobi_idx = arm.body_ids[0] - 1 if robot.is_fixed_base else arm.body_ids[0]
-    _SESSION = _Session(sim, scene, record_cameras, ik, arm, finger_ids, jacobi_idx)
+    _SESSION = _Session(sim, scene, record_cameras, spec, ik, arm, finger_ids, jacobi_idx)
     return _SESSION
 
 
@@ -125,13 +133,11 @@ def _place_scene(s: _Session, scene_spec: Scene) -> None:
 
 
 def _hand_target(s: _Session, tcp_pos: np.ndarray, quat_wxyz) -> torch.Tensor:
-    """TCP pose (world, wxyz) -> panda_hand pose command in the robot root frame (pos + xyzw)."""
+    """Tool pose (env frame, wxyz) -> hand (IK link) pose command in the robot root frame (pos + xyzw)."""
     dev, robot = s.sim.device, s.scene["robot"]
-    origin = s.scene.env_origins[0]
-    q = torch.tensor([_xyzw(quat_wxyz)], dtype=torch.float32, device=dev)
-    tcp = torch.tensor([tcp_pos], dtype=torch.float32, device=dev) + origin
-    offset = torch.tensor([[0.0, 0.0, TCP_OFFSET]], device=dev)
-    hand_w = tcp - quat_apply(q, offset)
+    hand_pos, hand_q = hand_from_tool(s.spec, tcp_pos, quat_wxyz)
+    q = torch.tensor([_xyzw(hand_q)], dtype=torch.float32, device=dev)
+    hand_w = torch.tensor([hand_pos], dtype=torch.float32, device=dev) + s.scene.env_origins[0]
     root = robot.data.root_pose_w.torch
     pos_b, quat_b = subtract_frame_transforms(root[:, 0:3], root[:, 3:7], hand_w, q)
     return torch.cat([pos_b, quat_b], dim=-1)
@@ -171,7 +177,9 @@ def _physics_step(
         else:
             task_jacobian, task_error = s.ik._compute_pose_task(ee_pos_b, ee_quat_b, jacobian)
             arm_target = joint_pos + dls_iterate(task_jacobian, task_error, IK_LAMBDA, ik_iters)
-        finger = torch.full((1, 2), GRIPPER_CLOSED if gripper else GRIPPER_OPEN, device=s.sim.device)
+        finger = torch.full(
+            (1, len(s.finger_ids)), s.spec.gripper_closed if gripper else s.spec.gripper_open, device=s.sim.device
+        )
         robot.set_joint_position_target_index(target=arm_target, joint_ids=s.arm.joint_ids)
         robot.set_joint_velocity_target_index(target=vel, joint_ids=s.arm.joint_ids)
         robot.set_joint_position_target_index(target=finger, joint_ids=s.finger_ids)
@@ -185,11 +193,10 @@ def _physics_step(
 
 
 def _tcp_pose(s: _Session) -> tuple[np.ndarray, np.ndarray]:
-    robot = s.scene["robot"]
-    hand = robot.data.body_pose_w.torch[:, s.arm.body_ids[0]]
-    offset = torch.tensor([[0.0, 0.0, TCP_OFFSET]], device=s.sim.device)
-    tcp = hand[:, 0:3] + quat_apply(hand[:, 3:7], offset) - s.scene.env_origins[0]
-    return tcp[0].cpu().numpy().astype(np.float64), _wxyz(hand[0, 3:7].cpu().numpy().astype(np.float64))
+    """Tool pose (env frame, wxyz) of the robot right now."""
+    hand = s.scene["robot"].data.body_pose_w.torch[0, s.arm.body_ids[0]].cpu().numpy().astype(np.float64)
+    origin = s.scene.env_origins[0].cpu().numpy().astype(np.float64)
+    return tool_from_hand(s.spec, hand[0:3] - origin, _wxyz(hand[3:7]))
 
 
 def _max_pair_force(sensor) -> float:
@@ -212,7 +219,7 @@ def replay(
     steps, and "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
     change). SimSignals and the episode follow the executed trajectory."""
     opts = tracking or TrackingOptions()
-    s = _session(record_cameras)
+    s = _session(record_cameras, scene.robot)
     _place_scene(s, scene)
     arr = traj.to_arrays()
     n = len(arr["t"])

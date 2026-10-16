@@ -16,6 +16,9 @@ from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
+from isaaclab_assets.robots.openarm import OPENARM_UNI_HIGH_PD_CFG  # isort:skip
+
+from .robots import robot_spec
 
 CUBE_SIZE = 0.05
 CUBE_MASS = 0.1
@@ -35,6 +38,13 @@ FINGERS = [HAND + "/panda_leftfinger", HAND + "/panda_rightfinger"]
 # Every moving robot body; panda_link0 is bolted to the world and excluded.
 ARM_BODIES = ["{ENV_REGEX_NS}/Robot/Geometry/" + p for p in _LINKS[1:]] + [HAND] + FINGERS
 
+# OpenArm unimanual bodies are flat under Robot/ (probed 2026-10-16); openarm_link0 is the fixed base.
+OPENARM_HAND = "{ENV_REGEX_NS}/Robot/openarm_hand"
+OPENARM_FINGERS = ["{ENV_REGEX_NS}/Robot/openarm_left_finger", "{ENV_REGEX_NS}/Robot/openarm_right_finger"]
+OPENARM_ARM_BODIES = (
+    [f"{{ENV_REGEX_NS}}/Robot/openarm_link{i}" for i in range(1, 8)] + [OPENARM_HAND] + OPENARM_FINGERS
+)
+
 _ix, _iy, _iz = BIN_INNER
 _ox, _oy = _ix + 2 * BIN_WALL, _iy + 2 * BIN_WALL
 _wall_z = BIN_WALL + _iz / 2
@@ -47,6 +57,8 @@ BIN_PARTS: dict[str, tuple[tuple[float, float, float], tuple[float, float, float
     "bin_wall_ny": ((_ix, BIN_WALL, _iz), (0.0, -(_iy + BIN_WALL) / 2, _wall_z)),
 }
 BIN_RIM_Z = BIN_WALL + _iz  # rim height above the bin origin
+BIN_PRIMS = {"bin_floor": "BinFloor", "bin_wall_px": "BinWallPX", "bin_wall_nx": "BinWallNX",
+             "bin_wall_py": "BinWallPY", "bin_wall_ny": "BinWallNY"}
 
 # Table top at z = 0; it starts in front of the robot base so panda_link0 never touches it.
 TABLE_SIZE = (0.85, 1.2, 0.05)
@@ -146,8 +158,28 @@ BIN_PART_NAMES = tuple(BIN_PARTS)
 ARM_CONTACT_SENSORS = {"table": ("table_contact",), "bin": tuple(f"{n}_contact" for n in BIN_PART_NAMES)}
 
 
-def make_scene_cfg(cameras: bool) -> PickPlaceSceneCfg:
+def _use_openarm(cfg: PickPlaceSceneCfg) -> None:
+    spec = robot_spec("openarm")
+    init = OPENARM_UNI_HIGH_PD_CFG.init_state
+    cfg.robot = replace(
+        OPENARM_UNI_HIGH_PD_CFG,
+        prim_path="{ENV_REGEX_NS}/Robot",
+        init_state=replace(init, pos=spec.base_pos, joint_pos=spec.init_joint_pos or init.joint_pos),
+    )
+    cfg.cube_contact = _contacts("Cube", OPENARM_FINGERS)
+    cfg.table_contact = _contacts("Table", OPENARM_ARM_BODIES)
+    for name in BIN_PARTS:
+        setattr(cfg, f"{name}_contact", _contacts(BIN_PRIMS[name], OPENARM_ARM_BODIES))
+    if cfg.wrist is not None:
+        cfg.wrist = replace(cfg.wrist, prim_path=OPENARM_HAND + "/wrist_cam")
+
+
+def make_scene_cfg(cameras: bool, robot: str = "franka") -> PickPlaceSceneCfg:
     cfg = PickPlaceSceneCfg(num_envs=1, env_spacing=3.0)
+    if robot == "openarm":
+        _use_openarm(cfg)
+    elif robot != "franka":
+        raise ValueError(f"no sim scene for robot {robot!r}")
     if not cameras:
         cfg.front = None
         cfg.wrist = None

@@ -30,6 +30,7 @@ parser.add_argument("--out", type=Path, required=True)
 parser.add_argument("--cameras", action="store_true")
 parser.add_argument("--corners", action="store_true", help="run the 8 workspace-corner scenes (ignores --n)")
 parser.add_argument("--robot", default="franka", choices=["franka", "openarm"])
+parser.add_argument("--lift-z", type=float, default=0.25, help="scripted expert carry/retreat height (m)")
 parser.add_argument("--hold-s", type=float, default=0.5, help="scripted expert hold at each gripper event")
 add_tracking_args(parser)
 add_launcher_args(parser)
@@ -61,7 +62,7 @@ def main() -> None:
         for name, scene in _jobs():
             ep = out / name
             t_ep = time.time()
-            traj = scripted_expert(scene, hold_s=args_cli.hold_s)
+            traj = scripted_expert(scene, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z)
             st: dict = {}
             try:
                 result, _ = replay(traj, scene, ep_dir=ep, record_cameras=args_cli.cameras, tracking=opts, stats=st)
@@ -78,7 +79,7 @@ def main() -> None:
             rows.append(row)
             print("ROW " + json.dumps(row), flush=True)
         summary = summarize(rows, wall_s=time.time() - t0)
-        summary.update(robot=args_cli.robot, cameras=args_cli.cameras, hold_s=args_cli.hold_s,
+        summary.update(robot=args_cli.robot, cameras=args_cli.cameras, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z,
                        tracking=vars(opts), corners=args_cli.corners, episodes=rows)
         (out / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
         print("SUMMARY " + json.dumps({k: v for k, v in summary.items() if k != "episodes"}), flush=True)
