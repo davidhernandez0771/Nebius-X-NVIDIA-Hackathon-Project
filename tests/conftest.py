@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import nebius_llm.client as client_module
+from app import db as app_db
 from app import models
 from app.db import _get_session_factory, init_db
 from app.main import app
@@ -40,6 +41,16 @@ def api(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_UPLOAD_DIR", str(tmp_path / "uploads"))
     init_db()
     return TestClient(app)
+
+
+def close_db() -> None:
+    """Close the app's pooled SQLite connections so the DB file can be deleted.
+
+    Windows refuses to delete a file that is still open, so unittest-style tests
+    must call this before cleaning up their TemporaryDirectory.
+    """
+    if app_db._engine is not None:
+        app_db._engine.dispose()
 
 
 def db_session():
