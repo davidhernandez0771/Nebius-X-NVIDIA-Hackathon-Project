@@ -17,7 +17,7 @@ WAYPOINTS = [np.array(p) for p in [
     (0.35, -0.10, 0.250), (0.50, 0.00, 0.175), (0.50, 0.00, 0.025), (0.50, 0.00, 0.250),
     (0.50, 0.30, 0.250), (0.50, 0.30, 0.180), (0.50, 0.30, 0.330),
 ]]
-# close at 2.46 s (lift ends 3.46, blend until 3.96), open at 7.46 s
+# close at 2.46 s, lift until 4.2, above the bin at 6.2, open at 7.46 s
 PLAN = [("move", 1, 1.2), ("move", 2, 1.0), ("hold", 1, 0.5), ("move", 3, 1.5),
         ("move", 4, 2.0), ("move", 5, 1.0), ("hold", 0, 0.5), ("move", 6, 1.0)]
 CUBE = (0.5, 0.0, 0.025)
@@ -71,8 +71,8 @@ def test_cube_translation_moves_grasp_point():
     i_close = _at(tr, t_close)
     assert np.allclose(p[: _at(tr, t_close + 1.0) + 1] - q[: _at(tr, t_close + 1.0) + 1], (0.05, -0.05, 0.0), atol=1e-9)
     assert np.allclose(p[i_close], (0.55, -0.05, 0.025), atol=1e-9)
-    after_blend = np.asarray(tr.t) >= t_close + 1.5 - 1e-9
-    assert np.allclose(p[after_blend], q[after_blend], atol=1e-9)  # bin unchanged -> release unchanged
+    after_open = np.asarray(tr.t) >= t_open - 1e-9  # the bin frame takes over at the release
+    assert np.allclose(p[after_open], q[after_open], atol=1e-9)  # bin unchanged -> release unchanged
 
 
 def test_bin_translation_moves_release_point():
@@ -150,3 +150,160 @@ def test_sample_scene_is_reproducible_from_the_rng():
     a = sample_scene(np.random.default_rng(7), "openarm", seed=3)
     b = sample_scene(np.random.default_rng(7), "openarm", seed=3)
     assert a == b
+
+
+# --- handover at the gripper events (T2 status note, 2026-10-16, Task 4) ---
+
+from sim_worker.scripted import scripted_expert  # noqa: E402
+
+T2_SRC = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=IDENTITY),
+               bin_pose=Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=IDENTITY), robot="franka", seed=0)
+FRANKA_SHOULDER = np.array([0.0, 0.0, 0.333])
+
+
+def _dist_to_path(points: np.ndarray, path: np.ndarray) -> np.ndarray:
+    """Distance from each point to the polyline through path."""
+    a, b = path[:-1], path[1:]
+    ab = b - a
+    L2 = np.maximum((ab**2).sum(axis=1), 1e-18)
+    out = np.empty(len(points))
+    for i, p in enumerate(points):
+        s = np.clip(((p - a) * ab).sum(axis=1) / L2, 0.0, 1.0)
+        out[i] = np.linalg.norm(a + s[:, None] * ab - p, axis=1).min()
+    return out
+
+
+@pytest.mark.parametrize("seed", [115, 126, 129])
+def test_t2_unreachable_variants_now_carry_along_the_experts_path(seed):
+    # T2's multiply_run: the scripted expert on T2_SRC, moved to sample_scene(default_rng(seed)).
+    # The fixed-time handover swung these to 0.84-0.86 m from the shoulder (past the Franka's reach).
+    src = scripted_expert(T2_SRC)
+    dst = sample_scene(np.random.default_rng(seed), "franka", seed)
+    out = np.asarray(transform_trajectory(src, T2_SRC, dst).ee_pos)
+    expert = np.asarray(scripted_expert(dst).ee_pos)
+    assert np.linalg.norm(out - FRANKA_SHOULDER, axis=1).max() <= np.linalg.norm(expert - FRANKA_SHOULDER, axis=1).max() + 1e-3
+    t_close, t_open = gripper_events(src)
+    t = np.asarray(src.t)
+    carry = (t >= t_close - 1e-9) & (t <= t_open + 1e-9)
+    assert _dist_to_path(out[carry], expert).max() < 1e-3  # the cube goes where the expert would take it
+
+
+def test_no_variant_reaches_further_than_the_expert():
+    src = scripted_expert(T2_SRC)
+    for seed in range(100, 130):
+        dst = sample_scene(np.random.default_rng(seed), "franka", seed)
+        out = np.asarray(transform_trajectory(src, T2_SRC, dst).ee_pos)
+        expert = np.asarray(scripted_expert(dst).ee_pos)
+        assert (np.linalg.norm(out - FRANKA_SHOULDER, axis=1).max()
+                <= np.linalg.norm(expert - FRANKA_SHOULDER, axis=1).max() + 1e-3), seed
+
+
+def test_a_slow_lift_stays_above_the_new_cube():
+    # A long hold at the close: the lift starts 2 s after it, after the old fixed-time handover.
+    src = scripted_expert(T2_SRC, hold_s=2.0)
+    dst = _scene(cube=(0.45, -0.15, 0.025), bin_=(0.55, 0.25, 0.0))
+    out = np.asarray(transform_trajectory(src, T2_SRC, dst).ee_pos)
+    p = np.asarray(src.ee_pos)
+    t_close, _ = gripper_events(src)
+    i_close = _at(src, t_close)
+    lift = np.flatnonzero(np.all(np.abs(p[:, :2] - p[i_close, :2]) < 1e-9, axis=1))
+    lift = lift[lift >= i_close]
+    assert lift.size > 100 and p[lift, 2].max() > 0.2  # the hold and the vertical lift
+    np.testing.assert_allclose(out[lift, :2], np.tile((0.45, -0.15), (lift.size, 1)), atol=1e-9)
+    np.testing.assert_allclose(out[lift, 2], p[lift, 2], atol=1e-9)
+
+
+def test_carry_keeps_the_sources_sideways_detour():
+    # The test demo's carry is straight; bend it sideways by 3 cm and the variant bends the same 3 cm.
+    tr = _demo()
+    p = np.asarray(tr.ee_pos).copy()
+    t = np.asarray(tr.t)
+    t_close, t_open = gripper_events(tr)
+    carry = (t > t_close + 1.5) & (t < t_close + 3.5)  # the move from above the cube to above the bin
+    s = (t[carry] - (t_close + 1.5)) / 2.0
+    p[carry, 0] += 0.03 * np.sin(np.pi * s)  # source chord is +y; the detour is along +x
+    bent = Trajectory.from_arrays(t, p, tr.ee_quat, tr.gripper)
+    # The new bin is 0.4 m along +x from the same cube: the chord turns from +y to +x and grows
+    # from 0.3 to 0.4 m. Progress along it stretches by 4/3; the detour (on the right of the
+    # travel) turns from +x to -y and keeps its 3 cm.
+    dst = _scene(bin_=(0.9, 0.0, 0.0))
+    out = np.asarray(transform_trajectory(bent, _scene(), dst).ee_pos)
+    q = np.asarray(tr.ee_pos)[carry]
+    expected = np.stack([0.5 + q[:, 1] * 4 / 3, -(p[carry, 0] - 0.5), q[:, 2]], axis=1)
+    np.testing.assert_allclose(out[carry], expected, atol=1e-9)
+
+
+def test_carry_absorbs_a_height_change_between_grasp_and_release():
+    tr = _demo()
+    out = np.asarray(transform_trajectory(tr, _scene(), _scene(cube=(0.5, 0.0, 0.035))).ee_pos)
+    p = np.asarray(tr.ee_pos)
+    t_close, t_open = gripper_events(tr)
+    i_close, i_open = _at(tr, t_close), _at(tr, t_open)
+    np.testing.assert_allclose(out[i_close], (0.5, 0.0, 0.035), atol=1e-9)  # a 1 cm taller cube
+    np.testing.assert_allclose(out[i_open:], p[i_open:], atol=1e-9)  # the bin did not move
+    assert np.abs(np.diff(out[:, 2])).max() < 0.01
+
+
+def test_wrist_turns_from_the_cube_frame_to_the_bin_frame_over_the_carry():
+    tr = _demo()
+    out = transform_trajectory(tr, _scene(), _scene(cube_yaw=math.pi / 2))
+    q, q0 = np.asarray(out.ee_quat), np.asarray(tr.ee_quat)
+    t_close, t_open = gripper_events(tr)
+    i_close, i_open = _at(tr, t_close), _at(tr, t_open)
+    np.testing.assert_allclose(np.abs(q[i_close]), (0.0, math.sqrt(0.5), math.sqrt(0.5), 0.0), atol=1e-9)
+    np.testing.assert_allclose(q[i_open:], q0[i_open:], atol=1e-9)  # bin unchanged -> release pose unchanged
+    turn = 2 * np.degrees(np.arccos(np.clip(np.abs((q[1:] * q[:-1]).sum(axis=1)), 0, 1)))
+    # 90 deg over the 2 s carry peaks at ~3.2 deg/step (the old 0.5 s blend: ~6.8); a snap would be 90
+    assert turn.max() < 4.0
+
+
+# --- per-robot sampling ranges (sprint 3, T1 Task 2) ---
+
+from demo_pipeline import multiply  # noqa: E402
+
+
+def test_franka_ranges_are_the_confirmed_ones():
+    r = multiply.SCENE_RANGES["franka"]
+    assert (r.cube_x, r.cube_y, r.bin_x, r.bin_y) == ((0.40, 0.60), (-0.20, 0.20), (0.40, 0.65), (-0.30, 0.30))
+    assert r.cube_yaw == (-math.pi / 2, math.pi / 2)
+
+
+def test_franka_scenes_are_unchanged_by_the_table():
+    # T2's yield seeds must keep naming the same scenes (seed 115: one of its three failures).
+    s = sample_scene(np.random.default_rng(115), "franka", 115)
+    np.testing.assert_allclose(s.cube_pose.pos, (0.540467604837756, 0.041483628586139604, 0.025), atol=1e-15)
+    np.testing.assert_allclose(s.cube_pose.quat_wxyz, (0.9975941315822444, 0.0, 0.0, 0.06932494956844566), atol=1e-15)
+    np.testing.assert_allclose(s.bin_pose.pos, (0.6052868061282477, -0.2995369307149335, 0.0), atol=1e-15)
+
+
+@pytest.mark.parametrize("robot", ["openarm", "flexiv"])
+def test_new_arms_start_with_frankas_ranges(robot):
+    assert multiply.SCENE_RANGES[robot] == multiply.SCENE_RANGES["franka"]
+
+
+def test_ranges_are_honored_per_robot(monkeypatch):
+    narrow = multiply.SceneRanges(cube_x=(0.30, 0.32), cube_y=(0.10, 0.12), cube_yaw=(0.0, 0.1),
+                                  bin_x=(0.30, 0.32), bin_y=(-0.30, -0.28))
+    monkeypatch.setitem(multiply.SCENE_RANGES, "openarm", narrow)
+    rng = np.random.default_rng(5)
+    for i in range(200):
+        s = sample_scene(rng, "openarm", i)
+        cx, cy, _ = s.cube_pose.pos
+        bx, by, _ = s.bin_pose.pos
+        assert 0.30 <= cx <= 0.32 and 0.10 <= cy <= 0.12 and 0.0 <= _yaw(s.cube_pose.quat_wxyz) <= 0.1 + 1e-12
+        assert 0.30 <= bx <= 0.32 and -0.30 <= by <= -0.28
+        f = sample_scene(rng, "franka", i)  # franka keeps its own table
+        assert f.bin_pose.pos[0] >= 0.40 and f.cube_pose.pos[0] >= 0.40
+
+
+def test_a_robot_without_ranges_is_refused():
+    with pytest.raises(ValueError, match="so101"):
+        sample_scene(np.random.default_rng(0), "so101", 0)
+
+
+def test_ranges_that_cannot_keep_the_gap_fail_clearly(monkeypatch):
+    same = multiply.SceneRanges(cube_x=(0.5, 0.5), cube_y=(0.0, 0.0), cube_yaw=(0.0, 0.0), bin_x=(0.5, 0.5), bin_y=(0.0, 0.0))
+    monkeypatch.setitem(multiply.SCENE_RANGES, "flexiv", same)
+    monkeypatch.setattr(multiply, "MAX_SAMPLE_TRIES", 50)
+    with pytest.raises(RuntimeError, match="flexiv"):
+        sample_scene(np.random.default_rng(0), "flexiv", 0)
