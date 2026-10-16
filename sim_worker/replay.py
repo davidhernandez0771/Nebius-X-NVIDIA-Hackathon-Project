@@ -23,7 +23,8 @@ from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save
 from demo_pipeline.schemas import Pose, Scene, SimSignals, Trajectory, VerificationResult
 from demo_pipeline.success import check_success
 
-from .scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, BIN_PARTS, FRONT_EYE, FRONT_TARGET, make_scene_cfg
+from .placement import place_scene, xyzw
+from .scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, make_scene_cfg
 from .robots import RobotSpec, hand_from_tool, robot_spec, tool_from_hand
 from .tracking import CONTROL_DT, TrackingOptions, dls_iterate, gate_hold, lookahead_index, tracking_stats
 
@@ -36,29 +37,15 @@ PREROLL_MAX_STEPS = 200  # control steps to reach the first pose before recordin
 PREROLL_POS_TOL = 0.003
 CAMERA_WARMUP_STEPS = 5
 IK_LAMBDA = 0.01  # DifferentialIKControllerCfg's default "dls" damping
+TCP_OFFSET = robot_spec("franka").tcp_offset[2]  # public (sim_eval): panda_hand -> fingertip center, m
 
 
 def make_sim_cfg(device: str = "cuda:0") -> sim_utils.SimulationCfg:
     return sim_utils.SimulationCfg(dt=PHYSICS_DT, device=device)
 
 
-def _xyzw(q_wxyz) -> list[float]:
-    w, x, y, z = q_wxyz
-    return [x, y, z, w]
-
-
 def _wxyz(q_xyzw: np.ndarray) -> np.ndarray:
     return np.concatenate([q_xyzw[..., 3:4], q_xyzw[..., :3]], axis=-1)
-
-
-def _yaw_rotate(q_wxyz, v) -> np.ndarray:
-    w, x, y, z = q_wxyz
-    rot = np.array([
-        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
-        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
-        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
-    ])
-    return rot @ np.asarray(v, dtype=float)
 
 
 @dataclass
@@ -109,34 +96,15 @@ def _session(record_cameras: bool, robot_name: str = "franka") -> _Session:
 
 
 def _place_scene(s: _Session, scene_spec: Scene) -> None:
-    sc, robot, dev = s.scene, s.scene["robot"], s.sim.device
-    origin = sc.env_origins[0].cpu().numpy()
-    q = robot.data.default_joint_pos.torch.clone()
-    robot.write_joint_position_to_sim_index(position=q)
-    robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch.clone())
-
-    def put(name: str, pos, quat_wxyz) -> None:
-        pose = torch.tensor([[*(np.asarray(pos) + origin), *_xyzw(quat_wxyz)]], dtype=torch.float32, device=dev)
-        sc[name].write_root_pose_to_sim_index(root_pose=pose)
-        sc[name].write_root_velocity_to_sim_index(root_velocity=torch.zeros(1, 6, device=dev))
-
-    put("cube", scene_spec.cube_pose.pos, scene_spec.cube_pose.quat_wxyz)
-    bp = scene_spec.bin_pose
-    for name, (_size, center) in BIN_PARTS.items():
-        put(name, np.asarray(bp.pos) + _yaw_rotate(bp.quat_wxyz, center), bp.quat_wxyz)
-    sc.reset()
+    place_scene(s.scene, scene_spec, aim_front_camera=s.cameras)
     s.ik.reset()
-    if s.cameras:
-        eye = torch.tensor([np.asarray(FRONT_EYE) + origin], dtype=torch.float32, device=dev)
-        target = torch.tensor([np.asarray(FRONT_TARGET) + origin], dtype=torch.float32, device=dev)
-        sc["front"].set_world_poses_from_view(eye, target)
 
 
 def _hand_target(s: _Session, tcp_pos: np.ndarray, quat_wxyz) -> torch.Tensor:
     """Tool pose (env frame, wxyz) -> hand (IK link) pose command in the robot root frame (pos + xyzw)."""
     dev, robot = s.sim.device, s.scene["robot"]
     hand_pos, hand_q = hand_from_tool(s.spec, tcp_pos, quat_wxyz)
-    q = torch.tensor([_xyzw(hand_q)], dtype=torch.float32, device=dev)
+    q = torch.tensor([xyzw(hand_q)], dtype=torch.float32, device=dev)
     hand_w = torch.tensor([hand_pos], dtype=torch.float32, device=dev) + s.scene.env_origins[0]
     root = robot.data.root_pose_w.torch
     pos_b, quat_b = subtract_frame_transforms(root[:, 0:3], root[:, 3:7], hand_w, q)
