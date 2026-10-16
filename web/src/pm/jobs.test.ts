@@ -35,6 +35,19 @@ describe("normalizeJob", () => {
     expect(normalizeJob({ id: "j", status: "done" }).demoId).toBeNull();
   });
 
+  it("reads T4's perfect result: output_demo_id and the outcome", () => {
+    // src/app/jobs.py perfect_stored_demo() result, as merged in ecf2250.
+    const job = normalizeJob({ id: "j", status: "succeeded", result: { status: "perfected", output_demo_id: "h1-rules" } });
+    expect(job.demoId).toBe("h1-rules");
+    expect(job.outcome).toBe("perfected");
+  });
+
+  it("has no demo and no outcome before the job finishes", () => {
+    const job = normalizeJob({ id: "j", status: "running", result: null });
+    expect(job.demoId).toBeNull();
+    expect(job.outcome).toBeNull();
+  });
+
   it("keeps the error message of a failed job", () => {
     expect(normalizeJob({ id: "j", status: "failed", error: "sim worker crashed" }).error).toBe("sim worker crashed");
   });

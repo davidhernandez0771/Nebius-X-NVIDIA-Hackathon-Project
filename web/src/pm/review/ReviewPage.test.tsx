@@ -113,4 +113,32 @@ describe("Review page", () => {
     expect(screen.getByText("rim_contact 1.0-1.5 s: no arm-bin contact in those windows")).toBeTruthy();
     expect(screen.getByText("Decision: repair")).toBeTruthy();
   });
+  it("follows T4's job result: the output demo link and the pipeline's verdict", async () => {
+    stubBackend({
+      "GET /demos": { status: 200, body: [demo("h1", "human")] },
+      "GET /demos/h1": { status: 200, body: demo("h1", "human") },
+      "GET /demos/h1/diagnosis": { status: 404, body: { detail: "demo 'h1' has no diagnosis yet" } },
+      "POST /demos/h1/perfect": { status: 202, body: { job_id: "j3", status: "queued", poll: "/jobs/j3" } },
+      "GET /jobs/j3": { status: 200, body: { id: "j3", kind: "perfect", status: "succeeded", result: { status: "perfected", output_demo_id: "h1-rules" } } },
+    });
+    renderAt("/pm/review?id=h1", <ReviewPage pollIntervalMs={0} />, "/pm/review");
+    fireEvent.click(await screen.findByRole("button", { name: "Perfect this demo" }));
+    const link = await screen.findByRole("link", { name: "Open the perfected demo" });
+    expect(link.getAttribute("href")).toBe("/pm/review?id=h1-rules");
+    expect(screen.getByText("Outcome: perfected")).toBeTruthy();
+  });
+
+  it("says a discarded demo was discarded and links nothing", async () => {
+    stubBackend({
+      "GET /demos": { status: 200, body: [demo("h1", "human")] },
+      "GET /demos/h1": { status: 200, body: demo("h1", "human") },
+      "GET /demos/h1/diagnosis": { status: 404, body: { detail: "demo 'h1' has no diagnosis yet" } },
+      "POST /demos/h1/perfect": { status: 202, body: { job_id: "j4" } },
+      "GET /jobs/j4": { status: 200, body: { id: "j4", status: "succeeded", result: { status: "discarded", output_demo_id: null } } },
+    });
+    renderAt("/pm/review?id=h1", <ReviewPage pollIntervalMs={0} />, "/pm/review");
+    fireEvent.click(await screen.findByRole("button", { name: "Perfect this demo" }));
+    expect(await screen.findByText("Outcome: discarded")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Open the perfected demo" })).toBeNull();
+  });
 });

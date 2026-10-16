@@ -131,6 +131,7 @@ export default function PerfectPanel({ demo, pollIntervalMs }: { demo: Demo; pol
           )}
           <Steps job={run.job} />
           <p className="small">{STATUS_TEXT[run.job?.status ?? "queued"]}</p>
+          {run.job?.status === "succeeded" && run.job.outcome && <p className="small">Outcome: {run.job.outcome}</p>}
           {run.job?.status === "failed" && run.job.error && <p className="small muted">{run.job.error}</p>}
           {run.job?.status === "succeeded" && run.job.demoId && (
             <Link className="pill-link" to={`/pm/review?id=${encodeURIComponent(run.job.demoId)}`}>

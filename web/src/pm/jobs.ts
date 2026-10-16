@@ -18,6 +18,7 @@ export interface Job {
   status: JobStatus;
   error: string | null;
   demoId: string | null; // the repaired demo, once there is one
+  outcome: string | null; // the pipeline's verdict once finished: perfected, kept or discarded
   mock: boolean;
 }
 
@@ -50,7 +51,9 @@ export function normalizeJob(input: unknown): Job {
     id: str(raw.id) ?? str(raw.job_id) ?? "",
     status: status ?? "failed",
     error: status ? str(raw.error) ?? str(raw.detail) : `Unknown job status "${rawStatus}"`,
-    demoId: str(result.repaired_demo_id) ?? str(result.demo_id) ?? str(result.repaired_id),
+    // T4 (src/app/jobs.py) names it output_demo_id; the others are kept for older backends.
+    demoId: str(result.output_demo_id) ?? str(result.repaired_demo_id) ?? str(result.demo_id) ?? str(result.repaired_id),
+    outcome: str(result.status),
     mock: raw.mock === true,
   };
 }
@@ -72,7 +75,7 @@ const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(reso
 /** Polls until the job finishes, fails, times out (resolves a failed Job) or is aborted (resolves null). */
 export async function pollJob(backend: JobsBackend, jobId: string, opts: PollOptions = {}): Promise<Job | null> {
   const { intervalMs = 1000, maxPolls = 600, sleep = realSleep, onUpdate, signal } = opts;
-  const failed = (error: string): Job => ({ id: jobId, status: "failed", error, demoId: null, mock: false });
+  const failed = (error: string): Job => ({ id: jobId, status: "failed", error, demoId: null, outcome: null, mock: false });
   let errors = 0;
   for (let poll = 0; poll < maxPolls; poll++) {
     if (signal?.aborted) return null;

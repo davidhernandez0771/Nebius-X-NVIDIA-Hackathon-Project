@@ -10,10 +10,13 @@ Physical AI track. Simulation only, no physical robot (allowed by the official F
 
 **Rule: the AI decides, code acts, physics checks.**
 
-> **Status (2026-10-16): work in progress.** The pipeline stages are built and unit-tested
-> one by one, and the Isaac Lab replay go/no-go passed. They are **not yet chained end to
-> end**, and the headline experiment has not run. See [Pipeline status](#pipeline-status)
+> **Status (2026-10-16): work in progress.** Every stage is built and tested, and the
+> physics side is measured: 50/50 scripted demos verify in Isaac Lab and 27/30 multiplied
+> variants pass. The backend can now chain diagnose → repair → verify through a sim worker,
+> but **that chain has not run live yet** (the sim worker's HTTP server is still being
+> built), and the headline experiment has not run. See [Pipeline status](#pipeline-status)
 > and [Results](#results). Nothing below claims a result that has not been measured.
+> <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Tasks 3-4: 50/50, 27/30); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 3 Tasks 3-5: perfect jobs built, live run not done, worker down) -->
 
 ## The problem
 
@@ -57,14 +60,18 @@ hand      metrics    3.5 Super   (fixed    Lab       Isaac        v3.0      ACT
    records the episode. Pure code (`demo_pipeline/success.py`) then decides success: cube
    in the bin, gripper open, cube settled, no hard arm collisions, no drop.
    <!-- src: spec §8.5; docs/superpowers/notes/2026-10-15-t2-status.md -->
-6. **Multiply.** A verified demo is split into a cube-relative part (approach, grasp, lift)
-   and a bin-relative part (carry, release, retreat). It is transformed to newly sampled
-   cube and bin positions, the parts are joined with a 0.5 s minimum-jerk blend, and each
-   variant is verified again. <!-- src: spec §8.6; docs/superpowers/notes/2026-10-15-t1-status.md -->
+6. **Multiply.** A verified demo is transformed to newly sampled cube and bin positions:
+   up to the grasp it moves rigidly with the cube, from the release on rigidly with the
+   bin, and the carry between them is re-planned along the new grasp→release line. Each
+   variant is verified again, and failures are kept out of the dataset with a named
+   reason. Sampling ranges are per robot.
+   <!-- src: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 3 Tasks 1-2); docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 4) -->
 7. **Export.** Only verified episodes go out, as a LeRobot v3.0 dataset with front and
    wrist video. Each episode gets a *passport* recording its lineage, repairs, diagnosis
    source and model ID. <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md -->
-8. **Train.** LeRobot ACT, evaluated in Isaac on fixed test scenes.
+8. **Train.** LeRobot ACT, served over HTTP by a policy server and evaluated in Isaac on
+   fixed test scenes by `sim_eval/`, with the same success check.
+   <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md (sprint 2 Task 2; sim_eval final summary) -->
 
 ### How NVIDIA Nemotron 3.5 Super VL is used (via Nebius Token Factory)
 
@@ -89,22 +96,29 @@ hand      metrics    3.5 Super   (fixed    Lab       Isaac        v3.0      ACT
   If it is still invalid, or Token Factory returns an error (auth, 429, 400), the backend
   falls back to the rules detector and records `diagnosis_source: "rules"`.
   <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2, Task 5) -->
+- **Metric gate:** after parsing, `gate_diagnosis` drops any `rim_contact`, `jitter` or
+  `slow` issue that the measured windows contradict (no arm-bin contact, jerk below the
+  jitter limit, speed not slow), along with the repairs tied only to it. If nothing is
+  left, the decision becomes `keep`. Every dropped item is listed and stored with the
+  diagnosis, and the Review page shows it struck through.
+  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (Diagnoser calibration, "Gate"; sprint 3 Task 1) -->
 - **Measured cost and latency:**
 
   | Call | Images | Prompt tokens | Completion tokens | Cost | Latency |
   |---|---|---|---|---|---|
   | Synthetic demo, 256×256 frames | 8 | 3,269 | 390 | $0.001332 | 2.52 s |
-  | Real Isaac episode, 128×128 frames | 8 | 3,595 | 633 | $0.001648 | 3.9 s |
+  | Real Isaac episode, old prompt | 8 | 3,595 | 633 | $0.001648 | 3.9 s |
+  | Same episode, calibrated prompt | 8 | 3,990 | 188 | $0.001366 | 2.3 s |
 
-  <!-- src: row 1 docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md; row 2 docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2, Task 6) -->
+  <!-- src: row 1 docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md; row 2 docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2, Task 6); row 3 t4-status (Diagnoser calibration, Before / after table and "Tokens") -->
   - Price: $0.30 per 1M prompt tokens, $0.90 per 1M completion tokens. Images are billed
     as prompt tokens, about 263 tokens per 256×256 image.
     <!-- src: docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md -->
-  - So one diagnosis costs about $0.0013–$0.0016 and takes about 2.5–3.9 s.
-    <!-- src: same two notes -->
-- **What it is good and bad at so far:** see [Results](#results). In short: valid JSON on
-  the first try both times, good segmentation, but false-positive kinematic issues on a
-  clean demo.
+  - So one diagnosis costs about $0.0013–$0.0016 and takes about 2.3–3.9 s.
+    <!-- src: the three rows above -->
+- **What it is good at so far:** see [Results](#results). In short: valid JSON on the first
+  try every time, good segmentation, and, since the calibration, no false issues on the
+  clean episode it was tested on (one sample; recall is not measured yet).
 
 ### NVIDIA Isaac Sim 6.2 / Isaac Lab 3.0
 
@@ -113,6 +127,14 @@ hand      metrics    3.5 Super   (fixed    Lab       Isaac        v3.0      ACT
   and two 128×128 cameras (front and wrist). <!-- src: docs/superpowers/plans/2026-10-15-sprint1-parallel-tracks.md T2 Task 2; t2-status -->
 - `sim_worker/replay.py` drives the arm with differential IK (absolute pose) and records
   the episode: joint states, actions, images, cube pose and contacts.
+- **Joint-velocity feedforward is on by default.** The arm used to trail the target: the
+  joint PD drive's damping lags a moving target by about 0.2 s. Sending the commanded
+  twist as joint velocity targets cut the mean tracking error from 26.8 to 2.1 mm (16.0
+  to 3.3 mm at the gripper close), without changing the demo. More IK iterations changed
+  nothing. <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 2) -->
+- `sim_worker/robots.py` holds per-robot constants: the Franka, and the OpenArm as a
+  second arm (see [Results](#results) for why its yield is low).
+  <!-- src: t2-status (sprint 2 Task 5) -->
 - Physics dt 0.01 s, control and recording at 50 Hz. <!-- src: spec §6 -->
 
 ### LeRobot
@@ -147,18 +169,19 @@ multiplication. Each of those exists already (see above). <!-- src: spec §5 -->
 
 | Stage | Code | State today |
 |---|---|---|
-| Record | `demo_pipeline/teleop.py`, `src/app/routers/teleop.py`, `web/src/teleop/*` | Hand→target mapping, gripper latch, WebSocket relay and browser client are built and tested. **The sim-worker side that drives the arm from the webcam is not built yet.** |
+| Record | `demo_pipeline/teleop.py`, `src/app/routers/teleop.py`, `web/src/teleop/*`, `web/src/pm/record/` | Hand→target mapping, gripper latch, WebSocket relay, browser client and Record page are built and tested. **The sim-worker side that drives the arm from the webcam, and saves the recording as a demo, is not merged yet.** |
 | Measure | `demo_pipeline/measure.py` | Built, tested |
-| Diagnose | `src/app/ai/diagnose.py`, `POST /demos/{id}/diagnose` | Built, tested with mocks, 2 live calls + 1 rejected call |
-| Repair | `demo_pipeline/repair.py`, `rules.py` | Built, tested on synthetic trajectories |
-| Verify | `sim_worker/replay.py`, `demo_pipeline/success.py` | Built. Go/no-go passed on a scripted expert demo |
-| Multiply | `demo_pipeline/multiply.py` | Transform and scene sampling built and tested. **Not yet run through Isaac**, so there is no yield number yet. |
-| Second arm (OpenArm) | — | **Not built** |
-| Export | `lerobot_tools/export.py` | Built, tested |
-| Train / eval | `lerobot_tools/train_smoke.py` | ACT training smoke on synthetic data only. **No evaluation harness yet.** |
-| Web pages (Record, Review, Dataset, Results) | — | **Not built.** The `web/` app is still the SANT dashboard (see [History](#history)) |
+| Diagnose | `src/app/ai/diagnose.py`, `POST /demos/{id}/diagnose` | Built, with a calibrated prompt and a metric gate. Tested with mocks; 3 live diagnose calls so far |
+| Rules detector + repair | `demo_pipeline/rules.py`, `repair.py` | Built. Scored on synthetic tremor demos (see [Results](#results)) |
+| Verify | `sim_worker/replay.py`, `demo_pipeline/success.py` | Built, measured: 50/50 scripted demos verify |
+| Multiply | `demo_pipeline/multiply.py`, `sim_worker/scripts/multiply_run.py` | Built, measured in Isaac: Franka 27/30. The handover fix for the 3 failures is merged; **its Isaac re-run is PENDING** |
+| Second arm (OpenArm) | `sim_worker/robots.py` | Runs end to end, but its yield in the shared ranges is near zero (see [Results](#results)) |
+| Perfect pipeline | `POST /demos/{id}/perfect`, `GET /jobs/{id}`, `scripts/run_pipeline_batch.py` | Built and tested against a fake sim worker. **Not run live yet**: the sim worker's HTTP server is not merged |
+| Export | `lerobot_tools/export.py`, `assemble.py` | Built, tested |
+| Train / eval | `lerobot_tools/train.py`, `experiments.py`, `policy_server.py`; `sim_eval/` | Built. Isaac eval smoke-tested on a smoke checkpoint. **No policy trained on real episodes yet** |
+| Web pages | `web/src/pm/` | Record, Review (with the Perfect button), Dataset and Results are built and tested; Results reads `GET /results` |
 
-<!-- src: t1-status, t2-status, t3-status, t4-status notes; git tree at 851e919 -->
+<!-- src: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 2 tremor run; sprint 3); docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2); docs/superpowers/notes/2026-10-15-t3-status.md (sprint 2; sim_eval); docs/superpowers/notes/2026-10-15-t4-status.md (calibration; sprint 3); docs/superpowers/notes/2026-10-16-web-pages.md; 3 diagnose calls = t4-status Money (1 synthetic), sprint 2 Task 6 and calibration (2 on the same real episode); the 4th usage-log entry is a text-only token-count call -->
 
 ## Setup (Windows 11, verified on an RTX 5080 16 GB)
 
@@ -237,10 +260,12 @@ uv pip install --python C:\venvs\lerobot\Scripts\python.exe -e <path-to-this-rep
   FFmpeg. <!-- src: t3-lerobot-windows, Problems found 1 -->
 - pydantic is needed by `demo_pipeline` but is not a LeRobot dependency. Install it
   explicitly, as above. <!-- src: t3-status, Blocked 3 -->
-- **`lerobot-train` exits 1 at every checkpoint save on Windows** (`WinError 1314`: it
-  creates a symlink, which needs admin rights or Developer Mode). The checkpoint itself is
-  written first. For short runs, set `--save_freq` equal to `--steps`. A symlink-free
-  wrapper is planned, not built. <!-- src: t3-lerobot-windows -->
+- **Bare `lerobot-train` exits 1 at every checkpoint save on Windows** (`WinError 1314`:
+  it creates a symlink, which needs admin rights or Developer Mode).
+  <!-- src: t3-lerobot-windows --> Train through the wrapper instead,
+  `python -m lerobot_tools.train <lerobot-train args>`. It writes a `last.txt` pointer
+  instead of the symlink and resumes with `--resume-last <output_dir>`. A 1,000-step run
+  with 4 checkpoint saves exits 0. <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md (sprint 2 Task 1 and final summary) -->
 
 ## Run what exists today
 
@@ -250,8 +275,9 @@ uv pip install --python C:\venvs\lerobot\Scripts\python.exe -e <path-to-this-rep
 uv run pytest -q
 ```
 
-Latest run on this branch: **407 passed, 1 skipped, 0 failed.**
-<!-- src: test output 2026-10-16, recorded in docs/superpowers/notes/2026-10-16-fix-windows-tests.md -->
+Latest run on this branch: **770 passed, 10 skipped, 0 failed.** The skips need lerobot,
+PIL or torch (they run in the other venvs), or are GPU runs gated by `T3_GPU_TESTS=1`.
+<!-- src: test output 2026-10-16 (`uv run pytest -q -rs`), recorded in docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3b) -->
 
 **Isaac-side tests** (they need no repo fixtures, hence `--noconftest`):
 
@@ -291,20 +317,36 @@ uv run python scripts/diagnose_real_episode.py --dry-run --episode <episode-dir>
 uv run uvicorn app.main:app --reload --app-dir src
 ```
 
-The new routes are `GET /teleop/status`, the WebSocket `/ws/teleop?role=browser|sim`,
-`POST /demos`, `GET /demos`, `GET /demos/{id}`, `POST /demos/{id}/diagnose` and
-`GET /demos/{id}/diagnosis`. Demos live under `DATA_DIR` (default `data/`, git-ignored).
-Checked on 2026-10-16: `/api/health`, `/teleop/status` and `/demos` respond.
-<!-- src: t4-status sprint 1b + sprint 2 Task 5 -->
+The new routes:
 
-**Web (teleop message builder + client tests):**
+- `GET /teleop/status` and the WebSocket `/ws/teleop?role=browser|sim`;
+- `POST /demos`, `GET /demos`, `GET /demos/{id}`, `POST /demos/{id}/diagnose`,
+  `GET /demos/{id}/diagnosis`;
+- `POST /demos/{id}/perfect?diagnoser=rules|nemotron` → 202 with a job id, then
+  `GET /jobs/{id}`. It answers 503 when the sim worker (default `http://127.0.0.1:8770`,
+  or `SIM_WORKER_URL`) is not running;
+- `GET /results`: `DATA_DIR/results/results.json`, or 404 "no results yet".
+
+Demos and results live under `DATA_DIR` (default `data/`, git-ignored).
+<!-- src: t4-status sprint 1b, sprint 2 Task 5, sprint 3 Tasks 2-3; docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3b, GET /results) -->
+
+**Web pages** (Record, Review, Dataset, Results, under `/pm/` in the dashboard):
 
 ```powershell
 npm --prefix web ci
 npm --prefix web test
+npm --prefix web run build
 ```
 
-<!-- src: t4-status sprint 1b (vitest: 80 passed); sprint1b plan Task 3 -->
+- Latest run: **163 web tests passed**, and the build passes.
+  <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3b) -->
+- To open them, run the backend above and the Vite dev server (`npm --prefix web run dev`,
+  from `web/package.json`; the backend's CORS allows `http://localhost:5173`), then go to
+  `/pm/review`. <!-- src: CORS port from docs/superpowers/notes/2026-10-15-t4-status.md (sprint 1b) -->
+- Every page shows a clear message when the store is empty, the backend or sim worker is
+  down, or a route is missing. Results shows the sample file under a **SAMPLE DATA**
+  banner until `GET /results` serves measured data.
+  <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md -->
 
 **LeRobot exporter tests and the ACT training smoke:**
 
@@ -317,40 +359,77 @@ C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.train_smoke
 
 ## Results
 
-### Measured so far
+Every number here was measured, and each cites the note it comes from. Anything not
+measured yet is marked **PENDING**.
 
-- **Isaac Lab go/no-go: passed.** The scripted expert demo (376 steps = 7.5 s) replays
-  with `"success": true`, with and without cameras.
-  <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md -->
+### Physics: verify and multiply (Isaac Lab, Franka)
 
-  | Mode | Process wall time | Peak GPU memory (whole GPU) |
-  |---|---|---|
-  | No cameras | 16 s | 4172 MiB |
-  | Front + wrist cameras, 128×128 | 47 s | 7184 MiB |
+| What | Result |
+|---|---|
+| Scripted demos replayed and verified | **50/50** success, 13 s per episode, no cameras <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 3) --> |
+| Workspace corners | **8/8** success <!-- src: t2-status (sprint 2 Task 3) --> |
+| With front + wrist cameras | **20/20** success, median 38.0 s per episode, peak GPU 5980 MiB <!-- src: t2-status (sprint 2 Task 6) --> |
+| Tracking error, after the velocity feedforward fix | mean **26.8 → 2.1 mm**, at the gripper close 16.0 → 3.3 mm <!-- src: t2-status (sprint 2 Task 2) --> |
+| **Multiplication yield, Franka** | **27/30 = 90%** (seeds 100–129), next to MimicGen's published 38–74% <!-- src: t2-status (sprint 2 Task 4); MimicGen range: spec §3, §8.6 --> |
 
-  <!-- src: t2-status -->
-- **The success check catches collisions.** Driving the fingertips into the table gave
-  max 287 N and reason `collision`; into a bin wall, max 116 N and `collision`.
-  <!-- src: t2-status, Extra verification -->
-- **LeRobot ACT trains natively on Windows.** 300/300 steps on CUDA at 20.7 steps/s
-  (batch 8), under 1 GB of torch memory (0.99 GB). Loss went from 14.974 to 2.994, and the
-  checkpoint reloads and returns a finite action. Synthetic data only.
-  <!-- src: docs/superpowers/notes/2026-10-15-t3-lerobot-windows.md -->
-- **Nemotron on a real Isaac episode (one call; a clean scripted demo):**
-  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md, sprint 2 Task 6 -->
-  - The rules detector said `keep`, with 0 issues. That is correct.
-  - Nemotron said `repair`, with **5 issues, all false positives**: two jitter, two slow,
-    one rim contact. The rim contact contradicts the contact data it was given.
-  - Its repairs, applied as-is, would have made a perfect demo worse.
-  - What it got right: **segmentation**. Its six segments (approach, grasp, lift, carry,
-    release, retreat) match the gripper events and are finer than the rules' three.
-  - Our honest takeaway: code measures kinematics better than the VLM does. The VLM's
-    value has to come from what code cannot see (wrong object, drop, grasp quality from
-    the wrist view, segment labels), and its kinematic claims must be gated by the
-    metrics. That gating is the next step.
-- **Nemotron on a synthetic demo (one call):** valid JSON. It found the pause but bounded
-  it at 1.0–1.5 s instead of the true 1.0–1.9 s, because its metrics windows are 0.5 s
-  wide. It also reported two false idle issues. <!-- src: t4-nemotron-vl -->
+- **The 3 multiply failures were traced, not guessed.** The old transform handed the hand
+  over from the cube's frame to the bin's at a fixed time, while the hand was still above
+  the source cube. Variants with the bin far on one side swung past the Franka's reach.
+  <!-- src: t2-status (sprint 2 Task 4) -->
+- **The fix is merged:** the carry now follows the new grasp→release line, with the
+  handovers at the gripper events. In geometry, 0/30 variants now reach further than the
+  scripted expert, against 19/30 before. **The Isaac re-run that would confirm 30/30 is
+  PENDING.** <!-- src: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 3 Task 1) -->
+- **Our task is easier than MimicGen's**: one 5 cm cube, a large open bin, a top-down
+  grasp. The honest claim is that the transform + verify loop keeps every failure out of
+  the dataset, with a named reason. <!-- src: t2-status (sprint 2 Task 4, "vs MimicGen") -->
+
+### The second arm: OpenArm (a negative result)
+
+- The OpenArm runs end to end: scene, replay, batch and multiply. It tracks within 4 mm
+  below about 0.20 m and grasps with 1.0–1.2 mm error at the close.
+  <!-- src: t2-status (sprint 2 Task 5) -->
+- **But its yield in the shared workspace is near zero:** 0/30 multiplied, 2/30 scripted.
+  22 more scripted runs put the cube in the bin but fail the strict `unreachable` rule
+  (they deviate 3–4.5 cm from the demo for more than 1 s). <!-- src: t2-status (sprint 2 Task 5) -->
+- **Cause, measured:** its wrist joint is limited to ±45°, so holding the gripper
+  vertical confines it to a ~0.15–0.2 m height band, and the shared workspace does not
+  fit in that band from any base placement we tried. Per-robot ranges now exist in code;
+  tuning them for the OpenArm, or choosing another second arm, is **PENDING**.
+  <!-- src: t2-status (sprint 2 Task 5); t1-status (sprint 3 Task 2); spec Changes 2026-10-16 -->
+
+### Diagnosis: rules and Nemotron
+
+- **The rules detector under synthetic webcam tremor:** F1 on the issue types it detects
+  (pause, idle, jitter) went from **0.00 to 0.97–0.99** at 1–4 mm of tremor, with precision
+  ≥ 0.99 (seeds 0–199; 0.98 pooled on held-out seeds 1000–1199). Clean demos are unchanged.
+  <!-- src: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 2, Step 5 tables and "Reading the tables") -->
+- **What the rules cannot do:** on a 60-demo mixed set they never name `slow` or
+  `grasp_off_center` (54 of the 57 misses); F1 over all issue types is 0.85. That gap is
+  where Nemotron has to earn its place. <!-- src: t1-status (sprint 3 Task 3, rules baseline on pilot60) -->
+- **Nemotron's false positives, fixed on the test episode.** On a clean Isaac episode,
+  the first prompt reported 5 issues, all false (2 jitter, 2 slow, 1 rim contact), and
+  would have "repaired" a perfect demo. With the calibrated prompt and the metric gate:
+  **0 issues, decision `keep`**, matching the rules. That call cost $0.0014 and took
+  2.3 s. <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (Diagnoser calibration, Before / after) -->
+  - The gate alone, applied offline to the old reply, also removes all 5.
+  - **Limits:** this is one episode and one call; the model's output varies run to run.
+    **Recall is not measured yet**, and "when in doubt, leave it out" could hide real
+    issues. Scoring Nemotron against ground truth is **PENDING**.
+    <!-- src: t4-status (Diagnoser calibration, "Limits, honestly") -->
+  - What it adds over the rules so far: **segmentation**, six segments (approach,
+    grasp, lift, carry, release, retreat) against the rules' three.
+    <!-- src: t4-status (Diagnoser calibration, "Segmentation is unchanged") -->
+
+### Training and evaluation
+
+- **LeRobot ACT trains natively on Windows:** 300/300 steps at 20.7 steps/s (batch 8),
+  0.99 GB of torch memory; the checkpoint reloads and returns a finite action. Synthetic
+  data only. <!-- src: docs/superpowers/notes/2026-10-15-t3-lerobot-windows.md -->
+- **The Isaac eval harness works end to end** on a smoke checkpoint: 3 test scenes, every
+  episode ran its full 30 s with no policy errors. That checkpoint was never trained on
+  real episodes, so its 0/3 says nothing about the method.
+  <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md (sim_eval Step 4) -->
 
 ### The chart: PENDING
 
@@ -360,36 +439,34 @@ C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.train_smoke
 > condition.
 > <!-- src: spec §3 -->
 >
-> `[chart goes here]`
+> The web Results page draws it from `GET /results` as soon as the experiment writes
+> `DATA_DIR/results/results.json`; values not measured yet show as "pending".
 
 ### Ablation: PENDING
 
 > **PENDING, not yet measured.** At 10 human demos: rules-only repair vs rules + Nemotron
 > repair. <!-- src: spec §3 -->
 
-### Multiplication yield: PENDING
-
-> **PENDING, not yet measured.** Successful variants / attempted (cap 50 per perfected
-> demo), reported next to MimicGen's published 38–74%. <!-- src: spec §3, §8.6 -->
-
 Negative results will be reported as they come out.
 
 ## Limitations
 
-- **Not end to end yet.** The stages are tested separately. The webcam→sim teleop loop,
-  multiply-in-sim, the second arm, the evaluation harness and the web pages are not built
-  (see [Pipeline status](#pipeline-status)).
-- **Nemotron over-reports issues on clean demos** (5 false positives in our one real-frame
-  test). Gating its issues against the metrics is not implemented yet. The rules fallback
-  is the safety net.
-- **Small evidence base for the model:** two valid live diagnoses so far, one synthetic
-  and one real.
-- **IK lag.** In replay, the arm lags the target by about 0.1 s: mean tracking error
-  24.6 mm, max 51 mm. The scripted demo succeeds because of its 0.5 s holds; faster human
-  demos may not. <!-- src: t2-status, Risks -->
+- **Not run end to end yet.** The perfect pipeline is built and tested against a fake sim
+  worker, but the live run waits for the sim worker's HTTP server. The webcam → sim
+  teleop loop is not merged either. <!-- src: t4-status (sprint 3 Task 5) -->
+- **Nemotron's evidence base is small:** 3 live diagnose calls, one synthetic and two on
+  the same real episode (before and after the calibration). Its recall is unmeasured.
+  <!-- src: t4-status (Money / real calls; sprint 2 Task 6; Diagnoser calibration) -->
+- **Rules numbers are on synthetic tremor** (6 Hz Gaussian), not yet on real webcam
+  recordings. <!-- src: t1-status (Tremor run final summary, For the lead 3) -->
+- **The OpenArm second arm does not fit the shared workspace** (see above).
+- **The eval starts from the robot's default joint pose**, which may differ from where the
+  training demos start. <!-- src: t3-status (sim_eval, Open items 2) -->
 - **One task, simulation only, no real hardware.** <!-- src: spec §4 -->
-- **Windows-specific workarounds** for LeRobot: `video_backend=pyav`, and short runs
-  because of the checkpoint symlink.
+- **Windows-specific workarounds** for LeRobot: `video_backend=pyav`, and the
+  symlink-free training wrapper.
+- **Unattended Isaac runs need Windows sleep turned off:** a sleep mid-batch once killed
+  CUDA (recorded as `sim_error`, then re-run). <!-- src: t2-status (sprint 2 Task 6) -->
 - The problem-cost figures are vendor estimates, not our measurements.
 - 16 GB VRAM, so 1 environment and 128×128 cameras. <!-- src: spec §11; t2-status -->
 
@@ -397,13 +474,15 @@ Negative results will be reported as they come out.
 
 ```
 src/demo_pipeline/  pure numpy + pydantic: schemas, measure, rules, repair, multiply,
-                    success, teleop, store, episode_io
-src/app/            FastAPI backend; ai/diagnose.py (Nemotron), routers/demos.py, routers/teleop.py
+                    success, teleop, store, episode_io, process, sim_protocol, scoring
+src/app/            FastAPI backend; ai/diagnose.py (Nemotron + gate), jobs.py, sim_client.py,
+                    routers/demos.py, routers/teleop.py, routers/results.py
 src/nebius_llm/     Token Factory client: config, chat, vision, usage log
-sim_worker/         Isaac Lab scene, scripted expert, replay; scripts/smoke_replay.py
-lerobot_tools/      LeRobot v3.0 export, ACT training smoke
-scripts/            diagnose_smoke.py, diagnose_real_episode.py, smoke_test.py, ...
-web/                React + Vite; src/teleop/ (hand pose message + client)
+sim_worker/         Isaac Lab scene, robots, scripted expert, replay, tracking; scripts/ (smoke, batch, multiply)
+sim_eval/           Isaac policy evaluation against the LeRobot policy server
+lerobot_tools/      LeRobot v3.0 export, per-cell assembly, training wrapper, experiments, policy server
+scripts/            make_experiment_set.py, run_pipeline_batch.py, diagnose_*.py, score_rules_on_degraded.py, ...
+web/                React + Vite; src/pm/ (Record, Review, Dataset, Results), src/teleop/, src/hand/
 docs/superpowers/   spec, plans, and dated status notes with every measurement
 docs/submission/    Devpost description, tool feedback, video script
 ```
