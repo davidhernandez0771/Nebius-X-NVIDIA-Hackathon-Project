@@ -435,3 +435,52 @@ def test_fitted_ranges_follow_the_documented_rule(robot, successes):
         hi = min(math.ceil(round((max(v) + 0.02) * 100, 6)) / 100, getattr(franka, ax)[1])
         assert getattr(r, ax) == pytest.approx((lo, hi)), ax
     assert r.cube_yaw == franka.cube_yaw  # no evidence that yaw matters for reach
+
+
+# --- sprint 4: the s1 multiply yield (40-48%) as pure geometry (T1 status note, sprint 4 Task 1) ---
+# T4's s1 sources are make_experiment_set.make_demo("s1", k) (checked bit for bit against T4's store), and the
+# variant scenes are sample_scene(default_rng(seed)) for seed 100000 + 1000 k + j, j < 5. The worker that ran
+# them still had the fixed-time handover: all 36 failures lost tracking 1.12-1.30 s after the close, in its
+# 1.0-1.5 s blend.
+
+from scripts.make_experiment_set import make_demo  # noqa: E402
+
+S1_RAW_FAILED = [100000, 100001, 100004, 101000, 101001, 101002, 101004, 102001, 102002, 102003, 102004, 103004,
+                 104004]
+
+
+def _s1_case(k: int, j: int):
+    demo, _, _ = make_demo("s1", k)
+    seed = 100000 + 1000 * k + j
+    return demo, seed, sample_scene(np.random.default_rng(seed), "franka", seed)
+
+
+def _reach(p) -> float:
+    return float(np.linalg.norm(np.asarray(p) - FRANKA_SHOULDER, axis=-1).max())
+
+
+def test_s1_failures_are_the_variants_the_fixed_time_handover_swung_out_of_reach():
+    # The old handover put the hand at new_bin + (source hand at close + 1.5 s - source bin) with the hand still
+    # above the source cube; for every failed raw variant that point is past anything the expert reaches by >= 80 mm
+    # (measured minimum 79.99 mm, seed 100004).
+    for seed in S1_RAW_FAILED:
+        k, j = divmod(seed - 100000, 1000)
+        demo, _, dst = _s1_case(k, j)
+        t, p = np.asarray(demo.trajectory.t), np.asarray(demo.trajectory.ee_pos)
+        t_close, _ = gripper_events(demo.trajectory)
+        swing = p[int(np.argmin(np.abs(t - (t_close + 1.5))))] - demo.scene.bin_pose.pos + np.asarray(dst.bin_pose.pos)
+        assert _reach(swing) >= _reach(scripted_expert(dst).ee_pos) + 0.075, seed
+
+
+@pytest.mark.parametrize("k", range(5))
+def test_s1_degraded_variants_now_carry_within_the_experts_reach(k):
+    for j in range(5):
+        demo, seed, dst = _s1_case(k, j)
+        out = np.asarray(transform_trajectory(demo.trajectory, demo.scene, dst).ee_pos)
+        expert = np.asarray(scripted_expert(dst).ee_pos)
+        assert _reach(out) <= _reach(expert) + 0.01, seed  # measured: <= 7.2 mm over (old code: up to 284 mm)
+        t_close, t_open = gripper_events(demo.trajectory)
+        t = np.asarray(demo.trajectory.t)
+        carry = (t >= t_close) & (t <= t_open)
+        # the human's tremor (up to 2.9 mm std) and fading grasp offset stay; measured <= 20.4 mm
+        assert _dist_to_path(out[carry], expert).max() < 0.025, seed
