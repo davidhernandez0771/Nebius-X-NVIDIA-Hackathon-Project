@@ -6,7 +6,7 @@ For each ok registry row of the run (lerobot_tools.experiments):
   1. wait until no other Isaac python process runs and >= 8 GB GPU memory is free (sim_eval.report.isaac_gate),
      logging every check to DATA_DIR/evals/<run_id>/gate_checks.jsonl; give up after --wait-max-min;
   2. start lerobot_tools.policy_server on the row's checkpoint (lerobot venv) and wait for /health;
-  3. run run_eval.py --cell <cell> --cameras --headless --out DATA_DIR/evals/<run_id>/<cell>.json --resume;
+  3. run run_eval.py --cell <cell> --cameras --out DATA_DIR/evals/<run_id>/<cell>.json --resume;
      run_eval re-checks the gate itself and exits 3 if Isaac got busy in between -> back to step 1;
   4. stop the server.
 A cell whose results file exists with no sim_error/policy_error episode is skipped. A cell with such episodes (CUDA
@@ -109,6 +109,19 @@ def stop_server(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
+def run_eval_command(*, python: str, port: int, n: int, seed0: int, cell: str, out: Path,
+                     registry: Path) -> list[str]:
+    """The run_eval.py command line for one cell. Isaac Lab 3.0 runs headless by default (no --headless flag)."""
+    return [python, str(REPO / "sim_eval/scripts/run_eval.py"), "--checkpoint-url", f"http://127.0.0.1:{port}",
+            "--n", str(n), "--seed0", str(seed0), "--cell", cell, "--cameras", "--out", str(out), "--resume",
+            "--registry", str(registry)]
+
+
+def retryable(rc: int) -> bool:
+    """Exit 2 is argparse's usage error or run_eval's refusal (server mismatch, start state): retrying can't help."""
+    return rc != 2
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--run-id", required=True)
@@ -142,10 +155,8 @@ def main(argv: list[str] | None = None) -> int:
                 break
             server = start_server(row["checkpoint"], args.port, out_dir / f"{cell}.server.log")
             try:
-                cmd = [sys.executable, str(REPO / "sim_eval/scripts/run_eval.py"), "--checkpoint-url",
-                       f"http://127.0.0.1:{args.port}", "--n", str(args.n), "--seed0", str(args.seed0),
-                       "--cell", cell, "--cameras", "--headless", "--out", str(out), "--resume",
-                       "--registry", str(registry)]
+                cmd = run_eval_command(python=sys.executable, port=args.port, n=args.n, seed0=args.seed0,
+                                       cell=cell, out=out, registry=registry)
                 log(f"{cell}: {' '.join(cmd)}")
                 with (out_dir / f"{cell}.eval.log").open("a", encoding="utf-8") as f:
                     rc = subprocess.run(cmd, cwd=REPO, stdout=f, stderr=subprocess.STDOUT).returncode
@@ -158,6 +169,8 @@ def main(argv: list[str] | None = None) -> int:
             bad = infra_failures(out)
             if bad == 0:
                 status[cell] = "evaluated"
+            elif not retryable(rc):
+                status[cell] = f"run_eval refused or bad arguments (exit {rc}); see {cell}.eval.log"
             elif attempts < MAX_ATTEMPTS:
                 # sim_error / policy_error / no results: e.g. CUDA died when Windows slept. Resume re-runs those seeds.
                 log(f"{cell}: run_eval exit {rc}, infra failures {bad}; resuming (attempt {attempts + 1})")
