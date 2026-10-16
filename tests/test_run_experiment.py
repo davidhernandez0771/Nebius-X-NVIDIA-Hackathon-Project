@@ -99,7 +99,7 @@ def _run(exp, set_dir, store, sim, *, model=None, usage=None, **kw):
         usage.calls += 1
         return _keep(), []
 
-    with patch.object(exp.run_pipeline_batch, "diagnose_gated", side_effect=model or fake_model):
+    with patch("app.jobs.diagnose_gated", side_effect=model or fake_model),             patch("app.jobs.diagnose_hybrid", side_effect=model or fake_model):
         return exp.run_experiment(set_dir, client=sim, store=store, model_usage=usage, **kw)
 
 
@@ -146,7 +146,7 @@ def test_cells_use_the_right_episodes(exp, env):
     assert names("raw_1") == ["episode"] and Path(by["raw_1"].episode_dirs[0]).parent.name == "s1_0"
     roots = lambda cell: sorted(Path(d).parent.name for d in by[cell].episode_dirs)  # noqa: E731
     assert roots("rules_multiply_1") == ["s1_0_rules", "s1_0_rules_m100000", "s1_0_rules_m100001"]
-    assert roots("perfected_multiply_1") == ["s1_0_nemotron", "s1_0_nemotron_m100000", "s1_0_nemotron_m100001"]
+    assert roots("perfected_multiply_1") == ["s1_0_hybrid", "s1_0_hybrid_m100000", "s1_0_hybrid_m100001"]
     assert roots("raw_multiply_1") == ["s1_0", "s1_0_m100000", "s1_0_m100001"]
 
 
@@ -154,7 +154,7 @@ def test_every_condition_multiplies_with_the_same_seeds_per_human_demo(exp, env)
     set_dir, store, sim = env
     _run(exp, set_dir, store, sim)
     seeds = {r.out_prefix: (r.seed0, r.n, r.robot, r.record_cameras) for r in sim.multiply_requests}
-    assert seeds["s1_0_mx"] == seeds["s1_0_rules_mx"] == seeds["s1_0_nemotron_mx"] == (SEED0, 2, "franka", True)
+    assert seeds["s1_0_mx"] == seeds["s1_0_rules_mx"] == seeds["s1_0_hybrid_mx"] == (SEED0, 2, "franka", True)
     assert seeds["s1_1_mx"][0] == SEED0 + 1000
 
 
@@ -198,7 +198,7 @@ def test_rules_only_has_no_perfected_cells(exp, env):
     set_dir, store, sim = env
     summary = _run(exp, set_dir, store, sim, diagnosers=["rules"])
     assert all(not c.name.startswith("perfected") for c in _grid(set_dir).cells)
-    assert summary["stages"]["nemotron"] is None
+    assert summary["stages"].get("hybrid") is None and summary["stages"].get("nemotron") is None
 
 
 # --- resume and stops (Review Focus 2) ---------------------------------------------------------
@@ -253,7 +253,7 @@ def test_the_nemotron_budget_leaves_perfected_cells_out_and_the_rest_runs(exp, e
     assert cells["perfected_multiply_2"]["missing"] == ["s1_1"]
     assert cells["rules_multiply_2"]["complete"] and cells["raw_multiply_2"]["complete"]
     assert "perfected_multiply_2" not in {c.name for c in _grid(set_dir).cells}
-    assert summary["stages"]["nemotron"]["model_calls"] == 1
+    assert summary["stages"]["hybrid"]["model_calls"] == 1
 
 
 def test_a_sim_error_on_one_multiply_is_recorded_and_its_cells_stay_incomplete(exp, env, tmp_path):
@@ -303,5 +303,28 @@ def test_main_parses_the_plan_flags_and_returns_exit_codes(exp, env, tmp_path, m
                          "--robot", "franka", "--resume"])
     assert code == 0
     assert seen["n_human"] == [5, 10, 20] and seen["variants_per_demo"] == 10 and seen["robot"] == "franka"
-    assert seen["resume"] is True and seen["diagnosers"] == ["rules", "nemotron"]
+    assert seen["resume"] is True and seen["diagnosers"] == ["rules", "hybrid"]
     assert seen["max_model_calls"] == 10 and seen["max_cost_usd"] == 0.05
+
+
+# --- the model arm: hybrid by default, nemotron alone on request (sprint 4, Task 2) ---------------
+
+def test_the_perfected_cells_use_nemotron_alone_when_asked(exp, env):
+    set_dir, store, sim = env
+    _run(exp, set_dir, store, sim, n_human=[1], diagnosers=["rules", "nemotron"])
+    by = {c.name: c for c in _grid(set_dir).cells}
+    assert sorted(Path(d).parent.name for d in by["perfected_multiply_1"].episode_dirs)[0] == "s1_0_nemotron"
+    assert not store.has_demo("s1_0_hybrid")
+
+
+def test_two_model_arms_at_once_are_refused(exp, env):
+    set_dir, store, sim = env
+    with pytest.raises(exp.ExperimentRefused, match="one model arm"):
+        _run(exp, set_dir, store, sim, diagnosers=["rules", "nemotron", "hybrid"])
+
+
+def test_main_rejects_an_unknown_diagnoser(exp, env):
+    set_dir, _, _ = env
+    with pytest.raises(SystemExit):
+        exp.main(["--set", str(set_dir), "--n-human", "1", "--variants-per-demo", "1", "--robot", "franka",
+                  "--diagnosers", "rules,gpt"])

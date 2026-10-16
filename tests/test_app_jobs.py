@@ -550,3 +550,102 @@ def test_variants_of_a_human_demo_carry_no_repairs(store, tmp_path):
     passport = store.get_passport(vid)
     assert passport.lineage == ["human_1", vid] and passport.repairs_applied == []
     assert passport.diagnosis_source == "none"
+
+
+# --- hybrid (sprint 4, Task 2) ---------------------------------------------------------------------
+
+def test_hybrid_calls_diagnose_hybrid_with_the_trajectory_signals_and_reasons(store, tmp_path):
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker", results=[verification(), verification(False, ["dropped"]), verification()])
+    calls = []
+
+    def hybrid(frames, wrist, windows, traj, task_text, success, duration, **kw):
+        calls.append((traj, success, kw))
+        return (_repair_diag(0.5, 1.0) if len(calls) == 1 else _repair_diag(1.0, 1.5)), ["dropped model issue x"]
+
+    with patch("app.jobs.diagnose_hybrid", side_effect=hybrid), patch("app.jobs.diagnose_gated") as gated_model:
+        out = _perfect(store, sim, diagnoser="hybrid")
+    gated_model.assert_not_called()
+    (traj0, ok0, kw0), (_, ok1, kw1) = calls
+    assert traj0 == _demo().trajectory and ok0 is True and not kw0["failure_reasons"]
+    assert kw0["signals"].n_steps == len(traj0.t)  # the replay's signals, on the trajectory's steps
+    assert ok1 is False and kw1["failure_reasons"] == ["dropped"]
+    assert out["status"] == "perfected" and out["output_demo_id"] == "human_1_hybrid"
+    assert out["hybrid"] is True and out["diagnoser"] == "hybrid"
+    assert [r["source"] for r in out["rounds"]] == ["hybrid", "hybrid"]
+
+
+def test_hybrid_is_stored_as_nemotron_until_the_schemas_have_a_hybrid_source(store, tmp_path):
+    store.save_demo(_demo())
+    with patch("app.jobs.diagnose_hybrid", return_value=(_keep(), [])):
+        out = _perfect(store, FakeSim(tmp_path / "worker"), diagnoser="hybrid")
+    passport = store.get_passport("human_1_hybrid")
+    assert (passport.diagnosis_source, passport.model_id) == ("nemotron", VL_MODEL)
+    assert store.get_stored_diagnosis("human_1_hybrid").source == "nemotron"
+    assert out["diagnosis_source"] == "nemotron" and out["hybrid"] is True
+
+
+def test_hybrid_failure_falls_back_to_the_rules_and_is_not_marked_hybrid(store, tmp_path):
+    store.save_demo(_demo())
+    with patch("app.jobs.diagnose_hybrid", side_effect=DiagnosisError("bad reply")):
+        out = _perfect(store, FakeSim(tmp_path / "worker"), diagnoser="hybrid")
+    assert out["diagnosis_source"] == "rules" and out["hybrid"] is False
+    assert any("hybrid failed" in n and "DiagnosisError" in n for n in out["notes"])
+
+
+def test_before_model_call_runs_before_every_model_call_and_its_abort_fails_the_job(store, tmp_path):
+    store.save_demo(_demo())
+    seen = []
+
+    def budget():
+        seen.append(1)
+        if len(seen) > 1:
+            raise PipelineAbort("model budget reached")
+
+    sim = FakeSim(tmp_path / "worker", results=[verification(), verification(False), verification()])
+    with patch("app.jobs.diagnose_hybrid", return_value=(_repair_diag(0.5, 1.0), [])) as model:
+        with pytest.raises(PipelineAbort):
+            _perfect(store, sim, diagnoser="hybrid", before_model_call=budget)
+    assert model.call_count == 1 and len(seen) == 2
+    with patch("app.jobs.diagnose_gated", return_value=(_keep(), [])):
+        _perfect(store, FakeSim(tmp_path / "w2"), diagnoser="nemotron", before_model_call=lambda: seen.append(2))
+    assert seen[-1] == 2
+
+
+def test_rules_never_call_the_model_hook(store, tmp_path):
+    store.save_demo(_demo())
+    _perfect(store, FakeSim(tmp_path / "worker"), before_model_call=lambda: pytest.fail("no model for rules"))
+
+
+def test_check_worker_hybrid_needs_cameras_like_nemotron():
+    assert check_worker(_health(cameras=False), "franka", "hybrid")[0] == 409
+    assert check_worker(_health(cameras=False), "franka", "rules") is None
+
+
+def test_rediagnosis_measures_the_grasp_on_the_failed_replays_signals(store, tmp_path):
+    from demo_pipeline.sim_protocol import SignalsPayload
+
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker", results=[verification(), verification(False), verification()])
+    real = sim.replay
+
+    def replay(req):
+        resp = real(req)
+        if req.out_name.endswith("_v1"):  # the failed replay: its cube sits 5 cm further in x
+            s = resp.signals.to_signals()
+            moved = SimSignals(cube_pos=s.cube_pos + [0.05, 0.0, 0.0], contact_gripper_cube=s.contact_gripper_cube,
+                               contact_arm_bin=s.contact_arm_bin, contact_arm_table=s.contact_arm_table,
+                               max_contact_force=s.max_contact_force)
+            resp = resp.model_copy(update={"signals": SignalsPayload.from_signals(moved)})
+        return resp
+
+    sim.replay = replay
+    seen = []
+
+    def hybrid(frames, wrist, windows, traj, task_text, success, duration, **kw):
+        seen.append(kw["signals"].cube_pos[0, 0])
+        return (_repair_diag(0.5, 1.0) if len(seen) == 1 else _repair_diag(1.0, 1.5)), []
+
+    with patch("app.jobs.diagnose_hybrid", side_effect=hybrid):
+        _perfect(store, sim, diagnoser="hybrid")
+    assert seen == [pytest.approx(0.5), pytest.approx(0.55)]
