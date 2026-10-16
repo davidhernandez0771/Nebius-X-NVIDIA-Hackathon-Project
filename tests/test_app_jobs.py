@@ -575,14 +575,31 @@ def test_hybrid_calls_diagnose_hybrid_with_the_trajectory_signals_and_reasons(st
     assert [r["source"] for r in out["rounds"]] == ["hybrid", "hybrid"]
 
 
-def test_hybrid_is_stored_as_nemotron_until_the_schemas_have_a_hybrid_source(store, tmp_path):
+def test_hybrid_is_stored_as_hybrid(store, tmp_path):
     store.save_demo(_demo())
     with patch("app.jobs.diagnose_hybrid", return_value=(_keep(), [])):
         out = _perfect(store, FakeSim(tmp_path / "worker"), diagnoser="hybrid")
     passport = store.get_passport("human_1_hybrid")
-    assert (passport.diagnosis_source, passport.model_id) == ("nemotron", VL_MODEL)
-    assert store.get_stored_diagnosis("human_1_hybrid").source == "nemotron"
-    assert out["diagnosis_source"] == "nemotron" and out["hybrid"] is True
+    assert (passport.diagnosis_source, passport.model_id) == ("hybrid", VL_MODEL)
+    assert store.get_stored_diagnosis("human_1_hybrid").source == "hybrid"
+    assert store.get_stored_diagnosis("human_1").source == "hybrid"
+    meta, _, _ = load_episode(store.episode_dir("human_1_hybrid"))
+    assert meta.passport.diagnosis_source == "hybrid"
+    assert out["diagnosis_source"] == "hybrid" and out["hybrid"] is True  # the flag stays for older readers
+
+
+def test_variants_of_a_hybrid_output_inherit_the_hybrid_source(store, tmp_path):
+    from app.jobs import store_variants
+
+    store.save_demo(_demo())
+    sim = FakeSim(tmp_path / "worker")
+    with patch("app.jobs.diagnose_hybrid", return_value=(_keep(), [])):
+        _perfect(store, sim, diagnoser="hybrid")
+    parent = store.get_demo("human_1_hybrid")
+    resp = sim.multiply(MultiplyRequest(trajectory=parent.trajectory, scene=parent.scene, robot="franka", n=1,
+                                        seed0=3, record_cameras=True, out_prefix="human_1_hybrid_mx"))
+    (vid,) = store_variants(store, "human_1_hybrid", resp)
+    assert store.get_passport(vid).diagnosis_source == "hybrid"
 
 
 def test_hybrid_failure_falls_back_to_the_rules_and_is_not_marked_hybrid(store, tmp_path):

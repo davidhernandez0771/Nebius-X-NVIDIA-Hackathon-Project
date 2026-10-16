@@ -347,7 +347,7 @@ def test_hybrid_runs_and_its_outputs_say_hybrid(batch, env, cam_sim):
     model.assert_called_once()
     assert summary["counts"]["kept"] == 1 and store.has_demo("pilot_0_hybrid")
     result = json.loads((set_dir / "pipeline" / "hybrid" / "pilot_0.json").read_text(encoding="utf-8"))
-    assert result["hybrid"] is True and result["diagnosis_source"] == "nemotron"
+    assert result["hybrid"] is True and result["diagnosis_source"] == "hybrid"
 
 
 def test_the_budget_stops_hybrid_too(batch, env, cam_sim):

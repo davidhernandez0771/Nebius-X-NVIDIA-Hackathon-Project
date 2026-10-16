@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 
-DiagnosisSource = Literal["nemotron", "rules", "none"]
+DiagnosisSource = Literal["nemotron", "rules", "hybrid", "none"]  # hybrid = rules + Nemotron (app.ai.diagnose)
 
 
 class StoredDiagnosis(BaseModel):

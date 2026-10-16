@@ -268,7 +268,7 @@ class Passport(_Model):
     demo_id: str
     lineage: list[str] = Field(min_length=1)  # human demo id first, this demo last
     repairs_applied: list[RepairOp] = Field(default_factory=list)
-    diagnosis_source: Literal["nemotron", "rules", "none"]
+    diagnosis_source: Literal["nemotron", "rules", "hybrid", "none"]  # hybrid = rules + Nemotron
     model_id: str | None = None
     variant_seed: int | None = None
     robot: RobotName

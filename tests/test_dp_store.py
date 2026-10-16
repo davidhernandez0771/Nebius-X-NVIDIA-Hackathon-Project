@@ -309,3 +309,39 @@ def test_lineage_cycle_raises_value_error(store):
     store.save_demo(_demo("b", source="variant", parent_id="a"))
     with pytest.raises(ValueError):
         store.lineage("a")
+
+
+# --- the "hybrid" source (lead-approved, follow-up to sprint 4) ------------------------------------
+
+def test_a_hybrid_diagnosis_round_trips(store):
+    store.save_demo(_demo("human_1"))
+    store.save_diagnosis("human_1", _diagnosis(), "hybrid", "nvidia/Nemotron-3.5-Super-VL", gated=["x"])
+    stored = store.get_stored_diagnosis("human_1")
+    assert (stored.source, stored.model_id, stored.gated) == ("hybrid", "nvidia/Nemotron-3.5-Super-VL", ["x"])
+
+
+def test_a_hybrid_passport_round_trips(store):
+    store.save_demo(_demo("human_1"))
+    passport = _passport("human_1", ["human_1"]).model_copy(update={"diagnosis_source": "hybrid"})
+    store.save_passport("human_1", Passport.model_validate(passport.model_dump()))
+    assert store.get_passport("human_1").diagnosis_source == "hybrid"
+
+
+def test_files_written_before_hybrid_existed_still_read(store):
+    """Sprint-4 hybrid outputs were stored as "nemotron"; those files (and every older source) stay valid."""
+    store.save_demo(_demo("human_1"))
+    for source in ("nemotron", "rules", "none"):
+        old = {"source": source, "model_id": None, "diagnosis": _diagnosis().model_dump(mode="json"), "gated": []}
+        (store.root / "demos" / "human_1" / "diagnosis.json").write_text(json.dumps(old), encoding="utf-8")
+        assert store.get_stored_diagnosis("human_1").source == source
+        p = _passport("human_1", ["human_1"]).model_dump(mode="json") | {"diagnosis_source": source}
+        (store.root / "demos" / "human_1" / "passport.json").write_text(json.dumps(p), encoding="utf-8")
+        assert store.get_passport("human_1").diagnosis_source == source
+
+
+def test_an_unknown_source_is_still_rejected(store):
+    store.save_demo(_demo("human_1"))
+    with pytest.raises(ValueError):
+        store.save_diagnosis("human_1", _diagnosis(), "gpt-5", None)
+    with pytest.raises(ValueError):
+        Passport.model_validate(_passport("human_1", ["human_1"]).model_dump() | {"diagnosis_source": "gpt-5"})

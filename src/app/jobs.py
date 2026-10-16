@@ -66,9 +66,6 @@ log = logging.getLogger(__name__)
 
 Diagnoser = Literal["nemotron", "rules", "hybrid"]
 MODEL_DIAGNOSERS = ("nemotron", "hybrid")  # need camera frames and a model call
-# The schemas' diagnosis_source has no "hybrid" yet (lead-owned): a hybrid result is stored as "nemotron" with
-# its model id, and the job result says hybrid=true.
-STORED_SOURCE = {"nemotron": "nemotron", "hybrid": "nemotron", "rules": "rules", "none": "none"}
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 FRONT, WRIST = "front", "wrist"
 
@@ -435,8 +432,7 @@ def perfect_stored_demo(
 
     # perfect_demo labels every diagnose_fn result "nemotron"; the rounds know which one really answered
     last = rounds[-1] if rounds else {"source": "none", "model_id": None, "gated": []}
-    hybrid = last["source"] == "hybrid"
-    source, model_id, gated = STORED_SOURCE[last["source"]], last["model_id"], last["gated"]
+    source, model_id, gated = last["source"], last["model_id"], last["gated"]
     if result.diagnosis is not None:
         store.save_diagnosis(demo_id, result.diagnosis, source, model_id, gated)
     # every round's repairs, in order: each round repaired the trajectory the previous one left
@@ -464,7 +460,7 @@ def perfect_stored_demo(
         "status": result.status,
         "output_demo_id": out_id,
         "diagnosis_source": source,
-        "hybrid": hybrid,  # stored as diagnosis_source "nemotron" until the schemas have "hybrid"
+        "hybrid": source == "hybrid",  # kept for readers of sprint-4 results, which stored hybrid as "nemotron"
         "model_id": model_id,
         "gated": gated,
         "attempts": result.attempts,
