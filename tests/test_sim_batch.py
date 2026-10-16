@@ -59,3 +59,22 @@ def test_yield_report_names_attempts_successes_and_yield():
     assert (r["attempts"], r["successes"]) == (3, 2)
     assert r["yield"] == pytest.approx(2 / 3)
     assert r["reasons"] == {"not_in_bin": 1}
+
+
+def test_row_store_round_trips_and_skips_unknown(tmp_path):
+    from sim_worker.batch import RowStore
+
+    store = RowStore(tmp_path)
+    assert store.get("var_0100") is None
+    store.put("var_0100", {"success": True, "reasons": [], "mean_mm": 1.5})
+    assert RowStore(tmp_path).get("var_0100") == {"success": True, "reasons": [], "mean_mm": 1.5}
+    assert store.done() == ["var_0100"]
+
+
+def test_row_store_ignores_a_torn_file(tmp_path):
+    from sim_worker.batch import RowStore
+
+    store = RowStore(tmp_path)
+    (tmp_path / "rows").mkdir()
+    (tmp_path / "rows" / "ep_0001.json").write_text('{"success": tr')  # interrupted mid-write
+    assert store.get("ep_0001") is None

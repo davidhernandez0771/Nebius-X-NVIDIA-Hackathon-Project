@@ -28,8 +28,9 @@ parser = argparse.ArgumentParser(description="Multiply one scripted demo into sa
 parser.add_argument("--n", type=int, default=30)
 parser.add_argument("--seed0", type=int, default=100)
 parser.add_argument("--out", type=Path, required=True)
-parser.add_argument("--robot", default="franka", choices=["franka", "openarm"])
+parser.add_argument("--robot", default="franka", choices=["franka", "openarm", "flexiv"])
 parser.add_argument("--lift-z", type=float, default=0.25, help="scripted expert carry/retreat height (m)")
+parser.add_argument("--resume", action="store_true", help="reuse finished variants (<out>/rows/) by seed")
 parser.add_argument("--hold-s", type=float, default=0.5, help="the source demo's hold at each gripper event")
 parser.add_argument("--cameras", action="store_true")
 add_tracking_args(parser)
@@ -40,7 +41,7 @@ if args_cli.cameras:
 
 from demo_pipeline.multiply import sample_scene, transform_trajectory  # noqa: E402
 from demo_pipeline.schemas import Pose, Scene  # noqa: E402
-from sim_worker.batch import yield_report  # noqa: E402
+from sim_worker.batch import RowStore, yield_report  # noqa: E402
 from sim_worker.replay import bin_pose_for, make_sim_cfg, replay  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
 
@@ -70,15 +71,23 @@ def main() -> None:
         seed=0,
     )
     src_traj = scripted_expert(src_scene, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z)
-    rows, t0 = [], time.time()
+    rows, t0, store = [], time.time(), RowStore(out)
     with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
-        source = _run(src_traj, src_scene, out / "source", opts)
+        source = store.get("source") if args_cli.resume else None
+        if source is None:
+            source = _run(src_traj, src_scene, out / "source", opts)
+            if "sim_error" not in source["reasons"]:
+                store.put("source", source)
         print("SOURCE " + json.dumps(source), flush=True)
         t_var = time.time()
         for seed in range(args_cli.seed0, args_cli.seed0 + args_cli.n):
             t_ep = time.time()
             dst = sample_scene(np.random.default_rng(seed), args_cli.robot, seed)
             name = f"var_{seed:04d}"
+            if args_cli.resume and (done := store.get(name)) is not None:
+                rows.append(done)
+                print("RESUMED " + json.dumps(done), flush=True)
+                continue
             try:
                 traj = transform_trajectory(src_traj, src_scene, dst)
             except Exception as exc:
@@ -91,9 +100,12 @@ def main() -> None:
                 shutil.move(str(out / name), str(out / "rejected" / name))
             row = {"variant": name, **row, "cube": list(dst.cube_pose.pos[:2]), "bin": list(dst.bin_pose.pos[:2]),
                    "wall_s": round(time.time() - t_ep, 2)}
+            if "sim_error" not in row["reasons"]:
+                store.put(name, row)
             rows.append(row)
             print("ROW " + json.dumps(row), flush=True)
-        report = yield_report(rows, wall_s=time.time() - t_var)
+        wall = sum(r["wall_s"] for r in rows) if args_cli.resume else time.time() - t_var
+        report = yield_report(rows, wall_s=wall)
         report.update(robot=args_cli.robot, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z, tracking=vars(opts), seed0=args_cli.seed0,
                       source=source, total_wall_s=time.time() - t0, variants=rows)
         (out / "yield.json").write_text(json.dumps(report, indent=1), encoding="utf-8")

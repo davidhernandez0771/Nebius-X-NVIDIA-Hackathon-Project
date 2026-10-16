@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser(description="Replay the scripted expert once an
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--no-cameras", action="store_true", help="state-only episode (no front/wrist images)")
 parser.add_argument("--out", type=Path, default=None, help="episode folder to write (omit to skip writing)")
-parser.add_argument("--robot", default="franka", choices=["franka", "openarm"])
+parser.add_argument("--robot", default="franka", choices=["franka", "openarm", "flexiv"])
 parser.add_argument("--lift-z", type=float, default=0.25, help="scripted expert carry/retreat height (m)")
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
 add_launcher_args(parser)

@@ -16,6 +16,7 @@ from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
+from isaaclab_assets.robots.flexiv import FLEXIV_RIZON4S_CFG, FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort:skip
 from isaaclab_assets.robots.openarm import OPENARM_UNI_HIGH_PD_CFG  # isort:skip
 
 from .robots import robot_spec
@@ -158,6 +159,49 @@ BIN_PART_NAMES = tuple(BIN_PARTS)
 ARM_CONTACT_SENSORS = {"table": ("table_contact",), "bin": tuple(f"{n}_contact" for n in BIN_PART_NAMES)}
 
 
+# Flexiv Rizon 4s + Grav bodies (probed 2026-10-16): arm links flat under Robot/, gripper under Robot/Grav_gripper/.
+_GRAV = "{ENV_REGEX_NS}/Robot/Grav_gripper/"
+FLEXIV_FINGERS = [_GRAV + n for n in ("left_finger_tip", "right_finger_tip", "left_finger_mount", "right_finger_mount")]
+FLEXIV_ARM_BODIES = (
+    [f"{{ENV_REGEX_NS}}/Robot/link{i}" for i in range(1, 8)] + ["{ENV_REGEX_NS}/Robot/flange"]
+    + [_GRAV + n for n in ("gripper_base", "left_outer_knuckle", "left_inner_knuckle", "right_inner_knuckle",
+                           "right_outer_knuckle")] + FLEXIV_FINGERS
+)
+
+
+def grav_gripper_joints(finger: float) -> dict[str, float]:
+    """All 6 Grav joints for one finger_joint value (mimic gearing as in Isaac Lab's Rizon gear-assembly task)."""
+    joints = {n: finger for n in ("finger_joint", "left_inner_knuckle_joint", "right_inner_knuckle_joint",
+                                  "right_outer_knuckle_joint")}
+    joints.update({n: -finger for n in ("left_outer_finger_joint", "right_outer_finger_joint")})
+    return joints
+
+
+def _use_flexiv(cfg: PickPlaceSceneCfg) -> None:
+    spec = robot_spec("flexiv")
+    init = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.init_state
+    cfg.robot = replace(
+        FLEXIV_RIZON4S_GRAV_GRIPPER_CFG,
+        prim_path="{ENV_REGEX_NS}/Robot",
+        init_state=replace(init, pos=spec.base_pos, joint_pos={**init.joint_pos, **grav_gripper_joints(spec.gripper_open)}),
+    )
+    # like the *_HIGH_PD configs used for diff-IK: no gravity sag on the arm (the cube keeps its gravity)
+    cfg.robot.spawn.rigid_props.disable_gravity = True
+    # Measured (T2 note, sprint 3 Task 3): with the gripper variant's soft arm gains the arm lags 21 mm (max 73)
+    # while holding the cube (the Grav finger bodies weigh ~0.1 g, so the grip contact is solver-stiff and drags);
+    # the asset's own bare-arm gains cut that to 4.0 mm (max 18.6) on the base scene.
+    for group in ("shoulder", "elbow", "wrist"):
+        cfg.robot.actuators[group] = replace(cfg.robot.actuators[group],
+                                             stiffness=FLEXIV_RIZON4S_CFG.actuators[group].stiffness,
+                                             damping=FLEXIV_RIZON4S_CFG.actuators[group].damping)
+    cfg.cube_contact = _contacts("Cube", FLEXIV_FINGERS)
+    cfg.table_contact = _contacts("Table", FLEXIV_ARM_BODIES)
+    for name in BIN_PARTS:
+        setattr(cfg, f"{name}_contact", _contacts(BIN_PRIMS[name], FLEXIV_ARM_BODIES))
+    if cfg.wrist is not None:  # Franka's offset, on link7; not checked visually
+        cfg.wrist = replace(cfg.wrist, prim_path="{ENV_REGEX_NS}/Robot/link7/wrist_cam")
+
+
 def _use_openarm(cfg: PickPlaceSceneCfg) -> None:
     spec = robot_spec("openarm")
     init = OPENARM_UNI_HIGH_PD_CFG.init_state
@@ -178,6 +222,8 @@ def make_scene_cfg(cameras: bool, robot: str = "franka") -> PickPlaceSceneCfg:
     cfg = PickPlaceSceneCfg(num_envs=1, env_spacing=3.0)
     if robot == "openarm":
         _use_openarm(cfg)
+    elif robot == "flexiv":
+        _use_flexiv(cfg)
     elif robot != "franka":
         raise ValueError(f"no sim scene for robot {robot!r}")
     if not cameras:

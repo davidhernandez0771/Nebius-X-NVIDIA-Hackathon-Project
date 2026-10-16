@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Isaac sim worker: /health, /replay, /multiply")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--robot", default="franka", choices=["franka", "openarm"])
+    parser.add_argument("--robot", default="franka", choices=["franka", "openarm", "flexiv"])
     parser.add_argument("--cameras", action="store_true")
     add_tracking_args(parser)
     add_launcher_args(parser)
