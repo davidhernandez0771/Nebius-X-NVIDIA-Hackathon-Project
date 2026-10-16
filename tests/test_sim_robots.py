@@ -35,13 +35,13 @@ def test_franka_spec_keeps_the_sprint1_constants():
     assert f.base_pos == (0.0, 0.0, 0.0)
 
 
-def test_both_arms_are_registered():
-    assert set(ROBOTS) == {"franka", "openarm"}
+def test_all_sim_arms_are_registered():
+    assert set(ROBOTS) == {"franka", "openarm", "flexiv"}
     with pytest.raises(KeyError):
         robot_spec("so101")
 
 
-@pytest.mark.parametrize("name", ["franka", "openarm"])
+@pytest.mark.parametrize("name", ["franka", "openarm", "flexiv"])
 def test_tool_hand_round_trip(name):
     spec = robot_spec(name)
     pos = np.array([0.5, -0.1, 0.2])
@@ -95,3 +95,20 @@ def test_only_openarm_uses_ik_joint_limit_avoidance():
     """Measured (T2 note, Task 5): gain 0.5 halves the OpenArm's worst tracking error (joint5 saturates without it)."""
     assert robot_spec("franka").ik_limit_gain == 0.0
     assert robot_spec("openarm").ik_limit_gain == pytest.approx(0.5)
+
+
+def test_flexiv_spec_matches_the_probed_stage():
+    """Probed 2026-10-16 (FLEXIV_RIZON4S_GRAV_GRIPPER_CFG): link7 points down like panda_hand at the default pose,
+    the Grav fingertips slide along link7 y, and their midpoint is 0.288 m along link7 +z at finger_joint = 0. The TCP is
+    the held cube's center, measured 1.7 cm beyond that: at 0.288 the closing linkage jams the fingers on the table."""
+    f = robot_spec("flexiv")
+    assert (f.arm_joints, f.hand_body, f.finger_joints) == ("joint[1-7]", "link7", ("finger_joint",))
+    assert (f.gripper_open, f.gripper_closed) == (0.785, -0.155)
+    assert f.tcp_offset == (0.0, 0.0, 0.305)
+    assert f.hand_in_tool_wxyz == (1.0, 0.0, 0.0, 0.0)
+    assert f.init_joint_pos is None and f.ik_limit_gain == 0.0
+
+
+def test_flexiv_hand_sits_0_305_m_above_a_downward_tcp():
+    hand_pos, _ = hand_from_tool(robot_spec("flexiv"), np.array([0.5, 0.0, 0.025]), np.array([0.0, 1.0, 0.0, 0.0]))
+    assert np.allclose(hand_pos, [0.5, 0.0, 0.330])

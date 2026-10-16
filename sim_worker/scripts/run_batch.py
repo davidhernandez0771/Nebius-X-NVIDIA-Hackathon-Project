@@ -29,8 +29,9 @@ parser.add_argument("--seed0", type=int, default=0)
 parser.add_argument("--out", type=Path, required=True)
 parser.add_argument("--cameras", action="store_true")
 parser.add_argument("--corners", action="store_true", help="run the 8 workspace-corner scenes (ignores --n)")
-parser.add_argument("--robot", default="franka", choices=["franka", "openarm"])
+parser.add_argument("--robot", default="franka", choices=["franka", "openarm", "flexiv"])
 parser.add_argument("--lift-z", type=float, default=0.25, help="scripted expert carry/retreat height (m)")
+parser.add_argument("--resume", action="store_true", help="reuse finished episodes (<out>/rows/) by seed")
 parser.add_argument("--hold-s", type=float, default=0.5, help="scripted expert hold at each gripper event")
 add_tracking_args(parser)
 add_launcher_args(parser)
@@ -39,7 +40,7 @@ if args_cli.cameras:
     args_cli.enable_cameras = True
 
 from demo_pipeline.multiply import sample_scene  # noqa: E402
-from sim_worker.batch import corner_scenes, summarize  # noqa: E402
+from sim_worker.batch import RowStore, corner_scenes, summarize  # noqa: E402
 from sim_worker.replay import make_sim_cfg, replay  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
 
@@ -57,10 +58,14 @@ def main() -> None:
     opts = options_from_args(args_cli)
     out: Path = args_cli.out
     out.mkdir(parents=True, exist_ok=True)
-    rows, t0 = [], time.time()
+    rows, t0, store = [], time.time(), RowStore(out)
     with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
         for name, scene in _jobs():
             ep = out / name
+            if args_cli.resume and (done := store.get(name)) is not None:
+                rows.append(done)
+                print("RESUMED " + json.dumps(done), flush=True)
+                continue
             t_ep = time.time()
             traj = scripted_expert(scene, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z)
             st: dict = {}
@@ -76,9 +81,12 @@ def main() -> None:
                 row = {"episode": name, "success": False, "reasons": ["sim_error"], "error": repr(exc)}
             row.update(cube=list(scene.cube_pose.pos[:2]), bin=list(scene.bin_pose.pos[:2]),
                        wall_s=round(time.time() - t_ep, 2))
+            if "sim_error" not in row["reasons"]:
+                store.put(name, row)
             rows.append(row)
             print("ROW " + json.dumps(row), flush=True)
-        summary = summarize(rows, wall_s=time.time() - t0)
+        wall = sum(r["wall_s"] for r in rows) if args_cli.resume else time.time() - t0
+        summary = summarize(rows, wall_s=wall)
         summary.update(robot=args_cli.robot, cameras=args_cli.cameras, hold_s=args_cli.hold_s, lift_z=args_cli.lift_z,
                        tracking=vars(opts), corners=args_cli.corners, episodes=rows)
         (out / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")

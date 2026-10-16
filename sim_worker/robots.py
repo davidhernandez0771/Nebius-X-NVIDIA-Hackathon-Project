@@ -63,6 +63,23 @@ ROBOTS: dict[str, RobotSpec] = {
         },
         ik_limit_gain=0.5,
     ),
+    # Probed 2026-10-16 (Isaac Lab 3.0 FLEXIV_RIZON4S_GRAV_GRIPPER_CFG): at the asset's default joints link7 points
+    # down (xyzw (1,0,0,0), like panda_hand), the Grav fingertips slide along link7 y, and the fingertip midpoint is
+    # 0.271 / 0.288 / 0.287 m along link7 +z with finger_joint open (0.785) / 0 / closed (-0.155). Only finger_joint
+    # is driven; the 5 knuckle joints follow by mimic. TCP = where the held cube's center ends up, measured: with the
+    # tips' midpoint at the cube center (0.288) the closing linkage jams the fingers on the table (finger_joint stuck
+    # at 0.62); 1.5 cm higher it grips (35 N) and the lifted cube sits 1.7 cm below the tips -> 0.288 + 0.017.
+    "flexiv": RobotSpec(
+        name="flexiv",
+        arm_joints="joint[1-7]",
+        hand_body="link7",
+        finger_joints=("finger_joint",),
+        gripper_open=0.785,
+        gripper_closed=-0.155,
+        tcp_offset=(0.0, 0.0, 0.305),
+        hand_in_tool_wxyz=(1.0, 0.0, 0.0, 0.0),
+        base_pos=(0.0, 0.0, 0.0),
+    ),
 }
 
 

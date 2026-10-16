@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import math
+import os
 from collections import Counter
+from pathlib import Path
 
 from demo_pipeline.multiply import BIN_X, BIN_Y, BIN_Z, CUBE_X, CUBE_Y, CUBE_Z
 from demo_pipeline.schemas import Pose, RobotName, Scene
@@ -53,3 +56,26 @@ def yield_report(rows: list[dict], wall_s: float) -> dict:
     s = summarize(rows, wall_s)
     return {"attempts": s["n"], "successes": s["successes"], "yield": s["success_rate"], "reasons": s["reasons"],
             "wall_time_s": s["wall_time_s"], "wall_per_attempt_s": s["wall_per_episode_s"]}
+
+
+class RowStore:
+    """One JSON row per finished episode in <out>/rows/<name>.json, so a batch interrupted (e.g. by Windows sleep)
+    resumes by seed with --resume. Written atomically (temp file + os.replace) after the episode is complete."""
+
+    def __init__(self, out: Path):
+        self.dir = Path(out) / "rows"
+
+    def get(self, name: str) -> dict | None:
+        try:
+            return json.loads((self.dir / f"{name}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def put(self, name: str, row: dict) -> None:
+        self.dir.mkdir(parents=True, exist_ok=True)
+        tmp = self.dir / f"{name}.json.tmp"
+        tmp.write_text(json.dumps(row), encoding="utf-8")
+        os.replace(tmp, self.dir / f"{name}.json")
+
+    def done(self) -> list[str]:
+        return sorted(p.stem for p in self.dir.glob("*.json")) if self.dir.exists() else []
