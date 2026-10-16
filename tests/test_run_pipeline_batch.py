@@ -162,7 +162,7 @@ def test_a_worker_that_cannot_serve_the_set_stops_before_any_demo(batch, env, tm
 def test_nemotron_with_cameras_turned_off_is_refused_rather_than_silently_run_as_rules(batch, env, cam_sim):
     set_dir, store, _ = env
     sim = cam_sim
-    with patch.object(batch, "diagnose_gated") as model:
+    with patch("app.jobs.diagnose_gated") as model:
         summary = _run(batch, set_dir, store, sim, diagnoser="nemotron", record_cameras=False)
     assert "--cameras" in summary["stopped"] and sim.requests == []
     model.assert_not_called()
@@ -230,7 +230,7 @@ def test_nemotron_calls_are_counted_and_the_budget_stops_the_batch(batch, env, c
         usage.calls += 1
         return _keep(), []
 
-    with patch.object(batch, "diagnose_gated", side_effect=model):
+    with patch("app.jobs.diagnose_gated", side_effect=model):
         summary = _run(batch, set_dir, store, sim, diagnoser="nemotron", max_model_calls=3, model_usage=usage)
     # each diagnose may make 2 calls (one retry), so a third diagnose would risk calls 3 and 4 of 3
     assert usage.calls == 2
@@ -249,7 +249,7 @@ def test_the_cost_budget_also_stops_the_batch(batch, env, cam_sim):
         usage.calls += 1
         return _keep(), []
 
-    with patch.object(batch, "diagnose_gated", side_effect=model):
+    with patch("app.jobs.diagnose_gated", side_effect=model):
         summary = _run(batch, set_dir, store, sim, diagnoser="nemotron", max_model_calls=100,
                        max_cost_usd=0.006, model_usage=usage)
     assert usage.calls == 1 and "budget" in summary["stopped"]  # $0.0015 spent + 2 x $0.0025 reserved > $0.006
@@ -257,7 +257,7 @@ def test_the_cost_budget_also_stops_the_batch(batch, env, cam_sim):
 
 def test_rules_never_touch_the_model(batch, env):
     set_dir, store, sim = env
-    with patch.object(batch, "diagnose_gated") as model, patch("app.jobs.diagnose_gated") as default:
+    with patch("app.jobs.diagnose_gated") as model, patch("app.jobs.diagnose_hybrid") as default:
         summary = _run(batch, set_dir, store, sim, model_usage=Usage())
     default.assert_not_called()
     model.assert_not_called()
@@ -293,7 +293,7 @@ def test_a_second_diagnoser_reuses_the_stored_raw_replay(batch, env, cam_sim):
     set_dir, store, _ = env
     _run(batch, set_dir, store, cam_sim, limit=1)
     cam_sim.requests.clear()
-    with patch.object(batch, "diagnose_gated", return_value=(_keep(), [])):
+    with patch("app.jobs.diagnose_gated", return_value=(_keep(), [])):
         _run(batch, set_dir, store, cam_sim, diagnoser="nemotron", limit=1, model_usage=Usage())
     assert _replayed(cam_sim) == ["pilot_0_nemotron_v1"]
 
@@ -302,7 +302,7 @@ def test_a_raw_replay_without_cameras_is_not_reused_when_cameras_are_needed(batc
     set_dir, store, _ = env
     _run(batch, set_dir, store, cam_sim, limit=1, record_cameras=False)
     cam_sim.requests.clear()
-    with patch.object(batch, "diagnose_gated", return_value=(_keep(), [])):
+    with patch("app.jobs.diagnose_gated", return_value=(_keep(), [])):
         _run(batch, set_dir, store, cam_sim, diagnoser="nemotron", limit=1, model_usage=Usage())
     assert _replayed(cam_sim) == ["pilot_0_raw", "pilot_0_nemotron_v1"]
 
@@ -336,3 +336,45 @@ def test_ids_restrict_the_batch_to_those_demos_in_set_order(batch, env):
     assert [d["status"] for d in summary["demos"]] == ["kept", "pending", "kept"]
     with pytest.raises(batch.BatchRefused, match="nope"):
         _run(batch, set_dir, store, sim, ids=["nope"], resume=True)
+
+
+# --- hybrid (sprint 4, Task 2) ---------------------------------------------------------------------
+
+def test_hybrid_runs_and_its_outputs_say_hybrid(batch, env, cam_sim):
+    set_dir, store, _ = env
+    with patch("app.jobs.diagnose_hybrid", return_value=(_keep(), [])) as model:
+        summary = _run(batch, set_dir, store, cam_sim, diagnoser="hybrid", limit=1, model_usage=Usage())
+    model.assert_called_once()
+    assert summary["counts"]["kept"] == 1 and store.has_demo("pilot_0_hybrid")
+    result = json.loads((set_dir / "pipeline" / "hybrid" / "pilot_0.json").read_text(encoding="utf-8"))
+    assert result["hybrid"] is True and result["diagnosis_source"] == "nemotron"
+
+
+def test_the_budget_stops_hybrid_too(batch, env, cam_sim):
+    set_dir, store, _ = env
+    usage = Usage()
+
+    def model(*args, **kwargs):
+        usage.calls += 1
+        return _keep(), []
+
+    with patch("app.jobs.diagnose_hybrid", side_effect=model):
+        summary = _run(batch, set_dir, store, cam_sim, diagnoser="hybrid", max_model_calls=3, model_usage=usage)
+    assert usage.calls == 2 and summary["stop_kind"] == "budget"
+    assert [d["status"] for d in summary["demos"]] == ["kept", "kept", "pending"]
+
+
+def test_hybrid_needs_cameras(batch, env):
+    set_dir, store, sim = env  # the camera-less worker
+    summary = _run(batch, set_dir, store, sim, diagnoser="hybrid")
+    assert summary["stop_kind"] == "refused" and "--cameras" in summary["stopped"]
+
+
+def test_main_accepts_hybrid(batch, env, tmp_path, monkeypatch):
+    set_dir, _, _ = env
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
+    with patch.object(batch, "SimWorkerClient", return_value=FakeSim(tmp_path / "w")), \
+            patch("app.jobs.diagnose_hybrid", return_value=(_keep(), [])), patch("dotenv.load_dotenv") as env_load, \
+            patch.object(batch, "read_model_usage", return_value=(0, 0.0)):
+        assert batch.main(["--set", str(set_dir), "--diagnoser", "hybrid", "--limit", "1"]) == 0
+    env_load.assert_called_once()

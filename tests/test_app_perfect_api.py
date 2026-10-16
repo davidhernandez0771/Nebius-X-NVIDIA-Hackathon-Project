@@ -65,16 +65,38 @@ def test_perfect_returns_202_and_the_job_reports_the_stored_result(env):
     assert holder["sim"].closed  # the job closes its client when done
 
 
-def test_default_diagnoser_is_nemotron(env):
+def _keep():
+    return Diagnosis.model_validate({"segments": [], "issues": [], "repairs": [], "decision": "keep",
+                                     "label": TASK_TEXT})
+
+
+def test_default_diagnoser_is_hybrid(env):
     api, store, _ = env
     store.save_demo(_demo())
-    keep = Diagnosis.model_validate({"segments": [], "issues": [], "repairs": [], "decision": "keep",
-                                     "label": TASK_TEXT})
-    with patch("app.jobs.diagnose_gated", return_value=(keep, [])) as model:
+    with patch("app.jobs.diagnose_hybrid", return_value=(_keep(), [])) as model:
         job_id = _perfect(api).json()["job_id"]
     model.assert_called_once()
     result = api.get(f"/jobs/{job_id}").json()["result"]
-    assert result["diagnoser"] == "nemotron" and result["diagnosis_source"] == "nemotron"
+    assert result["diagnoser"] == "hybrid" and result["hybrid"] is True
+    assert result["diagnosis_source"] == "nemotron" and result["output_demo_id"] == "human_1_hybrid"
+
+
+def test_nemotron_alone_is_still_available(env):
+    api, store, _ = env
+    store.save_demo(_demo())
+    with patch("app.jobs.diagnose_gated", return_value=(_keep(), [])) as model:
+        job_id = _perfect(api, diagnoser="nemotron").json()["job_id"]
+    model.assert_called_once()
+    result = api.get(f"/jobs/{job_id}").json()["result"]
+    assert result["diagnoser"] == "nemotron" and result["hybrid"] is False
+
+
+def test_hybrid_needs_a_worker_with_cameras(env, tmp_path):
+    api, store, holder = env
+    store.save_demo(_demo())
+    holder["sim"] = FakeSim(tmp_path / "w", cameras=False)
+    r = _perfect(api, diagnoser="hybrid")
+    assert r.status_code == 409 and "cameras" in r.json()["detail"]
 
 
 def test_unknown_diagnoser_is_422(env):

@@ -1,14 +1,15 @@
 """Run the experiment for one set through the sim worker and write T3's grid JSON (sprint 3b, T4 Task 2).
 
     uv run python scripts/run_experiment.py --set data/sets/s1 --n-human 5,10,20 --variants-per-demo 10 \
-        --robot franka [--resume | --force] [--diagnosers rules,nemotron] [--max-model-calls 10 --max-cost-usd 0.05]
+        --robot franka [--resume | --force] [--diagnosers rules,hybrid] [--max-model-calls 10 --max-cost-usd 0.05]
 
 Uses the first max(n_human) demos of <set>/manifest.json; the cells for smaller n are their prefixes.
   1. raw:        /replay each human demo as recorded, with cameras, into the demo store with a human Passport.
-  2. perfected:  scripts/run_pipeline_batch.run_batch with rules, then nemotron (its budget flags), reusing (1).
-                 Results in <set>/pipeline/<diagnoser>/ as usual; outputs are "<id>_rules", "<id>_nemotron".
+  2. perfected:  scripts/run_pipeline_batch.run_batch with rules, then the model arm (hybrid by default, or
+                 nemotron alone; its budget flags), reusing (1). Results in <set>/pipeline/<diagnoser>/;
+                 outputs are "<id>_rules" and "<id>_hybrid" (or "<id>_nemotron").
   3. multiply:   /multiply each human demo (raw_multiply) and each output of (2) (rules_multiply,
-                 perfected_multiply = nemotron), --variants-per-demo variants. Every condition uses the same
+                 perfected_multiply = the model arm), --variants-per-demo variants. Every condition uses the same
                  seeds for the same human demo (seed0 + 1000 x its index in the set), so the conditions
                  differ only in the source trajectory. Successful variants become "variant" demos with
                  Passports; failed ones count in the yield only.
@@ -45,7 +46,7 @@ from demo_pipeline.sim_protocol import MultiplyRequest  # noqa: E402
 from demo_pipeline.store import DemoStore  # noqa: E402
 
 CONDITIONS = ("raw", "raw_multiply", "rules_multiply", "perfected_multiply")
-SOURCE = {"raw_multiply": None, "rules_multiply": "rules", "perfected_multiply": "nemotron"}  # condition -> diagnoser
+MODEL_ARMS = ("hybrid", "nemotron")  # the perfected_multiply arm: hybrid (rules + Nemotron) by default
 SEED_STRIDE = 1000  # seeds of human demo k: seed0 + k * SEED_STRIDE + [0, n)
 
 
@@ -87,7 +88,7 @@ def run_experiment(
     n_human: list[int],
     variants_per_demo: int,
     robot: str,
-    diagnosers: list[str] = ("rules", "nemotron"),
+    diagnosers: list[str] = ("rules", "hybrid"),
     out_dir: Path | None = None,
     resume: bool = False,
     force: bool = False,
@@ -101,6 +102,12 @@ def run_experiment(
     set_dir = Path(set_dir)
     out = Path(out_dir) if out_dir is not None else set_dir / "experiment"
     diagnosers = list(diagnosers)
+    arms = [d for d in diagnosers if d in MODEL_ARMS]
+    if len(arms) > 1:
+        raise ExperimentRefused(f"perfected_multiply has one model arm; got {arms}. Run hybrid and nemotron as "
+                                f"separate experiments (--out)")
+    # condition -> the diagnoser whose outputs it multiplies (None: the raw human demo)
+    source = {"raw_multiply": None, "rules_multiply": "rules", "perfected_multiply": arms[0] if arms else None}
     if not 1 <= variants_per_demo <= SEED_STRIDE:
         raise ExperimentRefused(f"--variants-per-demo must be 1-{SEED_STRIDE}")
     all_ids = _set_ids(set_dir)
@@ -112,8 +119,8 @@ def run_experiment(
     ids = all_ids[:n_max]
     index = {id: k for k, id in enumerate(all_ids)}
     started = datetime.now(timezone.utc).isoformat()
-    state = {"stopped": None, "stop_kind": None, "raw": {}, "errors": {}, "stages": {"raw": None, "rules": None,
-                                                                                    "nemotron": None}}
+    state = {"stopped": None, "stop_kind": None, "raw": {}, "errors": {},
+             "stages": {"raw": None, **{d: None for d in diagnosers}}}
     markers = out / "multiply"
 
     # --- 1. raw ---------------------------------------------------------------------------------
@@ -157,7 +164,8 @@ def run_experiment(
         out_ = []
         if (store.episode_dir(id) / "episode.json").is_file() and state["raw"].get(id) != "error":
             out_.append(("raw_multiply", id))
-        for condition, diagnoser in (("rules_multiply", "rules"), ("perfected_multiply", "nemotron")):
+        for condition in ("rules_multiply", "perfected_multiply"):
+            diagnoser = source[condition]
             if diagnoser in diagnosers and _batch_status(set_dir, diagnoser, id) in ("perfected", "kept"):
                 out_.append((condition, f"{id}_{diagnoser}"))
         return out_
@@ -205,7 +213,7 @@ def run_experiment(
             if condition == "raw":
                 (episodes.append(str(store.episode_dir(id))) if raw_ok else missing.append(id))
                 continue
-            diagnoser = SOURCE[condition]
+            diagnoser = source[condition]
             if diagnoser is None:
                 src_id = id if raw_ok else None
             else:
@@ -227,7 +235,7 @@ def run_experiment(
 
     def finish() -> dict:
         cells = [cell(c, n) for n in sorted(set(n_human)) for c in CONDITIONS
-                 if SOURCE.get(c) is None or SOURCE[c] in diagnosers]
+                 if c in ("raw", "raw_multiply") or source[c] in diagnosers]
         grid_cells = [{"condition": c["condition"], "n_human": c["n_human"], "episode_dirs": c["episode_dirs"]}
                       for c in cells if c["complete"] and c["episode_dirs"]]
         grid_path = None
@@ -235,7 +243,7 @@ def run_experiment(
             grid_path = out / "grid.json"
             _write_json(grid_path, {"name": set_dir.name, "cells": grid_cells})
         multiply = {}
-        for condition in SOURCE:
+        for condition in source:
             ms = [m for m in (read_marker(p.stem) for p in sorted(markers.glob("*.json")))
                   if m and m["condition"] == condition and m["human"] in ids]
             attempts, successes = sum(m["attempts"] for m in ms), sum(m["successes"] for m in ms)
@@ -284,7 +292,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n-human", required=True, help="comma-separated, e.g. 5,10,20")
     parser.add_argument("--variants-per-demo", type=int, required=True)
     parser.add_argument("--robot", required=True, help="robot for the multiplied variants")
-    parser.add_argument("--diagnosers", default="rules,nemotron", help="which perfected conditions to run")
+    parser.add_argument("--diagnosers", default="rules,hybrid",
+                        help="perfected arms: rules, plus one model arm, hybrid (default) or nemotron")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--out", type=Path, help="default <set>/experiment")
@@ -293,9 +302,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-cost-usd", type=float, default=0.05)
     args = parser.parse_args(argv)
     diagnosers = [d for d in args.diagnosers.split(",") if d]
-    if not set(diagnosers) <= {"rules", "nemotron"}:
-        parser.error("--diagnosers takes rules and/or nemotron")
-    if "nemotron" in diagnosers:
+    if not set(diagnosers) <= {"rules", *MODEL_ARMS}:
+        parser.error("--diagnosers takes rules, hybrid and/or nemotron")
+    if set(diagnosers) & set(MODEL_ARMS):
         from dotenv import load_dotenv
 
         load_dotenv()

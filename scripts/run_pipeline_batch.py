@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Callable
 
 from app.jobs import (
+    MODEL_DIAGNOSERS,
     PipelineAbort,
     check_worker,
     is_infrastructure,
@@ -39,7 +40,7 @@ from app.jobs import (
     record_raw,
     stored_raw,
 )
-from app.ai.diagnose import DIAGNOSE_TIER, diagnose_gated
+from app.ai.diagnose import DIAGNOSE_TIER
 from app.sim_client import SimWorkerClient, SimWorkerError
 from demo_pipeline.schemas import Demo
 from demo_pipeline.store import DemoStore
@@ -152,14 +153,14 @@ def run_batch(
         _write_json(out / "summary.json", data)
         return data
 
-    def guarded_diagnose(*args, **kwargs):
+    def check_budget() -> None:
+        """Runs before every model call (nemotron or hybrid): stop if the next diagnose could break the budget."""
         calls, cost = model_usage()
         calls, cost = calls - calls0, cost - cost0
         if (calls + CALLS_PER_DIAGNOSE > max_model_calls
                 or cost + CALLS_PER_DIAGNOSE * RESERVE_USD_PER_CALL > max_cost_usd):
             raise PipelineAbort(f"model budget reached: {calls} calls, ${cost:.4f} used of {max_model_calls} calls, "
                                 f"${max_cost_usd}; the next diagnose could exceed it")
-        return diagnose_gated(*args, **kwargs)
 
     try:
         health = client.health()
@@ -192,7 +193,7 @@ def run_batch(
             if raw is None:
                 raw = record_raw(store, client, demo, record_cameras=cameras, sleep=sleep)
             result = perfect_stored_demo(store, client, id, diagnoser, raw=raw, record_cameras=cameras,
-                                         sleep=sleep, diagnose=guarded_diagnose)
+                                         sleep=sleep, before_model_call=check_budget)
         except PipelineAbort as e:
             stopped, stop_kind = f"{e}; {id} was not stored. Re-run with --resume", "budget"
             break
@@ -219,7 +220,8 @@ def run_batch(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--set", dest="set_dir", type=Path, required=True, help="DATA_DIR/sets/<name>")
-    parser.add_argument("--diagnoser", choices=("rules", "nemotron"), required=True)
+    parser.add_argument("--diagnoser", choices=("rules", "hybrid", "nemotron"), required=True,
+                        help="hybrid = rules + Nemotron (the model arm); nemotron = the model alone")
     parser.add_argument("--resume", action="store_true", help="skip demos already perfected, kept or discarded")
     parser.add_argument("--force", action="store_true", help="run every demo again")
     parser.add_argument("--limit", type=int, help="run at most this many demos")
@@ -229,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-cost-usd", type=float, default=0.05)
     args = parser.parse_args(argv)
 
-    if args.diagnoser == "nemotron":
+    if args.diagnoser in MODEL_DIAGNOSERS:
         from dotenv import load_dotenv
 
         load_dotenv()

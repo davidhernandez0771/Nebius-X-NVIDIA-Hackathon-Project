@@ -5,10 +5,10 @@
     GET  /demos/{id}             404 if missing
     POST /demos/{id}/diagnose    Nemotron VL, or the rules detector if it fails -> {source, model_id, diagnosis, gated}
     GET  /demos/{id}/diagnosis   the saved one, same shape; 404 if none yet
-    POST /demos/{id}/perfect?diagnoser=nemotron|rules
+    POST /demos/{id}/perfect?diagnoser=hybrid|nemotron|rules  (default hybrid: rules + Nemotron)
                                  202 {job_id, status, poll} and a Location header; 503 if the sim
                                  worker is down; 409 for a derived demo, a worker for another robot,
-                                 or nemotron on a worker without cameras (app.jobs.perfect_stored_demo)
+                                 or a model diagnoser on a worker without cameras (app.jobs.perfect_stored_demo)
     GET  /jobs/{id}              the job: status queued|running|succeeded|failed, result or error
 
 `gated` lists what diagnose_gated() dropped from the model's reply because the measured
@@ -157,7 +157,7 @@ def diagnose_demo(demo_id: str, store: DemoStore = Depends(get_store)) -> dict:
 
 
 @router.post("/{demo_id}/perfect", status_code=202)
-def perfect(demo_id: str, response: Response, diagnoser: Diagnoser = "nemotron",
+def perfect(demo_id: str, response: Response, diagnoser: Diagnoser = "hybrid",
             store: DemoStore = Depends(get_store), client: SimWorkerClient = Depends(get_sim_client),
             jobs: JobRunner = Depends(get_jobs)) -> dict:
     submitted = False

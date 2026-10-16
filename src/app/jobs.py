@@ -6,8 +6,9 @@ time anyway) and keeps their status in memory: a backend restart forgets them.
 perfect_stored_demo(store, client, demo_id, diagnoser):
   1. replay the human demo as recorded ("<id>_raw"), unless the caller already did;
   2. perfect_demo() with
-       diagnose_fn = diagnose_gated on the frames of the latest replay (diagnoser="nemotron"),
-                     or None, i.e. the rules detector (diagnoser="rules");
+       diagnose_fn = diagnose_hybrid (diagnoser="hybrid": the rules plus Nemotron for what they never name),
+                     diagnose_gated (diagnoser="nemotron": the model alone), both on the frames of the latest
+                     replay, or detect_rules (diagnoser="rules");
        verify_fn   = the worker's /replay ("<id>_<diagnoser>_v<k>");
   3. store the result: the human demo gets the latest diagnosis; a verified result becomes the
      demo "<id>_<diagnoser>" (source "repaired", even when kept unchanged) with its diagnosis,
@@ -58,12 +59,16 @@ from demo_pipeline.sim_protocol import (
 from demo_pipeline.store import DemoStore, write_atomic
 from nebius_llm.config import get_vision_model
 
-from .ai.diagnose import DIAGNOSE_TIER, diagnose_gated, select_frames
+from .ai.diagnose import DIAGNOSE_TIER, diagnose_gated, diagnose_hybrid, select_frames
 from .sim_client import SimWorkerBusy, SimWorkerClient, SimWorkerError
 
 log = logging.getLogger(__name__)
 
-Diagnoser = Literal["nemotron", "rules"]
+Diagnoser = Literal["nemotron", "rules", "hybrid"]
+MODEL_DIAGNOSERS = ("nemotron", "hybrid")  # need camera frames and a model call
+# The schemas' diagnosis_source has no "hybrid" yet (lead-owned): a hybrid result is stored as "nemotron" with
+# its model id, and the job result says hybrid=true.
+STORED_SOURCE = {"nemotron": "nemotron", "hybrid": "nemotron", "rules": "rules", "none": "none"}
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 FRONT, WRIST = "front", "wrist"
 
@@ -206,8 +211,8 @@ def check_worker(health: HealthResponse, robot: str | None, diagnoser: Diagnoser
         return 503, "the sim worker answers but reports ok=false; restart it"
     if robot is not None and robot not in health.robots:
         return 409, f"the sim worker runs {health.robots}, not {robot!r}; start one with --robot {robot}"
-    if diagnoser == "nemotron" and not health.cameras:
-        return 409, ("diagnoser=nemotron needs camera frames, but the sim worker runs without cameras; "
+    if diagnoser in MODEL_DIAGNOSERS and not health.cameras:
+        return 409, (f"diagnoser={diagnoser} needs camera frames, but the sim worker runs without cameras; "
                      "restart it with --cameras or use diagnoser=rules")
     return None
 
@@ -338,15 +343,17 @@ def perfect_stored_demo(
     busy_wait_s: float = 10.0,
     sleep: Callable[[float], None] = time.sleep,
     diagnose: Callable[..., tuple[Diagnosis, list[str]]] | None = None,
+    before_model_call: Callable[[], None] | None = None,
 ) -> dict:
     """Perfect one stored human demo; returns a JSON-able summary. `diagnose` replaces diagnose_gated (same
-    arguments); a PipelineAbort it raises fails the job. Raises SimWorkerError when the worker cannot do the
-    job (see the module docstring), ValueError for a demo that is not human."""
+    arguments). `before_model_call` runs before each model call (nemotron or hybrid), e.g. a budget check; a
+    PipelineAbort from either fails the job. Raises SimWorkerError when the worker cannot do the job (see the
+    module docstring), ValueError for a demo that is not human."""
     diagnose = diagnose or diagnose_gated
     demo = store.get_demo(demo_id)
     if demo.source != "human":
         raise ValueError(f"demo {demo_id!r} is {demo.source!r}; only human demos are perfected")
-    cameras = (diagnoser == "nemotron") if record_cameras is None else record_cameras
+    cameras = (diagnoser in MODEL_DIAGNOSERS) if record_cameras is None else record_cameras
     notes: list[str] = []
     replays: list[dict] = []
 
@@ -366,7 +373,9 @@ def perfect_stored_demo(
                                                      record_cameras=cameras, out_name=f"{demo_id}_raw"), raw))
     # ep_dir/success: the latest replay, i.e. of the trajectory perfect_demo diagnoses next
     # abort: an error that must fail the job; perfect_demo turns any step exception into a fallback or a discard
-    state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "abort": None}
+    # signals: the latest replay's, on the steps of the trajectory diagnosed next (hybrid's grasp offset)
+    state: dict[str, Any] = {"ep_dir": raw.ep_dir, "success": raw.verification.success, "abort": None,
+                             "signals": align_signals(raw.signals.to_signals(), demo.trajectory.t)}
     # One entry per perfect_demo round. perfect_demo returns only the last diagnosis, so diagnose_fn records each
     # round's refined repairs (refine_diagnosis is pure: the same call perfect_demo makes) and its real source.
     rounds: list[dict[str, Any]] = []
@@ -375,23 +384,29 @@ def perfect_stored_demo(
         if state["ep_dir"] is None:
             raise ValueError("the replay saved no episode, so there are no frames to show the model")
         frames, wrist, task_text = episode_frames(Path(state["ep_dir"]), d.trajectory.t)
-        diag, gated = diagnose(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1],
-                               failure_reasons=reasons)
+        if before_model_call is not None:
+            before_model_call()
+        if diagnoser == "hybrid":
+            diag, gated = diagnose_hybrid(frames, wrist, windows, d.trajectory, task_text, state["success"],
+                                          d.trajectory.t[-1], signals=state["signals"], failure_reasons=reasons)
+        else:
+            diag, gated = diagnose(frames, wrist, windows, task_text, state["success"], d.trajectory.t[-1],
+                                   failure_reasons=reasons)
         diag.check_times(d.trajectory.t[-1])  # what perfect_demo checks; failing it means the rules, as there
         return diag, gated
 
     def diagnose_fn(d: Demo, windows: list[MetricsWindow], reasons: list[str]) -> Diagnosis:
         record: dict[str, Any] = {"source": "rules", "model_id": None, "gated": [], "reasons": list(reasons)}
         diag = None
-        if diagnoser == "nemotron":
+        if diagnoser in MODEL_DIAGNOSERS:
             try:
                 diag, record["gated"] = nemotron(d, windows, reasons)
-                record.update(source="nemotron", model_id=get_vision_model(DIAGNOSE_TIER).model_id)
+                record.update(source=diagnoser, model_id=get_vision_model(DIAGNOSE_TIER).model_id)
             except PipelineAbort as e:
                 state["abort"] = e
                 raise
             except Exception as e:  # an invalid reply, an API error, no frames: this round uses the rules
-                notes.append(f"round {len(rounds) + 1}: nemotron failed ({type(e).__name__}: {e}); "
+                notes.append(f"round {len(rounds) + 1}: {diagnoser} failed ({type(e).__name__}: {e}); "
                              f"used the rules detector")
         if diag is None:
             diag = detect_rules(d.trajectory, windows)
@@ -409,9 +424,10 @@ def perfect_stored_demo(
                 state["abort"] = e  # perfect_demo would call this a discard; the job must fail instead
             raise
         state["ep_dir"], state["success"] = resp.ep_dir, resp.verification.success
-        return resp.verification, align_signals(resp.signals.to_signals(), traj.t)
+        state["signals"] = align_signals(resp.signals.to_signals(), traj.t)
+        return resp.verification, state["signals"]
 
-    result = perfect_demo(demo, align_signals(raw.signals.to_signals(), demo.trajectory.t),
+    result = perfect_demo(demo, state["signals"],
                           diagnose_fn=diagnose_fn, verify_fn=verify_fn, bin_rim_z=bin_rim_z(demo.scene))
     if state["abort"] is not None:
         raise state["abort"]
@@ -419,7 +435,8 @@ def perfect_stored_demo(
 
     # perfect_demo labels every diagnose_fn result "nemotron"; the rounds know which one really answered
     last = rounds[-1] if rounds else {"source": "none", "model_id": None, "gated": []}
-    source, model_id, gated = last["source"], last["model_id"], last["gated"]
+    hybrid = last["source"] == "hybrid"
+    source, model_id, gated = STORED_SOURCE[last["source"]], last["model_id"], last["gated"]
     if result.diagnosis is not None:
         store.save_diagnosis(demo_id, result.diagnosis, source, model_id, gated)
     # every round's repairs, in order: each round repaired the trajectory the previous one left
@@ -447,6 +464,7 @@ def perfect_stored_demo(
         "status": result.status,
         "output_demo_id": out_id,
         "diagnosis_source": source,
+        "hybrid": hybrid,  # stored as diagnosis_source "nemotron" until the schemas have "hybrid"
         "model_id": model_id,
         "gated": gated,
         "attempts": result.attempts,
