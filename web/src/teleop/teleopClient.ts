@@ -9,6 +9,7 @@
 // is worse than none.
 
 import type { HandFrame, TrackedHand } from "../hand/contracts";
+import type { TeleopControlSettings } from "./controlRegion";
 import { toHandPoseMsg, type HandPoseMsg } from "./handPoseMessage";
 
 export const MIN_INTERVAL_MS = 33;
@@ -34,6 +35,7 @@ export class TeleopClient {
   private last: HandPoseMsg | undefined;
   private lastSentAt: number | null = null;
   private lastLostSentAt: number | null = null;
+  private control: TeleopControlSettings | null = null;
 
   constructor(url: string, WebSocketImpl: typeof WebSocket = WebSocket) {
     this.socket = new WebSocketImpl(url);
@@ -46,7 +48,7 @@ export class TeleopClient {
     const t = frame.timestamp;
     if (this.lastSentAt !== null && t - this.lastSentAt < MIN_INTERVAL_MS) return;
 
-    const msg = toHandPoseMsg(pickHand(frame.hands), frame, this.last);
+    const msg = toHandPoseMsg(pickHand(frame.hands), frame, this.last, this.control);
     if (!msg.tracking_ok && this.lastLostSentAt !== null && t - this.lastLostSentAt < LOST_INTERVAL_MS) return;
     if (this.socket.readyState !== SOCKET_OPEN) return;
 
@@ -54,6 +56,11 @@ export class TeleopClient {
     this.last = msg;
     this.lastSentAt = t;
     this.lastLostSentAt = msg.tracking_ok ? null : t;
+  }
+
+  /** Control-region settings for the optional HandPoseMsg.control; null sends none (the sim's own mapping). */
+  setControl(settings: TeleopControlSettings | null): void {
+    this.control = settings;
   }
 
   /** Subscribe to connection status; returns unsubscribe. */

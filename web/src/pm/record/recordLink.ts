@@ -8,6 +8,7 @@
 // socket it creates, and adds its own "message" listener beside TeleopClient's onmessage.
 
 import type { HandFrame } from "../../hand/contracts";
+import type { TeleopControlSettings } from "../../teleop/controlRegion";
 import { TeleopClient, type TeleopStatus } from "../../teleop/teleopClient";
 
 export type ControlAction = "record_start" | "record_stop" | "reset_scene";
@@ -72,6 +73,11 @@ export class RecordLink {
 
   push(frame: HandFrame): void {
     this.teleop.push(frame);
+  }
+
+  /** Control-region settings for the hand poses (HandPoseMsg.control); null sends none. */
+  setControl(settings: TeleopControlSettings | null): void {
+    this.teleop.setControl(settings);
   }
 
   /** False when the socket isn't open, so nothing was sent. */
