@@ -100,6 +100,19 @@ def test_a_point_with_a_ci_is_labelled_with_its_counts():
     assert any("95% CI" in t for t in _texts(root))
 
 
+def test_count_labels_sit_under_the_axis_in_their_series_row_centred_on_the_demo_count():
+    # on the plot they collide with the y-axis labels, the line and the other series' bars
+    r = _with_ci(_results(series={"raw": [0.05, 0.1, None], "raw_multiply": [None, 0.15, None]}),
+                 {("raw", 0): (0.0089, 0.2361, 1, 20), ("raw", 1): (0.0279, 0.3010, 2, 20),
+                  ("raw_multiply", 1): (0.0524, 0.3604, 3, 20)})
+    root = _parse(rc.success_chart(r))
+    labels = {"".join(t.itertext()): t for t in _cls(root, "text", "count")}
+    g = rc.GEOMETRY
+    assert all(float(t.get("y")) > g.bottom + 40 for t in labels.values())  # below the axis title
+    assert float(labels["1/20"].get("y")) == float(labels["2/20"].get("y")) < float(labels["3/20"].get("y"))
+    assert float(labels["1/20"].get("x")) == pytest.approx(g.left) and labels["1/20"].get("text-anchor") == "middle"
+
+
 def test_without_cis_the_chart_has_no_bars_counts_or_caption():
     root = _parse(rc.success_chart(_with_ci(_results(), {("raw", 0): None})))
     assert _cls(root, "line", "ci") == [] and _cls(root, "text", "count") == []

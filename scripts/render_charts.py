@@ -10,8 +10,8 @@ cells with its Wilson CIs and Fisher's p) when results.json has comparisons (bui
 - **Null values.** A null value (not measured yet) is drawn as a "pending" mark, never as 0. A line only
   joins consecutive measured points.
 - **Uncertainty.** A point whose sources entry has a Wilson CI (`sources["series.<key>.success[<j>]"]["ci"]`,
-  from demo_pipeline.results) gets an error bar and a "successes/n" label. Series are dodged sideways so
-  bars at the same demo count don't overlap.
+  from demo_pipeline.results) gets an error bar, and a "successes/n" label in its series' row under the axis.
+  Series are dodged sideways so bars at the same demo count don't overlap.
 - **Sample data.** Like web/src/pm/results/results.ts, a file counts as real only when it says
   "sample": false. Anything else gets a SAMPLE watermark.
 """
@@ -166,9 +166,9 @@ def success_chart(results: dict) -> str:
                 if ci is not None:
                     any_ci = True
                     body += _error_bar(x, y_of(ci["low"]), y_of(ci["high"]), color)
-                    side = -7 if dx < 0 else 7
-                    body.append(_text(x + side, y_of(v) + 4, f"{ci['successes']}/{ci['n']}", size=10,
-                                      anchor="end" if dx < 0 else "start", fill=color, cls="count"))
+                    # in the series' row under the axis (where pending marks go): never on the plot
+                    body.append(_text(xs[j], g.bottom + 66 + 18 * i, f"{ci['successes']}/{ci['n']}", size=10,
+                                      anchor="middle", fill=color, cls="count"))
                 body.append(f'<circle class="point" cx="{x:.1f}" cy="{y_of(v):.1f}" r="4" fill="{color}"/>')
             else:  # under the axis, in the series' row: never on the plot, where it would read as a value
                 body.append(_pending(xs[j], g.bottom + 66 + 18 * i, color))
