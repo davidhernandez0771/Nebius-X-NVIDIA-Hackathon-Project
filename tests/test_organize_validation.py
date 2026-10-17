@@ -113,6 +113,7 @@ def test_organize_endpoint_drops_invented_items_before_storing(api, room):
 
 
 def test_organize_endpoint_with_nothing_valid_says_so_honestly(api, room):
+    make_location(api, room.id, "Shelf")  # a second location so this reaches the model call, not the single-location shortcut
     make_item(room.id, room.location_id, "lamp")
     with patch("app.ai.organize.chat", return_value=NS(text="- buy a bin -> Desk: tidy", est_cost_usd=0.0)):
         out = api.post("/api/organize", json={"room_id": room.id}).json()

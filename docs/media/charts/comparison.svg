@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 310" width="800" height="310" role="img" aria-labelledby="t" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+<title id="t">Head-to-head success with Wilson 95% CI</title>
+<rect x="0" y="0" width="800" height="310" fill="#ffffff"/>
+<text x="16.0" y="26.0" font-size="14" text-anchor="start" fill="#111827" font-weight="600">Head-to-head: success rate with Wilson 95% CI</text>
+<text x="210.0" y="59.0" font-size="12" text-anchor="end" fill="#111827">raw_5</text>
+<rect class="track" x="220.0" y="48.0" width="380.0" height="14" fill="#f3f4f6"/>
+<rect class="ci" x="223.37" y="51.0" width="86.35" height="8" fill="#6b7280" opacity="0.3"/>
+<circle class="point" cx="239.00" cy="55.0" r="4.5" fill="#6b7280"/>
+<text x="608.0" y="59.0" font-size="11" text-anchor="start" fill="#374151">1/20 · 5% (1–24%)</text>
+<text x="210.0" y="85.0" font-size="12" text-anchor="end" fill="#111827">raw_multiply_5</text>
+<rect class="track" x="220.0" y="74.0" width="380.0" height="14" fill="#f3f4f6"/>
+<rect class="ci" x="262.51" y="77.0" width="135.60" height="8" fill="#2563eb" opacity="0.3"/>
+<circle class="point" cx="315.00" cy="81.0" r="4.5" fill="#2563eb"/>
+<text x="608.0" y="85.0" font-size="11" text-anchor="start" fill="#374151">5/20 · 25% (11–47%)</text>
+<text x="220.0" y="108.0" font-size="11" text-anchor="start" fill="#374151" class="p-value">Fisher exact p = 0.18 (two-sided)</text>
+<text x="210.0" y="141.0" font-size="12" text-anchor="end" fill="#111827">raw_10</text>
+<rect class="track" x="220.0" y="130.0" width="380.0" height="14" fill="#f3f4f6"/>
+<rect class="ci" x="230.59" y="133.0" width="103.80" height="8" fill="#6b7280" opacity="0.3"/>
+<circle class="point" cx="258.00" cy="137.0" r="4.5" fill="#6b7280"/>
+<text x="608.0" y="141.0" font-size="11" text-anchor="start" fill="#374151">2/20 · 10% (3–30%)</text>
+<text x="210.0" y="167.0" font-size="12" text-anchor="end" fill="#111827">raw_multiply_10</text>
+<rect class="track" x="220.0" y="156.0" width="380.0" height="14" fill="#f3f4f6"/>
+<rect class="ci" x="239.90" y="159.0" width="117.06" height="8" fill="#2563eb" opacity="0.3"/>
+<circle class="point" cx="277.00" cy="163.0" r="4.5" fill="#2563eb"/>
+<text x="608.0" y="167.0" font-size="11" text-anchor="start" fill="#374151">3/20 · 15% (5–36%)</text>
+<text x="220.0" y="190.0" font-size="11" text-anchor="start" fill="#374151" class="p-value">Fisher exact p = 1 (two-sided)</text>
+<text x="210.0" y="223.0" font-size="12" text-anchor="end" fill="#111827">raw_10_30k</text>
+<rect class="track" x="220.0" y="212.0" width="380.0" height="14" fill="#f3f4f6"/>
+<rect class="ci" x="229.97" y="215.0" width="50.55" height="8" fill="#6b7280" opacity="0.3"/>
+<circle class="point" cx="245.33" cy="219.0" r="4.5" fill="#6b7280"/>
+<text x="608.0" y="223.0" font-size="11" text-anchor="start" fill="#374151">4/60 · 7% (3–16%)</text>
+<text x="210.0" y="249.0" font-size="12" text-anchor="end" fill="#111827">raw_multiply_10_30k</text>
+<rect class="track" x="220.0" y="238.0" width="380.0" height="14" fill="#f3f4f6"/>
+<rect class="ci" x="328.56" y="241.0" width="91.44" height="8" fill="#2563eb" opacity="0.3"/>
+<circle class="point" cx="372.00" cy="245.0" r="4.5" fill="#2563eb"/>
+<text x="608.0" y="249.0" font-size="11" text-anchor="start" fill="#374151">24/60 · 40% (29–53%)</text>
+<text x="220.0" y="272.0" font-size="11" text-anchor="start" fill="#374151" class="p-value">Fisher exact p = 2.2e-05 (two-sided)</text>
+<text x="220.0" y="296.0" font-size="10" text-anchor="middle" fill="#6b7280">0%</text>
+<text x="410.0" y="296.0" font-size="10" text-anchor="middle" fill="#6b7280">50%</text>
+<text x="600.0" y="296.0" font-size="10" text-anchor="middle" fill="#6b7280">100%</text>
+</svg>

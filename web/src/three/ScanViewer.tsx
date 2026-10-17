@@ -1,8 +1,39 @@
-import { Component, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  Component,
+  Suspense,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useProgress } from "@react-three/drei";
 import * as THREE from "three";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import { registerScanViewer } from "../hand/integration/activeScanViewer";
 import "./scanviewer.css";
+
+/**
+ * Imperative zoom API for the hand-controlled two-hand pinch-to-zoom gesture
+ * (see HAND_INTERACTION_PLAN.md GOAL 2). Drives the SAME camera-distance
+ * dolly a mouse wheel would, via the live OrbitControls instance -- never a
+ * CSS transform on the container -- so it composes correctly with the
+ * existing orbit/target state instead of fighting it.
+ */
+export interface ScanViewerHandle {
+  /** Current distance from the camera to the orbit target. */
+  getDistance(): number;
+  /** Clamped to [minDistance, maxDistance]; preserves the current orbit target and view direction. */
+  setDistance(distance: number): void;
+  readonly minDistance: number;
+  readonly maxDistance: number;
+  /** Suppresses/restores mouse-wheel zoom, drag-orbit and pan while a hand gesture is driving the camera directly. */
+  setOrbitEnabled(enabled: boolean): void;
+}
 
 // Loads a GLB room scan and shows it dark-tinted with orbit controls.
 // Heavy (three + fiber + drei): import it with React.lazy where it is used.
@@ -133,19 +164,62 @@ class ScanBoundary extends Component<
   }
 }
 
-export default function ScanViewer({
-  url,
-  tint = "#968a80",
-  autoRotate = true,
-  className = "",
-  style,
-  onLoaded,
-}: ScanViewerProps) {
+const MIN_DISTANCE = 2.5;
+const MAX_DISTANCE = 16;
+
+const ScanViewer = forwardRef<ScanViewerHandle, ScanViewerProps>(function ScanViewer(
+  { url, tint = "#968a80", autoRotate = true, className = "", style, onLoaded }: ScanViewerProps,
+  forwardedRef,
+) {
   const [attempt, setAttempt] = useState(0);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const retry = () => {
     useGLTF.clear(url);
     setAttempt((a) => a + 1);
   };
+
+  // Stable identity: reads controlsRef.current live on every call rather
+  // than closing over a snapshot, so it stays correct across re-renders and
+  // scan reloads without needing to be recreated.
+  const handle = useMemo<ScanViewerHandle>(
+    () => ({
+      getDistance() {
+        return controlsRef.current?.getDistance() ?? 0;
+      },
+      setDistance(distance) {
+        const controls = controlsRef.current;
+        if (!controls) return;
+        const clamped = Math.min(Math.max(distance, controls.minDistance), controls.maxDistance);
+        const camera = controls.object;
+        const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
+        const currentLength = offset.length() || 1;
+        offset.multiplyScalar(clamped / currentLength);
+        camera.position.copy(controls.target).add(offset);
+        controls.update();
+      },
+      get minDistance() {
+        return controlsRef.current?.minDistance ?? MIN_DISTANCE;
+      },
+      get maxDistance() {
+        return controlsRef.current?.maxDistance ?? MAX_DISTANCE;
+      },
+      setOrbitEnabled(enabled) {
+        const controls = controlsRef.current;
+        if (controls) controls.enabled = enabled;
+      },
+    }),
+    [],
+  );
+
+  useImperativeHandle(forwardedRef, () => handle, [handle]);
+
+  // Registers with the hand-pointer integration's single-active-viewer
+  // lookup (see activeScanViewer.ts) so two-hand zoom can reach this
+  // instance without threading a ref through DashboardShell's <Outlet />.
+  useEffect(() => {
+    registerScanViewer(handle);
+    return () => registerScanViewer(null);
+  }, [handle]);
 
   if (!url) {
     return (
@@ -174,11 +248,12 @@ export default function ScanViewer({
             <Model url={url} tint={tint} onLoaded={onLoaded} />
           </Suspense>
           <OrbitControls
+            ref={controlsRef}
             makeDefault
             enableDamping
             dampingFactor={0.08}
-            minDistance={2.5}
-            maxDistance={16}
+            minDistance={MIN_DISTANCE}
+            maxDistance={MAX_DISTANCE}
             maxPolarAngle={Math.PI * 0.62}
             autoRotate={autoRotate}
             autoRotateSpeed={0.5}
@@ -188,4 +263,6 @@ export default function ScanViewer({
       </ScanBoundary>
     </div>
   );
-}
+});
+
+export default ScanViewer;

@@ -1,184 +1,156 @@
-# SANT
+# Perfect, then multiply
 
-Submission for the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/) (deadline Oct 30, 2026).
+**Record one robot demo by moving your hand in front of a webcam. Get back many physics-checked
+training demos.**
 
-A room organizer: photograph a shelf or drawer, a vision model proposes what's
-in it, you confirm each item, Nemotron suggests how to arrange your inventory,
-and a chat bar lets you drive it in plain language.
+Our entry for the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/),
+Physical AI track. Everything runs in simulation, with no physical robot; the official FAQ allows that
+([screenshot](docs/superpowers/notes/2026-10-15-faq-physical-ai-simulation-allowed.jpg)).
 
-**Design rule: the AI only proposes; you or the backend decide.** A vision
-result never becomes inventory until you sort it, and chat text is parsed into
-an action that the backend validates before anything happens.
+## What it is
 
-**Status:** working end to end. The backend API, database and every dashboard
-screen are wired together. The vision, organize and chat-command prompts have
-been run against the real Token Factory API (results in
-[`docs/VISION_EVAL.md`](docs/VISION_EVAL.md)), all chat actions are validated by
-the backend, and uploaded GLB room scans render in a 3D viewer. There is a
-scroll-driven 3D landing page (the front door, `/`) and an animated entry scene
-(`/enter`). See [Known limitations](#known-limitations) for what is not built,
-and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
+Robots learn a task by copying demonstrations, and they need a lot of them. Human demos are the
+expensive part:
+- Teleoperation rigs cost $6k–$80k, and operators cost $25–$50 an hour.
+- 20–30% of demos get thrown away. These are vendor estimates.
 
-## Prerequisites
+A webcam costs almost nothing, but webcam demos are noisy: shaky, with pauses and off-center grasps.
+<!-- src: docs/superpowers/specs/2026-10-15-perfect-then-multiply-design.md §2 (vendor estimates) -->
 
-- Python 3.11+ and [uv](https://docs.astral.sh/uv/)
-- [Node.js](https://nodejs.org/) 20+ and npm
-- A Nebius Token Factory API key from [tokenfactory.nebius.com](https://tokenfactory.nebius.com)
+This project takes one cheap demo and cleans it up with code. NVIDIA Isaac Lab then checks it in
+physics, and the project multiplies it into many verified copies, each with the cube and bin in new
+places. The output is a standard LeRobot dataset that you can train a robot policy on.
 
-## Setup
+## The result
 
-```bash
-git clone https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project.git
-cd Nebius-X-NVIDIA-Hackathon-Project
+We trained the same robot policy (ACT, 30k steps) twice from the same 10 source demos. Then we tested
+both policies on 40 new scenes. The scenes and the stopping rule were fixed in advance, and those
+scenes were never used to choose anything.
 
-# Backend dependencies, including pytest (dev group)
-uv sync --all-extras
+| Training data | Success on 40 new scenes | 95% CI |
+|---|---|---|
+| The 10 demos alone | **3 / 40 (7.5%)** | 2.6–19.9% |
+| The 10 demos + 100 multiplied, physics-verified variants | **17 / 40 (42.5%)** | 28.5–57.8% |
 
-# API key
-cp .env.example .env        # then paste your key into NEBIUS_API_KEY
+**Fisher exact p = 0.0005.** The confidence intervals don't overlap. This is our first significant
+evidence that multiplying demos makes the trained robot better.
+<!-- src: docs/superpowers/notes/2026-10-15-t3-status.md (2026-10-17 13:15, sprint 7 Tasks 3–4: confirmatory seeds 5020–5059, p = 0.00055; pair chosen at 11:43 before any extension seed; stopped by the 13:00 time rule); docs/media/README.md (T1 re-counted 3/40 vs 17/40 independently) -->
 
-# Frontend dependencies
-cd web && npm install && cd ..
-```
+![Head-to-head success rates with 95% confidence intervals](docs/media/charts/comparison.svg)
 
-`.env` is git-ignored; never commit it. If `uv sync` fails with
-`invalid peer certificate: UnknownIssuer` (common behind corporate or antivirus
-TLS proxies), use `uv sync --all-extras --system-certs`.
+*Each pair shows successes out of attempts, with a 95% confidence interval. The bottom pair is the
+result above, counted over all 60 scenes it ran on (4/60 vs 24/60). That count includes the 20
+scenes used to pick this pair, so it is optimistic; quote the 40-scene numbers. The top two pairs
+are earlier, smaller runs at 10k steps (1/20 vs 5/20, 2/20 vs 3/20). Neither of them is significant
+alone.*
+<!-- src: docs/media/README.md (charts/comparison.svg); docs/superpowers/notes/2026-10-15-t3-status.md (sprint 7 "All sprint 7 cells") -->
+
+**What it does not show yet:**
+- **One setup:** one task (cube into bin), one simulated robot (Franka), one policy type, one training run per arm.
+- **No human demos yet:** the 10 source demos came from a scripted expert. Real webcam demos are next.
+- **Repair not tested here:** the scripted demos were already clean, so this skipped repair. Whether
+  perfecting noisy human demos first adds more is not measured yet.
+- **Equal steps, not equal epochs:** the raw arm saw its data ~49 times, the multiplied arm ~4.5.
+- **It still drops the cube:** 22 of the multiplied policy's 23 failures are drops: it lifted the cube, then lost it.
+<!-- src: docs/superpowers/notes/2026-10-15-t3-status.md (sprint 7 Tasks 3–4, "Reading, honestly" and Task 4); docs/media/README.md ("All the human demos here are synthetic") -->
+
+## How it works
+
+![One demo before (left, 13.8 s) and after (right, 9.3 s) perfecting, replayed in Isaac Lab](docs/media/s1_0002_raw_vs_perfected.gif)
+
+*One demo replayed in Isaac Lab. Left: the raw demo, 13.8 s, with tremor, pauses and idle time.
+Right: the same demo after repair, 9.3 s. Both replays succeeded. This "human" demo is synthetic:
+the scripted expert, with noise added on purpose.*
+<!-- src: docs/media/README.md (Before and after perfecting) -->
+
+1. **Record.** Your browser tracks your hand with MediaPipe, and a simulated Franka arm in Isaac
+   Lab follows it.
+2. **Check.** Code measures every movement: speed, shake, pauses, idle time and how centered the
+   grasp is. NVIDIA Nemotron can also look at key frames. The result is a timestamped list of
+   problems.
+3. **Repair.** Code fixes those problems from a fixed menu: trim idle time, remove pauses, smooth
+   tremor, retime, and recenter the grasp.
+4. **Verify.** Isaac Lab replays the repaired demo, and physics decides whether it worked. All 50
+   of our 50 scripted test demos pass.
+5. **Multiply, export, train.** Each verified demo becomes many variants with new cube and bin
+   positions, and each variant is verified again. The training set came out 100/100; MimicGen
+   publishes 38–74% for this step. Only verified demos are exported as a LeRobot dataset, and an
+   ACT policy is trained on it.
+<!-- src: spec §1 and §4; docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 3: Franka batch 50/50; sprint 6 Task 2: home-start multiply 100/100); spec §3 (MimicGen 38–74%); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 7 T4: the repair ops trim, remove_pause, smooth, retime, recenter, replan, discard) -->
+
+## Where NVIDIA Nemotron fits (honestly)
+
+- **As a demo judge, it lost to code.** In a fair, pre-registered test on 32 synthetic demos, code
+  alone scored F1 0.90, and rules plus Nemotron scored 0.86. Without the code-measured grasp
+  offset, Nemotron called all 8 centered grasps off-center. So code is the judge, and Nemotron adds
+  nothing there yet.
+  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 6 Task 1, v2 ablation: code_all 0.90, hybrid 0.86, hybrid_blind 0.80, FP 8/8) -->
+- **As a translator of plain repair requests, it works.** We tested 34 requests, like "The pause
+  at the start is fine but center the grasp" and "Don't trim the end, just remove the pauses".
+  Nemotron turned 34/34 into the right repair
+  operations, against 31/34 for a keyword parser.
+  - **The test was small.** The gap is not significant (p = 0.25), and one person wrote the
+    requests, the prompt and the baseline.
+  - **It's a prototype.** Whether it ships is the team's decision; it is not wired into the app.
+  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 7 T4, Task 4: R6 results; McNemar p = 0.25); docs/superpowers/notes/2026-10-17-r6-results/model.json (the request texts quoted) -->
+- **Where it runs and what it costs.** It runs on Nebius Token Factory and costs well under 1 cent
+  per call: about $0.0016 per demo diagnosis and $0.0002 per repair request. The models are
+  `nvidia/Nemotron-3.5-Super-VL` for images and `nvidia/nemotron-3-super-120b-a12b` for requests.
+  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 6 Task 1: hybrid 35 calls / $0.0544; sprint 7 T4 Task 4: $0.000206 per request, model id); docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md (VL model id) -->
+
+## Status (2026-10-17)
+
+| | What |
+|---|---|
+| **Done** | Every pipeline stage, from record to train, is built and tested, and the pipeline has run end to end on the live Isaac Lab simulator |
+| **Done** | Physics checks: 50/50 scripted demos verify; multiply yield 100/100 on the training set |
+| **Done** | Multiplying helps: 3/40 vs 17/40 (above) |
+| **Done** | Fair test of Nemotron as a judge (code won); prototype of Nemotron as a request translator (34/34) |
+| **Done** | Web pages: Record, Review (with a Perfect button), Dataset and Results. CI on GitHub |
+| **In progress** | Faster evaluation (several scenes at once in one Isaac process) and a bigger 10 × 30 multiplied dataset |
+| **Next** | A live session with a real person at the webcam. The Record page works, but so far only a scripted fake hand has driven it (376/376 steps recorded) |
+| **Next** | The same experiment on human demos: raw vs perfected + multiplied |
+| **Next** | Decide Nemotron's role in the app |
+| **Next** | Record the 3-minute video; the shot list is in [`docs/submission/video_script.md`](docs/submission/video_script.md) |
+<!-- src: docs/TECHNICAL.md (Pipeline status); docs/superpowers/notes/2026-10-15-t2-status.md (50/50; 100/100); docs/superpowers/notes/2026-10-16-web-pages.md (no real person yet; fake-hand smoke 376/376); docs/RUNBOOK.md §10 (CI); docs/superpowers/plans/2026-10-17-sprint7-make-multiply-convincing.md (T2: parallel eval, 10 × 30 dataset; T4: role is the user's decision) -->
+
+## Repo map
+
+| Folder | What's in it |
+|---|---|
+| `src/` | `demo_pipeline/` (measure, rules, repair, multiply, stats; pure Python), `app/` (FastAPI backend and the Nemotron diagnoser), `nebius_llm/` (the Token Factory client) |
+| `sim_worker/` | The Isaac Lab scene, the robot, the scripted expert, replay and verify, and the HTTP server |
+| `sim_eval/` | Tests a trained policy in Isaac Lab on unseen scenes |
+| `lerobot_tools/` | LeRobot export, dataset assembly, training and the policy server |
+| `scripts/` | Batch runs, scoring, results and charts, and launch scripts (`scripts/launch/`) |
+| `web/` | The React pages (`web/src/pm/`) and the hand tracking |
+| `tests/` | Backend and pipeline tests (`uv run pytest -q`) |
+| `docs/` | [RUNBOOK](docs/RUNBOOK.md) (how to run), [TECHNICAL](docs/TECHNICAL.md) (full details), `media/`, `submission/`, and `superpowers/` (the spec, plans and dated notes behind every number) |
 
 ## Run it
 
-Check the API key first. This makes one tiny Nemotron call (about $0.000003):
+First do the one-time setup in [docs/RUNBOOK.md §2](docs/RUNBOOK.md#2-fresh-windows-setup) (Windows 11, an NVIDIA GPU,
+three Python environments). The RUNBOOK covers everything else: recording, perfecting, experiments and training.
 
-```bash
-uv run python scripts/smoke_test.py
+```powershell
+uv run pytest -q; npm --prefix web test                                    # tests
+powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Backend -Web
+powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Sim      # Isaac Lab, ~4.5 GB GPU
+# open http://localhost:5173/pm/record, then /pm/review to perfect a demo
+powershell -ExecutionPolicy Bypass -File scripts\launch\stop.ps1
 ```
+<!-- src: docs/RUNBOOK.md §3.2–3.3 (start/stop scripts, sim worker ~4.5 GB), §4 (/pm/record), §2.2 and §2.5 (test commands) -->
 
-It should end with `SMOKE TEST PASSED`.
+## Team and history
 
-Then start the two servers in separate terminals, both from the repo root.
+David Hernandez Del Risco and Susana Rojas.
+<!-- src: docs/superpowers/notes/2026-10-16-prepublish-audit.md (finding 5, the suggested names) -->
 
-**Backend** (http://localhost:8000):
+The project started as **SANT**, a room organizer, and pivoted to *Perfect, then multiply* on
+2026-10-15. Some SANT code is still in the tree; see [docs/TECHNICAL.md](docs/TECHNICAL.md#history).
+<!-- src: docs/TECHNICAL.md (History); spec header (approved 2026-10-15) -->
 
-```bash
-uv run uvicorn app.main:app --reload --app-dir src
-```
+Full details (every stage and measurement, prior art, our claim, limitations): [docs/TECHNICAL.md](docs/TECHNICAL.md).
+Parts of it predate the result above; where they disagree, this page is current.
 
-- `GET /api/health` returns `{"status":"ok"}`.
-- Interactive API docs are at http://localhost:8000/docs.
-- The SQLite database `app.db` and the `uploads/` folder are created on first
-  run and are git-ignored.
-
-**Frontend** (http://localhost:5173):
-
-```bash
-cd web
-npm run dev
-```
-
-The frontend calls the backend at `http://localhost:8000`; set
-`VITE_API_BASE_URL` (for example in `web/.env`) to point it elsewhere. The
-backend only allows CORS from `http://localhost:5173`.
-
-`npm run build` type-checks and produces a production bundle in `web/dist/`.
-
-### What to open
-
-| URL | What it is |
-|---|---|
-| http://localhost:5173/ | Scroll-driven 3D landing page (the front door) |
-| http://localhost:5173/enter | Short animated entry scene (skip with Esc) |
-| http://localhost:5173/home | The dashboard: create a room, add locations, upload a `.glb` scan and photos, review, organize, chat |
-
-Use a current Chrome, Safari or Edge with hardware acceleration on; the 3D
-pages need WebGL and fall back to a static version without it (or with reduced
-motion). Add `?static` to the landing URL (`/?static`) to preview the fallback.
-
-To try the scan viewer, export a room as `.glb` from a LiDAR app such as
-Polycam or Scaniverse and upload it from a room's "Upload a room scan" link.
-
-### Cost
-
-Uploading a photo and pressing Analyze, or using Organize or Chat, makes a
-real, billed Token Factory call (well under a cent each). Every call
-appends its token counts and estimated cost to the file named by
-`USAGE_LOG_PATH` (default `usage_log.jsonl`). If you work in several git
-worktrees, point them all at one shared file (see `.env.example`) so the $25
-budget is tracked in one place. The log is git-ignored; check the Token Factory
-console for actual billing.
-
-## Run the tests
-
-```bash
-uv run pytest -q
-```
-
-All AI calls are mocked; the tests never touch the network or spend money.
-
-## Other scripts
-
-```bash
-uv run python scripts/ask.py "Explain mixture-of-experts in one paragraph"
-uv run python scripts/ask.py --tier super "..."    # nano (default), super, ultra
-uv run python scripts/vision_debug.py photo.jpg    # raw vision output for one image
-```
-
-`ask.py` with no question starts an interactive prompt. `--think` lets
-Nemotron reason first, which costs more output tokens. `vision_debug.py` also
-takes `--tier glm-flash`; it sends the image to a vision model, so it is billed.
-
-## Models
-
-Text inference is NVIDIA **Nemotron 3** on Nebius Token Factory
-(`https://api.tokenfactory.nebius.com/v1/`, OpenAI-compatible), routed through
-three tiers in [`src/nebius_llm/config.py`](src/nebius_llm/config.py):
-
-| Tier | Model | Used for |
-|---|---|---|
-| `nano` (default) | `nvidia/Nemotron-3_5-Lightning` | everything unless there's a reason not to |
-| `super` | `nvidia/nemotron-3-super-120b-a12b` | harder tasks that nano gets wrong |
-| `ultra` | `nvidia/Nemotron-3-Ultra-550b-a55b` | heavy reasoning, used sparingly |
-
-Photo itemization uses a separate vision tier list in the same file. `minicpm`
-(MiniCPM-V-4.5) is the default; `glm-flash` was compared against it and was too
-slow and unreliable (see [`docs/VISION_EVAL.md`](docs/VISION_EVAL.md)). Vision
-models miscount and occasionally invent items, which is why every proposed item
-goes through your review. Any model ID can be overridden with an
-environment variable listed in `.env.example`. More on endpoints, auth and rate
-limits: [`docs/token-factory-notes.md`](docs/token-factory-notes.md).
-
-## Project layout
-
-```
-src/nebius_llm/   Token Factory client: config.py, client.py (chat), vision.py, usage.py
-src/app/          FastAPI backend: main.py, models.py, schemas.py, db.py, storage.py
-  routers/        rooms, scans, photos, candidates, items, organize, chat
-  ai/             prompts and parsing for vision, organize and chat commands
-web/              React + Vite frontend
-  src/pages/      one page per screen, plus Landing and Entry
-  src/components/ shared glass UI components; design tokens in src/tokens.css
-  src/three/      3D: landing scene, entry scene, GLB ScanViewer
-scripts/          smoke_test.py, ask.py, hello.py, vision_debug.py,
-                  vision_eval.py, command_eval.py
-tests/            client/config/usage unit tests and backend API tests
-docs/             ARCHITECTURE.md, DESIGN_BRIEF.md, VISION_EVAL.md,
-                  TESTING_GAPS.md, DEMO_SCRIPT.md, HANDOFF.md,
-                  token-factory-notes.md
-```
-
-## Known limitations
-
-- **No real authentication.** Every record belongs to one fixed development
-  owner, so run it locally only; do not expose it to the internet.
-- **Photos are stored and sent as uploaded.** EXIF metadata (such as GPS
-  location) is not stripped. HEIC/HEIF (iPhone) uploads are accepted but are not
-  converted, so the vision model may fail to read them; export as JPG or PNG
-  first. Photos are sent to the vision model on Nebius when you press Analyze.
-- **Local storage only.** Uploads live in a git-ignored `uploads/` folder and the
-  database is a local SQLite file, with no migrations.
-- The Nebius spend shown in the top bar is a session total from the calls made in
-  the browser, not your all-time spend.
-- Voice input is not built.
-
-## License
-
-MIT, see [LICENSE](LICENSE).
+MIT license, see [LICENSE](LICENSE).

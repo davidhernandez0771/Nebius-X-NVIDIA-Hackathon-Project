@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from app import models
 from app.db import _get_session_factory, init_db
 from app.main import app
+from conftest import close_db
 
 
 def parsed(action, item=None, location=None, question=None):
@@ -45,6 +46,7 @@ class ChatActionTests(unittest.TestCase):
     def tearDown(self):
         self.db.close()
         self._env.stop()
+        close_db()
         self._tmpdir.cleanup()
 
     # -- helpers ----------------------------------------------------------

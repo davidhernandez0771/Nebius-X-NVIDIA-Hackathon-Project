@@ -5,13 +5,13 @@ is only called when the client explicitly requests it, never automatically.
 """
 from __future__ import annotations
 
-import mimetypes
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
-from ..ai.vision import itemize_photo
+from ..ai.vision import itemize_photo_detailed
 from ..db import get_db
 from ..storage import read_photo, save_photo
 from nebius_llm import TokenFactoryError
@@ -29,6 +29,11 @@ CONTENT_TYPE_SUFFIX = {
     "image/heic": ".heic",
     "image/heif": ".heif",
 }
+# Inverse of the above: recovers the real content type from the storage
+# suffix at analyze time. Deliberately not stdlib `mimetypes.guess_type()`,
+# which doesn't know `.heic`/`.heif` and would silently mislabel real iPhone
+# photos as image/jpeg -- exactly the failure mode this table exists to avoid.
+SUFFIX_CONTENT_TYPE = {suffix: content_type for content_type, suffix in CONTENT_TYPE_SUFFIX.items()}
 
 
 @router.post("")
@@ -54,15 +59,21 @@ def analyze_photo(photo_id: int, tier: str | None = None, db: Session = Depends(
     photo = db.get(models.Photo, photo_id)
     if not photo:
         raise HTTPException(404, "Photo not found")
+    if photo.candidates:
+        # Analyze spends real credits; re-running it on an already-analyzed
+        # photo would silently double-bill and leave duplicate Candidate rows
+        # behind. If re-analysis is ever wanted, it should be an explicit,
+        # separate action -- not a side effect of calling this route twice.
+        raise HTTPException(409, "Photo already analyzed.")
     image_bytes = read_photo(photo.storage_key)
-    mime_type = mimetypes.guess_type(photo.storage_key)[0] or "image/jpeg"
+    mime_type = SUFFIX_CONTENT_TYPE.get(Path(photo.storage_key).suffix, "image/jpeg")
     try:
-        guesses, cost = itemize_photo(image_bytes, mime_type=mime_type, tier=tier)
+        result = itemize_photo_detailed(image_bytes, mime_type=mime_type, tier=tier)
     except TokenFactoryError as error:
         raise HTTPException(502, str(error)) from error
 
     candidates = []
-    for guess in guesses:
+    for guess in result.candidates:
         candidate = models.Candidate(
             photo_id=photo.id,
             label=guess.label,
@@ -76,7 +87,13 @@ def analyze_photo(photo_id: int, tier: str | None = None, db: Session = Depends(
     db.commit()
     for candidate in candidates:
         db.refresh(candidate)
-    return schemas.PhotoAnalyzeOut(photo_id=photo.id, candidates=candidates, est_cost_usd=cost)
+    return schemas.PhotoAnalyzeOut(
+        photo_id=photo.id,
+        candidates=candidates,
+        est_cost_usd=result.est_cost_usd,
+        truncated=result.truncated,
+        warnings=result.warnings,
+    )
 
 
 @router.get("/{photo_id}/candidates", response_model=list[schemas.CandidateOut])

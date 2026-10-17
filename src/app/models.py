@@ -41,6 +41,21 @@ class Scan(Base):
     room: Mapped[Room] = relationship(back_populates="scans")
 
 
+class PhoneScanJob(Base):
+    """A Reali3 photogrammetry reconstruction requested from in-app phone
+    photos. Photos themselves are proxied straight through to Reali3 and
+    never stored here -- only the resulting Scan, once reconstruction
+    completes, becomes a real Scan row exactly like a manual .glb upload."""
+
+    __tablename__ = "phone_scan_jobs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
+    reali3_id: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending|processing|completed|failed
+    scan_id: Mapped[int | None] = mapped_column(ForeignKey("scans.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=_now)
+
+
 class Location(Base):
     __tablename__ = "locations"
     id: Mapped[int] = mapped_column(primary_key=True)

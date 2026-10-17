@@ -1,0 +1,10 @@
+{
+  "_about": "The one demo every request in repair_requests.jsonl refers to. Timings mirror T2's degraded_0004 (T7's 2026-10-16 roles note, probe 1). Speeds are mean hand speed per span in m/s.",
+  "duration": 14.04,
+  "t_close": 2.48,
+  "t_open": 10.96,
+  "idle_start": [0.0, 1.2],
+  "idle_end": [12.86, 14.04],
+  "pauses": [[5.47, 6.32], [8.2, 9.05]],
+  "speeds": {"approach": 0.12, "carry": 0.1, "retreat": 0.08, "whole": 0.09}
+}

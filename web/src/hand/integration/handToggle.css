@@ -1,0 +1,76 @@
+/* The one real, clickable control for the hand cursor -- deliberately NOT
+   part of handCursorOverlay.css, which is pointer-events: none throughout. */
+
+.hand-toggle {
+  position: fixed;
+  right: var(--space-5, 1.5rem);
+  bottom: calc(var(--space-5, 1.5rem) + env(safe-area-inset-bottom, 0px));
+  z-index: 10000;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  border-radius: var(--radius-pill, 999px);
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  background: var(--surface-strong, rgba(255, 255, 255, 0.09));
+  backdrop-filter: blur(var(--blur, 20px));
+  color: var(--text, #f4f0ec);
+  font: var(--fs-sm, 0.8125rem) / 1 var(--font, sans-serif);
+  cursor: pointer;
+  transition: background var(--dur-fast, 150ms) var(--ease-out), border-color var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.hand-toggle:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.075));
+}
+
+.hand-toggle:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hand-toggle[data-enabled="true"] {
+  border-color: var(--accent-line, rgba(53, 240, 208, 0.45));
+  color: var(--accent, #35f0d0);
+}
+
+.hand-toggle[data-enabled="true"][data-status="error"] {
+  border-color: var(--danger-line, rgba(255, 90, 95, 0.4));
+  color: var(--danger, #ff5a5f);
+}
+
+@media (max-width: 640px) {
+  .hand-toggle span {
+    display: none; /* icon-only on narrow screens, still a real labeled button via aria */
+  }
+}
+
+/* Calibration trigger: a small round icon button docked directly above
+   HandToggle, same glass material. Opens CalibrationPanel.tsx. */
+.hand-calibration-trigger {
+  position: fixed;
+  right: var(--space-5, 1.5rem);
+  bottom: calc(var(--space-5, 1.5rem) + 52px + env(safe-area-inset-bottom, 0px));
+  z-index: 10000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  background: var(--surface-strong, rgba(255, 255, 255, 0.09));
+  backdrop-filter: blur(var(--blur, 20px));
+  color: var(--text, #f4f0ec);
+  cursor: pointer;
+  transition: background var(--dur-fast, 150ms) var(--ease-out), border-color var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.hand-calibration-trigger:hover {
+  background: var(--surface-hover, rgba(255, 255, 255, 0.075));
+}
+
+.hand-calibration-trigger[aria-expanded="true"] {
+  border-color: var(--accent-line, rgba(53, 240, 208, 0.45));
+  color: var(--accent, #35f0d0);
+}

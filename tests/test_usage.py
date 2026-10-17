@@ -14,7 +14,9 @@ class UsageTests(unittest.TestCase):
 
     def test_tilde_in_log_path_is_expanded_to_home(self):
         with tempfile.TemporaryDirectory() as home:
-            with patch.dict("os.environ", {"HOME": home, "USAGE_LOG_PATH": "~/shared.jsonl"}):
+            # expanduser reads HOME on POSIX but USERPROFILE on Windows; patch both.
+            env = {"HOME": home, "USERPROFILE": home, "USAGE_LOG_PATH": "~/shared.jsonl"}
+            with patch.dict("os.environ", env):
                 record_usage({"tier": "nano", "est_cost_usd": 0.5})
                 self.assertTrue((Path(home) / "shared.jsonl").exists())
                 self.assertEqual(total_spend()["est_cost_usd"], 0.5)

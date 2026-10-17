@@ -1,0 +1,1 @@
+export { createGestureProcessor } from "./gestureProcessor";

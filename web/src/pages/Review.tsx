@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { errorMessage } from "../api/errors";
 import { DotMeter, EmptyState, GlassCard, ItemCard, StatusPill, ThreeWaySwitch, Zones } from "../components";
@@ -27,6 +27,11 @@ export default function Review() {
   const photoId = params.get("photo_id");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [error, setError] = useState("");
+  // Passed via navigate() state right after analyze -- a one-time signal from
+  // that specific call, not a persisted candidate property, so it's absent
+  // (and correctly so) on a direct visit or a page refresh.
+  const location = useLocation();
+  const analyzeWarnings = (location.state as { warnings?: string[] } | null)?.warnings ?? [];
 
   useEffect(() => {
     if (!photoId) return;
@@ -82,6 +87,7 @@ export default function Review() {
       }
     >
       {error && <StatusPill tone="danger">{error}</StatusPill>}
+      {analyzeWarnings.length > 0 && <StatusPill tone="warm">{analyzeWarnings.join(" ")}</StatusPill>}
       <ul className="stack">
         {candidates.map((c) => {
           const state = toState(c.status);

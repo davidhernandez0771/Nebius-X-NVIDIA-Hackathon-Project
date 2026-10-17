@@ -1,5 +1,7 @@
 # Nebius Token Factory: what the docs say (checked 2026-09-13)
 
+> **Historical: SANT era.** Written for SANT, the room-organizer app this repo started as (Best Apps and Agents track); parts are out of date. The current submission is *Perfect, then multiply* (Physical AI track, no demo URL needed); see the [README](../README.md).
+
 Sources read:
 - https://docs.tokenfactory.nebius.com/ (docs.nebius.com/studio/* redirects here)
 - https://docs.tokenfactory.nebius.com/quickstart.md

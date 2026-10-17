@@ -1,0 +1,318 @@
+/* App-wide hand-cursor overlay. Every element here is pointer-events: none --
+   this layer must never intercept a real click or block the physical mouse. */
+
+/* Revision 4: the whole hand-cursor/select/dwell system (NOT the two-hand
+   zoom visuals below, which keep their fixed accent/warm two-tone
+   direction cue -- zoom is a separate gesture family this revision doesn't
+   touch) reads ONE user-customizable color instead of the old hard-coded
+   `--warm`. `--hand-interaction-color` is written on `document.documentElement`
+   by the integration layer (see contracts.ts, INTERACTION_COLOR_CSS_VAR);
+   the fallback below is only for before that JS runs / in isolation, and
+   matches DEFAULT_INTERACTION_COLOR exactly. `color-mix()` derives the
+   soft/line/glow variants that used to be separate baked-in tokens
+   (`--warm-soft`/`--warm-line`) -- supported in all current evergreen
+   browsers. Hover and engaged (armed/dragging) states intentionally share
+   this one color now (see contracts.ts's Revision 4 color doc) --
+   shape/size/progress are what distinguish them, not color; see each rule
+   below. */
+:root {
+  --hic: var(--hand-interaction-color, #ff9a2e);
+  --hic-soft: color-mix(in srgb, var(--hic) 14%, transparent);
+  --hic-line: color-mix(in srgb, var(--hic) 45%, transparent);
+  --hic-glow: color-mix(in srgb, var(--hic) 35%, transparent);
+}
+
+.hand-cursor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.hand-cursor-overlay * {
+  pointer-events: none;
+}
+
+.hand-cursor-status {
+  position: fixed;
+  top: calc(var(--space-4, 1rem) + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-2, 0.5rem) var(--space-4, 1rem);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-strong, rgba(255, 255, 255, 0.09));
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  backdrop-filter: blur(var(--blur, 20px));
+  color: var(--text, #f4f0ec);
+  font: var(--fs-sm, 0.8125rem) / 1 var(--font, sans-serif);
+  white-space: nowrap;
+}
+
+.hand-cursor-status[data-status="error"] {
+  color: var(--danger, #ff5a5f);
+  border-color: var(--danger-line, rgba(255, 90, 95, 0.4));
+}
+
+/* Fingertip position. Position is written directly (left/top) every tracked
+   frame in JS -- never animated here, so it never lags the hand. Position is
+   deliberately kept off `transform` so Anime.js is free to drive this same
+   element's `scale` (show/hide) via `transform` without the two writes
+   clobbering each other.
+
+   Revision 5: this outer element owns position + the contrast-backing halo
+   only. Shape and fill (Bug 2 fix + GOAL 1 cursor shape) live on the nested
+   `.hand-cursor-dot-fill` instead -- kept as a SEPARATE property split, not
+   a separate POSITION, so "the same centered element" (per contracts.ts's
+   cursor-shape doc) still holds: the fill inherits this element's position
+   via `inset: 0`, it never has coordinates of its own. This split exists
+   because a shape needs `clip-path` for the diamond variant, and clip-path
+   crops an element's own box-shadow away with it -- keeping the halo on the
+   unclipped outer element means the diamond cursor still gets one.
+
+   The dark+light double outline before the color itself is a fixed,
+   non-customizable contrast backing (a small map-pin-style halo) so an
+   arbitrary user-chosen `--hic` stays visible whether it lands over a light
+   or a dark patch of real camera/3D content -- one fixed color alone can't
+   guarantee that, but a dark ring + a light ring together nearly always has
+   at least one edge that contrasts. */
+.hand-cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px; /* center on the written point */
+  border-radius: 50%; /* the halo's own shape -- always round regardless of cursorShape, see above */
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 3px rgba(255, 255, 255, 0.55),
+    0 0 0 6px var(--hic-soft),
+    0 0 16px var(--hic-glow);
+  opacity: 0;
+  will-change: left, top, transform;
+  transition: box-shadow var(--dur-fast, 150ms) var(--ease-out);
+}
+
+/* Engaged (isSelecting, Revision 5 -- was keyed off phase="armed"/"dragging"
+   until Bug 2's fix: phase only becomes "armed" once a target is captured,
+   so bringing fingers together over empty space produced no visual change
+   at all even though the gesture was real. isSelecting is the confirmed
+   gesture signal straight from GestureProcessor, true regardless of
+   whether anything is under the cursor -- this is a "distinct ring" (a
+   crisp, fully-opaque extra ring, not just a softer glow) layered onto the
+   same halo, per GOAL 2's "filled ... plus a distinct ring". Same short
+   150ms transition as the base halo -- covered by the ~180ms opacity fade
+   on tracking loss (see the cursor show/hide effect in
+   HandCursorOverlay.tsx), so it never has a chance to look "stuck". */
+.hand-cursor-dot[data-selecting="true"] {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 3px rgba(255, 255, 255, 0.55),
+    0 0 0 5px var(--hic),
+    0 0 0 8px var(--hic-soft),
+    0 0 22px var(--hic-glow);
+}
+
+/* Shape + fill (Bug 2 + GOAL 1). Neutral: outlined, unfilled -- fingers
+   apart, nothing captured yet. Engaged (isSelecting): filled -- see the
+   parent's [data-selecting] rule above for the accompanying ring. Shape is
+   purely which of these four rules matches; DEFAULT_CURSOR_SHAPE is
+   "circle" (border-radius: 50%), matching what shipped in Revisions 2-4
+   unchanged if nobody touches the setting. */
+.hand-cursor-dot-fill {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--hic);
+  background: transparent;
+  border-radius: 50%;
+  transition: background var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.hand-cursor-dot[data-selecting="true"] .hand-cursor-dot-fill {
+  background: var(--hic);
+}
+
+.hand-cursor-dot[data-shape="square"] .hand-cursor-dot-fill {
+  border-radius: 2px;
+  clip-path: none;
+}
+
+.hand-cursor-dot[data-shape="rounded-square"] .hand-cursor-dot-fill {
+  border-radius: 30%;
+  clip-path: none;
+}
+
+.hand-cursor-dot[data-shape="diamond"] .hand-cursor-dot-fill {
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+/* Highlight ring around the resolved hoverTarget. Geometry (left/top/
+   width/height) is written directly every tracked frame; the transition
+   below only smooths the glide between targets, it never fights the writes
+   (transform/opacity are driven separately, by Anime.js, on enter/exit).
+   Same double-outline contrast backing as the dot, via box-shadow instead
+   of a second border (the real border already carries the region's shape). */
+.hand-cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  border-radius: var(--radius-control, 14px);
+  border: 2px solid var(--hic-line);
+  background: var(--hic-soft);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 0 3px rgba(255, 255, 255, 0.35);
+  opacity: 0;
+  will-change: transform, opacity;
+  transition:
+    left var(--dur, 250ms) var(--ease-spring, ease-out),
+    top var(--dur, 250ms) var(--ease-spring, ease-out),
+    width var(--dur, 250ms) var(--ease-spring, ease-out),
+    height var(--dur, 250ms) var(--ease-spring, ease-out);
+}
+
+/* Same isSelecting signal as the dot above (Revision 5) -- was
+   phase="armed"/"dragging" before, which happened to be equivalent
+   whenever this ring is even visible (hoverTarget non-null implies a valid
+   capture target, so phase and isSelecting always agreed here) but
+   isSelecting is the more directly correct signal to key off, and keeping
+   both elements consistent avoids the two ever silently drifting apart. */
+.hand-cursor-ring[data-selecting="true"] {
+  border-width: 3px;
+}
+
+/* One-shot activation burst, positioned and (re)triggered from JS. Shared by
+   both activation paths (manual select and dwell) -- see firePulse() in
+   HandCursorOverlay.tsx. */
+.hand-cursor-pulse {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 50%;
+  border: 2px solid var(--hic);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- Dwell (2s hover) activation border (Revision 4, GOAL 2) --- */
+
+/* Full-viewport SVG for the perimeter-tracing border -- geometry (x/y/
+   width/height/rx/ry) and progress (stroke-dashoffset) are all written
+   directly every tracked frame in HandCursorOverlay.tsx; only opacity
+   (enter/exit) is Anime.js's, same division of labor as everything else
+   here. */
+.hand-dwell-svg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.hand-dwell-ring {
+  fill: none;
+  stroke: var(--hic);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0;
+  /* Same dark+light contrast backing as the dot/ring above, done as a pair
+     of drop-shadows since SVG strokes don't support layered box-shadows. */
+  filter: drop-shadow(0 0 0.5px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.5));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hand-cursor-ring {
+    transition-duration: 0ms;
+  }
+}
+
+/* --- Two-hand pinch-to-zoom (Revision 3, GOAL 2/3) ---
+   Thumb/index pinch, both hands -- unaffected by Revision 4's select rename
+   (that only replaced the ONE-hand click/drag gesture, above). Colors here
+   are intentionally still the fixed accent/warm two-tone direction cue
+   (in/out), not `--hic` -- a separate gesture family this revision doesn't
+   otherwise touch, see HANDOFF_AGENT3.md. */
+
+/* Full-viewport SVG just for the connecting line -- markers/badge are plain
+   positioned divs like the rest of this file, kept consistent. */
+.hand-zoom-line-svg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.hand-zoom-line {
+  stroke: var(--accent-line, rgba(53, 240, 208, 0.45));
+  stroke-width: 2;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+  opacity: 0;
+}
+
+/* One per hand. Position (left/top) written directly every tracked frame;
+   opacity (enter/exit) is the only thing Anime.js touches here. */
+.hand-zoom-marker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2px solid var(--accent, #35f0d0);
+  background: var(--accent-soft, rgba(53, 240, 208, 0.14));
+  box-shadow: 0 0 14px var(--accent-glow, rgba(53, 240, 208, 0.35));
+  opacity: 0;
+}
+
+/* Zoom-amount readout at the midpoint between the two hands. A small
+   direction chevron (CSS-drawn triangle) plus a signed percentage. */
+.hand-zoom-badge {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1, 0.25rem);
+  transform: translate(-50%, calc(-100% - 20px)); /* float just above the midpoint */
+  padding: var(--space-1, 0.25rem) var(--space-3, 0.75rem);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-strong, rgba(255, 255, 255, 0.09));
+  border: var(--border, 1px solid rgba(255, 255, 255, 0.09));
+  backdrop-filter: blur(var(--blur, 20px));
+  color: var(--accent, #35f0d0);
+  font: var(--fw-medium, 500) var(--fs-sm, 0.8125rem) / 1 var(--font, sans-serif);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.hand-zoom-badge::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 6px solid currentColor;
+  transition: transform var(--dur-fast, 150ms) var(--ease-out);
+}
+
+.hand-zoom-badge[data-direction="out"] {
+  color: var(--warm, #ff9a2e);
+}
+
+.hand-zoom-badge[data-direction="out"]::before {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hand-zoom-badge::before {
+    transition-duration: 0ms;
+  }
+}

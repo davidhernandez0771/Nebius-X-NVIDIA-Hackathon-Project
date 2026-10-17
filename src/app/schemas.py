@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RoomIn(BaseModel):
@@ -47,6 +47,10 @@ class PhotoAnalyzeOut(BaseModel):
     photo_id: int
     candidates: list[CandidateOut]
     est_cost_usd: float
+    # True when the vision reply was cut off (hit the token limit) or wasn't
+    # fully parseable -- candidates above are still whatever was salvaged.
+    truncated: bool = False
+    warnings: list[str] = []
 
 
 class CandidateReviewIn(BaseModel):
@@ -68,7 +72,7 @@ class ItemOut(BaseModel):
 class ItemUpdateIn(BaseModel):
     name: str | None = None
     category: str | None = None
-    quantity: int | None = None
+    quantity: int | None = Field(default=None, ge=0)
     status: Literal["active", "trash"] | None = None
 
 
@@ -96,7 +100,7 @@ class OrganizeOut(BaseModel):
 
 
 class ChatIn(BaseModel):
-    text: str
+    text: str = Field(min_length=1)
     room_id: int
 
 

@@ -174,6 +174,7 @@ def test_organize_never_moves_items(api, room):
 
 def test_organize_model_failure_is_502_and_stores_no_proposal(api, room):
     make_item(room.id, room.location_id, "lamp")
+    make_location(api, room.id, "Shelf")  # a second location so this reaches the model call, not the single-location shortcut
     with patch("app.ai.organize.chat", side_effect=TokenFactoryError("down")):
         r = api.post("/api/organize", json={"room_id": room.id})
 
