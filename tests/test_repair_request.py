@@ -11,6 +11,7 @@ from app.ai.repair_request import (
     DemoContext,
     RequestError,
     parse_intents,
+    parse_repair_request,
     resolve,
 )
 from demo_pipeline.repair import apply_repairs
@@ -190,3 +191,69 @@ def test_resolved_ops_run_through_apply_repairs():
         {"op": "smooth", "span": "carry"}, {"op": "retime", "span": "retreat", "speed_factor": 1.5}]})), ctx)
     out = apply_repairs(traj, ops, SCENE, bin_rim_z=0.08)
     assert out.t[-1] < traj.t[-1] - 2.5  # 2 s of idle and a 1 s pause gone, retreat faster
+
+
+# --- parse_repair_request: the model path, with one retry ----------------------------
+
+class FakeChat:
+    """Stands in for nebius_llm.chat: returns the queued replies in order and records each prompt."""
+
+    def __init__(self, *replies: str, cost: float = 0.001):
+        self.replies, self.cost, self.calls = list(replies), cost, []
+
+    def __call__(self, prompt, tier=None, *, system=None, max_tokens=1024, **kw):
+        self.calls.append({"prompt": prompt, "tier": tier, "system": system, "max_tokens": max_tokens})
+        return type("R", (), {"text": self.replies.pop(0), "est_cost_usd": self.cost})()
+
+
+def test_a_valid_reply_becomes_ops_in_one_call():
+    fake = FakeChat('{"ops": [{"op": "recenter_grasp"}]}')
+    res = parse_repair_request("center the grasp", CTX, chat_fn=fake)
+    assert res.ops == [RecenterGrasp(op="recenter_grasp", t=2.48)]
+    assert [i.op for i in res.intents] == ["recenter_grasp"]
+    assert (res.calls, res.cost, res.error) == (1, 0.001, None)
+
+
+def test_the_prompt_carries_the_demo_and_the_request_and_uses_the_text_tier():
+    fake = FakeChat('{"ops": []}')
+    parse_repair_request("smooth the carry", CTX, chat_fn=fake)
+    (call,) = fake.calls
+    assert "smooth the carry" in call["prompt"] and CTX.describe() in call["prompt"]
+    assert call["tier"] == "super"
+    for op in ("trim", "remove_pause", "smooth", "retime", "recenter_grasp", "replan_transit", "discard"):
+        assert op in call["system"]
+
+
+def test_an_invalid_reply_is_retried_once_with_the_error():
+    fake = FakeChat("not json", '{"ops": [{"op": "discard"}]}')
+    res = parse_repair_request("throw it away", CTX, chat_fn=fake)
+    assert res.ops == [Discard(op="discard")] and res.calls == 2 and res.cost == pytest.approx(0.002)
+    assert "no JSON object" in fake.calls[1]["prompt"] and "throw it away" in fake.calls[1]["prompt"]
+    assert res.error is None
+
+
+def test_a_reply_naming_a_missing_pause_counts_as_invalid():
+    fake = FakeChat('{"ops": [{"op": "remove_pause", "pause": 3}]}', '{"ops": [{"op": "remove_pause", "pause": 2}]}')
+    res = parse_repair_request("remove the third pause", CTX, chat_fn=fake)
+    assert res.calls == 2 and res.ops == [RemovePause(op="remove_pause", t0=8.2, t1=9.05)]
+
+
+def test_two_invalid_replies_give_no_ops_and_keep_the_error():
+    fake = FakeChat("nope", '{"ops": [{"op": "teleport"}]}')
+    res = parse_repair_request("teleport the cube", CTX, chat_fn=fake)
+    assert (res.ops, res.intents, res.calls) == ([], [], 2)
+    assert res.error and "off the menu" in res.error
+    assert res.raw == ["nope", '{"ops": [{"op": "teleport"}]}']
+
+
+def test_retries_zero_makes_exactly_one_call():
+    fake = FakeChat("nope")
+    res = parse_repair_request("x", CTX, chat_fn=fake, retries=0)
+    assert (res.calls, res.ops) == (1, []) and res.error
+
+
+def test_ops_that_fail_the_repair_op_schema_are_a_request_error():
+    ctx = DemoContext(duration=5.0, t_close=1.0, t_open=4.0, idle_start=(0.0, 3.0), idle_end=(2.0, 5.0),
+                      pauses=(), speeds={"whole": 0.1})
+    with pytest.raises(RequestError):
+        resolve(parse_intents('{"ops": [{"op": "trim", "end": "both"}]}'), ctx)

@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Annotated, Literal, Union
+from typing import Annotated, Callable, Literal, Union
 
 import numpy as np
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError, field_validator
 
 from demo_pipeline.measure import gripper_events
+from nebius_llm import chat
 from demo_pipeline.rules import detect_rules
 from demo_pipeline.schemas import (
     Discard,
@@ -209,6 +210,13 @@ def _span_speed(span, ctx: DemoContext) -> float:
 
 def resolve(intents: list, ctx: DemoContext) -> list:
     """RepairOps for the intents, with times from the demo. Raises RequestError if one can't apply."""
+    try:
+        return _resolve(intents, ctx)
+    except ValidationError as error:
+        raise RequestError(f"the ops don't fit the repair menu for this demo: {error}") from error
+
+
+def _resolve(intents: list, ctx: DemoContext) -> list:
     ops: list = []
     trim_start = trim_end = False
     pauses: list[tuple[float, float]] = []
@@ -241,3 +249,64 @@ def resolve(intents: list, ctx: DemoContext) -> list:
     head = [Trim(op="trim", t0=keep_from, t1=keep_to)] if (keep_from, keep_to) != (0.0, ctx.duration) else []
     head += [RemovePause(op="remove_pause", t0=a, t1=b) for a, b in sorted(pauses)]
     return _REPAIR_OPS.validate_python([op.model_dump() for op in head + ops])
+
+
+# --- the model path -----------------------------------------------------------------
+
+TIER = "super"  # Nemotron text tier (config.TIERS); the request is text, so no VL model is needed
+MAX_TOKENS = 300
+
+REPAIR_PROMPT = (
+    "You turn a user's request about one recorded robot pick-and-place demo into repair ops from "
+    "a fixed menu. Output ONLY a JSON object, no prose:\n"
+    '{"ops": [ ...zero or more ops... ]}\n'
+    "The menu (nothing else is allowed):\n"
+    '- {"op": "trim", "end": "start"|"end"|"both"}: cut idle time at the start and/or end.\n'
+    '- {"op": "remove_pause", "pause": <pause number from the demo>|"all"}: cut a pause.\n'
+    '- {"op": "smooth", "span": <span>, "strength": "low"|"med"|"high"}: smooth shaky motion.\n'
+    '- {"op": "retime", "span": <span>, "speed_factor": <number>}: change speed; 2 = twice as '
+    "fast, 0.5 = half speed, about 1.5 for a vague 'faster', about 0.7 for a vague 'slower'.\n"
+    '- {"op": "recenter_grasp"}: the gripper closes off-center on the cube.\n'
+    '- {"op": "replan_transit"}: carry the cube on a higher path over the bin rim.\n'
+    '- {"op": "discard"}: throw the whole demo away.\n'
+    '<span> is "approach", "carry", "retreat", "whole", or [t0, t1] in seconds if the user gives '
+    "times.\n"
+    "Rules: include only what the user asks for. If they say not to do something, or that "
+    'something is fine, leave it out. Use smooth strength "med" unless they say a little or a '
+    "lot. If the request is a question, asks for no change, is too vague, or asks for something "
+    'not on the menu, output {"ops": []}. Use the demo facts to pick pause numbers and spans.'
+)
+
+
+@dataclass
+class RequestResult:
+    intents: list
+    ops: list
+    calls: int
+    cost: float
+    error: str | None = None
+    raw: list[str] = field(default_factory=list)
+
+
+def _prompt(text: str, ctx: DemoContext) -> str:
+    return f"Demo facts:\n{ctx.describe()}\n\nUser request: {text}"
+
+
+def parse_repair_request(text: str, ctx: DemoContext, *, chat_fn: Callable = chat, retries: int = 1) -> RequestResult:
+    """Ask the model for intents and resolve them. An invalid reply is retried `retries` times, then gives no ops."""
+    res = RequestResult(intents=[], ops=[], calls=0, cost=0.0)
+    prompt = _prompt(text, ctx)
+    for _ in range(retries + 1):
+        reply = chat_fn(prompt, tier=TIER, system=REPAIR_PROMPT, max_tokens=MAX_TOKENS)
+        res.calls += 1
+        res.cost += reply.est_cost_usd
+        res.raw.append(reply.text)
+        try:
+            intents = parse_intents(reply.text)
+            res.ops, res.intents, res.error = resolve(intents, ctx), intents, None
+            return res
+        except RequestError as error:
+            res.error = str(error)
+            prompt = (f"{_prompt(text, ctx)}\n\nYour previous reply was invalid: {error}\n"
+                      "Reply again with only the JSON object, using only the menu.")
+    return res
