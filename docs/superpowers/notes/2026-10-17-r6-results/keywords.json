@@ -1,0 +1,794 @@
+{
+  "arm": "keywords",
+  "spend": {
+    "calls": 0,
+    "cost": 0.0
+  },
+  "score": {
+    "n": 34,
+    "exact": {
+      "all": 0.9117647058823529,
+      "paraphrase": 0.8666666666666667,
+      "negation": 1.0,
+      "multi": 0.8571428571428571,
+      "none": 1.0
+    },
+    "micro": {
+      "tp": 43,
+      "fp": 2,
+      "fn": 1,
+      "p": 0.9555555555555556,
+      "r": 0.9772727272727273,
+      "f1": 0.9662921348314608
+    },
+    "op_only": {
+      "tp": 43,
+      "fp": 2,
+      "fn": 1,
+      "p": 0.9555555555555556,
+      "r": 0.9772727272727273,
+      "f1": 0.9662921348314608
+    },
+    "per_op": {
+      "trim": {
+        "tp": 8,
+        "fp": 0,
+        "fn": 1,
+        "p": 1.0,
+        "r": 0.8888888888888888,
+        "f1": 0.9411764705882353
+      },
+      "remove_pause": {
+        "tp": 11,
+        "fp": 0,
+        "fn": 0,
+        "p": 1.0,
+        "r": 1.0,
+        "f1": 1.0
+      },
+      "smooth": {
+        "tp": 10,
+        "fp": 1,
+        "fn": 0,
+        "p": 0.9090909090909091,
+        "r": 1.0,
+        "f1": 0.9523809523809523
+      },
+      "retime": {
+        "tp": 7,
+        "fp": 1,
+        "fn": 0,
+        "p": 0.875,
+        "r": 1.0,
+        "f1": 0.9333333333333333
+      },
+      "recenter_grasp": {
+        "tp": 4,
+        "fp": 0,
+        "fn": 0,
+        "p": 1.0,
+        "r": 1.0,
+        "f1": 1.0
+      },
+      "replan_transit": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "p": 1.0,
+        "r": 1.0,
+        "f1": 1.0
+      },
+      "discard": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "p": 1.0,
+        "r": 1.0,
+        "f1": 1.0
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "r01",
+      "category": "paraphrase",
+      "text": "Cut the dead time at the beginning.",
+      "gold": [
+        {
+          "op": "trim",
+          "end": "start"
+        }
+      ],
+      "pred": [
+        {
+          "op": "trim",
+          "end": "start"
+        }
+      ]
+    },
+    {
+      "id": "r02",
+      "category": "paraphrase",
+      "text": "The robot just sits there at the end, get rid of that.",
+      "gold": [
+        {
+          "op": "trim",
+          "end": "end"
+        }
+      ],
+      "pred": [
+        {
+          "op": "trim",
+          "end": "end"
+        }
+      ]
+    },
+    {
+      "id": "r03",
+      "category": "paraphrase",
+      "text": "Trim the idle time off both ends.",
+      "gold": [
+        {
+          "op": "trim",
+          "end": "start"
+        },
+        {
+          "op": "trim",
+          "end": "end"
+        }
+      ],
+      "pred": [
+        {
+          "op": "trim",
+          "end": "start"
+        },
+        {
+          "op": "trim",
+          "end": "end"
+        }
+      ]
+    },
+    {
+      "id": "r04",
+      "category": "paraphrase",
+      "text": "Remove the pauses.",
+      "gold": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ],
+      "pred": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ]
+    },
+    {
+      "id": "r05",
+      "category": "paraphrase",
+      "text": "It stops for a moment around 8 seconds, take that out.",
+      "gold": [
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ],
+      "pred": [
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ]
+    },
+    {
+      "id": "r06",
+      "category": "paraphrase",
+      "text": "Get rid of the first hesitation.",
+      "gold": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        }
+      ],
+      "pred": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        }
+      ]
+    },
+    {
+      "id": "r07",
+      "category": "paraphrase",
+      "text": "The carry is shaky, smooth it out a lot.",
+      "gold": [
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": "high"
+        }
+      ],
+      "pred": [
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": "med"
+        },
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": "high"
+        }
+      ]
+    },
+    {
+      "id": "r08",
+      "category": "paraphrase",
+      "text": "Smooth the whole thing slightly.",
+      "gold": [
+        {
+          "op": "smooth",
+          "span": "whole",
+          "strength": "low"
+        }
+      ],
+      "pred": [
+        {
+          "op": "smooth",
+          "span": "whole",
+          "strength": "low"
+        }
+      ]
+    },
+    {
+      "id": "r09",
+      "category": "paraphrase",
+      "text": "The approach is way too slow, make it twice as fast.",
+      "gold": [
+        {
+          "op": "retime",
+          "span": "approach",
+          "factor": [
+            1.9,
+            2.1
+          ]
+        }
+      ],
+      "pred": [
+        {
+          "op": "retime",
+          "span": "approach",
+          "factor": 1.5
+        },
+        {
+          "op": "retime",
+          "span": "approach",
+          "factor": 2.0
+        }
+      ]
+    },
+    {
+      "id": "r10",
+      "category": "paraphrase",
+      "text": "Slow down the retreat a bit.",
+      "gold": [
+        {
+          "op": "retime",
+          "span": "retreat",
+          "factor": [
+            0.3,
+            0.95
+          ]
+        }
+      ],
+      "pred": [
+        {
+          "op": "retime",
+          "span": "retreat",
+          "factor": 0.7
+        }
+      ]
+    },
+    {
+      "id": "r11",
+      "category": "paraphrase",
+      "text": "The gripper closes off-center on the cube, fix the grasp.",
+      "gold": [
+        {
+          "op": "recenter_grasp"
+        }
+      ],
+      "pred": [
+        {
+          "op": "recenter_grasp"
+        }
+      ]
+    },
+    {
+      "id": "r12",
+      "category": "paraphrase",
+      "text": "It nearly clips the bin rim while carrying; take a higher path over to the bin.",
+      "gold": [
+        {
+          "op": "replan_transit"
+        }
+      ],
+      "pred": [
+        {
+          "op": "replan_transit"
+        }
+      ]
+    },
+    {
+      "id": "r13",
+      "category": "paraphrase",
+      "text": "This demo is garbage, throw it out.",
+      "gold": [
+        {
+          "op": "discard"
+        }
+      ],
+      "pred": [
+        {
+          "op": "discard"
+        }
+      ]
+    },
+    {
+      "id": "r14",
+      "category": "paraphrase",
+      "text": "Speed up the carry.",
+      "gold": [
+        {
+          "op": "retime",
+          "span": "carry",
+          "factor": [
+            1.05,
+            3.0
+          ]
+        }
+      ],
+      "pred": [
+        {
+          "op": "retime",
+          "span": "carry",
+          "factor": 1.5
+        }
+      ]
+    },
+    {
+      "id": "r15",
+      "category": "paraphrase",
+      "text": "Smooth between 3 and 5 seconds.",
+      "gold": [
+        {
+          "op": "smooth",
+          "span": [
+            3.0,
+            5.0
+          ],
+          "strength": null
+        }
+      ],
+      "pred": [
+        {
+          "op": "smooth",
+          "span": [
+            3.0,
+            5.0
+          ],
+          "strength": "med"
+        }
+      ]
+    },
+    {
+      "id": "r16",
+      "category": "negation",
+      "text": "The pause at the start is fine but center the grasp.",
+      "gold": [
+        {
+          "op": "recenter_grasp"
+        }
+      ],
+      "pred": [
+        {
+          "op": "recenter_grasp"
+        }
+      ]
+    },
+    {
+      "id": "r17",
+      "category": "negation",
+      "text": "Don't trim the end, just remove the pauses.",
+      "gold": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ],
+      "pred": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ]
+    },
+    {
+      "id": "r18",
+      "category": "negation",
+      "text": "Leave the speed alone and smooth the carry.",
+      "gold": [
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": null
+        }
+      ],
+      "pred": [
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": "med"
+        }
+      ]
+    },
+    {
+      "id": "r19",
+      "category": "negation",
+      "text": "Keep the idle time at the start, but trim the end.",
+      "gold": [
+        {
+          "op": "trim",
+          "end": "end"
+        }
+      ],
+      "pred": [
+        {
+          "op": "trim",
+          "end": "end"
+        }
+      ]
+    },
+    {
+      "id": "r20",
+      "category": "negation",
+      "text": "Don't touch the grasp; the second pause should go.",
+      "gold": [
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ],
+      "pred": [
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ]
+    },
+    {
+      "id": "r21",
+      "category": "negation",
+      "text": "No need to smooth anything, just make the approach faster.",
+      "gold": [
+        {
+          "op": "retime",
+          "span": "approach",
+          "factor": [
+            1.05,
+            3.0
+          ]
+        }
+      ],
+      "pred": [
+        {
+          "op": "retime",
+          "span": "approach",
+          "factor": 1.5
+        }
+      ]
+    },
+    {
+      "id": "r22",
+      "category": "negation",
+      "text": "Don't trim anything, but smooth the approach and the carry.",
+      "gold": [
+        {
+          "op": "smooth",
+          "span": "approach",
+          "strength": null
+        },
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": null
+        }
+      ],
+      "pred": [
+        {
+          "op": "smooth",
+          "span": "approach",
+          "strength": "med"
+        },
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": "med"
+        }
+      ]
+    },
+    {
+      "id": "r23",
+      "category": "multi",
+      "text": "Trim the start and the end, and remove both pauses.",
+      "gold": [
+        {
+          "op": "trim",
+          "end": "start"
+        },
+        {
+          "op": "trim",
+          "end": "end"
+        },
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ],
+      "pred": [
+        {
+          "op": "trim",
+          "end": "start"
+        },
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "remove_pause",
+          "pause": 2
+        }
+      ]
+    },
+    {
+      "id": "r24",
+      "category": "multi",
+      "text": "Center the grasp and smooth the carry.",
+      "gold": [
+        {
+          "op": "recenter_grasp"
+        },
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": null
+        }
+      ],
+      "pred": [
+        {
+          "op": "recenter_grasp"
+        },
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": "med"
+        }
+      ]
+    },
+    {
+      "id": "r25",
+      "category": "multi",
+      "text": "Cut the idle at the start, remove the first pause, and go higher over the bin.",
+      "gold": [
+        {
+          "op": "trim",
+          "end": "start"
+        },
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "replan_transit"
+        }
+      ],
+      "pred": [
+        {
+          "op": "trim",
+          "end": "start"
+        },
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "replan_transit"
+        }
+      ]
+    },
+    {
+      "id": "r26",
+      "category": "multi",
+      "text": "The retreat at the end is too slow, and smooth the carry.",
+      "gold": [
+        {
+          "op": "retime",
+          "span": "retreat",
+          "factor": [
+            1.05,
+            3.0
+          ]
+        },
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": null
+        }
+      ],
+      "pred": [
+        {
+          "op": "retime",
+          "span": "retreat",
+          "factor": 1.5
+        },
+        {
+          "op": "smooth",
+          "span": "carry",
+          "strength": "med"
+        }
+      ]
+    },
+    {
+      "id": "r27",
+      "category": "multi",
+      "text": "Make the whole demo 1.5x faster and smooth it a little.",
+      "gold": [
+        {
+          "op": "retime",
+          "span": "whole",
+          "factor": [
+            1.4,
+            1.6
+          ]
+        },
+        {
+          "op": "smooth",
+          "span": "whole",
+          "strength": "low"
+        }
+      ],
+      "pred": [
+        {
+          "op": "retime",
+          "span": "whole",
+          "factor": 1.5
+        },
+        {
+          "op": "smooth",
+          "span": "whole",
+          "strength": "low"
+        }
+      ]
+    },
+    {
+      "id": "r28",
+      "category": "multi",
+      "text": "Remove the pause at 5.5 s and slow the approach down to half speed.",
+      "gold": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "retime",
+          "span": "approach",
+          "factor": [
+            0.45,
+            0.55
+          ]
+        }
+      ],
+      "pred": [
+        {
+          "op": "remove_pause",
+          "pause": 1
+        },
+        {
+          "op": "retime",
+          "span": "approach",
+          "factor": 0.5
+        }
+      ]
+    },
+    {
+      "id": "r29",
+      "category": "multi",
+      "text": "Fix the off-center grasp, get rid of the dead time at the end, and smooth the retreat heavily.",
+      "gold": [
+        {
+          "op": "recenter_grasp"
+        },
+        {
+          "op": "trim",
+          "end": "end"
+        },
+        {
+          "op": "smooth",
+          "span": "retreat",
+          "strength": "high"
+        }
+      ],
+      "pred": [
+        {
+          "op": "recenter_grasp"
+        },
+        {
+          "op": "trim",
+          "end": "end"
+        },
+        {
+          "op": "smooth",
+          "span": "retreat",
+          "strength": "high"
+        }
+      ]
+    },
+    {
+      "id": "r30",
+      "category": "none",
+      "text": "Looks great, no changes.",
+      "gold": [],
+      "pred": []
+    },
+    {
+      "id": "r31",
+      "category": "none",
+      "text": "Use the blue cube instead of the red one.",
+      "gold": [],
+      "pred": []
+    },
+    {
+      "id": "r32",
+      "category": "none",
+      "text": "Make it better.",
+      "gold": [],
+      "pred": []
+    },
+    {
+      "id": "r33",
+      "category": "none",
+      "text": "Don't change anything.",
+      "gold": [],
+      "pred": []
+    },
+    {
+      "id": "r34",
+      "category": "none",
+      "text": "What does retime do?",
+      "gold": [],
+      "pred": []
+    }
+  ]
+}
