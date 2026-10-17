@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_TELEOP_CONTROL, type TeleopControlSettings } from "../../teleop/controlRegion";
-import { GRIPPER, TABLE_MARK, Z_RANGE, controlFraming, nextGripper, robotHeight } from "./framing";
+import { CUBE_ROW, GRIPPER, TABLE_MARK, X_RANGE, Z_RANGE, controlFraming, nextGripper, robotHeight, robotReach } from "./framing";
 
 const S: TeleopControlSettings = { ...DEFAULT_TELEOP_CONTROL, region: { centerX: 0.5, centerY: 0.5, width: 0.4, height: 0.4 } };
 
@@ -33,6 +33,19 @@ describe("robotHeight", () => {
   it("marks the table (cube) level near the bottom of the bar", () => {
     expect(TABLE_MARK).toBeGreaterThanOrEqual(0);
     expect(TABLE_MARK).toBeLessThan(0.05);
+  });
+});
+
+describe("robotReach", () => {
+  it("follows the sim's x mapping: depth 0 is back (x_range[0]), 1 forward (x_range[1])", () => {
+    expect(X_RANGE).toEqual([0.3, 0.7]);
+    expect(robotReach([0.5, 0.5, 0])).toEqual({ fraction: 0, x: 0.3 });
+    expect(robotReach([0.5, 0.5, 1]).x).toBeCloseTo(0.7, 12);
+    expect(robotReach([0.5, 0.5, 2]).fraction).toBe(1);
+  });
+  it("marks the cube's row (x 0.50 in the live scene) at depth 0.5", () => {
+    expect(CUBE_ROW).toBeCloseTo(0.5, 12);
+    expect(robotReach([0.5, 0.5, CUBE_ROW]).x).toBeCloseTo(0.5, 12);
   });
 });
 

@@ -67,6 +67,18 @@ export function robotHeight(control: readonly [number, number, number]): { fract
   return { fraction, z: Z_RANGE[0] + fraction * (Z_RANGE[1] - Z_RANGE[0]) };
 }
 
+// Calibration's x_range (reach, back to forward), and the live scene's cube row
+// (sim_worker/scripts/teleop_sink.py base_scene: cube at x 0.50). Update together.
+export const X_RANGE: readonly [number, number] = [0.3, 0.7];
+const CUBE_X = 0.5;
+export const CUBE_ROW = (CUBE_X - X_RANGE[0]) / (X_RANGE[1] - X_RANGE[0]);
+
+/** The arm's target reach for a control triple, as to_ee_target computes it (x follows depth). */
+export function robotReach(control: readonly [number, number, number]): { fraction: number; x: number } {
+  const fraction = Math.min(1, Math.max(0, control[2]));
+  return { fraction, x: X_RANGE[0] + fraction * (X_RANGE[1] - X_RANGE[0]) };
+}
+
 /** demo_pipeline.teleop.GripperLatch's thresholds, so the page shows what the sim will do. */
 export const GRIPPER = { closeBelow: 0.35, openAbove: 0.45 } as const;
 

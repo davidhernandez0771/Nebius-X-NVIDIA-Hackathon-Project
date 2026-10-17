@@ -19,6 +19,7 @@ export interface TeleopControlSettings {
   region: ControlRegion;
   depthFar: number; // palm width (px / frame_w) with the hand far from the camera -> depth 0
   depthNear: number; // ... near the camera -> depth 1
+  depthAuto: boolean; // true: re-center the depth range on the hand when tracking starts (ReachCenterer)
   invertX: boolean; // flips left-right
   invertY: boolean; // flips up-down
 }
@@ -33,6 +34,7 @@ export const DEFAULT_TELEOP_CONTROL: TeleopControlSettings = {
   region: DEFAULT_TELEOP_REGION,
   depthFar: 0.07,
   depthNear: 0.13,
+  depthAuto: true,
   invertX: false,
   invertY: false,
 };
@@ -62,9 +64,21 @@ export function regionFraction(p: { x: number; y: number }, r: ControlRegion): [
   return [clamp(tX, 0, 1), clamp(tY, 0, 1)];
 }
 
-/** 0 at depthFar, 1 at depthNear, clamped. */
+/** 0 at depthFar, 1 at depthNear, clamped. On a log scale: palm width goes as 1 / distance, so equal
+ *  ratios of palm width are equal steps of reach, and the geometric mean of far and near is 0.5. */
 export function depthFraction(palmWidth: number, far: number, near: number): number {
-  return clamp((palmWidth - far) / (near - far || Number.EPSILON), 0, 1);
+  if (!(palmWidth > 0)) return 0;
+  return clamp(Math.log(palmWidth / far) / (Math.log(near / far) || Number.EPSILON), 0, 1);
+}
+
+// Palm width jitters by a few percent frame to frame; unsmoothed, the arm would shake in and out.
+// A time-based EMA (frame-rate independent): ~120 ms time constant, a lag a user doesn't feel.
+export const DEPTH_SMOOTHING_MS = 120;
+
+/** One EMA step from prev toward raw over dtMs; a clock that didn't advance holds prev. */
+export function smoothDepth(raw: number, prev: number, dtMs: number): number {
+  if (!(dtMs > 0)) return prev;
+  return prev + (1 - Math.exp(-dtMs / DEPTH_SMOOTHING_MS)) * (raw - prev);
 }
 
 /** HandPoseMsg.control for one hand: [u, v, depth], raw orientation, with the user's inversions applied. */
@@ -103,6 +117,7 @@ export function sanitizeTeleopControl(raw: unknown): TeleopControlSettings {
     region,
     depthFar: depthOk ? (o.depthFar as number) : d.depthFar,
     depthNear: depthOk ? (o.depthNear as number) : d.depthNear,
+    depthAuto: bool(o.depthAuto, d.depthAuto),
     invertX: bool(o.invertX, d.invertX),
     invertY: bool(o.invertY, d.invertY),
   };
@@ -124,6 +139,42 @@ export function saveTeleopControl(s: TeleopControlSettings, store?: KeyValueStor
     (store ?? localStorage).setItem(TELEOP_CONTROL_STORAGE_KEY, JSON.stringify(s));
   } catch {
     // Private browsing or storage disabled: the settings just won't persist.
+  }
+}
+
+const median = (xs: number[]): number => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+// --- Auto-centered reach: the hand's natural distance is the middle of the reach ------------
+
+// Live test #2: a fixed depth range doesn't fit every webcam and seat (the user's palm read 0.059,
+// below the 0.07 default far end), and depth clamped to 0 left the arm 20 cm short of the cube.
+// So the range is centered on the hand's own natural palm width: depth 0.5 there, which to_ee_target
+// maps to x 0.50, the cube's row; 30% closer or farther reaches the ends.
+export const RECENTER_FACTOR = 1.3;
+export const RECENTER_MS = 1000;
+const RECENTER_MIN_SAMPLES = 5;
+
+export function reachFromNeutral(neutral: number): { depthFar: number; depthNear: number } {
+  return { depthFar: neutral / RECENTER_FACTOR, depthNear: neutral * RECENTER_FACTOR };
+}
+
+/** Collects ~1 s of tracked palm widths, then answers once with reachFromNeutral(median). */
+export class ReachCenterer {
+  private start: number | null = null;
+  private widths: number[] = [];
+  done = false;
+
+  push(t: number, palmWidth: number | null): { depthFar: number; depthNear: number } | null {
+    if (this.done || palmWidth === null || !(palmWidth > 0)) return null;
+    if (this.start === null) this.start = t; // the clock starts when the hand is first seen
+    this.widths.push(palmWidth);
+    if (t - this.start < RECENTER_MS || this.widths.length < RECENTER_MIN_SAMPLES) return null;
+    this.done = true;
+    return reachFromNeutral(median(this.widths));
   }
 }
 
@@ -163,12 +214,6 @@ const MIN_SAMPLES = 10;
 const PADDING_FACTOR = 1.05;
 const MIN_DEPTH_RATIO = 1.15; // near must be at least this much wider than far
 const DEPTH_INSET = 0.1; // pull both ends 10% inward, so they are reachable without straining
-
-const median = (xs: number[]): number => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
 
 export class TeleopCalibrator {
   private step: CalibrationStep = "move";

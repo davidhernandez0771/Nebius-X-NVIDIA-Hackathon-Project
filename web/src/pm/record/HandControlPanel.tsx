@@ -32,15 +32,28 @@ type Props = {
   calibration: CalibrationState | null;
   onCalibrate: () => void;
   onCancelCalibration: () => void;
-  readout: { palmWidth: number | null; pinch: number | null };
+  recentering: boolean;
+  onRecenter: () => void;
+  readout: { palmWidth: number | null; pinch: number | null; control: readonly [number, number, number] | null };
 };
 
-export function HandControlPanel({ settings, onChange, canCalibrate, calibration, onCalibrate, onCancelCalibration, readout }: Props) {
+export function HandControlPanel({
+  settings,
+  onChange,
+  canCalibrate,
+  calibration,
+  onCalibrate,
+  onCancelCalibration,
+  recentering,
+  onRecenter,
+  readout,
+}: Props) {
   const r = settings.region;
   const set = (patch: Partial<TeleopControlSettings>) => onChange({ ...settings, ...patch });
   const setRegion = (patch: Partial<typeof r>) => set({ region: clampRegion({ ...r, ...patch }) });
   const bottomPercent = Math.round((r.centerY + r.height / 2) * 100);
   const running = calibration && calibration.step !== "done" && calibration.step !== "failed";
+  const c = readout.control;
 
   return (
     <GlassCard as="section" className="stack">
@@ -49,6 +62,11 @@ export function HandControlPanel({ settings, onChange, canCalibrate, calibration
         The center of your palm moves the arm. The dashed box on the camera view is your control region: small
         movements inside it reach the whole workspace, and the bottom edge of the box is table height.
       </p>
+      <ul className="muted small pm-axes">
+        <li>Left-right moves the arm to the side.</li>
+        <li>Up-down sets the height; the bottom of the box is the table.</li>
+        <li>Closer or farther from the camera sets the reach, forward and back.</li>
+      </ul>
 
       <label className="row">
         <input type="checkbox" checked={settings.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
@@ -107,7 +125,7 @@ export function HandControlPanel({ settings, onChange, canCalibrate, calibration
           step={0.005}
           value={settings.depthFar}
           disabled={!settings.enabled}
-          onChange={(e) => set({ depthFar: Math.min(Number(e.target.value), settings.depthNear - DEPTH_GAP) })}
+          onChange={(e) => set({ depthFar: Math.min(Number(e.target.value), settings.depthNear - DEPTH_GAP), depthAuto: false })}
         />
       </label>
 
@@ -124,13 +142,28 @@ export function HandControlPanel({ settings, onChange, canCalibrate, calibration
           step={0.005}
           value={settings.depthNear}
           disabled={!settings.enabled}
-          onChange={(e) => set({ depthNear: Math.max(Number(e.target.value), settings.depthFar + DEPTH_GAP) })}
+          onChange={(e) => set({ depthNear: Math.max(Number(e.target.value), settings.depthFar + DEPTH_GAP), depthAuto: false })}
         />
         <span className="calibration-field-hint">
           Palm width now: {readout.palmWidth !== null ? readout.palmWidth.toFixed(3) : "–"}. Hand far = arm back, hand
           near = arm forward.
         </span>
       </label>
+
+      <button type="button" className="ghost-button" onClick={onRecenter} disabled={!canCalibrate}>
+        Re-center reach
+      </button>
+      {recentering ? (
+        <p className="small" role="status">
+          Hold your hand where it feels natural for about a second: that distance becomes the cube's row.
+        </p>
+      ) : (
+        <p className="muted small">
+          {settings.depthAuto
+            ? "Reach centers on your hand's natural distance each time tracking starts."
+            : "Reach uses your calibrated range. Re-center reach or Reset to defaults to center it on your hand again."}
+        </p>
+      )}
 
       <label className="row">
         <input type="checkbox" checked={settings.invertY} onChange={(e) => set({ invertY: e.target.checked })} />
@@ -172,9 +205,15 @@ export function HandControlPanel({ settings, onChange, canCalibrate, calibration
       </button>
 
       <dl className="pm-status-list pm-num">
+        <dt>Control now</dt>
+        <dd data-testid="control-now">{c ? `u ${c[0].toFixed(2)} · v ${c[1].toFixed(2)} · depth ${c[2].toFixed(2)}` : "–"}</dd>
         <dt>Pinch</dt>
         <dd>{readout.pinch !== null ? readout.pinch.toFixed(2) : "–"}</dd>
       </dl>
+      <p className="muted small">
+        u is side, v is height (1 = table), depth is reach (0.5 = the cube's row). A 0 or 1 means your hand is past
+        that edge, so moving further changes nothing.
+      </p>
     </GlassCard>
   );
 }

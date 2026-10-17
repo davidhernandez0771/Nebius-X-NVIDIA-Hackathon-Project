@@ -186,15 +186,15 @@ describe("Record page", () => {
 
 // --- Hand control: the browser-side control region (teleop usability fix) -------------------
 
-/** A hand whose palm center (mean of 0, 5, 9, 17) is at (x, y), palm 0.1 wide on a 640 px frame. */
-function handAt(x: number, y: number, pinch = 0.6): HandLandmark[] {
+/** A hand whose palm center (mean of 0, 5, 9, 17) is at (x, y), palm `palm` wide (of the frame width). */
+function handAt(x: number, y: number, pinch = 0.6, palm = 0.1): HandLandmark[] {
   const lm: HandLandmark[] = Array.from({ length: 21 }, () => ({ x, y, z: 0 }));
   lm[0] = { x, y: y + 0.05, z: 0 };
   lm[9] = { x, y: y - 0.05, z: 0 };
-  lm[5] = { x: x - 0.05, y, z: 0 };
-  lm[17] = { x: x + 0.05, y, z: 0 };
+  lm[5] = { x: x - palm / 2, y, z: 0 };
+  lm[17] = { x: x + palm / 2, y, z: 0 };
   lm[4] = { x, y: y - 0.1, z: 0 };
-  lm[8] = { x: x + pinch * 0.1, y: y - 0.1, z: 0 }; // thumb-index distance = pinch x palm width
+  lm[8] = { x: x + pinch * palm, y: y - 0.1, z: 0 }; // thumb-index distance = pinch x palm width
   return lm;
 }
 
@@ -278,10 +278,89 @@ describe("Record page: hand control", () => {
     const far = handAt(0.5, 0.45).map((p, i) => ([5, 17].includes(i) ? { ...p, x: 0.5 + (p.x - 0.5) * 0.7 } : p));
     for (const end = t + 3100; t <= end; t += 50) sendFrame(t, far);
 
-    expect(screen.getByText(/calibrated/i)).toBeTruthy();
+    expect(screen.getByText(/^calibrated: region/i)).toBeTruthy();
     const s = stored();
     expect(s.region.centerY).toBeCloseTo(0.45, 1);
     expect(s.region.width).toBeCloseTo(0.3 * 1.05, 2);
     expect(s.depthFar).toBeLessThan(s.depthNear);
+    expect(s.depthAuto).toBe(false); // the calibrated range overrides auto-centering until reset
+  });
+});
+
+// --- Reach (live test #2): forward/back was stuck at x 0.30 and invisible -------------------
+
+/** Frames every 33 ms from t0 for ms, with the hand at the frame center and the given palm width. */
+function holdHand(t0: number, ms: number, palm: number): number {
+  let t = t0;
+  for (; t <= t0 + ms; t += 33) sendFrame(t, handAt(0.5, 0.45, 0.6, palm));
+  return t;
+}
+
+const meter = (name: RegExp) => screen.getByRole("meter", { name });
+
+describe("Record page: reach", () => {
+  it("auto-centers reach on the natural palm width when tracking starts: depth 0.5 = the cube's row", async () => {
+    const link = await startCamera();
+    // The user's live palm width, below the old 0.07 far default (which clamped depth to 0).
+    let t = holdHand(500, 1100, 0.059);
+    expect(stored().depthFar).toBeCloseTo(0.059 / 1.3, 3);
+    expect(stored().depthNear).toBeCloseTo(0.059 * 1.3, 3);
+    expect(stored().depthAuto).toBe(true);
+    expect((link.controls[link.controls.length - 1] as { depthFar: number }).depthFar).toBeCloseTo(0.059 / 1.3, 3);
+    t = holdHand(t, 600, 0.059); // let the smoothed depth settle
+    expect(Number(meter(/reach/i).getAttribute("aria-valuenow"))).toBe(50);
+    expect(meter(/reach/i).getAttribute("aria-valuetext")).toMatch(/x = 50 cm.*cube's row/i);
+    holdHand(t, 600, 0.059 * 1.3); // 30% closer: fully forward
+    expect(Number(meter(/reach/i).getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(97);
+    expect(meter(/reach/i).getAttribute("aria-valuetext")).toMatch(/x = 70 cm/i);
+  });
+
+  it("a calibrated (or hand-set) depth range is not auto-centered until Reset to defaults", async () => {
+    localStorage.setItem(TELEOP_CONTROL_STORAGE_KEY, JSON.stringify({ ...DEFAULT_TELEOP_CONTROL, depthFar: 0.05, depthNear: 0.09, depthAuto: false }));
+    await startCamera();
+    holdHand(500, 1500, 0.1);
+    expect(stored().depthFar).toBeCloseTo(0.05, 6);
+    fireEvent.change(slider(/near/i), { target: { value: "0.1" } });
+    expect(stored().depthAuto).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /reset to defaults/i }));
+    expect(stored().depthAuto).toBe(true);
+  });
+
+  it("moving a depth slider by hand turns auto-centering off", async () => {
+    await startCamera();
+    fireEvent.change(slider(/far/i), { target: { value: "0.05" } });
+    expect(stored().depthAuto).toBe(false);
+  });
+
+  it("Re-center reach re-centers on the current palm width, even over a calibration", async () => {
+    localStorage.setItem(TELEOP_CONTROL_STORAGE_KEY, JSON.stringify({ ...DEFAULT_TELEOP_CONTROL, depthFar: 0.05, depthNear: 0.09, depthAuto: false }));
+    renderAt("/pm/record", <RecordPage />, "/pm/record");
+    expect((screen.getByRole("button", { name: /re-center reach/i }) as HTMLButtonElement).disabled).toBe(true);
+    tracker.start.mockResolvedValueOnce(undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
+    await screen.findByRole("button", { name: "Stop camera" });
+    holdHand(0, 1500, 0.1); // calibrated: nothing changes
+    expect(stored().depthFar).toBeCloseTo(0.05, 6);
+    fireEvent.click(screen.getByRole("button", { name: /re-center reach/i }));
+    expect(screen.getByText(/hold your hand where it feels natural/i)).toBeTruthy();
+    holdHand(2000, 1100, 0.08);
+    expect(stored().depthFar).toBeCloseTo(0.08 / 1.3, 3);
+    expect(stored().depthNear).toBeCloseTo(0.08 * 1.3, 3);
+    expect(screen.queryByText(/hold your hand where it feels natural/i)).toBeNull();
+  });
+
+  it("explains the three axes, one line each", () => {
+    renderAt("/pm/record", <RecordPage />, "/pm/record");
+    expect(screen.getByText(/left-right.*side/i)).toBeTruthy();
+    expect(screen.getByText(/up-down.*height/i)).toBeTruthy();
+    expect(screen.getByText(/closer.*farther.*reach/i)).toBeTruthy();
+  });
+
+  it("shows the live [u, v, depth] numbers, so a clamped axis is visible", async () => {
+    await startCamera();
+    expect(screen.getByTestId("control-now").textContent).toBe("–");
+    const r = DEFAULT_TELEOP_CONTROL.region;
+    sendFrame(100, handAt(0.5, r.centerY + r.height / 2 + 0.1)); // below the box: v clamped to 1
+    expect(screen.getByTestId("control-now").textContent).toMatch(/^u 0\.50 · v 1\.00 · depth 0\.\d\d$/);
   });
 });

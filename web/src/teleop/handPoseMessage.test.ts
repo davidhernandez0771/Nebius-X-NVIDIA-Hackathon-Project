@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { HandFrame, HandLandmark, TrackedHand } from "../hand/contracts";
 import fixture from "./__fixtures__/hand_pose_msg.json";
-import { DEFAULT_TELEOP_CONTROL } from "./controlRegion";
+import { DEFAULT_TELEOP_CONTROL, DEPTH_SMOOTHING_MS, depthFraction, smoothDepth } from "./controlRegion";
 import { toHandPoseMsg, type HandPoseMsg } from "./handPoseMessage";
 import { TeleopClient, type TeleopStatus } from "./teleopClient";
 
@@ -78,7 +78,43 @@ describe("toHandPoseMsg", () => {
     const cy = (0.75 + 0.6 + 0.55 + 0.62) / 4;
     expect(msg.control![0]).toBeCloseTo((cx - 0.225) / 0.55, 12);
     expect(msg.control![1]).toBeCloseTo((cy - 0.15) / 0.55, 12);
-    expect(msg.control![2]).toBeCloseTo((msg.palm_width - 0.07) / (0.13 - 0.07), 12);
+    expect(msg.control![2]).toBeCloseTo(Math.log(msg.palm_width / 0.07) / Math.log(0.13 / 0.07), 12); // log scale
+  });
+
+  it("smooths depth against the last tracked message, so palm-width noise doesn't jitter the arm", () => {
+    const at = (t: number, palm: number, last?: HandPoseMsg) =>
+      toHandPoseMsg(makeHand({ 5: [0.5 - palm / 2, 0.5], 17: [0.5 + palm / 2, 0.5] }), { ...HD, timestamp: t }, last, DEFAULT_TELEOP_CONTROL);
+    const raw = (palm: number) => depthFraction(palm, 0.07, 0.13);
+    // A step from far to near: the first frame moves only part of the way, then it converges.
+    let msg = at(0, 0.07);
+    expect(msg.control![2]).toBeCloseTo(0, 12);
+    msg = at(33, 0.13, msg);
+    expect(msg.control![2]).toBeCloseTo(1 - Math.exp(-33 / DEPTH_SMOOTHING_MS), 12);
+    for (let t = 66; t <= 1000; t += 33) msg = at(t, 0.13, msg);
+    expect(msg.control![2]).toBeGreaterThan(0.99);
+    // Frame-to-frame noise of +-5% palm width swings the smoothed depth far less than the raw one.
+    let min = Infinity;
+    let max = -Infinity;
+    msg = at(2000, 0.1);
+    for (let i = 1; i <= 60; i++) {
+      msg = at(2000 + 33 * i, i % 2 ? 0.105 : 0.095, msg);
+      if (i > 30) [min, max] = [Math.min(min, msg.control![2]), Math.max(max, msg.control![2])];
+    }
+    expect(max - min).toBeLessThan((raw(0.105) - raw(0.095)) / 2);
+  });
+
+  it("does not smooth from a lost hand: depth starts fresh when tracking resumes", () => {
+    const tracked = toHandPoseMsg(makeHand({ 5: [0.465, 0.5], 17: [0.535, 0.5] }), HD, undefined, DEFAULT_TELEOP_CONTROL);
+    const lost = toHandPoseMsg(null, { ...HD, timestamp: 1300 }, tracked, DEFAULT_TELEOP_CONTROL);
+    const back = toHandPoseMsg(makeHand({ 5: [0.435, 0.5], 17: [0.565, 0.5] }), { ...HD, timestamp: 1333 }, lost, DEFAULT_TELEOP_CONTROL);
+    expect(back.control![2]).toBeCloseTo(depthFraction(back.palm_width, 0.07, 0.13), 12);
+  });
+
+  it("smoothDepth: an exponential moving average over time", () => {
+    expect(smoothDepth(1, 0, 0)).toBe(0);
+    expect(smoothDepth(1, 0, DEPTH_SMOOTHING_MS)).toBeCloseTo(1 - Math.exp(-1), 12);
+    expect(smoothDepth(1, 0, 10_000)).toBeCloseTo(1, 4);
+    expect(smoothDepth(1, 0, -5)).toBe(0); // clock went backwards: hold
   });
 
   it("a lost hand keeps the last control, like the other fields", () => {

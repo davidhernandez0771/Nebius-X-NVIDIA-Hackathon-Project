@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { GlassCard, StatusPill, Zones } from "../../components";
 import type { HandFrame, TrackedHand, TrackingAdapter, TrackingStatus } from "../../hand/contracts";
 import {
+  ReachCenterer,
   TeleopCalibrator,
   loadTeleopControl,
   palmCenter,
@@ -14,7 +15,18 @@ import { toHandPoseMsg, type HandPoseMsg } from "../../teleop/handPoseMessage";
 import type { TeleopStatus } from "../../teleop/teleopClient";
 import { teleopSocketUrl } from "../api";
 import { PageTitle } from "../common";
-import { CALIBRATION, TABLE_MARK, controlFraming, framingCheck, nextGripper, robotHeight, type Framing } from "./framing";
+import {
+  CALIBRATION,
+  CUBE_ROW,
+  TABLE_MARK,
+  X_RANGE,
+  controlFraming,
+  framingCheck,
+  nextGripper,
+  robotHeight,
+  robotReach,
+  type Framing,
+} from "./framing";
 import { HandControlPanel } from "./HandControlPanel";
 import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
 import "../pm.css";
@@ -49,6 +61,14 @@ function heightOf(msg: HandPoseMsg): number {
   if (msg.control) return robotHeight(msg.control).fraction;
   const c = CALIBRATION;
   return Math.min(1, Math.max(0, (c.v_max - msg.wrist_uv[1]) / (c.v_max - c.v_min)));
+}
+
+/** Arm reach (x) as a fraction of its range: control depth, or the sim's own palm-width mapping. */
+function reachOf(msg: HandPoseMsg): { fraction: number; x: number } {
+  if (msg.control) return robotReach(msg.control);
+  const c = CALIBRATION;
+  const fraction = Math.min(1, Math.max(0, (msg.palm_width - c.palm_far) / (c.palm_near - c.palm_far)));
+  return { fraction, x: X_RANGE[0] + fraction * (X_RANGE[1] - X_RANGE[0]) };
 }
 
 /** Mirrored, like a mirror: the user's right hand appears on the right. */
@@ -126,8 +146,10 @@ export default function RecordPage() {
   const [pose, setPose] = useState<{ msg: HandPoseMsg; framing: Framing; gripper: 0 | 1 } | null>(null);
   const [settings, setSettings] = useState<TeleopControlSettings>(loadTeleopControl);
   const [calibration, setCalibration] = useState<CalibrationState | null>(null);
+  const [recentering, setRecentering] = useState(false);
   const settingsRef = useRef(settings);
   const calibrator = useRef<TeleopCalibrator | null>(null);
+  const centerer = useRef<ReachCenterer | null>(null);
   const calibrationStep = useRef<CalibrationState["step"] | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const session = useRef<{ tracker: TrackingAdapter; link: RecordLink | null } | null>(null);
@@ -141,6 +163,7 @@ export default function RecordPage() {
 
   function teardown() {
     calibrator.current = null;
+    centerer.current = null;
     session.current?.tracker.cleanup();
     session.current?.link?.close();
     session.current = null;
@@ -155,6 +178,10 @@ export default function RecordPage() {
     let lastUi = -Infinity;
     let last: HandPoseMsg | undefined;
     let gripper: 0 | 1 = 0;
+    // Auto-centered reach: unless the depth range was calibrated or set by hand, center it on the
+    // hand's natural distance once tracking starts (ReachCenterer: ~1 s of palm widths).
+    centerer.current = settingsRef.current.depthAuto ? new ReachCenterer() : null;
+    setRecentering(centerer.current !== null);
     tracker.onStatus(setTrack);
     tracker.onFrame((frame: HandFrame) => {
       session.current?.link?.push(frame);
@@ -163,6 +190,7 @@ export default function RecordPage() {
       // The same message the link sends, so what the page shows is what the sim gets.
       const msg = toHandPoseMsg(hand, frame, last, s);
       last = msg;
+      if (centerer.current) recenter(centerer.current, frame.timestamp, msg);
       const tracked = msg.tracking_ok && hand ? { center: palmCenter(hand.landmarks), palmWidth: msg.palm_width } : null;
       const framing = s.enabled ? controlFraming(tracked, s) : framingCheck(msg);
       gripper = nextGripper(gripper, msg);
@@ -192,12 +220,29 @@ export default function RecordPage() {
 
   type Tracked = { center: { x: number; y: number }; palmWidth: number } | null;
 
+  /** One frame of reach centering; the result applies (and saves) at once. */
+  function recenter(c: ReachCenterer, t: number, msg: HandPoseMsg) {
+    const reach = c.push(t, msg.tracking_ok ? msg.palm_width : null);
+    if (!reach) return;
+    centerer.current = null;
+    setRecentering(false);
+    updateSettings({ ...settingsRef.current, ...reach, depthAuto: true });
+  }
+
+  function startRecenter() {
+    calibrator.current = null; // the two would fight over the depth range
+    setCalibration(null);
+    centerer.current = new ReachCenterer();
+    setRecentering(true);
+  }
+
   /** One frame of Calibrate by hand; a finished calibration is applied (and saved) at once. */
   function calibrate(cal: TeleopCalibrator, t: number, tracked: Tracked, uiTick: boolean) {
     const state = cal.push({ t, center: tracked?.center ?? null, palmWidth: tracked?.palmWidth ?? 0 });
     const finished = state.step === "done" || state.step === "failed";
     if (finished) calibrator.current = null;
-    if (state.step === "done" && state.result) updateSettings({ ...settingsRef.current, enabled: true, ...state.result });
+    if (state.step === "done" && state.result)
+      updateSettings({ ...settingsRef.current, enabled: true, ...state.result, depthAuto: false });
     if (uiTick || finished || state.step !== calibrationStep.current) {
       calibrationStep.current = state.step;
       setCalibration(state);
@@ -205,6 +250,8 @@ export default function RecordPage() {
   }
 
   function startCalibration() {
+    centerer.current = null;
+    setRecentering(false);
     calibrator.current = new TeleopCalibrator();
     calibrationStep.current = "move";
     setCalibration({ step: "move", progress: 0 });
@@ -218,6 +265,7 @@ export default function RecordPage() {
   function stop() {
     teardown();
     setCalibration(null);
+    setRecentering(false);
     setTrack("idle");
     setRelay({ socketOpen: false, simConnected: false, lastError: null });
     setSim(null);
@@ -352,9 +400,12 @@ export default function RecordPage() {
         calibration={calibration}
         onCalibrate={startCalibration}
         onCancelCalibration={cancelCalibration}
+        recentering={recentering}
+        onRecenter={startRecenter}
         readout={{
           palmWidth: pose?.msg.tracking_ok ? pose.msg.palm_width : null,
           pinch: pose?.msg.tracking_ok ? pose.msg.pinch_ratio : null,
+          control: pose?.msg.tracking_ok ? pose.msg.control ?? null : null,
         }}
       />
 
@@ -366,27 +417,54 @@ export default function RecordPage() {
   );
 }
 
-/** Live feedback over the camera view: the arm's target height with the table marked, and the gripper. */
+/** Live feedback over the camera view: the arm's target height (table marked) and reach (cube row
+ *  marked), and the gripper. */
 function HandFeedback({ msg, gripper }: { msg: HandPoseMsg; gripper: 0 | 1 }) {
   const fraction = heightOf(msg);
   const percent = Math.round(fraction * 100);
   const atTable = fraction <= TABLE_MARK + 0.03;
   const label = atTable ? "at the table" : `${percent}% up`;
+  const reach = reachOf(msg);
+  const reachPercent = Math.round(reach.fraction * 100);
+  const reachCm = `x = ${Math.round(reach.x * 100)} cm`;
+  const reachLabel = Math.abs(reach.fraction - CUBE_ROW) <= 0.05 ? `${reachCm}, at the cube's row` : reachCm;
   return (
     <div className="pm-hand-feedback">
-      <div
-        className="pm-height-bar"
-        role="meter"
-        aria-label="Robot height"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={percent}
-        aria-valuetext={label}
-      >
-        <div className="pm-height-fill" style={{ height: `${percent}%` }} />
-        <div className="pm-height-table" style={{ bottom: `${TABLE_MARK * 100}%` }} title="table" />
+      <div className="pm-meters">
+        <div className="pm-meter">
+          <div
+            className="pm-height-bar"
+            role="meter"
+            aria-label="Robot height"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-valuetext={label}
+          >
+            <div className="pm-height-fill" style={{ height: `${percent}%` }} />
+            <div className="pm-height-table" style={{ bottom: `${TABLE_MARK * 100}%` }} title="table" />
+          </div>
+          <span className="small">height</span>
+        </div>
+        <div className="pm-meter">
+          <span className="small">fwd</span>
+          <div
+            className="pm-height-bar"
+            role="meter"
+            aria-label="Reach"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={reachPercent}
+            aria-valuetext={reachLabel}
+          >
+            <div className="pm-height-fill" style={{ height: `${reachPercent}%` }} />
+            <div className="pm-height-table" style={{ bottom: `${CUBE_ROW * 100}%` }} title="the cube's row" />
+          </div>
+          <span className="small">back</span>
+        </div>
       </div>
       <span className="small">{label}</span>
+      <span className="small pm-num">reach {reachLabel}</span>
       <StatusPill tone={gripper ? "accent" : "neutral"}>{gripper ? "Gripper closed" : "Gripper open"}</StatusPill>
     </div>
   );

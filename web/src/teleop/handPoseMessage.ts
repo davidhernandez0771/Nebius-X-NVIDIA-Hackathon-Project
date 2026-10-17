@@ -8,7 +8,7 @@
 // correct on non-square frames such as 1280x720.
 
 import { LANDMARK, type HandLandmark, type TrackedHand } from "../hand/contracts";
-import { toControl, type TeleopControlSettings } from "./controlRegion";
+import { smoothDepth, toControl, type TeleopControlSettings } from "./controlRegion";
 
 /** Not in contracts.ts's LANDMARK table; MediaPipe's pinky MCP. */
 const PINKY_MCP = 17;
@@ -23,7 +23,7 @@ export interface HandPoseMsg {
   frame_w: number;
   frame_h: number;
   // Optional: the palm center remapped into the user's control region, clamped, plus depth from palm
-  // width (0 far, 1 near); raw unmirrored like wrist_uv. See controlRegion.ts. Absent: the sim maps
+  // width (0 far, 1 near, smoothed over ~120 ms); raw unmirrored like wrist_uv. See controlRegion.ts. Absent: the sim maps
   // wrist_uv and palm_width with its own Calibration, as before.
   control?: [number, number, number];
 }
@@ -73,7 +73,12 @@ export function toHandPoseMsg(
     frame_w: w,
     frame_h: h,
   };
-  if (control?.enabled) msg.control = toControl(lm, msg.palm_width, control);
+  if (control?.enabled) {
+    const c = toControl(lm, msg.palm_width, control);
+    // Depth is smoothed against the last tracked message (after a lost hand it starts fresh).
+    if (last?.tracking_ok && last.control) c[2] = smoothDepth(c[2], last.control[2], timestamp - last.t_ms);
+    msg.control = c;
+  }
 
   // A collapsed palm or NaN landmark would be rejected by the backend; report "no hand" instead.
   const numbers = [msg.palm_width, msg.pinch_ratio, msg.yaw_rad, ...msg.wrist_uv, ...(msg.control ?? [])];

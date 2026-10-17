@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONTROL_REGION, type HandLandmark } from "../hand/contracts";
 import {
   DEFAULT_TELEOP_CONTROL,
+  RECENTER_FACTOR,
+  ReachCenterer,
   TELEOP_CONTROL_STORAGE_KEY,
   TeleopCalibrator,
   depthFraction,
   loadTeleopControl,
   palmCenter,
+  reachFromNeutral,
   regionFraction,
   sanitizeTeleopControl,
   saveTeleopControl,
@@ -57,9 +60,58 @@ describe("regionFraction (SANT's mapping, steps 1-2: remap into the region, then
 describe("depthFraction", () => {
   it("is 0 far, 1 near, clamped", () => {
     expect(depthFraction(0.07, 0.07, 0.13)).toBe(0);
-    expect(depthFraction(0.1, 0.07, 0.13)).toBeCloseTo(0.5, 12);
+    expect(depthFraction(Math.sqrt(0.07 * 0.13), 0.07, 0.13)).toBeCloseTo(0.5, 12); // log scale: the geometric mean
     expect(depthFraction(0.5, 0.07, 0.13)).toBe(1);
     expect(depthFraction(0.0, 0.07, 0.13)).toBe(0);
+  });
+});
+
+describe("reachFromNeutral (auto-centered reach)", () => {
+  it("puts the natural palm width at depth 0.5, the cube's row, with far = neutral / 1.3 and near = neutral * 1.3", () => {
+    expect(RECENTER_FACTOR).toBe(1.3);
+    // Live test #2: the user's palm read 0.059, below the old far default (0.07), so depth sat at 0.
+    const { depthFar, depthNear } = reachFromNeutral(0.059);
+    expect(depthFar).toBeCloseTo(0.059 / 1.3, 12);
+    expect(depthNear).toBeCloseTo(0.059 * 1.3, 12);
+    expect(depthFraction(0.059, depthFar, depthNear)).toBeCloseTo(0.5, 12);
+    // Bringing the hand 30% wider (closer) or narrower (farther) reaches the ends.
+    expect(depthFraction(0.059 * 1.3, depthFar, depthNear)).toBeCloseTo(1, 12);
+    expect(depthFraction(0.059 / 1.3, depthFar, depthNear)).toBeCloseTo(0, 12);
+  });
+  it("gives a range sanitizeTeleopControl keeps", () => {
+    const r = reachFromNeutral(0.1);
+    const s = sanitizeTeleopControl({ ...DEFAULT_TELEOP_CONTROL, ...r });
+    expect([s.depthFar, s.depthNear]).toEqual([r.depthFar, r.depthNear]);
+  });
+});
+
+describe("ReachCenterer", () => {
+  it("answers after ~1 s of tracked frames with the range around their median palm width", () => {
+    const c = new ReachCenterer();
+    const widths = [0.058, 0.06, 0.059, 0.3, 0.059, 0.061, 0.057, 0.059, 0.06, 0.058]; // one wild frame
+    let result = null;
+    let t = 500;
+    for (let i = 0; result === null && t <= 3000; i++, t += 33) result = c.push(t, widths[i % widths.length]);
+    expect(result).not.toBeNull();
+    expect(t - 33 - 500).toBeGreaterThanOrEqual(1000);
+    expect(t - 33 - 500).toBeLessThan(1100);
+    expect(result!.depthFar).toBeCloseTo(0.059 / 1.3, 12);
+    expect(result!.depthNear).toBeCloseTo(0.059 * 1.3, 12);
+  });
+  it("starts its clock at the first tracked frame and ignores frames without a hand", () => {
+    const c = new ReachCenterer();
+    for (let t = 0; t < 5000; t += 33) expect(c.push(t, null)).toBeNull();
+    expect(c.push(5000, 0.08)).toBeNull();
+    let result = null;
+    for (let t = 5033; result === null && t <= 7000; t += 33) result = c.push(t, t % 2 ? null : 0.08);
+    expect(result!.depthFar).toBeCloseTo(0.08 / 1.3, 12);
+  });
+  it("answers once", () => {
+    const c = new ReachCenterer();
+    let results = 0;
+    for (let t = 0; t <= 3000; t += 33) if (c.push(t, 0.07)) results++;
+    expect(results).toBe(1);
+    expect(c.done).toBe(true);
   });
 });
 
@@ -83,7 +135,7 @@ describe("toControl", () => {
   const lm = landmarks({ 0: [0.3, 0.3], 5: [0.3, 0.3], 9: [0.3, 0.3], 17: [0.3, 0.3] });
 
   it("gives [u, v, depth] in [0, 1], raw orientation", () => {
-    const [u, v, d] = toControl(lm, 0.1, s);
+    const [u, v, d] = toControl(lm, Math.sqrt(0.07 * 0.13), s); // default depth range, geometric mean
     expect(u).toBeCloseTo(0.1, 12);
     expect(v).toBeCloseTo(0.1, 12);
     expect(d).toBeCloseTo(0.5, 12);
@@ -114,6 +166,9 @@ describe("sanitizeTeleopControl", () => {
     const s = sanitizeTeleopControl({ ...DEFAULT_TELEOP_CONTROL, invertX: true, enabled: false });
     expect(s.invertX).toBe(true);
     expect(s.enabled).toBe(false);
+    expect(DEFAULT_TELEOP_CONTROL.depthAuto).toBe(true);
+    expect(sanitizeTeleopControl({ ...DEFAULT_TELEOP_CONTROL, depthAuto: false }).depthAuto).toBe(false);
+    expect(sanitizeTeleopControl({ ...DEFAULT_TELEOP_CONTROL, depthAuto: "no" }).depthAuto).toBe(true);
   });
 });
 
