@@ -200,6 +200,6 @@ def test_the_default_url_is_the_pinned_official_one():
     text = SCRIPT.read_text(encoding="ascii")  # 5.1 reads a BOM-less script as ANSI: keep it ASCII
     default = re.search(r'\[string\]\$ModelUrl\s*=\s*"([^"]+)"', text)
     assert default and default.group(1) == OFFICIAL_URL
-    # the same URL the asset plan and the README pin (float16/1, not latest)
+    # the same URL the asset plan and the technical README pin (float16/1, not latest)
     assert OFFICIAL_URL in (ROOT / "HAND_INTERACTION_PLAN.md").read_text(encoding="utf-8")
-    assert OFFICIAL_URL in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert OFFICIAL_URL in (ROOT / "docs" / "TECHNICAL.md").read_text(encoding="utf-8")
