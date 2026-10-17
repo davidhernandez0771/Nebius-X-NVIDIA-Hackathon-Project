@@ -133,15 +133,15 @@ def test_dry_run_writes_nothing_and_reports_invalid_cells(grid_file, tmp_path, c
 
 def test_budget_is_enforced_before_any_work(grid_file):
     with pytest.raises(SystemExit):
-        main(["--grid", str(grid_file), "--steps", "10001", "--dry-run"])
+        main(["--grid", str(grid_file), "--steps", "30001", "--dry-run"])
     with pytest.raises(SystemExit):
         main(["--grid", str(grid_file), "--steps", "1000", "--save-freq", "0", "--dry-run"])
 
 
-def test_sprint3_budget_allows_10k_steps(grid_file, capsys):
-    assert main(["--grid", str(grid_file), "--steps", "10000", "--save-freq", "2500", "--dry-run"]) == 0
+def test_sprint7_budget_allows_30k_steps(grid_file, capsys):
+    assert main(["--grid", str(grid_file), "--steps", "30000", "--save-freq", "2500", "--dry-run"]) == 0
     plan = json.loads(capsys.readouterr().out)
-    assert plan["steps"] == 10000 and plan["save_freq"] == 2500
+    assert plan["steps"] == 30000 and plan["save_freq"] == 2500
 
 
 def test_rows_record_the_loss_curve_and_every_checkpoint(grid_file, tmp_path):
