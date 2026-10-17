@@ -248,6 +248,13 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _t1_demo_sha(path: Path) -> str:
+    """T1's manifest definition (scripts/make_measurement_set_v2.py): the Demo's JSON without created_at, not the
+    file's bytes. truth_sha256 is the file's bytes."""
+    demo = Demo.model_validate_json(path.read_text(encoding="utf-8"))
+    return hashlib.sha256(demo.model_dump_json(exclude={"created_at"}).encode()).hexdigest()
+
+
 @pytest.fixture
 def v2(tmp_path):
     root = tmp_path / "eps"
@@ -262,7 +269,7 @@ def v2(tmp_path):
         _v2_episode(root, "v2_4", "clean"),
     ]
     manifest = {"name": "v2", "demos": [{"id": ep.name, "type": json.loads((ep / "truth.json").read_text())["type"],
-                                         "demo_sha256": _sha(ep / "demo.json"),
+                                         "demo_sha256": _t1_demo_sha(ep / "demo.json"),
                                          "truth_sha256": _sha(ep / "truth.json")} for ep in eps]}
     (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     return eps, tmp_path / "manifest.json", tmp_path / "out"
@@ -342,3 +349,30 @@ def test_after_a_budget_stop_every_arm_is_scored_on_the_same_episodes(abl, v2):
     assert len(calls) == 3 and "budget" in summary["stopped"]
     assert summary["scored_episodes"] == ["v2_0"]
     assert summary["diagnosers"]["rules"]["cases_scored"] == 1
+
+
+def test_the_demo_hash_follows_t1s_definition_not_the_file_bytes(abl, v2):
+    eps, manifest, _ = v2
+    entry = json.loads(manifest.read_text())["demos"][0]
+    assert entry["demo_sha256"] != _sha(eps[0] / "demo.json")  # so a file-bytes check would reject it
+    ok, rejected = abl.check_manifest(eps, manifest)
+    assert [e.name for e in ok] == [e.name for e in eps] and rejected == []
+
+
+def test_an_edited_demo_is_still_rejected(abl, v2):
+    eps, manifest, _ = v2
+    demo = Demo.model_validate_json((eps[0] / "demo.json").read_text())
+    edited = demo.model_copy(update={"human_seconds": 99.0})
+    (eps[0] / "demo.json").write_text(edited.model_dump_json(), encoding="utf-8")
+    ok, rejected = abl.check_manifest(eps, manifest)
+    assert rejected == [{"episode": eps[0].name, "reason": "demo.json does not match the manifest"}]
+
+
+def test_a_new_created_at_alone_does_not_count_as_an_edit(abl, v2):
+    from datetime import datetime, timezone
+
+    eps, manifest, _ = v2
+    demo = Demo.model_validate_json((eps[0] / "demo.json").read_text())
+    (eps[0] / "demo.json").write_text(demo.model_copy(update={"created_at": datetime(2030, 1, 1, tzinfo=timezone.utc)})
+                                      .model_dump_json(), encoding="utf-8")
+    assert abl.check_manifest(eps, manifest)[1] == []

@@ -125,6 +125,18 @@ def infra_failures(results: Path) -> int | None:
     return sum(e["ended_by"] in ("sim_error", "policy_error") for e in episodes)
 
 
+def group_summaries(episodes: list[EpisodeResult], groups: dict[str, list[int]]) -> dict[str, dict]:
+    """One aggregate per seed group (e.g. "train" scenes vs "unseen" scenes) of a mixed run."""
+    from sim_eval.results import aggregate
+
+    out = {}
+    for name, seeds in groups.items():
+        eps = [e for e in episodes if e.seed in set(seeds)]
+        if eps:
+            out[name] = aggregate(eps).model_dump()
+    return out
+
+
 def write_results(path: Path, run: dict, episodes: list[EpisodeResult], summary: EvalSummary) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
