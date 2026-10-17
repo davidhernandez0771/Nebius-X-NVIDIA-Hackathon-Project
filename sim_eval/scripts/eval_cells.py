@@ -109,12 +109,18 @@ def stop_server(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
-def run_eval_command(*, python: str, port: int, n: int, seed0: int, cell: str, out: Path,
-                     registry: Path) -> list[str]:
-    """The run_eval.py command line for one cell. Isaac Lab 3.0 runs headless by default (no --headless flag)."""
-    return [python, str(REPO / "sim_eval/scripts/run_eval.py"), "--checkpoint-url", f"http://127.0.0.1:{port}",
-            "--n", str(n), "--seed0", str(seed0), "--cell", cell, "--cameras", "--out", str(out), "--resume",
-            "--registry", str(registry)]
+def run_eval_command(*, python: str, port: int, n: int, seed0: int, cell: str, out: Path, registry: Path,
+                     start_state: Path | None = None, start_pose: str | None = None) -> list[str]:
+    """The run_eval.py command line for one cell. Isaac Lab 3.0 runs headless by default (no --headless flag).
+    start_state / start_pose: one shared start for every cell (default: each cell's own registry dataset, auto)."""
+    cmd = [python, str(REPO / "sim_eval/scripts/run_eval.py"), "--checkpoint-url", f"http://127.0.0.1:{port}",
+           "--n", str(n), "--seed0", str(seed0), "--cell", cell, "--cameras", "--out", str(out), "--resume",
+           "--registry", str(registry)]
+    if start_state is not None:
+        cmd += ["--start-state", str(start_state)]
+    if start_pose is not None:
+        cmd += ["--start-pose", start_pose]
+    return cmd
 
 
 def retryable(rc: int) -> bool:
@@ -131,12 +137,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--registry", type=Path, default=None)
     p.add_argument("--wait-max-min", type=float, default=240, help="give up waiting for a free Isaac after this")
     p.add_argument("--poll-s", type=float, default=60)
+    p.add_argument("--start-state", type=Path, default=None,
+                   help="one start_state.json / dataset root for every cell (default: each cell's own dataset)")
+    p.add_argument("--start-pose", choices=("auto", "default", "dataset"), default=None)
+    p.add_argument("--cells", nargs="*", default=None, help="only these cells of the run")
     args = p.parse_args(argv)
     registry = args.registry or data_dir() / "results" / "registry.jsonl"
     out_dir = data_dir() / "evals" / args.run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     gate_log = out_dir / "gate_checks.jsonl"
     rows = trained_rows(registry, args.run_id)
+    if args.cells:
+        rows = [r for r in rows if r["cell"]["name"] in args.cells]
     log(f"{len(rows)} trained cells in {args.run_id}: {[r['cell']['name'] for r in rows]}")
     deadline = time.time() + args.wait_max_min * 60
     status = {}
@@ -156,7 +168,8 @@ def main(argv: list[str] | None = None) -> int:
             server = start_server(row["checkpoint"], args.port, out_dir / f"{cell}.server.log")
             try:
                 cmd = run_eval_command(python=sys.executable, port=args.port, n=args.n, seed0=args.seed0,
-                                       cell=cell, out=out, registry=registry)
+                                       cell=cell, out=out, registry=registry, start_state=args.start_state,
+                                       start_pose=args.start_pose)
                 log(f"{cell}: {' '.join(cmd)}")
                 with (out_dir / f"{cell}.eval.log").open("a", encoding="utf-8") as f:
                     rc = subprocess.run(cmd, cwd=REPO, stdout=f, stderr=subprocess.STDOUT).returncode
