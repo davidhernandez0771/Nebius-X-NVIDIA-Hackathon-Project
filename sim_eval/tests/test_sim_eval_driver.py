@@ -68,3 +68,21 @@ def test_checkpoint_specs_replace_the_registry_rows(tmp_path):
 def test_a_malformed_checkpoint_spec_is_rejected(bad):
     with pytest.raises(ValueError, match="CELL=PATH"):
         _load_driver().eval_targets([], None, [bad])
+
+
+def _results(path, seeds, ended_by="time_limit"):
+    import json
+
+    path.write_text(json.dumps({"episodes": [{"seed": s, "ended_by": ended_by} for s in seeds]}), encoding="utf-8")
+    return path
+
+
+def test_a_cell_is_done_only_when_every_requested_seed_has_a_valid_episode(tmp_path):
+    # Sprint 7 Task 3 extends n = 20 -> 30, ... on the same results file; the old check skipped it as "evaluated".
+    drv = _load_driver()
+    out = _results(tmp_path / "c.json", range(5000, 5020))
+    assert drv.seeds_to_run(out, n=20, seed0=5000) == 0
+    assert drv.seeds_to_run(out, n=30, seed0=5000) == 10
+    assert drv.seeds_to_run(tmp_path / "missing.json", n=20, seed0=5000) == 20
+    bad = _results(tmp_path / "bad.json", range(5000, 5020), ended_by="sim_error")
+    assert drv.seeds_to_run(bad, n=20, seed0=5000) == 20

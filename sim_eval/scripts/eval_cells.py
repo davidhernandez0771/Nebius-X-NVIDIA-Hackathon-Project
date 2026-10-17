@@ -9,7 +9,7 @@ For each ok registry row of the run (lerobot_tools.experiments):
   3. run run_eval.py --cell <cell> --cameras --out DATA_DIR/evals/<run_id>/<cell>.json --resume;
      run_eval re-checks the gate itself and exits 3 if Isaac got busy in between -> back to step 1;
   4. stop the server.
-A cell whose results file exists with no sim_error/policy_error episode is skipped. A cell with such episodes (CUDA
+A cell whose results file has a valid episode for every requested seed is skipped. A cell with sim_error/policy_error (CUDA
 dies when Windows sleeps; T2 lost seeds that way) is resumed, up to MAX_ATTEMPTS runs; run_eval --resume re-runs
 only those seeds. Re-running this script after a crash continues where it stopped. Cells left unevaluated keep
 eval_success null in the registry.
@@ -35,7 +35,7 @@ sys.path[:0] = [str(REPO / "src"), str(REPO)]
 from demo_pipeline.paths import data_dir  # noqa: E402
 from lerobot_tools.policy_client import PolicyClient, PolicyServerError  # noqa: E402
 from sim_eval.registry import trained_rows  # noqa: E402
-from sim_eval.report import infra_failures, isaac_gate, python_processes  # noqa: E402
+from sim_eval.report import isaac_gate, python_processes  # noqa: E402
 
 LEROBOT_PY = Path(r"C:\venvs\lerobot\Scripts\python.exe")
 FREE_WINDOW_S = 60  # Isaac must stay free this long before we start (T2 runs jobs back to back)
@@ -141,6 +141,17 @@ def eval_targets(rows: list[dict], cells: list[str] | None, checkpoint_specs: li
     return [(r["cell"]["name"], r["checkpoint"], True) for r in rows if not cells or r["cell"]["name"] in cells]
 
 
+def seeds_to_run(results: Path, *, n: int, seed0: int) -> int:
+    """Seeds of [seed0, seed0 + n) with no valid episode in `results` yet: missing (e.g. n was raised to extend
+    the eval) or ended in sim_error / policy_error (say nothing about the policy; run_eval --resume re-runs them)."""
+    results = Path(results)
+    valid = set()
+    if results.is_file():
+        valid = {e["seed"] for e in json.loads(results.read_text(encoding="utf-8"))["episodes"]
+                 if e["ended_by"] not in ("sim_error", "policy_error")}
+    return sum(s not in valid for s in range(seed0, seed0 + n))
+
+
 def retryable(rc: int) -> bool:
     """Exit 2 is argparse's usage error or run_eval's refusal (server mismatch, start state): retrying can't help."""
     return rc != 2
@@ -177,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     status = {}
     for i, (cell, checkpoint, write_registry) in enumerate(targets):
         out = out_dir / f"{cell}.json"
-        if infra_failures(out) == 0:
+        if seeds_to_run(out, n=args.n, seed0=args.seed0) == 0:
             log(f"{cell}: already evaluated ({out})")
             status[cell] = "done earlier"
             continue
@@ -190,8 +201,8 @@ def main(argv: list[str] | None = None) -> int:
             server = start_server(checkpoint, args.port, out_dir / f"{cell}.server.log")
             try:
                 cmd = run_eval_command(python=sys.executable, port=args.port, n=args.n, seed0=args.seed0,
-                                       cell=cell, out=out, registry=registry if write_registry else None, start_state=args.start_state,
-                                       start_pose=args.start_pose)
+                                       cell=cell, out=out, registry=registry if write_registry else None,
+                                       start_state=args.start_state, start_pose=args.start_pose)
                 log(f"{cell}: {' '.join(cmd)}")
                 with (out_dir / f"{cell}.eval.log").open("a", encoding="utf-8") as f:
                     rc = subprocess.run(cmd, cwd=REPO, stdout=f, stderr=subprocess.STDOUT).returncode
@@ -201,17 +212,17 @@ def main(argv: list[str] | None = None) -> int:
                 log(f"{cell}: run_eval's own gate refused (Isaac got busy); waiting again")
                 continue
             attempts += 1
-            bad = infra_failures(out)
+            bad = seeds_to_run(out, n=args.n, seed0=args.seed0)
             if bad == 0:
                 status[cell] = "evaluated"
             elif not retryable(rc):
                 status[cell] = f"run_eval refused or bad arguments (exit {rc}); see {cell}.eval.log"
             elif attempts < MAX_ATTEMPTS:
                 # sim_error / policy_error / no results: e.g. CUDA died when Windows slept. Resume re-runs those seeds.
-                log(f"{cell}: run_eval exit {rc}, infra failures {bad}; resuming (attempt {attempts + 1})")
+                log(f"{cell}: run_eval exit {rc}, seeds left {bad}; resuming (attempt {attempts + 1})")
                 continue
             else:
-                status[cell] = f"incomplete after {attempts} attempts: run_eval exit {rc}, infra failures {bad}"
+                status[cell] = f"incomplete after {attempts} attempts: run_eval exit {rc}, seeds left {bad}"
             log(f"{cell}: {status[cell]}")
             break
         if status[cell].startswith("not evaluated"):
