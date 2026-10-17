@@ -126,13 +126,17 @@ def _yield(yield_files: list[Sourced], robot: str) -> dict:
     for src, y in yield_files:
         if y.get("robot") != robot:
             continue
-        attempts, value = y.get("attempts"), _rate(y.get("yield"))
+        dataset = "variant_attempts" in y  # a multiply dataset manifest (T2 sprint 6, e.g. home_v1_manifest.json)
+        attempts = y.get("variant_attempts") if dataset else y.get("attempts")
+        value = _rate(y.get("yield"))
         if not isinstance(attempts, int) or attempts <= 0 or value is None:
             rejected.append({"file": src, "why": f"attempts {attempts!r}, yield {y.get('yield')!r}"})
             continue
-        found.append({"value": value, "file": src, "attempts": attempts,
-                      "detail": {"attempts": attempts, "successes": y.get("successes"), "reasons": y.get("reasons"),
-                                 "seed0": y.get("seed0"), "robot": robot}})
+        detail = {"attempts": attempts, "successes": y.get("variant_successes" if dataset else "successes"),
+                  "reasons": y.get("variant_reasons" if dataset else "reasons"), "seed0": y.get("seed0"), "robot": robot}
+        if dataset:
+            detail.update(name=y.get("name"), home_start=y.get("home_start"))
+        found.append({"value": value, "file": src, "attempts": attempts, "detail": detail})
     if not found:
         entry = {"value": None, "file": None, "missing": f"no {robot} multiply yield.json with attempts > 0"}
     else:  # the largest run; a tie goes to the later input (the script passes files oldest first)

@@ -7,6 +7,7 @@ Collects (demo_pipeline.results has the rules; nothing measured stays null and i
   <data-dir>/results/registry.jsonl            T3's experiment registry (eval_success per cell)
   <data-dir>/evals/*.json                      T3's sim eval results files
   <root>/*/yield.json, <root>/*/*/yield.json   T2's multiply yields, for root in --data-dir and each --t2-data
+  <root>/yield/*.json, <root>/episodes/*_manifest.json   T2 client_multiply yields and multiply dataset manifests
   <data-dir>/sets/*/pipeline/*/scores.json     scripts/score_pipeline_run.py
   <data-dir>/ablation/*/scores.json            T4's scripts/ablation_diagnosis.py runs (diagnosis_ablation)
 Each --input-root (another track's data folder) contributes its registry, evals, yields and scores in place,
@@ -99,8 +100,11 @@ def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (),
         registry = [(s, r) for s, r in registry if r.get("run_id") in keep]
         evals = [(s, e) for s, e in evals if _eval_run_id(s, e) in keep]
     yield_paths = {p.resolve(): p for root in [*roots, *map(Path, t2_data)]
-                   for pattern in ("yield.json", "*/yield.json", "*/*/yield.json") for p in root.glob(pattern)}
+                   for pattern in ("yield.json", "*/yield.json", "*/*/yield.json", "yield/*.json",
+                                   "episodes/*_manifest.json") for p in root.glob(pattern)}
     yields = _files(sorted(yield_paths.values(), key=lambda p: (p.stat().st_mtime, str(p))), skipped)  # oldest first
+    # episodes/*_manifest.json: only multiply dataset manifests (T2's home_v1) carry a yield
+    yields = [(s, y) for s, y in yields if not s.endswith("_manifest.json") or "variant_attempts" in y]
     scores = _files([p for root in roots for p in sorted(root.glob("sets/*/pipeline/*/scores.json"))], skipped)
     ablations = _files([p for root in roots for p in sorted(root.glob("ablation/*/scores.json"))], skipped)
 

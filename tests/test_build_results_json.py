@@ -174,3 +174,19 @@ def test_input_roots_add_t4s_ablation_runs(tmp_path):
     assert run["source"] == str(t4 / "ablation" / "v2_run2" / "scores.json")
     assert run["arms"]["rules"]["total"] == {"f1": 0.81}
     assert r["inputs"]["ablations"] == [str(t4 / "ablation" / "v2_run2" / "scores.json")]
+
+
+def test_t2_roots_add_the_yield_folder_and_dataset_manifests_but_not_per_demo_yields(tmp_path):
+    data, t2 = tmp_path / "data", tmp_path / "t2data"
+    _write(t2 / "yield" / "clean_franka_s4.json", {"robot": "franka", "attempts": 30, "successes": 30, "yield": 1.0})
+    _write(t2 / "yield" / "s4_s1" / "s1_0000.json", {"robot": "franka", "attempts": 40, "successes": 10, "yield": 0.25})
+    _write(t2 / "episodes" / "home_v1_manifest.json",
+           {"name": "home_v1", "robot": "franka", "variant_attempts": 100, "variant_successes": 100, "yield": 1.0})
+    _write(t2 / "episodes" / "home_v1_grid.json", {"name": "home_mult", "cells": []})
+    _write(t2 / "episodes" / "v2_manifest.json", {"name": "v2", "robot": "franka", "demos": []})  # a set, no yield
+    r = json.loads(brj.build(data, t2_data=[t2]).read_text(encoding="utf-8"))
+    assert sorted(r["inputs"]["yields"]) == sorted(
+        [str(t2 / "yield" / "clean_franka_s4.json"), str(t2 / "episodes" / "home_v1_manifest.json")])
+    assert r["multiply_yield"]["ours"] == 1.0
+    assert r["sources"]["multiply_yield.ours"]["file"] == str(t2 / "episodes" / "home_v1_manifest.json")
+    assert "rejected" not in r["sources"]["multiply_yield.ours"]

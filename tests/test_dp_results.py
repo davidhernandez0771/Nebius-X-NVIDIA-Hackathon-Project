@@ -230,3 +230,16 @@ def test_a_sprint4_ablation_run_counts_its_episodes_list_as_scored():
     [run] = out["diagnosis_ablation"]
     assert run["scored"] == 20 and run["rejected"] == 0 and out["diagnosis_ablation_unscored"] == []
     assert run["arms"]["rules"]["r1_bar"] is None  # a key the old format lacks stays null
+
+
+def test_a_multiply_dataset_manifest_counts_its_variants_as_a_yield_run():
+    """T2's home-start dataset manifest (sprint 6) records variant_attempts/variant_successes, not attempts."""
+    home = ("C:/t2/data/episodes/home_v1_manifest.json",
+            {"name": "home_v1", "home_start": True, "robot": "franka", "variant_attempts": 100,
+             "variant_successes": 100, "yield": 1.0, "variant_reasons": {}, "sources_verified": 10})
+    out = build_results([], [], [_yield("franka", 30, 27), home], [])
+    src = out["sources"]["multiply_yield.ours"]
+    assert out["multiply_yield"]["ours"] == 1.0 and src["file"] == "C:/t2/data/episodes/home_v1_manifest.json"
+    assert src["detail"]["attempts"] == 100 and src["detail"]["successes"] == 100
+    assert src["detail"]["reasons"] == {} and src["detail"]["name"] == "home_v1" and src["detail"]["home_start"] is True
+    assert [o["value"] for o in src["others"]] == [0.9]
