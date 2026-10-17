@@ -1,8 +1,10 @@
 """N copies of the eval scene in one Isaac Lab process, stepped together: the VecEvalEnv for sim_eval.parallel.
 
 This is sim_eval.isaac_env.IsaacEvalEnv with an env axis. The scene, physics constants, cameras and contact sensors
-are the same public sim_worker names, with the scene's num_envs set to N (envs sit env_spacing = 3 m apart and do not
-collide with each other). Everything is reported in each env's own frame (env origin subtracted), wxyz.
+are the same public sim_worker names, with the scene's num_envs set to N (envs do not collide with each other). The
+envs sit sim_eval.parallel.layout.ENV_SPACING = 8 m apart, not the scene's 3 m: every origin must be a whole number of
+ground-checker periods from the world origin, or the front camera sees a background the policy never trained on
+(measured; see layout.py). Everything is reported in each env's own frame (env origin subtracted), wxyz.
 
 Differences from the serial env, on purpose:
   - reset_envs(...) places scenes in some envs without stepping; the camera warmup (holding the start pose for
@@ -24,6 +26,7 @@ from isaaclab.utils.math import quat_apply
 
 from demo_pipeline.schemas import Scene
 from sim_eval.eval_policy import FINGER_IDS, Observation, StepRecord, gripper_command
+from sim_eval.parallel.layout import ENV_SPACING, off_grid_envs
 from sim_eval.start_state import FRANKA_DEFAULT_JOINT_POS
 from sim_worker.replay import CONTACT_N, DECIMATION, PHYSICS_DT, TCP_OFFSET, make_sim_cfg
 from sim_worker.scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, BIN_PARTS, FRONT_EYE, FRONT_TARGET, make_scene_cfg
@@ -54,7 +57,8 @@ def _max_pair_force_per_env(sensor) -> torch.Tensor:
 class IsaacVecEvalEnv:
     bin_inner = BIN_INNER
 
-    def __init__(self, num_envs: int, cameras: bool, device: str = "cuda:0", start_joint_pos=None):
+    def __init__(self, num_envs: int, cameras: bool, device: str = "cuda:0", start_joint_pos=None,
+                 env_spacing: float = ENV_SPACING):
         """start_joint_pos: 9 joint positions every env resets to; None = the asset default (as IsaacEvalEnv)."""
         if num_envs < 1:
             raise ValueError(f"num_envs must be >= 1, got {num_envs}")
@@ -62,6 +66,7 @@ class IsaacVecEvalEnv:
         self.sim = sim_utils.SimulationContext(make_sim_cfg(device))
         cfg = make_scene_cfg(cameras=cameras)
         cfg.num_envs = num_envs
+        cfg.env_spacing = env_spacing
         self.scene = instantiate(cfg)
         self.sim.reset()
         self.cameras = ["front", "wrist"] if cameras else []
@@ -84,6 +89,10 @@ class IsaacVecEvalEnv:
                 raise ValueError(f"start_joint_pos: expected {robot.num_joints} finite values, got {q.shape}")
             self.start_q = torch.tensor(q, device=self.sim.device)
         self.origins = self.scene.env_origins.clone()  # (N, 3)
+        off = off_grid_envs(self.origins.cpu().numpy())
+        if off:
+            raise RuntimeError(f"envs {off} are off the ground-checker grid (spacing {env_spacing}); their front camera "
+                               f"would see a different background than training. Use a multiple of 4 m.")
         if self.cameras:
             eye = torch.tensor(FRONT_EYE, dtype=torch.float32, device=self.sim.device) + self.origins
             target = torch.tensor(FRONT_TARGET, dtype=torch.float32, device=self.sim.device) + self.origins
