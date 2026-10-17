@@ -231,3 +231,56 @@ def test_cli_reports_a_missing_results_file(tmp_path, capsys):
 def test_written_svgs_use_lf_line_endings_on_every_platform(tmp_path):
     for p in rc.render_all(build_results([], [], [], []), tmp_path):
         assert b"\r" not in p.read_bytes()
+
+
+# --- comparison.svg: named pairs with CIs and Fisher's p (sprint 7) -----------------------------------
+
+def _comparison(arms, p, sample=False):
+    """results with one comparison; arms = [(cell, value, (low, high, k, n) | None)]."""
+    r = _results(sample=sample)
+    r["comparisons"] = [{"arms": [{"cell": c, "value": v, "ci": None if ci is None else
+                                   {"low": ci[0], "high": ci[1], "successes": ci[2], "n": ci[3], "method": "wilson_95"}}
+                                  for c, v, ci in arms], "fisher_p": p, "test": "fisher_exact_two_sided"}]
+    return r
+
+
+def test_comparison_rows_draw_each_arms_rate_and_ci_on_one_scale():
+    r = _comparison([("raw_10_30k", 4 / 70, (0.0225, 0.1376, 4, 70)),
+                     ("raw_multiply_10_30k", 15 / 70, (0.1344, 0.3240, 15, 70))], 0.0120)
+    root = _parse(rc.comparison_chart(r))
+    points, cis = _cls(root, "circle", "point"), _cls(root, "rect", "ci")
+    assert [float(c.get("cx")) for c in points] == pytest.approx([rc.BAR_X + v * rc.BAR_WIDTH for v in (4 / 70, 15 / 70)],
+                                                                 abs=0.05)
+    assert float(cis[1].get("x")) == pytest.approx(rc.BAR_X + 0.1344 * rc.BAR_WIDTH, abs=0.05)
+    assert float(cis[1].get("width")) == pytest.approx((0.3240 - 0.1344) * rc.BAR_WIDTH, abs=0.05)
+    texts = _texts(root)
+    assert {"raw_10_30k", "raw_multiply_10_30k"} <= set(texts)
+    assert any("15/70" in t and "13–32%" in t for t in texts)
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "p-value")] == ["Fisher exact p = 0.012 (two-sided)"]
+
+
+def test_a_comparison_arm_not_measured_yet_is_pending_and_so_is_p():
+    r = _comparison([("raw_10_30k", 4 / 70, (0.0225, 0.1376, 4, 70)), ("raw_multiply_10_30k", None, None)], None)
+    root = _parse(rc.comparison_chart(r))
+    assert len(_cls(root, "circle", "point")) == 1 and len(_cls(root, "g", "pending")) == 1
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "p-value")] == ["Fisher exact p: pending"]
+
+
+def test_comparison_chart_marks_sample_data():
+    r = _comparison([("a", 0.1, (0.03, 0.3, 2, 20)), ("b", 0.15, (0.05, 0.36, 3, 20))], 1.0, sample=True)
+    assert _cls(_parse(rc.comparison_chart(r)), "text", "watermark")
+
+
+def test_render_all_writes_comparison_svg_only_when_there_are_comparisons(tmp_path):
+    assert "comparison.svg" not in [p.name for p in rc.render_all(_results(), tmp_path / "none")]
+    r = _comparison([("a", 0.1, (0.03, 0.3, 2, 20)), ("b", 0.15, (0.05, 0.36, 3, 20))], 1.0)
+    assert (tmp_path / "some" / "comparison.svg") in rc.render_all(r, tmp_path / "some")
+
+
+def test_the_real_builders_comparison_renders():
+    evals = [(f"C:/e/{c}.json", {"run": {"cell": c, "checkpoint": "C:/ck", "started": "x"},
+                                 "summary": {"n": 20, "successes": k, "success_rate": k / 20}})
+             for c, k in (("raw_10_30k", 2), ("raw_multiply_10_30k", 3))]
+    r = build_results([], evals, [], [], comparisons=[("raw_10_30k", "raw_multiply_10_30k")])
+    root = _parse(rc.comparison_chart(r))
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "p-value")] == ["Fisher exact p = 1 (two-sided)"]

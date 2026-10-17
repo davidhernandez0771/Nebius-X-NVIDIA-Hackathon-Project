@@ -297,3 +297,45 @@ def test_the_ci_is_for_the_measurement_that_won():
 def test_the_series_shape_stays_what_the_page_parses():
     out = build_results([_row("raw", 10, 0.1)], [], [], [])
     assert set(out["series"][0]) == {"key", "label", "success"}
+
+
+# --- named comparisons: two cells, their CIs and Fisher's p (sprint 7) ----------------------------------
+
+def _counts_file(cell, k, n, started="2026-10-17T12:00:00+00:00", run_id="r7"):
+    return (f"C:/data/evals/{run_id}/{cell}.json",
+            {"run": {"cell": cell, "checkpoint": f"C:/ck/{cell}", "started": started},
+             "summary": {"n": n, "successes": k, "success_rate": k / n}})
+
+
+def test_a_comparison_carries_both_arms_with_cis_and_fishers_p():
+    evals = [_counts_file("raw_10_30k", 4, 70), _counts_file("raw_multiply_10_30k", 15, 70)]
+    out = build_results([], evals, [], [], comparisons=[("raw_10_30k", "raw_multiply_10_30k")])
+    (c,) = out["comparisons"]
+    assert [a["cell"] for a in c["arms"]] == ["raw_10_30k", "raw_multiply_10_30k"]
+    assert [(a["ci"]["successes"], a["ci"]["n"]) for a in c["arms"]] == [(4, 70), (15, 70)]
+    assert c["arms"][1]["value"] == pytest.approx(15 / 70)
+    assert c["fisher_p"] == pytest.approx(0.0119, abs=5e-4) and c["test"] == "fisher_exact_two_sided"
+    assert out["sources"]["comparisons[0].raw_10_30k"]["file"] == "C:/data/evals/r7/raw_10_30k.json"
+
+
+def test_a_comparison_with_an_arm_not_measured_yet_has_no_p_and_is_pending():
+    out = build_results([], [_counts_file("raw_10_30k", 4, 70)], [], [],
+                        comparisons=[("raw_10_30k", "raw_multiply_10_30k")])
+    (c,) = out["comparisons"]
+    assert c["arms"][1]["value"] is None and c["arms"][1]["ci"] is None and c["fisher_p"] is None
+    assert "comparisons[0].raw_multiply_10_30k" in out["pending"]
+
+
+def test_comparison_cells_never_leak_into_the_demo_count_series():
+    out = build_results([], [_counts_file("raw_10_30k", 4, 70)], [], [], comparisons=[("raw_10_30k", "raw_10")])
+    assert all(v is None for s in out["series"] for v in s["success"])
+
+
+def test_a_comparison_can_use_a_registry_cell():
+    out = build_results([_row("raw", 10, 0.1, line=4)], [_counts_file("raw_10_30k", 4, 70)], [], [],
+                        comparisons=[("raw_10", "raw_10_30k")])
+    assert out["comparisons"][0]["arms"][0]["ci"]["successes"] == 5  # the registry fixture's n is 50
+
+
+def test_no_comparisons_by_default():
+    assert build_results([], [], [], [])["comparisons"] == []

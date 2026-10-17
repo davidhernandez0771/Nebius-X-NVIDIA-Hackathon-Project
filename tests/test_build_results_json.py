@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 
+import pytest
+
 from scripts import build_results_json as brj
 
 
@@ -200,3 +202,22 @@ def test_the_cli_prints_each_points_counts_and_wilson_ci(tmp_path, capsys):
     assert "0.3 (15/50, Wilson 95% CI 19.1-43.8%)" in lines["series.raw_multiply.success[0]"]
     assert "no CI: successes is not an integer" in lines["series.raw.success[0]"]  # the row has no counts
     assert "CI" not in lines["multiply_yield.ours"]
+
+
+def test_the_cli_takes_comparisons_and_prints_each_arm(tmp_path, capsys):
+    data, t3 = tmp_path / "data", tmp_path / "t3data"
+    for cell, k in (("raw_10_30k", 4), ("raw_multiply_10_30k", 15)):
+        _write(t3 / "evals" / "r7" / f"{cell}.json",
+               {"run": {"cell": cell, "checkpoint": f"C:/ck/{cell}", "started": "2026-10-17T12:00"},
+                "summary": {"n": 70, "successes": k, "success_rate": k / 70}})
+    brj.main(["--data-dir", str(data), "--input-root", str(t3), "--compare", "raw_10_30k:raw_multiply_10_30k"])
+    out = capsys.readouterr().out
+    r = json.loads((data / "results" / "results.json").read_text(encoding="utf-8"))
+    assert [a["cell"] for a in r["comparisons"][0]["arms"]] == ["raw_10_30k", "raw_multiply_10_30k"]
+    assert "comparisons[0].raw_multiply_10_30k = " in out and "(15/70, Wilson 95% CI" in out
+    assert "raw_10_30k vs raw_multiply_10_30k: Fisher exact p = 0.012" in out
+
+
+def test_a_comparison_that_is_not_two_cells_is_refused(tmp_path):
+    with pytest.raises(SystemExit):
+        brj.main(["--data-dir", str(tmp_path), "--compare", "raw_10_30k"])

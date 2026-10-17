@@ -11,6 +11,8 @@ Inputs are (source, data) pairs, so this module never touches the disk:
   yield_files    (path, {"robot", "attempts", "successes", "yield", ...})  sim_worker multiply_run yield.json
   scores         (path, scores.json)  scripts/score_pipeline_run.py
   ablations      (path, scores.json)  T4's scripts/ablation_diagnosis.py (diagnosis arms on a frozen set)
+  comparisons    (cell_a, cell_b)     named pairs of cells (e.g. raw_10_30k vs raw_multiply_10_30k): each arm's
+                                      rate and Wilson CI, and the two-sided Fisher exact p when both have counts
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ import math
 from collections.abc import Iterable
 from datetime import datetime, timezone
 
-from demo_pipeline.stats import wilson_ci
+from demo_pipeline.stats import fisher_exact, wilson_ci
 
 Sourced = tuple[str, dict]
 
@@ -210,7 +212,8 @@ def _diagnosis_ablation(ablations: list[Sourced]) -> tuple[list[dict], list[dict
 
 def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced], yield_files: Iterable[Sourced],
                   scores: Iterable[Sourced], *, demos: Iterable[int] = DEMOS, ablation_demos: int = ABLATION_DEMOS,
-                  robot: str = "franka", ablations: Iterable[Sourced] = ()) -> dict:
+                  robot: str = "franka", ablations: Iterable[Sourced] = (),
+                  comparisons: Iterable[tuple[str, str]] = ()) -> dict:
     registry_rows, eval_files = list(registry_rows), list(eval_files)
     demos = [int(n) for n in demos]
     sources: dict[str, dict] = {}
@@ -245,6 +248,17 @@ def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced
     sources["multiply_yield.mimicgen"] = {"value": list(MIMICGEN), "file": MIMICGEN_SOURCE}
     ablation_runs, ablation_unscored = _diagnosis_ablation(list(ablations))
 
+    compared = []
+    for i, pair in enumerate(comparisons):
+        arms = []
+        for name in pair:
+            entry = _pick(*_candidates(name, registry_rows, eval_files))
+            sources[f"comparisons[{i}].{name}"] = entry
+            arms.append({"cell": name, "value": entry["value"], "ci": entry.get("ci")})
+        cis = [a["ci"] for a in arms]
+        p = fisher_exact(cis[0]["successes"], cis[0]["n"], cis[1]["successes"], cis[1]["n"]) if all(cis) else None
+        compared.append({"arms": arms, "fisher_p": p, "test": "fisher_exact_two_sided"})
+
     return {
         "sample": False,
         "note": NOTE,
@@ -255,6 +269,7 @@ def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced
         "diagnosis": _diagnosis(list(scores)),
         "diagnosis_ablation": ablation_runs,
         "diagnosis_ablation_unscored": ablation_unscored,
+        "comparisons": compared,
         "pending": [k for k, v in sources.items() if v["value"] is None],
         "sources": sources,
     }
