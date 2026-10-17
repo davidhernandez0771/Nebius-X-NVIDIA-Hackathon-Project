@@ -9,8 +9,10 @@
 <text x="608.0" y="59.0" font-size="11" text-anchor="start" fill="#374151">1/20 · 5% (1–24%)</text>
 <text x="210.0" y="85.0" font-size="12" text-anchor="end" fill="#111827">raw_multiply_5</text>
 <rect class="track" x="220.0" y="74.0" width="380.0" height="14" fill="#f3f4f6"/>
-<g class="pending"><circle cx="228.0" cy="81.0" r="3.5" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="236.0" y="85.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
-<text x="220.0" y="108.0" font-size="11" text-anchor="start" fill="#374151" class="p-value">Fisher exact p: pending</text>
+<rect class="ci" x="262.51" y="77.0" width="135.60" height="8" fill="#2563eb" opacity="0.3"/>
+<circle class="point" cx="315.00" cy="81.0" r="4.5" fill="#2563eb"/>
+<text x="608.0" y="85.0" font-size="11" text-anchor="start" fill="#374151">5/20 · 25% (11–47%)</text>
+<text x="220.0" y="108.0" font-size="11" text-anchor="start" fill="#374151" class="p-value">Fisher exact p = 0.18 (two-sided)</text>
 <text x="210.0" y="141.0" font-size="12" text-anchor="end" fill="#111827">raw_10</text>
 <rect class="track" x="220.0" y="130.0" width="380.0" height="14" fill="#f3f4f6"/>
 <rect class="ci" x="230.59" y="133.0" width="103.80" height="8" fill="#6b7280" opacity="0.3"/>
