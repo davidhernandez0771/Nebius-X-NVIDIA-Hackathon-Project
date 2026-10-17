@@ -3,8 +3,9 @@
     C:\\isaac\\env_isaaclab\\Scripts\\python.exe sim_worker\\scripts\\home_dataset.py --sources 10 --variants 10
 
 For each source seed (sim_worker.homeset): the scripted expert with home_start on sample_scene(seed) -> replay with
-cameras -> DATA_DIR/episodes/home_src_<seed>/; then multiply it (transform_trajectory, as the sim worker's /multiply)
-into 10 variant scenes -> DATA_DIR/episodes/home_src_<seed>_<variant seed>/. Every episode is stamped with a
+cameras -> DATA_DIR/episodes/home_src_<seed>/; then multiply it (transform_trajectory, as the sim worker's /multiply,
+then homeset.rehome so every variant also starts at home) into 10 variant scenes ->
+DATA_DIR/episodes/home_src_<seed>_<variant seed>/. Every episode is stamped with a
 Passport (lineage source -> variant). Writes DATA_DIR/episodes/<name>_manifest.json (yield, every episode dir) and
 <name>_grid.json (lerobot_tools.experiments grid: raw and raw_multiply cells of the verified episodes).
 """
@@ -31,15 +32,35 @@ args_cli = parser.parse_args()
 if not args_cli.no_cameras:
     args_cli.enable_cameras = True
 
-from demo_pipeline.multiply import sample_scene  # noqa: E402
+from demo_pipeline.multiply import sample_scene, transform_trajectory  # noqa: E402
 from demo_pipeline.paths import data_dir  # noqa: E402
-from demo_pipeline.sim_protocol import MultiplyRequest, ReplayRequest  # noqa: E402
-from sim_worker.homeset import dataset_manifest, passport, source_name, source_seeds, stamp, variant_seeds  # noqa: E402
+from demo_pipeline.sim_protocol import ReplayRequest  # noqa: E402
+from sim_worker.homeset import (dataset_manifest, first_move_steps, passport, rehome, source_name,  # noqa: E402
+                                source_seeds, stamp, variant_seeds)
 from sim_worker.isaac_executor import IsaacExecutor  # noqa: E402
-from sim_worker.jobs import _stored_variant, episodes_dir, run_multiply, run_replay, variant_name  # noqa: E402
+from sim_worker.jobs import _stored_variant, episodes_dir, run_replay, variant_name  # noqa: E402
 from sim_worker.keepawake import KeepAwake  # noqa: E402
 from sim_worker.replay import make_sim_cfg  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
+
+
+def _render(ex, traj, scene, name: str, common: dict) -> dict:
+    """Replay into episodes/<name>, or reuse a finished folder recorded for this scene."""
+    ep, t0 = (episodes_dir(common["root"]) / name).resolve(), time.time()
+    stored = _stored_variant(ep, scene)
+    if stored is not None:
+        verification = stored[1]
+        print(f"[home] {name}: reused (success={verification.success})", flush=True)
+    else:
+        try:
+            req = ReplayRequest(trajectory=traj, scene=scene, record_cameras=common["worker_cameras"], out_name=name)
+            verification = run_replay(req, ex._replay_fn, recover=ex.recover, **common).verification
+        except Exception as exc:  # one broken replay is a recorded failure; the next run retries it
+            print(f"[home] {name}: sim_error {exc!r}", flush=True)
+            return {"success": False, "reasons": ["sim_error"], "ep_dir": None, "verification": None,
+                    "wall_s": round(time.time() - t0, 1)}
+    return {"success": verification.success, "reasons": verification.reasons, "ep_dir": str(ep),
+            "verification": verification, "wall_s": round(time.time() - t0, 1)}
 
 
 def main() -> None:
@@ -54,32 +75,26 @@ def main() -> None:
             scene = sample_scene(np.random.default_rng(seed), "franka", seed)
             traj = scripted_expert(scene, home_start=True)
             name = source_name(seed)
-            ep = (eps / name).resolve()
-            t_src = time.time()
-            stored = _stored_variant(ep, scene)
-            if stored is not None:
-                verification = stored[1]
-                print(f"[home] {name}: reused (success={verification.success})", flush=True)
-            else:
-                req = ReplayRequest(trajectory=traj, scene=scene, record_cameras=cameras, out_name=name)
-                verification = run_replay(req, ex._replay_fn, recover=ex.recover, **common).verification
-            stamp(ep, passport(name, [name], verification))
-            row = {"name": name, "seed": seed, "success": verification.success, "reasons": verification.reasons,
-                   "ep_dir": str(ep), "n_steps": len(traj.t), "wall_s": round(time.time() - t_src, 1)}
+            row = _render(ex, traj, scene, name, common) | {"name": name, "seed": seed, "n_steps": len(traj.t)}
+            verification = row.pop("verification")
+            if row["ep_dir"] is not None:
+                stamp(row["ep_dir"], passport(name, [name], verification))
             sources.append(row)
             print("SOURCE " + json.dumps(row), flush=True)
 
-            seeds = variant_seeds(i, args_cli.variants)
-            req = MultiplyRequest(trajectory=traj, scene=scene, robot="franka", n=len(seeds), seed0=seeds[0],
-                                  record_cameras=cameras, out_prefix=name)
-            resp = run_multiply(req, ex._replay_fn, recover=ex.recover, **common)
-            for v in resp.variants:
-                vname = variant_name(name, v.seed)
-                if v.ep_dir is not None:
-                    stamp(v.ep_dir, passport(vname, [name, vname], v.verification, variant_seed=v.seed))
-                variants.append({"name": vname, "source": name, "seed": v.seed, "success": v.verification.success,
-                                 "reasons": v.verification.reasons, "ep_dir": v.ep_dir})
-            print(f"MULTIPLY {name}: {resp.successes}/{resp.attempts} in {resp.wall_s:.0f} s", flush=True)
+            k, ok = first_move_steps(scene), 0
+            for vseed in variant_seeds(i, args_cli.variants):
+                dst = sample_scene(np.random.default_rng(vseed), "franka", vseed)
+                vname = variant_name(name, vseed)
+                vtraj = rehome(transform_trajectory(traj, scene, dst), k)
+                row = _render(ex, vtraj, dst, vname, common) | {"name": vname, "source": name, "seed": vseed}
+                verification = row.pop("verification")
+                if row["ep_dir"] is not None:
+                    stamp(row["ep_dir"], passport(vname, [name, vname], verification, variant_seed=vseed))
+                variants.append(row)
+                ok += row["success"]
+                print("VARIANT " + json.dumps(row), flush=True)
+            print(f"MULTIPLY {name}: {ok}/{args_cli.variants}", flush=True)
 
         manifest = dataset_manifest(sources, variants)
         manifest.update(name=args_cli.name, cameras=cameras, total_wall_s=round(time.time() - t0, 1))
