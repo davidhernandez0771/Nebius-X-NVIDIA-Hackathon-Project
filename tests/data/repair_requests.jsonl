@@ -1,0 +1,34 @@
+{"id": "r01", "category": "paraphrase", "text": "Cut the dead time at the beginning.", "expect": [{"op": "trim", "end": "start"}]}
+{"id": "r02", "category": "paraphrase", "text": "The robot just sits there at the end, get rid of that.", "expect": [{"op": "trim", "end": "end"}]}
+{"id": "r03", "category": "paraphrase", "text": "Trim the idle time off both ends.", "expect": [{"op": "trim", "end": "start"}, {"op": "trim", "end": "end"}]}
+{"id": "r04", "category": "paraphrase", "text": "Remove the pauses.", "expect": [{"op": "remove_pause", "pause": 1}, {"op": "remove_pause", "pause": 2}]}
+{"id": "r05", "category": "paraphrase", "text": "It stops for a moment around 8 seconds, take that out.", "expect": [{"op": "remove_pause", "pause": 2}]}
+{"id": "r06", "category": "paraphrase", "text": "Get rid of the first hesitation.", "expect": [{"op": "remove_pause", "pause": 1}]}
+{"id": "r07", "category": "paraphrase", "text": "The carry is shaky, smooth it out a lot.", "expect": [{"op": "smooth", "span": "carry", "strength": "high"}]}
+{"id": "r08", "category": "paraphrase", "text": "Smooth the whole thing slightly.", "expect": [{"op": "smooth", "span": "whole", "strength": "low"}]}
+{"id": "r09", "category": "paraphrase", "text": "The approach is way too slow, make it twice as fast.", "expect": [{"op": "retime", "span": "approach", "factor": [1.9, 2.1]}]}
+{"id": "r10", "category": "paraphrase", "text": "Slow down the retreat a bit.", "expect": [{"op": "retime", "span": "retreat", "factor": [0.3, 0.95]}]}
+{"id": "r11", "category": "paraphrase", "text": "The gripper closes off-center on the cube, fix the grasp.", "expect": [{"op": "recenter_grasp"}]}
+{"id": "r12", "category": "paraphrase", "text": "It nearly clips the bin rim while carrying; take a higher path over to the bin.", "expect": [{"op": "replan_transit"}]}
+{"id": "r13", "category": "paraphrase", "text": "This demo is garbage, throw it out.", "expect": [{"op": "discard"}]}
+{"id": "r14", "category": "paraphrase", "text": "Speed up the carry.", "expect": [{"op": "retime", "span": "carry", "factor": [1.05, 3.0]}]}
+{"id": "r15", "category": "paraphrase", "text": "Smooth between 3 and 5 seconds.", "expect": [{"op": "smooth", "span": [3.0, 5.0], "strength": null}]}
+{"id": "r16", "category": "negation", "text": "The pause at the start is fine but center the grasp.", "expect": [{"op": "recenter_grasp"}]}
+{"id": "r17", "category": "negation", "text": "Don't trim the end, just remove the pauses.", "expect": [{"op": "remove_pause", "pause": 1}, {"op": "remove_pause", "pause": 2}]}
+{"id": "r18", "category": "negation", "text": "Leave the speed alone and smooth the carry.", "expect": [{"op": "smooth", "span": "carry", "strength": null}]}
+{"id": "r19", "category": "negation", "text": "Keep the idle time at the start, but trim the end.", "expect": [{"op": "trim", "end": "end"}]}
+{"id": "r20", "category": "negation", "text": "Don't touch the grasp; the second pause should go.", "expect": [{"op": "remove_pause", "pause": 2}]}
+{"id": "r21", "category": "negation", "text": "No need to smooth anything, just make the approach faster.", "expect": [{"op": "retime", "span": "approach", "factor": [1.05, 3.0]}]}
+{"id": "r22", "category": "negation", "text": "Don't trim anything, but smooth the approach and the carry.", "expect": [{"op": "smooth", "span": "approach", "strength": null}, {"op": "smooth", "span": "carry", "strength": null}]}
+{"id": "r23", "category": "multi", "text": "Trim the start and the end, and remove both pauses.", "expect": [{"op": "trim", "end": "start"}, {"op": "trim", "end": "end"}, {"op": "remove_pause", "pause": 1}, {"op": "remove_pause", "pause": 2}]}
+{"id": "r24", "category": "multi", "text": "Center the grasp and smooth the carry.", "expect": [{"op": "recenter_grasp"}, {"op": "smooth", "span": "carry", "strength": null}]}
+{"id": "r25", "category": "multi", "text": "Cut the idle at the start, remove the first pause, and go higher over the bin.", "expect": [{"op": "trim", "end": "start"}, {"op": "remove_pause", "pause": 1}, {"op": "replan_transit"}]}
+{"id": "r26", "category": "multi", "text": "The retreat at the end is too slow, and smooth the carry.", "expect": [{"op": "retime", "span": "retreat", "factor": [1.05, 3.0]}, {"op": "smooth", "span": "carry", "strength": null}]}
+{"id": "r27", "category": "multi", "text": "Make the whole demo 1.5x faster and smooth it a little.", "expect": [{"op": "retime", "span": "whole", "factor": [1.4, 1.6]}, {"op": "smooth", "span": "whole", "strength": "low"}]}
+{"id": "r28", "category": "multi", "text": "Remove the pause at 5.5 s and slow the approach down to half speed.", "expect": [{"op": "remove_pause", "pause": 1}, {"op": "retime", "span": "approach", "factor": [0.45, 0.55]}]}
+{"id": "r29", "category": "multi", "text": "Fix the off-center grasp, get rid of the dead time at the end, and smooth the retreat heavily.", "expect": [{"op": "recenter_grasp"}, {"op": "trim", "end": "end"}, {"op": "smooth", "span": "retreat", "strength": "high"}]}
+{"id": "r30", "category": "none", "text": "Looks great, no changes.", "expect": []}
+{"id": "r31", "category": "none", "text": "Use the blue cube instead of the red one.", "expect": []}
+{"id": "r32", "category": "none", "text": "Make it better.", "expect": []}
+{"id": "r33", "category": "none", "text": "Don't change anything.", "expect": []}
+{"id": "r34", "category": "none", "text": "What does retime do?", "expect": []}
