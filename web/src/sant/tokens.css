@@ -1,0 +1,115 @@
+/* SANT design tokens: two modes (Field Notes paper, Volt), shared type, space, radius and motion.
+   Spec: docs/design/design-system.md and docs/design/motion.md. Every name is --sant-*, so the
+   room organizer's web/src/tokens.css is untouched. tokens.test.ts re-checks every contrast pair
+   and that the motion numbers match web/src/sant/motion/tokens.ts. */
+
+:root {
+  --sant-font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --sant-font-ui: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sant-font-data: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --sant-fs-display: clamp(3rem, 1.6rem + 5.6vw, 6.5rem);
+  --sant-fs-1: 3.0625rem;
+  --sant-fs-2: 2.4375rem;
+  --sant-fs-3: 1.9375rem;
+  --sant-fs-4: 1.5625rem;
+  --sant-fs-5: 1.25rem;
+  --sant-fs-body-paper: 1.125rem;
+  --sant-fs-body: 1rem;
+  --sant-fs-small: 0.875rem;
+  --sant-fs-caption: 0.8125rem;
+  --sant-fs-stat: clamp(2.5rem, 1.8rem + 3vw, 4.25rem);
+
+  --sant-space-1: 4px;
+  --sant-space-2: 8px;
+  --sant-space-3: 12px;
+  --sant-space-4: 16px;
+  --sant-space-5: 24px;
+  --sant-space-6: 32px;
+  --sant-space-7: 48px;
+  --sant-space-8: 64px;
+  --sant-space-9: 96px;
+  --sant-space-10: 128px;
+
+  --sant-radius-xs: 4px;
+  --sant-radius-sm: 6px;
+  --sant-radius-md: 10px;
+  --sant-radius-lg: 16px;
+  --sant-radius-pill: 999px;
+
+  --sant-measure: 66ch;
+
+  --sant-dur-0: 0ms;
+  --sant-dur-1: 80ms;
+  --sant-dur-2: 140ms;
+  --sant-dur-3: 200ms;
+  --sant-dur-4: 320ms;
+  --sant-dur-story: 600ms;
+  --sant-dur-count: 1100ms;
+  --sant-dur-power: 900ms;
+
+  --sant-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --sant-ease-in: cubic-bezier(0.3, 0, 1, 1);
+  --sant-ease-move: cubic-bezier(0.4, 0, 0.2, 1);
+  --sant-ease-emph: cubic-bezier(0.05, 0.7, 0.1, 1);
+
+  --sant-stagger-list: 30ms;
+  --sant-stagger-text: 70ms;
+  --sant-stagger-sant: 140ms;
+}
+
+/* Effects off, or the OS asks for reduced motion (MotionProvider sets data-motion on <html>). */
+[data-motion="reduced"] {
+  --sant-dur-0: 0ms;
+  --sant-dur-1: 0ms;
+  --sant-dur-2: 0ms;
+  --sant-dur-3: 0ms;
+  --sant-dur-4: 0ms;
+  --sant-dur-story: 0ms;
+  --sant-dur-count: 0ms;
+  --sant-dur-power: 0ms;
+}
+
+/* Field Notes: the story pages. */
+[data-mode="paper"] {
+  --sant-bg: #F4F1EA;
+  --sant-surface: #FBF9F4;
+  --sant-surface-2: #ECE7DC;
+  --sant-text: #111111;
+  --sant-muted: #6B6760;
+  --sant-line: #CFC8BA;
+  --sant-control: #857E72;
+  --sant-accent: #0B7A63;
+  --sant-accent-ink: #0A6E59;
+  --sant-accent-soft: #DCEFE9;
+  --sant-on-accent: #FFFFFF;
+  --sant-issue: #8A5A00;
+  --sant-issue-soft: #F6E7C8;
+  --sant-violet: #5B3FD1;
+  --sant-violet-soft: #E9E4F8;
+  --sant-danger: #B42318;
+  --sant-shadow-float: 0 10px 30px rgba(17, 17, 17, 0.14);
+  color-scheme: light;
+}
+
+/* Volt: the app pages. */
+[data-mode="volt"] {
+  --sant-bg: #07090C;
+  --sant-surface: #0E1217;
+  --sant-surface-2: #151A21;
+  --sant-text: #E6EDF3;
+  --sant-muted: #8B95A1;
+  --sant-line: #2A323C;
+  --sant-control: #5E6A77;
+  --sant-accent: #19F5C2;
+  --sant-accent-ink: #19F5C2;
+  --sant-accent-soft: #0C2A24;
+  --sant-on-accent: #07090C;
+  --sant-issue: #FFB000;
+  --sant-issue-soft: #2A1F05;
+  --sant-violet: #A78BFA;
+  --sant-violet-soft: #1C1730;
+  --sant-danger: #FF6B6B;
+  --sant-shadow-float: 0 14px 40px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
