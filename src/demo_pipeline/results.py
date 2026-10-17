@@ -11,6 +11,8 @@ Inputs are (source, data) pairs, so this module never touches the disk:
   yield_files    (path, {"robot", "attempts", "successes", "yield", ...})  sim_worker multiply_run yield.json
   scores         (path, scores.json)  scripts/score_pipeline_run.py
   ablations      (path, scores.json)  T4's scripts/ablation_diagnosis.py (diagnosis arms on a frozen set)
+  comparisons    (cell_a, cell_b)     named pairs of cells (e.g. raw_10_30k vs raw_multiply_10_30k): each arm's
+                                      rate and Wilson CI, and the two-sided Fisher exact p when both have counts
 """
 
 from __future__ import annotations
@@ -18,6 +20,8 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from datetime import datetime, timezone
+
+from demo_pipeline.stats import fisher_exact, wilson_ci
 
 Sourced = tuple[str, dict]
 
@@ -42,6 +46,23 @@ def _rate(v) -> float | None:
     if isinstance(v, bool) or not isinstance(v, (int, float)) or math.isnan(v) or not 0.0 <= v <= 1.0:
         return None
     return float(v)
+
+
+def _is_int(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _ci(value: float, detail: dict) -> tuple[dict | None, str]:
+    """The Wilson 95% interval from the measurement's own counts, or None and why it can't be computed."""
+    n, k = detail.get("n"), detail.get("successes")
+    if not _is_int(n) or n <= 0:
+        return None, f"n is not a positive integer ({n!r})"
+    if not _is_int(k):
+        return None, f"successes is not an integer ({k!r})"
+    if abs(k / n - value) > 1e-6:
+        return None, f"successes / n = {k}/{n} does not match the rate {value}"
+    low, high = wilson_ci(k, n)
+    return {"low": low, "high": high, "successes": k, "n": n, "method": "wilson_95"}, ""
 
 
 def _norm_path(p: str | None) -> str | None:
@@ -113,6 +134,9 @@ def _pick(found: list[dict], rejected: list[dict], why: str, checked: list[str])
         order = sorted(range(len(found)), key=lambda i: (found[i]["when"], i))
         best = found[order[-1]]
         entry = {"value": best["value"], "file": best["file"], "detail": best["detail"]}
+        entry["ci"], why_no_ci = _ci(best["value"], best["detail"])
+        if why_no_ci:
+            entry["ci_missing"] = why_no_ci
         others = [{"value": found[i]["value"], "file": found[i]["file"]} for i in order[:-1]]
         if others:
             entry["others"] = others
@@ -188,7 +212,8 @@ def _diagnosis_ablation(ablations: list[Sourced]) -> tuple[list[dict], list[dict
 
 def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced], yield_files: Iterable[Sourced],
                   scores: Iterable[Sourced], *, demos: Iterable[int] = DEMOS, ablation_demos: int = ABLATION_DEMOS,
-                  robot: str = "franka", ablations: Iterable[Sourced] = ()) -> dict:
+                  robot: str = "franka", ablations: Iterable[Sourced] = (),
+                  comparisons: Iterable[tuple[str, str]] = ()) -> dict:
     registry_rows, eval_files = list(registry_rows), list(eval_files)
     demos = [int(n) for n in demos]
     sources: dict[str, dict] = {}
@@ -223,6 +248,17 @@ def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced
     sources["multiply_yield.mimicgen"] = {"value": list(MIMICGEN), "file": MIMICGEN_SOURCE}
     ablation_runs, ablation_unscored = _diagnosis_ablation(list(ablations))
 
+    compared = []
+    for i, pair in enumerate(comparisons):
+        arms = []
+        for name in pair:
+            entry = _pick(*_candidates(name, registry_rows, eval_files))
+            sources[f"comparisons[{i}].{name}"] = entry
+            arms.append({"cell": name, "value": entry["value"], "ci": entry.get("ci")})
+        cis = [a["ci"] for a in arms]
+        p = fisher_exact(cis[0]["successes"], cis[0]["n"], cis[1]["successes"], cis[1]["n"]) if all(cis) else None
+        compared.append({"arms": arms, "fisher_p": p, "test": "fisher_exact_two_sided"})
+
     return {
         "sample": False,
         "note": NOTE,
@@ -233,6 +269,7 @@ def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced
         "diagnosis": _diagnosis(list(scores)),
         "diagnosis_ablation": ablation_runs,
         "diagnosis_ablation_unscored": ablation_unscored,
+        "comparisons": compared,
         "pending": [k for k, v in sources.items() if v["value"] is None],
         "sources": sources,
     }

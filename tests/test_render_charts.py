@@ -72,6 +72,85 @@ def test_a_line_runs_only_through_consecutive_measured_points():
     assert len(line.get("points").split()) == 2
 
 
+def _with_ci(results, cis):
+    """results with sources["series.<key>.success[<j>]"]["ci"] set from {(key, j): (low, high, k, n) | None}."""
+    results["sources"] = {f"series.{key}.success[{j}]": {"ci": None if c is None else
+                                                         {"low": c[0], "high": c[1], "successes": c[2], "n": c[3],
+                                                          "method": "wilson_95"}}
+                          for (key, j), c in cis.items()}
+    return results
+
+
+def test_a_point_with_a_ci_gets_an_error_bar_from_low_to_high():
+    r = _with_ci(_results(series={"raw": [None, 0.1, None]}), {("raw", 1): (0.0279, 0.3010, 2, 20)})
+    root = _parse(rc.success_chart(r))
+    (bar,) = _cls(root, "line", "ci")
+    (point,) = _cls(root, "circle", "point")
+    g = rc.GEOMETRY
+    assert float(bar.get("y1")) == pytest.approx(g.top + (1 - 0.3010) * (g.bottom - g.top), abs=0.1)
+    assert float(bar.get("y2")) == pytest.approx(g.top + (1 - 0.0279) * (g.bottom - g.top), abs=0.1)
+    assert float(bar.get("x1")) == float(bar.get("x2")) == pytest.approx(float(point.get("cx")))
+    assert len(_cls(root, "line", "ci-cap")) == 2
+
+
+def test_a_point_with_a_ci_is_labelled_with_its_counts():
+    r = _with_ci(_results(series={"raw": [None, 0.1, None]}), {("raw", 1): (0.0279, 0.3010, 2, 20)})
+    root = _parse(rc.success_chart(r))
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "count")] == ["2/20"]
+    assert any("95% CI" in t for t in _texts(root))
+
+
+def test_count_labels_sit_under_the_axis_in_their_series_row_centred_on_the_demo_count():
+    # on the plot they collide with the y-axis labels, the line and the other series' bars
+    r = _with_ci(_results(series={"raw": [0.05, 0.1, None], "raw_multiply": [None, 0.15, None]}),
+                 {("raw", 0): (0.0089, 0.2361, 1, 20), ("raw", 1): (0.0279, 0.3010, 2, 20),
+                  ("raw_multiply", 1): (0.0524, 0.3604, 3, 20)})
+    root = _parse(rc.success_chart(r))
+    labels = {"".join(t.itertext()): t for t in _cls(root, "text", "count")}
+    g = rc.GEOMETRY
+    assert all(float(t.get("y")) > g.bottom + 40 for t in labels.values())  # below the axis title
+    assert float(labels["1/20"].get("y")) == float(labels["2/20"].get("y")) < float(labels["3/20"].get("y"))
+    assert float(labels["1/20"].get("x")) == pytest.approx(g.left) and labels["1/20"].get("text-anchor") == "middle"
+
+
+def test_without_cis_the_chart_has_no_bars_counts_or_caption():
+    root = _parse(rc.success_chart(_with_ci(_results(), {("raw", 0): None})))
+    assert _cls(root, "line", "ci") == [] and _cls(root, "text", "count") == []
+    assert not any("95% CI" in t for t in _texts(root))
+    assert len(_cls(root, "circle", "point")) == 9
+
+
+def test_two_series_at_the_same_demo_count_are_dodged_so_their_bars_do_not_overlap():
+    r = _with_ci(_results(series={"raw": [None, 0.1, None], "raw_multiply": [None, 0.15, None]}),
+                 {("raw", 1): (0.0279, 0.3010, 2, 20), ("raw_multiply", 1): (0.0524, 0.3604, 3, 20)})
+    root = _parse(rc.success_chart(r))
+    xs = sorted(float(b.get("x1")) for b in _cls(root, "line", "ci"))
+    assert xs[1] - xs[0] >= 8
+    points = sorted(float(c.get("cx")) for c in _cls(root, "circle", "point"))
+    assert points == pytest.approx(xs)  # each point sits on its own bar
+
+
+def test_a_ci_that_is_not_a_pair_of_rates_is_refused():
+    r = _with_ci(_results(series={"raw": [None, 0.1, None]}), {("raw", 1): (0.2, 1.4, 2, 20)})
+    with pytest.raises(ValueError):
+        rc.success_chart(r)
+
+
+def test_a_ci_that_does_not_contain_its_point_is_refused():
+    r = _with_ci(_results(series={"raw": [None, 0.1, None]}), {("raw", 1): (0.2, 0.3, 2, 20)})
+    with pytest.raises(ValueError):
+        rc.success_chart(r)
+
+
+def test_the_real_builders_cis_reach_the_chart():
+    rows = [("C:/r.jsonl#L1", {"run_id": "a", "cell": {"condition": "raw", "n_human": 10}, "checkpoint": "C:/ck",
+                               "status": "ok", "eval_success": 0.1,
+                               "eval": {"success_rate": 0.1, "n": 20, "successes": 2, "evaluated_at": "x"}})]
+    root = _parse(rc.success_chart(build_results(rows, [], [], [])))
+    assert len(_cls(root, "line", "ci")) == 1
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "count")] == ["2/20"]
+
+
 # --- ablation and yield ----------------------------------------------------------------------------
 
 def test_ablation_bars_have_their_width_and_null_is_pending():
@@ -165,3 +244,56 @@ def test_cli_reports_a_missing_results_file(tmp_path, capsys):
 def test_written_svgs_use_lf_line_endings_on_every_platform(tmp_path):
     for p in rc.render_all(build_results([], [], [], []), tmp_path):
         assert b"\r" not in p.read_bytes()
+
+
+# --- comparison.svg: named pairs with CIs and Fisher's p (sprint 7) -----------------------------------
+
+def _comparison(arms, p, sample=False):
+    """results with one comparison; arms = [(cell, value, (low, high, k, n) | None)]."""
+    r = _results(sample=sample)
+    r["comparisons"] = [{"arms": [{"cell": c, "value": v, "ci": None if ci is None else
+                                   {"low": ci[0], "high": ci[1], "successes": ci[2], "n": ci[3], "method": "wilson_95"}}
+                                  for c, v, ci in arms], "fisher_p": p, "test": "fisher_exact_two_sided"}]
+    return r
+
+
+def test_comparison_rows_draw_each_arms_rate_and_ci_on_one_scale():
+    r = _comparison([("raw_10_30k", 4 / 70, (0.0225, 0.1376, 4, 70)),
+                     ("raw_multiply_10_30k", 15 / 70, (0.1344, 0.3240, 15, 70))], 0.0120)
+    root = _parse(rc.comparison_chart(r))
+    points, cis = _cls(root, "circle", "point"), _cls(root, "rect", "ci")
+    assert [float(c.get("cx")) for c in points] == pytest.approx([rc.BAR_X + v * rc.BAR_WIDTH for v in (4 / 70, 15 / 70)],
+                                                                 abs=0.05)
+    assert float(cis[1].get("x")) == pytest.approx(rc.BAR_X + 0.1344 * rc.BAR_WIDTH, abs=0.05)
+    assert float(cis[1].get("width")) == pytest.approx((0.3240 - 0.1344) * rc.BAR_WIDTH, abs=0.05)
+    texts = _texts(root)
+    assert {"raw_10_30k", "raw_multiply_10_30k"} <= set(texts)
+    assert any("15/70" in t and "13–32%" in t for t in texts)
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "p-value")] == ["Fisher exact p = 0.012 (two-sided)"]
+
+
+def test_a_comparison_arm_not_measured_yet_is_pending_and_so_is_p():
+    r = _comparison([("raw_10_30k", 4 / 70, (0.0225, 0.1376, 4, 70)), ("raw_multiply_10_30k", None, None)], None)
+    root = _parse(rc.comparison_chart(r))
+    assert len(_cls(root, "circle", "point")) == 1 and len(_cls(root, "g", "pending")) == 1
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "p-value")] == ["Fisher exact p: pending"]
+
+
+def test_comparison_chart_marks_sample_data():
+    r = _comparison([("a", 0.1, (0.03, 0.3, 2, 20)), ("b", 0.15, (0.05, 0.36, 3, 20))], 1.0, sample=True)
+    assert _cls(_parse(rc.comparison_chart(r)), "text", "watermark")
+
+
+def test_render_all_writes_comparison_svg_only_when_there_are_comparisons(tmp_path):
+    assert "comparison.svg" not in [p.name for p in rc.render_all(_results(), tmp_path / "none")]
+    r = _comparison([("a", 0.1, (0.03, 0.3, 2, 20)), ("b", 0.15, (0.05, 0.36, 3, 20))], 1.0)
+    assert (tmp_path / "some" / "comparison.svg") in rc.render_all(r, tmp_path / "some")
+
+
+def test_the_real_builders_comparison_renders():
+    evals = [(f"C:/e/{c}.json", {"run": {"cell": c, "checkpoint": "C:/ck", "started": "x"},
+                                 "summary": {"n": 20, "successes": k, "success_rate": k / 20}})
+             for c, k in (("raw_10_30k", 2), ("raw_multiply_10_30k", 3))]
+    r = build_results([], evals, [], [], comparisons=[("raw_10_30k", "raw_multiply_10_30k")])
+    root = _parse(rc.comparison_chart(r))
+    assert ["".join(t.itertext()) for t in _cls(root, "text", "p-value")] == ["Fisher exact p = 1 (two-sided)"]

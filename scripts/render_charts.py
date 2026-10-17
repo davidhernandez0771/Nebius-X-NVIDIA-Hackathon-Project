@@ -4,10 +4,14 @@
     uv run python scripts/render_charts.py --results web/src/pm/mocks/results.sample.json --out docs/media
 
 Writes success.svg (policy success vs human demos), ablation.svg (rules-only vs rules + Nemotron repair) and
-yield.svg (our multiplication yield against MimicGen's published 38-74%).
+yield.svg (our multiplication yield against MimicGen's published 38-74%); and comparison.svg (each named pair of
+cells with its Wilson CIs and Fisher's p) when results.json has comparisons (build_results_json.py --compare).
 
 - **Null values.** A null value (not measured yet) is drawn as a "pending" mark, never as 0. A line only
   joins consecutive measured points.
+- **Uncertainty.** A point whose sources entry has a Wilson CI (`sources["series.<key>.success[<j>]"]["ci"]`,
+  from demo_pipeline.results) gets an error bar, and a "successes/n" label in its series' row under the axis.
+  Series are dodged sideways so bars at the same demo count don't overlap.
 - **Sample data.** Like web/src/pm/results/results.ts, a file counts as real only when it says
   "sample": false. Anything else gets a SAMPLE watermark.
 """
@@ -30,6 +34,7 @@ FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif"
 COLORS = {"raw": "#6b7280", "raw_multiply": "#2563eb", "ours": "#16a34a", "rules": "#d97706"}
 PALETTE = ("#7c3aed", "#db2777", "#0891b2", "#65a30d")
 PENDING = "#9ca3af"
+DODGE = 10.0  # px between neighbouring series at the same demo count
 
 
 class Geometry(NamedTuple):
@@ -93,6 +98,29 @@ def _pending(x: float, y: float, color: str) -> str:
             f'stroke-width="1.5" stroke-dasharray="2 1.5"/>{_text(x - 14, y, "pending", size=10, fill=PENDING)}</g>')
 
 
+def _checked_ci(ci: dict | None, v: float, what: str) -> dict | None:
+    """A CI as demo_pipeline.results writes it, checked: low <= value <= high, all rates."""
+    if ci is None:
+        return None
+    low, high = _rate(ci.get("low"), f"{what} ci low"), _rate(ci.get("high"), f"{what} ci high")
+    if low is None or high is None or not low - 1e-9 <= v <= high + 1e-9:
+        raise ValueError(f"{what} ci must be rates with low <= {v} <= high, got {ci!r}")
+    return {**ci, "low": low, "high": high}
+
+
+def _ci(results: dict, key: str, j: int, v: float) -> dict | None:
+    """The point's CI from its sources entry."""
+    return _checked_ci(((results.get("sources") or {}).get(f"series.{key}.success[{j}]") or {}).get("ci"), v,
+                       f"{key}[{j}]")
+
+
+def _error_bar(x: float, y_low: float, y_high: float, color: str) -> list[str]:
+    cap = [f'<line class="ci-cap" x1="{x - 4:.1f}" x2="{x + 4:.1f}" y1="{y:.1f}" y2="{y:.1f}" stroke="{color}" '
+           f'stroke-width="1.5"/>' for y in (y_high, y_low)]
+    return [f'<line class="ci" x1="{x:.1f}" x2="{x:.1f}" y1="{y_high:.1f}" y2="{y_low:.1f}" stroke="{color}" '
+            f'stroke-width="1.5"/>', *cap]
+
+
 def success_chart(results: dict) -> str:
     """Policy success (0-100%) against the number of human demos; one line per series."""
     g = GEOMETRY
@@ -108,12 +136,15 @@ def success_chart(results: dict) -> str:
     for v in (0.0, 0.25, 0.5, 0.75, 1.0):
         body.append(f'<line class="grid" x1="{g.left}" x2="{g.right}" y1="{y_of(v):.1f}" y2="{y_of(v):.1f}" '
                     f'stroke="#e5e7eb"/>')
-        body.append(_text(g.left - 8, y_of(v) + 4, _pct(v), size=11, anchor="end", fill="#6b7280"))
+        body.append(_text(g.left - 16, y_of(v) + 4, _pct(v), size=11, anchor="end", fill="#6b7280"))
     for x, d in zip(xs, demos):
         body.append(_text(x, g.bottom + 20, d, size=11, anchor="middle", fill="#374151"))
     body.append(_text((g.left + g.right) / 2, g.bottom + 40, "human demos", size=11, anchor="middle", fill="#6b7280"))
 
+    k = len(results["series"])
+    any_ci = False
     for i, s in enumerate(results["series"]):
+        dx = (i - (k - 1) / 2) * DODGE
         values = list(s["success"])
         if len(values) != n:
             raise ValueError(f"series {s['key']} has {len(values)} values for {n} demo counts")
@@ -122,7 +153,7 @@ def success_chart(results: dict) -> str:
         run: list[tuple[float, float]] = []
         for j, v in enumerate(values + [None]):  # the trailing None closes the last run
             if v is not None:
-                run.append((xs[j], y_of(v)))
+                run.append((xs[j] + dx, y_of(v)))
                 continue
             if len(run) >= 2:
                 pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in run)
@@ -130,13 +161,25 @@ def success_chart(results: dict) -> str:
             run = []
         for j, v in enumerate(values):
             if v is not None:
-                body.append(f'<circle class="point" cx="{xs[j]:.1f}" cy="{y_of(v):.1f}" r="4" fill="{color}"/>')
+                x = xs[j] + dx
+                ci = _ci(results, s["key"], j, v)
+                if ci is not None:
+                    any_ci = True
+                    body += _error_bar(x, y_of(ci["low"]), y_of(ci["high"]), color)
+                    # in the series' row under the axis (where pending marks go): never on the plot
+                    body.append(_text(xs[j], g.bottom + 66 + 18 * i, f"{ci['successes']}/{ci['n']}", size=10,
+                                      anchor="middle", fill=color, cls="count"))
+                body.append(f'<circle class="point" cx="{x:.1f}" cy="{y_of(v):.1f}" r="4" fill="{color}"/>')
             else:  # under the axis, in the series' row: never on the plot, where it would read as a value
                 body.append(_pending(xs[j], g.bottom + 66 + 18 * i, color))
         ly = g.top + 8 + 22 * i
         body.append(f'<line x1="{g.right + 24}" x2="{g.right + 44}" y1="{ly:.1f}" y2="{ly:.1f}" stroke="{color}" '
                     f'stroke-width="2.5"/>')
         body.append(_text(g.right + 50, ly + 4, s["label"], size=12))
+    if any_ci:
+        cy = g.top + 8 + 22 * k + 14
+        body.append(_text(g.right + 24, cy, "Bars: Wilson 95% CI", size=11, fill="#6b7280"))
+        body.append(_text(g.right + 24, cy + 16, "k/n: successes / eval episodes", size=11, fill="#6b7280"))
     return _svg(g.width, g.height, "Policy success vs number of human demos", body, _is_sample(results))
 
 
@@ -180,6 +223,41 @@ def yield_chart(results: dict) -> str:
     return _svg(680, 140, "Multiplication yield vs MimicGen", body, _is_sample(results))
 
 
+def comparison_chart(results: dict) -> str:
+    """Each named comparison: one row per arm (rate dot on its Wilson CI band, k/n), then Fisher's p."""
+    body = [_text(16, 26, "Head-to-head: success rate with Wilson 95% CI", size=14, weight="600")]
+    y = 44.0
+    for c in results["comparisons"]:
+        for i, arm in enumerate(c["arms"]):
+            what = f"comparison {arm['cell']}"
+            v = _rate(arm["value"], what)
+            color = _color("raw_multiply" if i else "raw", i)
+            body.append(_text(BAR_X - 10, y + 15, arm["cell"], size=12, anchor="end"))
+            body.append(f'<rect class="track" x="{BAR_X}" y="{y + 4:.1f}" width="{BAR_WIDTH}" height="14" '
+                        f'fill="#f3f4f6"/>')
+            if v is None:
+                body.append(_pending(BAR_X + 30, y + 15, color))
+            else:
+                ci = _checked_ci(arm.get("ci"), v, what)
+                label = _pct(v)
+                if ci is not None:
+                    lo, hi = ci["low"], ci["high"]
+                    body.append(f'<rect class="ci" x="{BAR_X + lo * BAR_WIDTH:.2f}" y="{y + 7:.1f}" '
+                                f'width="{(hi - lo) * BAR_WIDTH:.2f}" height="8" fill="{color}" opacity="0.3"/>')
+                    label = f"{ci['successes']}/{ci['n']} · {_pct(v)} ({round(lo * 100)}–{_pct(hi)})"
+                body.append(f'<circle class="point" cx="{BAR_X + v * BAR_WIDTH:.2f}" cy="{y + 11:.1f}" r="4.5" '
+                            f'fill="{color}"/>')
+                body.append(_text(BAR_X + BAR_WIDTH + 8, y + 15, label, size=11, fill="#374151"))
+            y += 26
+        p = c.get("fisher_p")
+        p_text = "Fisher exact p: pending" if p is None else f"Fisher exact p = {p:.2g} (two-sided)"
+        body.append(_text(BAR_X, y + 12, p_text, size=11, fill="#374151", cls="p-value"))
+        y += 30
+    for v in (0.0, 0.5, 1.0):
+        body.append(_text(BAR_X + v * BAR_WIDTH, y + 6, _pct(v), size=10, anchor="middle", fill="#6b7280"))
+    return _svg(800, int(y + 20), "Head-to-head success with Wilson 95% CI", body, _is_sample(results))
+
+
 CHARTS = {"success.svg": success_chart, "ablation.svg": ablation_chart, "yield.svg": yield_chart}
 
 
@@ -187,7 +265,8 @@ def render_all(results: dict, out_dir: Path) -> list[Path]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = []
-    for name, draw in CHARTS.items():
+    charts = {**CHARTS, **({"comparison.svg": comparison_chart} if results.get("comparisons") else {})}
+    for name, draw in charts.items():
         (out_dir / name).write_text(draw(results), encoding="utf-8", newline="\n")  # LF, as git stores it
         paths.append(out_dir / name)
     return paths

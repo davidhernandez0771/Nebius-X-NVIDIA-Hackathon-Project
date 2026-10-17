@@ -83,7 +83,7 @@ def _eval_run_id(path: str, e: dict) -> str | None:
 
 def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (), out: Path | None = None,
           robot: str = "franka", demos=DEMOS, ablation_demos: int = ABLATION_DEMOS,
-          run_ids: list[str] | None = None) -> Path:
+          run_ids: list[str] | None = None, comparisons: list[tuple[str, str]] = ()) -> Path:
     """run_ids: use only these experiment runs' registry rows and eval files (others are listed as excluded),
     so one chart never mixes two experiments; None uses every run (the newest measurement of a cell wins)."""
     data = Path(data)
@@ -109,7 +109,7 @@ def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (),
     ablations = _files([p for root in roots for p in sorted(root.glob("ablation/*/scores.json"))], skipped)
 
     results = build_results(registry, evals, yields, scores, demos=demos, ablation_demos=ablation_demos, robot=robot,
-                            ablations=ablations)
+                            ablations=ablations, comparisons=comparisons)
     results["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     results["generator"] = "scripts/build_results_json.py"
     results["inputs"] = {"registry": [s for s, _ in registry], "evals": [s for s, _ in evals],
@@ -132,6 +132,21 @@ def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (),
     return out
 
 
+def _ci_note(src: dict) -> str:
+    """A success point's counts and Wilson CI for the summary line, or why it has none; empty for other values."""
+    if src.get("ci"):
+        ci = src["ci"]
+        return f" ({ci['successes']}/{ci['n']}, Wilson 95% CI {ci['low'] * 100:.1f}-{ci['high'] * 100:.1f}%)"
+    return f" (no CI: {src['ci_missing']})" if src.get("ci_missing") else ""
+
+
+def _pair(spec: str) -> tuple[str, str]:
+    a, sep, b = spec.partition(":")
+    if not sep or not a or not b or ":" in b:
+        raise argparse.ArgumentTypeError(f"--compare wants CELL_A:CELL_B, got {spec!r}")
+    return a, b
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data-dir", type=Path, default=None, help="default DATA_DIR")
@@ -144,17 +159,23 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ablation-demos", type=int, default=ABLATION_DEMOS)
     p.add_argument("--run-id", action="append", default=None,
                    help="use only this experiment run (repeatable); default: every run, newest wins")
+    p.add_argument("--compare", type=_pair, action="append", default=[], metavar="CELL_A:CELL_B",
+                   help="a named comparison (repeatable): both cells' rates, Wilson CIs and Fisher's exact p")
     args = p.parse_args(argv)
     out = build(args.data_dir if args.data_dir is not None else data_dir(), t2_data=args.t2_data,
                 input_roots=args.input_root, out=args.out,
                 robot=args.robot, demos=[int(x) for x in args.demos.split(",")], ablation_demos=args.ablation_demos,
-                run_ids=args.run_id)
+                run_ids=args.run_id, comparisons=args.compare)
     r = json.loads(out.read_text(encoding="utf-8"))
     filled = [k for k, v in r["sources"].items() if v["value"] is not None and v.get("file")]
     print(f"wrote {out}: {len(filled)} values from source files, {len(r['pending'])} pending, "
           f"{len(r['skipped_inputs'])} inputs skipped")
     for k in filled:
-        print(f"  {k} = {r['sources'][k]['value']}  <- {r['sources'][k]['file']}")
+        src = r["sources"][k]
+        print(f"  {k} = {src['value']}{_ci_note(src)}  <- {src['file']}")
+    for c in r["comparisons"]:
+        p_text = "pending (an arm has no counts)" if c["fisher_p"] is None else f"{c['fisher_p']:.3g}"
+        print(f"  {c['arms'][0]['cell']} vs {c['arms'][1]['cell']}: Fisher exact p = {p_text} (two-sided)")
     return 0
 
 
