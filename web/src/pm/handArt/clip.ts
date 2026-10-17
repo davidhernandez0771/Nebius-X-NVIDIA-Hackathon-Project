@@ -166,9 +166,9 @@ function poseHand(p: Pose): HandLandmark[] {
   });
 
   // Thumb: an open chain that swings across the palm as the hand closes.
-  const swing = (-50 + 30 * p.curl) * DEG;
+  const swing = (-38 + 26 * p.curl) * DEG;
   const cmc: V3 = [-0.22, 0.22, -0.02];
-  const thumb = fingerChain(cmc, [0.36, 0.3, 0.26], swing, p.curl * 0.6);
+  const thumb = fingerChain(cmc, [0.3, 0.24, 0.21], swing, p.curl * 0.6);
   local[1] = cmc;
   [local[2], local[3], local[4]] = thumb;
   if (p.pinch > 0) {

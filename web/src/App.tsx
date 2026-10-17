@@ -15,6 +15,7 @@ import DatasetPage from "./pm/dataset/DatasetPage";
 import RecordPage from "./pm/record/RecordPage";
 import ReviewPage from "./pm/review/ReviewPage";
 import ResultsPage from "./pm/results/ResultsPage";
+import { HandArtPreviewRoute } from "./pm/handArt";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
 import { HandToggle } from "./hand/integration/HandToggle";
@@ -53,6 +54,7 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route path="/pm/hand-art" element={<HandArtPreviewRoute />} />
         <Route element={<DashboardShell />}>
           <Route path="/home" element={<Home />} />
           <Route path="/room" element={<RoomView />} />
