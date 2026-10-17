@@ -1,4 +1,4 @@
-// Shared bits for the Perfect-then-multiply pages: a load hook, and the
+// Shared bits for SANT's robot-demo pages: a load hook, and the
 // error card every page shows instead of a blank screen.
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";

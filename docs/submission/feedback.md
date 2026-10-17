@@ -1,4 +1,4 @@
-# Tool feedback (DRAFT)
+# SANT: tool feedback (DRAFT)
 
 <!-- Draft written 2026-10-16 from the project's dated notes, refreshed in sprint 3b, after sprint 4, and in sprint 7 (v2 ablation, video probe). Each finding cites its source.
      The "would we build with it again" answers are a draft for the team to confirm. -->
