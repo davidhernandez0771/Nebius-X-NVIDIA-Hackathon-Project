@@ -10,12 +10,14 @@ Inputs are (source, data) pairs, so this module never touches the disk:
   eval_files     (path, {"run", "summary", ...})  sim_eval/scripts/run_eval.py results files
   yield_files    (path, {"robot", "attempts", "successes", "yield", ...})  sim_worker multiply_run yield.json
   scores         (path, scores.json)  scripts/score_pipeline_run.py
+  ablations      (path, scores.json)  T4's scripts/ablation_diagnosis.py (diagnosis arms on a frozen set)
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Iterable
+from datetime import datetime, timezone
 
 Sourced = tuple[str, dict]
 
@@ -150,9 +152,39 @@ def _diagnosis(scores: list[Sourced]) -> list[dict]:
             for src, s in scores]
 
 
+ARM_KEYS = ("per_type", "total", "negatives_fp_rate", "grasp_fp_rate_on_centered", "r1_bar", "model_calls",
+            "est_cost_usd", "fallbacks", "pending")
+
+
+def _when(created) -> datetime:
+    try:
+        when = datetime.fromisoformat(created)
+    except (TypeError, ValueError):
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return when if when.tzinfo else when.replace(tzinfo=timezone.utc)
+
+
+def _diagnosis_ablation(ablations: list[Sourced]) -> tuple[list[dict], list[dict]]:
+    """T4's ablation_diagnosis.py runs (oldest first), each arm's scores as written; and the runs that scored
+    nothing (e.g. every episode rejected by the manifest check), listed with why instead of as numbers."""
+    runs, unscored = [], []
+    for src, a in sorted(ablations, key=lambda x: _when(x[1].get("created"))):
+        # sprint 4 runs had no manifest check: their "episodes" list is what was scored (later it is a count)
+        old = a.get("episodes") if isinstance(a.get("episodes"), list) else []
+        scored = a["scored_episodes"] if "scored_episodes" in a else old
+        rejected = a.get("rejected") or []
+        if not scored:
+            unscored.append({"file": src, "why": f"no episode scored ({len(rejected)} rejected)"})
+            continue
+        arms = {name: {k: arm.get(k) for k in ARM_KEYS} for name, arm in (a.get("diagnosers") or {}).items()}
+        runs.append({"source": src, "created": a.get("created"), "manifest": a.get("manifest"), "scored": len(scored),
+                     "rejected": len(rejected), "stopped": a.get("stopped"), "arms": arms})
+    return runs, unscored
+
+
 def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced], yield_files: Iterable[Sourced],
                   scores: Iterable[Sourced], *, demos: Iterable[int] = DEMOS, ablation_demos: int = ABLATION_DEMOS,
-                  robot: str = "franka") -> dict:
+                  robot: str = "franka", ablations: Iterable[Sourced] = ()) -> dict:
     registry_rows, eval_files = list(registry_rows), list(eval_files)
     demos = [int(n) for n in demos]
     sources: dict[str, dict] = {}
@@ -185,6 +217,7 @@ def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced
 
     sources["multiply_yield.ours"] = _yield(list(yield_files), robot)
     sources["multiply_yield.mimicgen"] = {"value": list(MIMICGEN), "file": MIMICGEN_SOURCE}
+    ablation_runs, ablation_unscored = _diagnosis_ablation(list(ablations))
 
     return {
         "sample": False,
@@ -194,6 +227,8 @@ def build_results(registry_rows: Iterable[Sourced], eval_files: Iterable[Sourced
         "ablation": {"demos": ab_n, "bars": bars},
         "multiply_yield": {"ours": sources["multiply_yield.ours"]["value"], "mimicgen": list(MIMICGEN)},
         "diagnosis": _diagnosis(list(scores)),
+        "diagnosis_ablation": ablation_runs,
+        "diagnosis_ablation_unscored": ablation_unscored,
         "pending": [k for k, v in sources.items() if v["value"] is None],
         "sources": sources,
     }

@@ -8,6 +8,7 @@ Collects (demo_pipeline.results has the rules; nothing measured stays null and i
   <data-dir>/evals/*.json                      T3's sim eval results files
   <root>/*/yield.json, <root>/*/*/yield.json   T2's multiply yields, for root in --data-dir and each --t2-data
   <data-dir>/sets/*/pipeline/*/scores.json     scripts/score_pipeline_run.py
+  <data-dir>/ablation/*/scores.json            T4's scripts/ablation_diagnosis.py runs (diagnosis_ablation)
 Each --input-root (another track's data folder) contributes its registry, evals, yields and scores in place,
 so every source path stays the file that was measured; only results.json is written, under --data-dir.
 A file or registry line that cannot be read is skipped and listed in "skipped_inputs". The file is
@@ -101,12 +102,15 @@ def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (),
                    for pattern in ("yield.json", "*/yield.json", "*/*/yield.json") for p in root.glob(pattern)}
     yields = _files(sorted(yield_paths.values(), key=lambda p: (p.stat().st_mtime, str(p))), skipped)  # oldest first
     scores = _files([p for root in roots for p in sorted(root.glob("sets/*/pipeline/*/scores.json"))], skipped)
+    ablations = _files([p for root in roots for p in sorted(root.glob("ablation/*/scores.json"))], skipped)
 
-    results = build_results(registry, evals, yields, scores, demos=demos, ablation_demos=ablation_demos, robot=robot)
+    results = build_results(registry, evals, yields, scores, demos=demos, ablation_demos=ablation_demos, robot=robot,
+                            ablations=ablations)
     results["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     results["generator"] = "scripts/build_results_json.py"
     results["inputs"] = {"registry": [s for s, _ in registry], "evals": [s for s, _ in evals],
-                         "yields": [s for s, _ in yields], "scores": [s for s, _ in scores]}
+                         "yields": [s for s, _ in yields], "scores": [s for s, _ in scores],
+                         "ablations": [s for s, _ in ablations]}
     results["run_ids"] = list(run_ids) if run_ids is not None else None
     results["excluded_by_run_id"] = excluded
     results["skipped_inputs"] = skipped

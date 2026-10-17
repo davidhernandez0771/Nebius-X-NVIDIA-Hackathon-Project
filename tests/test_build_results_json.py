@@ -49,14 +49,14 @@ def test_collects_every_input_and_writes_results_json(tmp_path):
     assert r["sources"]["multiply_yield.ours"]["file"] == str(t2 / "multiply_franka" / "yield.json")
     assert r["diagnosis"][0]["source"] == str(data / "sets" / "s1" / "pipeline" / "rules" / "scores.json")
     assert r["skipped_inputs"] == [{"file": f"{reg}#L2", "error": r["skipped_inputs"][0]["error"]}]
-    assert sorted(r["inputs"]) == ["evals", "registry", "scores", "yields"]
+    assert sorted(r["inputs"]) == ["ablations", "evals", "registry", "scores", "yields"]
     assert len(r["inputs"]["yields"]) == 2 and r["generated_at"]
 
 
 def test_with_nothing_measured_the_file_is_all_pending(tmp_path):
     r = json.loads(brj.build(tmp_path / "empty").read_text(encoding="utf-8"))
     assert r["multiply_yield"]["ours"] is None and len(r["pending"]) == 12
-    assert r["inputs"] == {"registry": [], "evals": [], "yields": [], "scores": []}
+    assert r["inputs"] == {"registry": [], "evals": [], "yields": [], "scores": [], "ablations": []}
 
 
 def test_a_corrupt_input_file_is_skipped_and_recorded(tmp_path):
@@ -161,3 +161,16 @@ def test_the_cli_takes_run_ids(tmp_path, capsys):
     brj.main(["--data-dir", str(data), "--input-root", str(t3), "--run-id", "old", "--demos", "5,10"])
     r = json.loads((data / "results" / "results.json").read_text(encoding="utf-8"))
     assert r["series"][0]["success"] == [0.0, 0.0] and r["run_ids"] == ["old"]
+
+
+def test_input_roots_add_t4s_ablation_runs(tmp_path):
+    data, t4 = tmp_path / "data", tmp_path / "t4data"
+    _write(t4 / "ablation" / "v2_run2" / "scores.json",
+           {"created": "2026-10-16T20:24:44-04:00", "scored_episodes": ["v2_2000"], "rejected": [],
+            "diagnosers": {"rules": {"total": {"f1": 0.81}}}})
+    _write(t4 / "ablation" / "v2_run2" / "cases" / "v2_2000__rules.json", {"x": 1})
+    r = json.loads(brj.build(data, input_roots=[t4]).read_text(encoding="utf-8"))
+    [run] = r["diagnosis_ablation"]
+    assert run["source"] == str(t4 / "ablation" / "v2_run2" / "scores.json")
+    assert run["arms"]["rules"]["total"] == {"f1": 0.81}
+    assert r["inputs"]["ablations"] == [str(t4 / "ablation" / "v2_run2" / "scores.json")]
