@@ -1,4 +1,4 @@
-// Backend calls for the Perfect-then-multiply pages. Unlike ../api/client.ts,
+// Backend calls for SANT's robot-demo pages ("Perfect, then multiply"). Unlike ../api/client.ts,
 // errors keep their HTTP status and a `kind`, so each page can say exactly
 // what went wrong: the backend is down, the sim worker is down (503), or the
 // route isn't on this backend yet (FastAPI's bare 404 "Not Found", or 405).

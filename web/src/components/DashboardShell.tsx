@@ -55,6 +55,7 @@ export default function DashboardShell() {
       <header className="app-topbar">
         <div className="topbar-brand">
           <span className="wordmark">SANT</span>
+          <span className="muted small topbar-subtitle">Simulate · Augment · Neaten · Train</span>
           <span className="muted small topbar-date">
             {now.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
           </span>

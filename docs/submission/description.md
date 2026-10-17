@@ -1,4 +1,8 @@
-# Perfect, then multiply: Devpost project description (DRAFT)
+# SANT: Devpost project description (DRAFT)
+
+**SANT** stands for **S**imulate · **A**ugment · **N**eaten · **T**rain: perfect one demo, then multiply it.
+
+*Perfect, then multiply.*
 
 <!-- Draft written 2026-10-16, refreshed in sprint 3b, after sprint 4 (sprint 4 results, the
      ablation, the teleop sink), and in sprint 7 (T7's claims audit: policy results, the v2
@@ -286,9 +290,9 @@ type.
     pre-registered v2 ablation, the 100/100 home-start multiply dataset, and the first
     unseen-scene policy successes (2/20 raw, 3/20 multiplied).
   <!-- src: t4-status, t2-status, t1-status, t3-status (sprint 2-6 entries); docs/superpowers/notes/2026-10-16-web-pages.md; git e714c9a (set v2), 151b488 (rehome), 883f623 (2/20 vs 3/20) -->
-- **Reused from earlier in this repo** (started 2026-09-13 as *SANT*, a room-organizer app
-  for the same hackathon): the Token Factory client and usage logging, the FastAPI backend
-  shell, and the browser MediaPipe hand tracking.
+- **Reused from SANT's earlier room-organizer version** (started 2026-09-13 for the same
+  hackathon; it grew into this robot-training tool on 2026-10-15): the Token Factory client and
+  usage logging, the FastAPI backend shell, and the browser MediaPipe hand tracking.
 - **PENDING:**
   - a webcam demo recorded by a real person;
   - the spec's chart: 50 test positions, policies trained on *human* demos at 5/10/20,

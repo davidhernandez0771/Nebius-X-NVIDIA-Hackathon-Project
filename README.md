@@ -1,4 +1,8 @@
-# Perfect, then multiply
+# SANT
+
+**S**imulate · **A**ugment · **N**eaten · **T**rain: perfect one demo, then multiply it.
+
+*Perfect, then multiply.*
 
 **Record one robot demo by moving your hand in front of a webcam. Get back many physics-checked
 training demos.**
@@ -107,12 +111,14 @@ the scripted expert, with noise added on purpose.*
 | **Done** | Multiplying helps: 3/40 vs 17/40 (above) |
 | **Done** | Fair test of Nemotron as a judge (code won); prototype of Nemotron as a request translator (34/34) |
 | **Done** | Web pages: Record, Review (with a Perfect button), Dataset and Results. CI on GitHub |
-| **In progress** | Faster evaluation (several scenes at once in one Isaac process) and a bigger 10 × 30 multiplied dataset |
+| **Done** | Faster evaluation: several scenes at once in one Isaac process, 2.1× faster than one at a time (7 of 8 outcomes agree) |
+| **Done** | A bigger multiplied dataset: 10 demos × 30 variants, 300/300 verified |
+| **Next** | Train and test a policy on the 10 × 30 dataset |
 | **Next** | A live session with a real person at the webcam. The Record page works, but so far only a scripted fake hand has driven it (376/376 steps recorded) |
 | **Next** | The same experiment on human demos: raw vs perfected + multiplied |
 | **Next** | Decide Nemotron's role in the app |
 | **Next** | Record the 3-minute video; the shot list is in [`docs/submission/video_script.md`](docs/submission/video_script.md) |
-<!-- src: docs/TECHNICAL.md (Pipeline status); docs/superpowers/notes/2026-10-15-t2-status.md (50/50; 100/100); docs/superpowers/notes/2026-10-16-web-pages.md (no real person yet; fake-hand smoke 376/376); docs/RUNBOOK.md §10 (CI); docs/superpowers/plans/2026-10-17-sprint7-make-multiply-convincing.md (T2: parallel eval, 10 × 30 dataset; T4: role is the user's decision) -->
+<!-- src: docs/TECHNICAL.md (Pipeline status); docs/superpowers/notes/2026-10-15-t2-status.md (50/50; 100/100); docs/superpowers/notes/2026-10-16-web-pages.md (no real person yet; fake-hand smoke 376/376); docs/RUNBOOK.md §10 (CI); docs/superpowers/notes/2026-10-15-t2-status.md (sprint 7 Task 2a: 2.12× at N = 4, 7/8 agree; Task 2b: 300/300 verified, the next training cell for T3); docs/superpowers/plans/2026-10-17-sprint7-make-multiply-convincing.md (T4: role is the user's decision) -->
 
 ## Repo map
 
@@ -146,8 +152,8 @@ powershell -ExecutionPolicy Bypass -File scripts\launch\stop.ps1
 David Hernandez Del Risco and Susana Rojas.
 <!-- src: docs/superpowers/notes/2026-10-16-prepublish-audit.md (finding 5, the suggested names) -->
 
-The project started as **SANT**, a room organizer, and pivoted to *Perfect, then multiply* on
-2026-10-15. Some SANT code is still in the tree; see [docs/TECHNICAL.md](docs/TECHNICAL.md#history).
+SANT started as a room organizer and grew into this robot-training tool on 2026-10-15. Some of the
+room-organizer code is still in the tree; see [docs/TECHNICAL.md](docs/TECHNICAL.md#history).
 <!-- src: docs/TECHNICAL.md (History); spec header (approved 2026-10-15) -->
 
 Full details (every stage and measurement, prior art, our claim, limitations): [docs/TECHNICAL.md](docs/TECHNICAL.md).
