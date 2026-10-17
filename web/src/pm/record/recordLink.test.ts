@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { HandLandmark } from "../../hand/contracts";
+import { DEFAULT_TELEOP_CONTROL } from "../../teleop/controlRegion";
 import { RecordLink, controlMessage, parseSimStatus } from "./recordLink";
 
 /** A stand-in WebSocket: records what is sent, and lets a test open it and deliver messages. */
@@ -116,5 +118,21 @@ describe("RecordLink", () => {
     link.close();
     sock.deliver(simStatus);
     expect(sims).toEqual([]);
+  });
+
+  it("passes control-region settings through to the hand poses it sends", () => {
+    const link = new RecordLink("ws://relay", Impl);
+    const sock = FakeSocket.last!;
+    sock.open();
+    const landmarks: HandLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    landmarks[5] = { x: 0.45, y: 0.5, z: 0 };
+    landmarks[17] = { x: 0.55, y: 0.5, z: 0 };
+    const frame = (t: number) => ({ timestamp: t, frameWidth: 640, frameHeight: 480, hands: [{ landmarks, handedness: "Right" as const }] });
+    link.push(frame(0));
+    link.setControl(DEFAULT_TELEOP_CONTROL);
+    link.push(frame(100));
+    const sent = sock.sent.map((m) => JSON.parse(m));
+    expect(sent.map((m) => "control" in m)).toEqual([false, true]);
+    link.close();
   });
 });

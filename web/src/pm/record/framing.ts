@@ -3,6 +3,7 @@
 // ranges is clamped there, so the arm stops following. These are that class's
 // defaults (src/demo_pipeline/teleop.py); update both together.
 
+import type { TeleopControlSettings } from "../../teleop/controlRegion";
 import type { HandPoseMsg } from "../../teleop/handPoseMessage";
 
 export const CALIBRATION = {
@@ -32,4 +33,46 @@ export function framingCheck(msg: Pick<HandPoseMsg, "tracking_ok" | "wrist_uv" |
   if (msg.palm_width < c.palm_far) hints.push("Bring your hand closer");
   else if (msg.palm_width > c.palm_near) hints.push("Move your hand back");
   return { state: hints.length ? "edge" : "ok", hints };
+}
+
+// --- With the control region on (web/src/teleop/controlRegion.ts) ---------------------------
+
+/** Same hints as framingCheck, for the palm center against the user's control region and depth range. */
+export function controlFraming(
+  hand: { center: { x: number; y: number }; palmWidth: number } | null,
+  s: TeleopControlSettings,
+): Framing {
+  if (!hand) return { state: "no-hand", hints: [] };
+  const { x, y } = hand.center;
+  const r = s.region;
+  const hints: string[] = [];
+  if (x < r.centerX - r.width / 2) hints.push("Move your hand left");
+  else if (x > r.centerX + r.width / 2) hints.push("Move your hand right");
+  if (y < r.centerY - r.height / 2) hints.push("Move your hand down");
+  else if (y > r.centerY + r.height / 2) hints.push("Move your hand up");
+  if (hand.palmWidth < s.depthFar) hints.push("Bring your hand closer");
+  else if (hand.palmWidth > s.depthNear) hints.push("Move your hand back");
+  return { state: hints.length ? "edge" : "ok", hints };
+}
+
+// demo_pipeline.teleop.Calibration's z_range, and the cube's center height on the table
+// (the grasp height). Update together with teleop.py.
+export const Z_RANGE: readonly [number, number] = [0.02, 0.4];
+const CUBE_Z = 0.025;
+export const TABLE_MARK = (CUBE_Z - Z_RANGE[0]) / (Z_RANGE[1] - Z_RANGE[0]);
+
+/** The arm's target height for a control triple, as to_ee_target computes it (z follows 1 - v). */
+export function robotHeight(control: readonly [number, number, number]): { fraction: number; z: number } {
+  const fraction = Math.min(1, Math.max(0, 1 - control[1]));
+  return { fraction, z: Z_RANGE[0] + fraction * (Z_RANGE[1] - Z_RANGE[0]) };
+}
+
+/** demo_pipeline.teleop.GripperLatch's thresholds, so the page shows what the sim will do. */
+export const GRIPPER = { closeBelow: 0.35, openAbove: 0.45 } as const;
+
+export function nextGripper(prev: 0 | 1, msg: Pick<HandPoseMsg, "tracking_ok" | "pinch_ratio">): 0 | 1 {
+  if (!msg.tracking_ok) return prev;
+  if (msg.pinch_ratio < GRIPPER.closeBelow) return 1;
+  if (msg.pinch_ratio > GRIPPER.openAbove) return 0;
+  return prev;
 }
