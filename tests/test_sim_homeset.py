@@ -27,9 +27,24 @@ def test_training_seeds_stay_clear_of_t3s_eval_scenes_and_of_each_other():
     assert variant_seeds(3, 10) == list(range(VARIANT_SEED0 + 30, VARIANT_SEED0 + 40))
 
 
-def test_variant_seeds_refuse_to_overlap_the_next_source_block():
+def test_thirty_variants_per_source_keep_the_first_ten_and_stay_clear_of_everything():
+    # sprint 7: 10 x 30. The first 10 of each source are sprint 6's seeds, so those episodes are reused.
+    var = {i: variant_seeds(i, 30) for i in range(10)}
+    for i in range(10):
+        assert var[i][:10] == variant_seeds(i, 10)
+    assert var[3][10:20] == list(range(VARIANT_SEED0 + 100 + 30, VARIANT_SEED0 + 100 + 40))
+    every = source_seeds(10) + [s for v in var.values() for s in v]
+    assert len(set(every)) == 310 and max(every) < EVAL_SEED_MIN
+
+
+def test_variant_seeds_refuse_an_eleventh_source_that_would_overlap_the_next_block():
     with pytest.raises(ValueError):
-        variant_seeds(0, 11)
+        variant_seeds(10, 1)
+
+
+def test_variant_seeds_refuse_to_reach_the_eval_scenes():
+    with pytest.raises(ValueError):
+        variant_seeds(9, 200)
 
 
 def test_source_names_are_padded_seeds():
