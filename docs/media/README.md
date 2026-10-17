@@ -38,14 +38,14 @@ They are built from `results.json` (`"sample": false`). A value nobody has measu
 
 | file | what it shows today | source |
 |---|---|---|
-| `charts/success.svg` | Policy success against the number of human demos. **All pending:** T3's cells raw_5, raw_10 and raw_13 are trained but not yet evaluated. | `C:\dev\pm-t3\data\results\registry.jsonl` |
+| `charts/success.svg` | Policy success against the number of demos, for **one experiment only**: T3's sprint 6 Task B run `sprint6_home_a_20261016_205725`, where every demo and eval starts from one home pose. **Raw at 10 demos: 10% (2/20 unseen scenes, seed0 5000), the project's first non-zero.** Raw + multiply at 10 (10 sources + 100 variants) and every 5-demo point: **pending**. The earlier sprint 3 cells (raw 5/10/13, start above their own cube, all 0/20) are left out with `--run-id`, so two setups never share a line; T1's status note keeps them. | `C:\dev\pm-t3\data\results\registry.jsonl` line 4 (its eval file is `evals\sprint6_home_a_20261016_205725\raw_10.json`) |
 | `charts/ablation.svg` | Rules-only against rules + Nemotron repair. **Both pending.** | the same registry (no rules_multiply / perfected_multiply cells yet) |
-| `charts/yield.svg` | Multiplication yield: Franka **90%** (27/30) against MimicGen's published 38–74%. That run predates the handover fix (`f1e21d9`). The 3 failures were the fixed-time swing, so a re-run should be higher (T2, sprint 4). | `C:\dev\pm-t2\data\multiply_franka\yield.json`; MimicGen from the spec, section 5 |
+| `charts/yield.svg` | Multiplication yield: Franka **100%** (100/100). That is the home-start dataset T3 Task B trains on: 10 verified sources × 10 variants (T2, sprint 6). It replaces the pre-fix 90% (27/30). The post-fix clean-expert run (30/30) is listed under `others` in `results.json`. MimicGen's published 38–74% is shown beside it. | `C:\dev\pm-t2\data\episodes\home_v1_manifest.json`; MimicGen from the spec, section 5 |
 
 **To refresh** after new runs:
 
 ```
-uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --t2-data C:\dev\pm-t2\data
+uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --input-root C:\dev\pm-t4\data --t2-data C:\dev\pm-t2\data --demos 5,10 --run-id sprint6_home_a_20261016_205725
 uv run python scripts/render_charts.py --results data/results/results.json --out docs/media/charts
 ```
 
@@ -58,3 +58,24 @@ They are not drawn as a chart. T4's s1 run, 5 demos, scored with `scripts/score_
 - **The calibrated Nemotron (sprint 3):** kept all 5 demos and named no issue (recall 0).
 
 That result is why sprint 4 builds the hybrid diagnoser.
+
+**The fair, pre-registered test (sprint 6):** T4 ran every arm on T1's frozen set v2: 32 rendered demos
+(manifest SHA-256 `21d82eac…`), 8 off-center grasps, 8 centered-grasp negatives, 6 drops, 6 bad releases and
+4 clean demos. All five arms scored all 32 demos. F1 over all types:
+
+| arm | F1, all types | grasp R1 bar | model calls / cost |
+|---|---|---|---|
+| `rules` | 0.81 | fail | 0 / $0 |
+| `rules_grasp_metric` | 0.84 | pass | 0 / $0 |
+| `code_all` (code only) | **0.90** | pass | 0 / $0 |
+| `hybrid` (rules + Nemotron) | 0.86 | pass | 35 / $0.054 |
+| `hybrid_blind` (Nemotron without the measured offset) | 0.80 | fail (8/8 centered grasps called off-center) | 33 / $0.050 |
+
+- **Code only matches or beats both model arms on every issue type.**
+  - drop: 1.00 against 0.00;
+  - bad_release: 1.00 against 0.71 and 0.67.
+- **Hybrid's grasp calls are the code metric's.** The full table, the negatives' false-positive rates and the
+  one deviation (a hash-definition bug in T4's integrity check, fixed before any scored call) are in T4's
+  status note.
+- Source: `C:\dev\pm-t4\data\ablation\v2_20261016_run2\scores.json` and `table.md`. `results.json` carries it
+  as `diagnosis_ablation`.

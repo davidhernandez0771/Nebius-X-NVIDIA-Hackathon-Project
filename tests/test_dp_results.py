@@ -174,3 +174,72 @@ def test_diagnosis_scores_are_carried_with_their_source():
 def test_demo_counts_on_the_axis_come_from_the_plan_not_the_data():
     out = build_results([_row("raw", 3, 0.1)], [], [], [], demos=(5, 10))
     assert out["demos"] == [5, 10] and all(len(s["success"]) == 2 for s in out["series"])
+
+
+def _arm(f1, calls=0, cost=0.0, r1=None):
+    return {"per_type": {"drop": {"tp": 6, "fp": 0, "fn": 0, "f1": 1.0}}, "total": {"f1": f1},
+            "negatives_fp_rate": {"drop": {"episodes": 26, "with_fp": 0, "rate": 0.0}},
+            "grasp_fp_rate_on_centered": {"episodes": 8, "with_fp": 1, "rate": 0.125},
+            "r1_bar": r1, "model_calls": calls, "est_cost_usd": cost, "fallbacks": 0, "pending": 0,
+            "gated_items": 3, "cases_done": 32}
+
+
+def _ablation(scored, created, arms=None, rejected=()):
+    return {"created": created, "out": "x", "manifest": "C:/dev/pm-t1/data/sets/v2/manifest.json",
+            "episodes": len(scored), "scored_episodes": list(scored), "rejected": list(rejected), "stopped": None,
+            "diagnosers": arms or {}}
+
+
+def test_diagnosis_ablation_runs_are_carried_per_arm_with_their_source():
+    arms = {"code_all": _arm(0.90), "hybrid": _arm(0.86, 35, 0.054, {"recall": 1.0, "passes": True})}
+    runs = [("C:/t4/ablation/run2/scores.json", _ablation([f"v2_{i}" for i in range(31)], "2026-10-16T20:24:44-04:00", arms,
+                                                         rejected=[{"episode": "v2_31", "reason": "edited"}]))]
+    [run] = build_results([], [], [], [], ablations=runs)["diagnosis_ablation"]
+    assert run["source"] == "C:/t4/ablation/run2/scores.json"
+    assert run["created"] == "2026-10-16T20:24:44-04:00" and run["scored"] == 31 and run["rejected"] == 1
+    assert run["manifest"] == "C:/dev/pm-t1/data/sets/v2/manifest.json" and run["stopped"] is None
+    assert list(run["arms"]) == ["code_all", "hybrid"]
+    h = run["arms"]["hybrid"]
+    assert h == {k: arms["hybrid"][k] for k in ("per_type", "total", "negatives_fp_rate", "grasp_fp_rate_on_centered",
+                                                "r1_bar", "model_calls", "est_cost_usd", "fallbacks", "pending")}
+
+
+def test_an_ablation_run_that_scored_nothing_is_listed_with_why_not_as_numbers():
+    runs = [("C:/t4/ablation/run1/scores.json",
+             _ablation([], "2026-10-16T20:19:28-04:00", {"rules": _arm(None)},
+                       rejected=[{"episode": "v2_2000", "reason": "demo.json does not match the manifest"}] * 32)),
+            ("C:/t4/ablation/run2/scores.json", _ablation(["a"], "2026-10-16T20:24:44-04:00", {"rules": _arm(0.8)}))]
+    out = build_results([], [], [], [], ablations=runs)
+    assert [r["source"] for r in out["diagnosis_ablation"]] == ["C:/t4/ablation/run2/scores.json"]
+    assert out["diagnosis_ablation_unscored"] == [
+        {"file": "C:/t4/ablation/run1/scores.json", "why": "no episode scored (32 rejected)"}]
+
+
+def test_ablation_runs_are_listed_oldest_first_and_default_to_none():
+    runs = [("b", _ablation(["a"], "2026-10-16T21:00:00-04:00")), ("a", _ablation(["a"], "2026-10-16T20:00:00-04:00"))]
+    assert [r["source"] for r in build_results([], [], [], [], ablations=runs)["diagnosis_ablation"]] == ["a", "b"]
+    out = build_results([], [], [], [])
+    assert out["diagnosis_ablation"] == [] and out["diagnosis_ablation_unscored"] == []
+
+
+def test_a_sprint4_ablation_run_counts_its_episodes_list_as_scored():
+    """Before the manifest check (sprint 5), scores.json had no scored_episodes: "episodes" listed what was scored."""
+    old = {"created": "2026-10-16T17:21:04-04:00", "episodes": [f"degraded_{i:04d}" for i in range(20)],
+           "n_degraded": 20, "clean": "smoke_cam", "stopped": None, "diagnosers": {"rules": _arm(0.7)}}
+    out = build_results([], [], [], [], ablations=[("C:/t4/ablation/20261016_s4/scores.json", old)])
+    [run] = out["diagnosis_ablation"]
+    assert run["scored"] == 20 and run["rejected"] == 0 and out["diagnosis_ablation_unscored"] == []
+    assert run["arms"]["rules"]["r1_bar"] is None  # a key the old format lacks stays null
+
+
+def test_a_multiply_dataset_manifest_counts_its_variants_as_a_yield_run():
+    """T2's home-start dataset manifest (sprint 6) records variant_attempts/variant_successes, not attempts."""
+    home = ("C:/t2/data/episodes/home_v1_manifest.json",
+            {"name": "home_v1", "home_start": True, "robot": "franka", "variant_attempts": 100,
+             "variant_successes": 100, "yield": 1.0, "variant_reasons": {}, "sources_verified": 10})
+    out = build_results([], [], [_yield("franka", 30, 27), home], [])
+    src = out["sources"]["multiply_yield.ours"]
+    assert out["multiply_yield"]["ours"] == 1.0 and src["file"] == "C:/t2/data/episodes/home_v1_manifest.json"
+    assert src["detail"]["attempts"] == 100 and src["detail"]["successes"] == 100
+    assert src["detail"]["reasons"] == {} and src["detail"]["name"] == "home_v1" and src["detail"]["home_start"] is True
+    assert [o["value"] for o in src["others"]] == [0.9]

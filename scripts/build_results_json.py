@@ -7,7 +7,9 @@ Collects (demo_pipeline.results has the rules; nothing measured stays null and i
   <data-dir>/results/registry.jsonl            T3's experiment registry (eval_success per cell)
   <data-dir>/evals/*.json                      T3's sim eval results files
   <root>/*/yield.json, <root>/*/*/yield.json   T2's multiply yields, for root in --data-dir and each --t2-data
+  <root>/yield/*.json, <root>/episodes/*_manifest.json   T2 client_multiply yields and multiply dataset manifests
   <data-dir>/sets/*/pipeline/*/scores.json     scripts/score_pipeline_run.py
+  <data-dir>/ablation/*/scores.json            T4's scripts/ablation_diagnosis.py runs (diagnosis_ablation)
 Each --input-root (another track's data folder) contributes its registry, evals, yields and scores in place,
 so every source path stays the file that was measured; only results.json is written, under --data-dir.
 A file or registry line that cannot be read is skipped and listed in "skipped_inputs". The file is
@@ -70,23 +72,51 @@ def _files(paths, skipped: list[dict]) -> list[tuple[str, dict]]:
     return out
 
 
+def _eval_run_id(path: str, e: dict) -> str | None:
+    """The run an eval file belongs to: run.run_id, else its folder under evals/ (evals/<run_id>/<cell>.json)."""
+    run_id = (e.get("run") or {}).get("run_id")
+    if run_id:
+        return run_id
+    p = Path(path)
+    return p.parent.name if p.parent.parent.name == "evals" else None
+
+
 def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (), out: Path | None = None,
-          robot: str = "franka", demos=DEMOS, ablation_demos: int = ABLATION_DEMOS) -> Path:
+          robot: str = "franka", demos=DEMOS, ablation_demos: int = ABLATION_DEMOS,
+          run_ids: list[str] | None = None) -> Path:
+    """run_ids: use only these experiment runs' registry rows and eval files (others are listed as excluded),
+    so one chart never mixes two experiments; None uses every run (the newest measurement of a cell wins)."""
     data = Path(data)
     roots = [data, *map(Path, input_roots)]
     skipped: list[dict] = []
     registry = [row for root in roots for row in _registry(root / "results" / "registry.jsonl", skipped)]
-    evals = _files([p for root in roots for p in sorted((root / "evals").glob("*.json"))], skipped)
+    evals = _files([p for root in roots for pattern in ("*.json", "*/*.json")
+                    for p in sorted((root / "evals").glob(pattern))], skipped)
+    excluded = []
+    if run_ids is not None:
+        keep = set(run_ids)
+        excluded = [s for s, r in registry if r.get("run_id") not in keep]
+        excluded += [s for s, e in evals if _eval_run_id(s, e) not in keep]
+        registry = [(s, r) for s, r in registry if r.get("run_id") in keep]
+        evals = [(s, e) for s, e in evals if _eval_run_id(s, e) in keep]
     yield_paths = {p.resolve(): p for root in [*roots, *map(Path, t2_data)]
-                   for pattern in ("yield.json", "*/yield.json", "*/*/yield.json") for p in root.glob(pattern)}
+                   for pattern in ("yield.json", "*/yield.json", "*/*/yield.json", "yield/*.json",
+                                   "episodes/*_manifest.json") for p in root.glob(pattern)}
     yields = _files(sorted(yield_paths.values(), key=lambda p: (p.stat().st_mtime, str(p))), skipped)  # oldest first
+    # episodes/*_manifest.json: only multiply dataset manifests (T2's home_v1) carry a yield
+    yields = [(s, y) for s, y in yields if not s.endswith("_manifest.json") or "variant_attempts" in y]
     scores = _files([p for root in roots for p in sorted(root.glob("sets/*/pipeline/*/scores.json"))], skipped)
+    ablations = _files([p for root in roots for p in sorted(root.glob("ablation/*/scores.json"))], skipped)
 
-    results = build_results(registry, evals, yields, scores, demos=demos, ablation_demos=ablation_demos, robot=robot)
+    results = build_results(registry, evals, yields, scores, demos=demos, ablation_demos=ablation_demos, robot=robot,
+                            ablations=ablations)
     results["generated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     results["generator"] = "scripts/build_results_json.py"
     results["inputs"] = {"registry": [s for s, _ in registry], "evals": [s for s, _ in evals],
-                         "yields": [s for s, _ in yields], "scores": [s for s, _ in scores]}
+                         "yields": [s for s, _ in yields], "scores": [s for s, _ in scores],
+                         "ablations": [s for s, _ in ablations]}
+    results["run_ids"] = list(run_ids) if run_ids is not None else None
+    results["excluded_by_run_id"] = excluded
     results["skipped_inputs"] = skipped
 
     out = Path(out) if out is not None else data / "results" / "results.json"
@@ -112,10 +142,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--robot", default="franka", help="whose multiply yield is shown")
     p.add_argument("--demos", default=",".join(map(str, DEMOS)), help="human demo counts on the x axis")
     p.add_argument("--ablation-demos", type=int, default=ABLATION_DEMOS)
+    p.add_argument("--run-id", action="append", default=None,
+                   help="use only this experiment run (repeatable); default: every run, newest wins")
     args = p.parse_args(argv)
     out = build(args.data_dir if args.data_dir is not None else data_dir(), t2_data=args.t2_data,
                 input_roots=args.input_root, out=args.out,
-                robot=args.robot, demos=[int(x) for x in args.demos.split(",")], ablation_demos=args.ablation_demos)
+                robot=args.robot, demos=[int(x) for x in args.demos.split(",")], ablation_demos=args.ablation_demos,
+                run_ids=args.run_id)
     r = json.loads(out.read_text(encoding="utf-8"))
     filled = [k for k, v in r["sources"].items() if v["value"] is not None and v.get("file")]
     print(f"wrote {out}: {len(filled)} values from source files, {len(r['pending'])} pending, "
