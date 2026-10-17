@@ -45,3 +45,26 @@ def test_a_shared_start_state_is_passed_to_every_cell(tmp_path):
     plain = _load_driver().run_eval_command(python="py", port=8765, n=20, seed0=5000, cell="raw_5",
                                             out=tmp_path / "o.json", registry=tmp_path / "r.jsonl")
     assert "--start-state" not in plain and "--start-pose" not in plain
+
+
+def test_without_a_registry_the_command_never_touches_it(tmp_path):
+    # Sprint 7: 30k checkpoints have no registry row; the 10k row's eval_success must not be overwritten.
+    cmd = _load_driver().run_eval_command(python="py", port=8765, n=20, seed0=5000, cell="raw_10_30k",
+                                          out=tmp_path / "o.json", registry=None)
+    assert "--no-registry" in cmd and "--registry" not in cmd
+    assert cmd[cmd.index("--cell") + 1] == "raw_10_30k"
+
+
+def test_checkpoint_specs_replace_the_registry_rows(tmp_path):
+    drv = _load_driver()
+    rows = [{"cell": {"name": "raw_10"}, "checkpoint": "a"}, {"cell": {"name": "raw_5"}, "checkpoint": "b"}]
+    assert drv.eval_targets(rows, None, []) == [("raw_10", "a", True), ("raw_5", "b", True)]
+    assert drv.eval_targets(rows, ["raw_5"], []) == [("raw_5", "b", True)]
+    ck = str(tmp_path / "030000" / "pretrained_model")
+    assert drv.eval_targets(rows, None, [f"raw_10_30k={ck}"]) == [("raw_10_30k", ck, False)]
+
+
+@pytest.mark.parametrize("bad", ["no_equals_sign", "=path", "cell="])
+def test_a_malformed_checkpoint_spec_is_rejected(bad):
+    with pytest.raises(ValueError, match="CELL=PATH"):
+        _load_driver().eval_targets([], None, [bad])

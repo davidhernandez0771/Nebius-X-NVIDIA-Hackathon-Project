@@ -13,6 +13,9 @@ A cell whose results file exists with no sim_error/policy_error episode is skipp
 dies when Windows sleeps; T2 lost seeds that way) is resumed, up to MAX_ATTEMPTS runs; run_eval --resume re-runs
 only those seeds. Re-running this script after a crash continues where it stopped. Cells left unevaluated keep
 eval_success null in the registry.
+
+--checkpoint CELL=PATH (repeatable) evaluates those checkpoints instead of the registry rows, with --no-registry:
+e.g. a 30k continuation of a 10k cell, whose own row must keep its 10k result.
 """
 
 from __future__ import annotations
@@ -109,18 +112,33 @@ def stop_server(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
-def run_eval_command(*, python: str, port: int, n: int, seed0: int, cell: str, out: Path, registry: Path,
+def run_eval_command(*, python: str, port: int, n: int, seed0: int, cell: str, out: Path, registry: Path | None,
                      start_state: Path | None = None, start_pose: str | None = None) -> list[str]:
     """The run_eval.py command line for one cell. Isaac Lab 3.0 runs headless by default (no --headless flag).
+    registry None: --no-registry (a checkpoint with no row of its own must not overwrite another row's result).
     start_state / start_pose: one shared start for every cell (default: each cell's own registry dataset, auto)."""
     cmd = [python, str(REPO / "sim_eval/scripts/run_eval.py"), "--checkpoint-url", f"http://127.0.0.1:{port}",
-           "--n", str(n), "--seed0", str(seed0), "--cell", cell, "--cameras", "--out", str(out), "--resume",
-           "--registry", str(registry)]
+           "--n", str(n), "--seed0", str(seed0), "--cell", cell, "--cameras", "--out", str(out), "--resume"]
+    cmd += ["--no-registry"] if registry is None else ["--registry", str(registry)]
     if start_state is not None:
         cmd += ["--start-state", str(start_state)]
     if start_pose is not None:
         cmd += ["--start-pose", start_pose]
     return cmd
+
+
+def eval_targets(rows: list[dict], cells: list[str] | None, checkpoint_specs: list[str]) -> list[tuple[str, str, bool]]:
+    """(cell, checkpoint, write_registry) to evaluate. CELL=PATH specs (e.g. a 30k checkpoint, a cell whose training
+    finished outside experiments) replace the registry rows and never write the registry; else the run's rows."""
+    if checkpoint_specs:
+        out = []
+        for spec in checkpoint_specs:
+            cell, _, path = spec.partition("=")
+            if not cell or not path:
+                raise ValueError(f"--checkpoint wants CELL=PATH, got {spec!r}")
+            out.append((cell, path, False))
+        return out
+    return [(r["cell"]["name"], r["checkpoint"], True) for r in rows if not cells or r["cell"]["name"] in cells]
 
 
 def retryable(rc: int) -> bool:
@@ -141,19 +159,23 @@ def main(argv: list[str] | None = None) -> int:
                    help="one start_state.json / dataset root for every cell (default: each cell's own dataset)")
     p.add_argument("--start-pose", choices=("auto", "default", "dataset"), default=None)
     p.add_argument("--cells", nargs="*", default=None, help="only these cells of the run")
+    p.add_argument("--checkpoint", action="append", default=[], metavar="CELL=PATH",
+                   help="evaluate this checkpoint as CELL instead of the run's registry rows (registry untouched); "
+                        "results go to DATA_DIR/evals/<run_id>/<CELL>.json; repeatable")
     args = p.parse_args(argv)
     registry = args.registry or data_dir() / "results" / "registry.jsonl"
     out_dir = data_dir() / "evals" / args.run_id
     out_dir.mkdir(parents=True, exist_ok=True)
     gate_log = out_dir / "gate_checks.jsonl"
-    rows = trained_rows(registry, args.run_id)
-    if args.cells:
-        rows = [r for r in rows if r["cell"]["name"] in args.cells]
-    log(f"{len(rows)} trained cells in {args.run_id}: {[r['cell']['name'] for r in rows]}")
+    try:
+        targets = eval_targets([] if args.checkpoint else trained_rows(registry, args.run_id), args.cells,
+                               args.checkpoint)
+    except ValueError as e:
+        p.error(str(e))
+    log(f"{len(targets)} cells to evaluate in {args.run_id}: {[t[0] for t in targets]}")
     deadline = time.time() + args.wait_max_min * 60
     status = {}
-    for row in rows:
-        cell = row["cell"]["name"]
+    for i, (cell, checkpoint, write_registry) in enumerate(targets):
         out = out_dir / f"{cell}.json"
         if infra_failures(out) == 0:
             log(f"{cell}: already evaluated ({out})")
@@ -165,10 +187,10 @@ def main(argv: list[str] | None = None) -> int:
                 log(f"{cell}: Isaac never free long enough before the deadline; eval_success stays null")
                 status[cell] = "not evaluated: Isaac busy"
                 break
-            server = start_server(row["checkpoint"], args.port, out_dir / f"{cell}.server.log")
+            server = start_server(checkpoint, args.port, out_dir / f"{cell}.server.log")
             try:
                 cmd = run_eval_command(python=sys.executable, port=args.port, n=args.n, seed0=args.seed0,
-                                       cell=cell, out=out, registry=registry, start_state=args.start_state,
+                                       cell=cell, out=out, registry=registry if write_registry else None, start_state=args.start_state,
                                        start_pose=args.start_pose)
                 log(f"{cell}: {' '.join(cmd)}")
                 with (out_dir / f"{cell}.eval.log").open("a", encoding="utf-8") as f:
@@ -193,8 +215,8 @@ def main(argv: list[str] | None = None) -> int:
             log(f"{cell}: {status[cell]}")
             break
         if status[cell].startswith("not evaluated"):
-            for later in rows[rows.index(row) + 1:]:
-                status.setdefault(later["cell"]["name"], "not evaluated: Isaac busy")
+            for later in targets[i + 1:]:
+                status.setdefault(later[0], "not evaluated: Isaac busy")
             break
     log("STATUS " + json.dumps(status))
     return 0 if all(v in ("evaluated", "done earlier") for v in status.values()) else 1
