@@ -45,7 +45,7 @@ They are built from `results.json` (`"sample": false`). A value nobody has measu
 **To refresh** after new runs:
 
 ```
-uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --t2-data C:\dev\pm-t2\data --demos 5,10,13
+uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --input-root C:\dev\pm-t4\data --t2-data C:\dev\pm-t2\data --demos 5,10,13
 uv run python scripts/render_charts.py --results data/results/results.json --out docs/media/charts
 ```
 
@@ -58,3 +58,24 @@ They are not drawn as a chart. T4's s1 run, 5 demos, scored with `scripts/score_
 - **The calibrated Nemotron (sprint 3):** kept all 5 demos and named no issue (recall 0).
 
 That result is why sprint 4 builds the hybrid diagnoser.
+
+**The fair, pre-registered test (sprint 6):** T4 ran every arm on T1's frozen set v2: 32 rendered demos
+(manifest SHA-256 `21d82eac…`), 8 off-center grasps, 8 centered-grasp negatives, 6 drops, 6 bad releases and
+4 clean demos. All five arms scored all 32 demos. F1 over all types:
+
+| arm | F1, all types | grasp R1 bar | model calls / cost |
+|---|---|---|---|
+| `rules` | 0.81 | fail | 0 / $0 |
+| `rules_grasp_metric` | 0.84 | pass | 0 / $0 |
+| `code_all` (code only) | **0.90** | pass | 0 / $0 |
+| `hybrid` (rules + Nemotron) | 0.86 | pass | 35 / $0.054 |
+| `hybrid_blind` (Nemotron without the measured offset) | 0.80 | fail (8/8 centered grasps called off-center) | 33 / $0.050 |
+
+- **Code only matches or beats both model arms on every issue type.**
+  - drop: 1.00 against 0.00;
+  - bad_release: 1.00 against 0.71 and 0.67.
+- **Hybrid's grasp calls are the code metric's.** The full table, the negatives' false-positive rates and the
+  one deviation (a hash-definition bug in T4's integrity check, fixed before any scored call) are in T4's
+  status note.
+- Source: `C:\dev\pm-t4\data\ablation\v2_20261016_run2\scores.json` and `table.md`. `results.json` carries it
+  as `diagnosis_ablation`.
