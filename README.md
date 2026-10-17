@@ -1,8 +1,9 @@
 # Perfect, then multiply
 
-**Turn a noisy webcam robot demo into many physics-verified training demos: NVIDIA
-Nemotron 3.5 Super VL diagnoses it, code repairs it, Isaac Lab checks it, and the
-verified demo is multiplied and exported for LeRobot.**
+**Built to turn a noisy webcam robot demo into many physics-verified training demos:
+code and NVIDIA Nemotron 3.5 Super VL diagnose it, code repairs it, Isaac Lab checks it,
+and the verified demo is multiplied and exported for LeRobot.**
+<!-- src: docs/superpowers/notes/2026-10-17-claims-audit.md (README.md:3-5); wording follows the user's decision on Nemotron's role -->
 
 Submission for the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/),
 Physical AI track. Simulation only, no physical robot (allowed by the official FAQ; see
@@ -10,18 +11,20 @@ Physical AI track. Simulation only, no physical robot (allowed by the official F
 
 **Rule: the AI decides, code acts, physics checks.**
 
-> **Status (2026-10-16): work in progress.** Every stage is built and tested, and the
+> **Status (2026-10-17): work in progress.** Every stage is built and tested, and the
 > pipeline has run end to end on a live Isaac Lab sim worker. Measured so far:
 > - 50/50 scripted demos verify.
-> - The clean expert multiplies **30/30**.
-> - Degraded and perfected demos multiply **75/75**, up from 34/75 before the handover
->   fix.
-> - A diagnosis ablation shows what the model adds, and what it does not (see
->   [Results](#results)).
+> - Multiplication yield: **30/30** (clean expert), **75/75** (degraded and perfected,
+>   up from 34/75 before the handover fix), **100/100** (the home-start training set).
+> - **First policy results, too small to call:** ACT trained on 10 scripted demos
+>   succeeds on 2/20 unseen scenes; on the same 10 plus 100 multiplied variants, 3/20.
+>   Fisher p = 1.0, so this is a tie, not a win for multiplication.
+> - In a pre-registered diagnosis test, code alone scored higher than Nemotron (F1 0.90
+>   vs 0.86; see [Results](#results)).
 >
-> **Policy success (the headline chart) is still PENDING.** Nothing below claims a result
-> that has not been measured.
-> <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 3: 50/50; sprint 4 Task 1: 30/30; sprint 4 Task 3: 34/75 -> 75/75); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 3 Task 3: first live run; sprint 4 Task 3: ablation); docs/superpowers/notes/2026-10-15-t3-status.md (sprint 3 Task 4: eval not run) -->
+> Perfected + multiply, and the policy ablation, are still PENDING. Nothing below claims a
+> result that has not been measured.
+> <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 3: 50/50; sprint 4 Task 1: 30/30; sprint 4 Task 3: 34/75 -> 75/75; sprint 6 Task 2: 100/100); docs/superpowers/notes/2026-10-15-t3-status.md (sprint 6 Task B: 2/20 vs 3/20, p = 1.0); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 6 Task 1: v2 ablation) -->
 
 ## The problem
 
@@ -71,6 +74,10 @@ hand      metrics    3.5 Super   (fixed    Lab       Isaac        v3.0      ACT
      the rules' findings and the code-measured grasp offset.
    - The model looks only for what the rules never name: an off-center grasp, a bad
      release, a drop, the wrong object, a rim contact, and the segments.
+   - Since sprint 5 it also gets measured release facts, and any `drop` or `bad_release`
+     claim on a replay that verified is dropped. The perfect pipeline (`app/jobs.py`) does
+     not pass the bin pose yet, so there the model gets no release facts.
+     <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 5 Task 1b); docs/superpowers/notes/2026-10-17-claims-audit.md (E3) -->
 
    What that adds is measured in [Results](#results).
    <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Tasks 1-2) -->
@@ -142,13 +149,16 @@ hand      metrics    3.5 Super   (fixed    Lab       Isaac        v3.0      ACT
   - So one diagnosis costs about $0.0013–$0.0016 and takes about 2.3–3.9 s.
     <!-- src: the three rows above -->
 - **What it is good at so far:** see [Results](#results). In short:
-  - The format is reliable: no retries or fallbacks in 42 ablation calls.
+  - The format is mostly reliable: over the 110 ablation calls (42 in sprint 4, 68 in the
+    v2 test), 4 replies needed a retry and 1 fell back to the rules (a zero-length
+    segment).
   - Its segmentation is good.
-  - **On the 20-episode ablation, its own judgement added no measured value over code.**
-    A zero-call code check of the grasp offset scored better than the hybrid.
-  - Whether the model can earn its place, for example by reading the wrist frame, is
-    still an open question.
-  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 3 and final summary) -->
+  - **In a pre-registered test on 32 synthetic demos (set v2), code alone beat it:** F1
+    0.90 for a zero-call code check, against 0.86 for the hybrid.
+  - **It does not read the grasp from the 128×128 wrist frame:** without the measured
+    offset, it called all 8 centered grasps off-center.
+  - It never reported a `drop`; it called drops `bad_release`.
+  <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 3: 42 calls; sprint 6 Task 1: 68 calls, retries, fallback, F1 table, R1 bar, breakdown 2) -->
 
 ### NVIDIA Isaac Sim 6.2 / Isaac Lab 3.0
 
@@ -195,9 +205,15 @@ This work builds on, and cites:
 
 **Our claim (to our knowledge):**
 
-> "A VLM's structured, timestamped diagnosis drives the automatic repair of webcam
-> teleoperation demos, verified by physics replay, then multiplied across positions and
-> similar arms."
+> "A structured, timestamped diagnosis of a teleoperation demo drives its automatic repair
+> from a fixed menu; physics replay verifies every repair; and the verified demo is
+> multiplied across positions."
+
+We also tested whether a VLM (Nemotron 3.5 Super VL) improves that diagnosis over code. In
+a pre-registered test it did not (F1 0.86 vs 0.90). The webcam recorder and two second arms
+are built but not yet shown working: no person has recorded a demo yet, and neither arm is
+demo-grade.
+<!-- src: docs/superpowers/notes/2026-10-17-claims-audit.md (README.md:196-200, proposed wording; it rewords spec §5 and awaits the user's approval); t4-status (sprint 6 Task 1); docs/superpowers/notes/2026-10-16-web-pages.md (no real person yet); t2-status (OpenArm 0/30, Flexiv 9/30) -->
 
 We do **not** claim to be the first at webcam teleop, demo repair, VLM demo critique or demo
 multiplication. Each of those exists already (see above). <!-- src: spec §5 -->
@@ -208,17 +224,17 @@ multiplication. Each of those exists already (see above). <!-- src: spec §5 -->
 |---|---|---|
 | Record | `demo_pipeline/teleop.py`, `src/app/routers/teleop.py`, `web/src/pm/record/`, `sim_worker/teleop_session.py`, `sim_worker/scripts/teleop_sink.py` | Built end to end: hand→target mapping, gripper latch, relay with record/stop/reset controls, the Isaac sink that drives the arm and saves the demo, and the Record page. Automated fake-hand smoke in Isaac: 376/376 steps recorded, verified live and again by replay. **No run with a real person yet** |
 | Measure | `demo_pipeline/measure.py` | Built, tested |
-| Diagnose | `src/app/ai/diagnose.py`, `POST /demos/{id}/diagnose` | Built: rules, Nemotron (calibrated prompt + metric gate), and the default hybrid. Ablation-scored on 20 rendered degraded episodes (see [Results](#results)) |
+| Diagnose | `src/app/ai/diagnose.py`, `POST /demos/{id}/diagnose` | Built: rules, Nemotron (calibrated prompt + metric gate), and the default hybrid. Scored in a pre-registered ablation on 32 rendered synthetic demos (set v2), where code alone beat the hybrid (see [Results](#results)) |
 | Rules detector + repair | `demo_pipeline/rules.py`, `repair.py` | Built. Scored on synthetic tremor demos and on rendered degraded episodes |
 | Verify | `sim_worker/replay.py`, `demo_pipeline/success.py` | Built, measured: 50/50 scripted demos verify |
-| Multiply | `demo_pipeline/multiply.py`, `sim_worker/scripts/multiply_run.py`, `client_multiply.py` | Built, measured in Isaac on current code: clean expert 30/30; degraded and perfected sources 75/75 |
+| Multiply | `demo_pipeline/multiply.py`, `sim_worker/scripts/multiply_run.py`, `client_multiply.py` | Built, measured in Isaac on current code: clean expert 30/30; degraded and perfected sources 75/75; home-start training set 100/100 (10 sources × 10) |
 | Second arm | `sim_worker/robots.py` | OpenArm 0/30 and Flexiv 9/30 multiplied: neither is demo-grade yet (see [Results](#results)) |
-| Perfect pipeline | `POST /demos/{id}/perfect`, `GET /jobs/{id}`, `scripts/run_pipeline_batch.py`, `scripts/run_experiment.py` | **Ran live** on the sim worker: a 12-demo set, 5 human demos × raw / rules / Nemotron, multiplied into a training grid that T3's dry run accepts |
+| Perfect pipeline | `POST /demos/{id}/perfect`, `GET /jobs/{id}`, `scripts/run_pipeline_batch.py`, `scripts/run_experiment.py` | **Ran live** on the sim worker: a 12-demo set, 5 synthetic human-style demos × raw / rules / Nemotron, multiplied into a training grid that T3's dry run accepts |
 | Export | `lerobot_tools/export.py`, `assemble.py` | Built, tested |
-| Train / eval | `lerobot_tools/train.py`, `experiments.py`, `policy_server.py`; `sim_eval/` | Built. ACT trained on 5, 10 and 13 clean-expert sim episodes (10k steps, final loss 0.102–0.110), **not evaluated in Isaac yet**: policy success is PENDING |
+| Train / eval | `lerobot_tools/train.py`, `experiments.py`, `policy_server.py`; `sim_eval/` | Built and evaluated in Isaac on 20 unseen scenes. Sprint 3 cells (5/10/13 demos): 0/20 each. Home-start cells: raw_10 2/20, raw_multiply_10 3/20 (p = 1.0, a tie). Perfected + multiply not run |
 | Web pages | `web/src/pm/` | Record (drives the sim), Review (with the Perfect button), Dataset and Results are built and tested; Results reads `GET /results` |
 
-<!-- src: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 2 tremor run; sprint 3); docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2; sprint 3 Tasks 1, 3; sprint 4 Tasks 1, 3); docs/superpowers/notes/2026-10-15-t3-status.md (sprint 2; sim_eval; sprint 3 Tasks 3-4); docs/superpowers/notes/2026-10-15-t4-status.md (calibration; sprint 3 Task 3; sprint 4); docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3c T5, incl. Task 3 follow-up: the fake-hand smoke); docs/media/README.md (charts: raw_5, raw_10, raw_13 trained, not evaluated) -->
+<!-- src: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 2 tremor run; sprint 3); docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2; sprint 3 Tasks 1, 3; sprint 4 Tasks 1, 3); docs/superpowers/notes/2026-10-15-t3-status.md (sprint 2; sim_eval; sprint 3 Tasks 3-4; Task 4 eval run: 0/20 ×3; sprint 6 Task B: 2/20 vs 3/20); docs/superpowers/notes/2026-10-15-t4-status.md (calibration; sprint 3 Task 3; sprint 4; sprint 6 Task 1: v2 ablation); docs/superpowers/notes/2026-10-15-t2-status.md (sprint 6 Task 2: 100/100); docs/superpowers/notes/2026-10-16-web-pages.md (sprint 3c T5, incl. Task 3 follow-up: the fake-hand smoke) -->
 
 ## Setup (Windows 11, verified on an RTX 5080 16 GB)
 
@@ -334,10 +350,12 @@ Invoke-WebRequest -OutFile web\public\models\hand_landmarker.task `
 uv run pytest -q
 ```
 
-Latest run on this branch: **1090 passed, 16 skipped, 0 failed.** The skips need lerobot,
-PIL, pyarrow or torch (they run in the other venvs), Isaac, or a GPU (gated by
-`T3_GPU_TESTS=1`).
-<!-- src: test output 2026-10-16 on 97d1c92 (code identical to 68e4e68), recorded in docs/superpowers/notes/2026-10-16-web-pages.md (docs refresh after sprint 4) -->
+Latest run (2026-10-17, code identical to `9b781d4`): **1294 passed, 18 skipped, 0
+failed.** The skips need lerobot, PIL, pyarrow or torch (they run in the other venvs),
+Isaac, a GPU (gated by `T3_GPU_TESTS=1`), or an opt-in launcher run; one launcher test
+skips when `web/node_modules` exists. Re-run on the submission commit.
+<!-- src: test output 2026-10-17, recorded in docs/superpowers/notes/2026-10-16-web-pages.md (Sprint 7, Track T5); T7 got 1295 / 17 at 9b781d4 (claims audit E1) -->
+
 
 **Isaac-side tests** (they need no repo fixtures, hence `--noconftest`):
 
@@ -345,7 +363,8 @@ PIL, pyarrow or torch (they run in the other venvs), Isaac, or a GPU (gated by
 C:\isaac\env_isaaclab\Scripts\python.exe -m pytest -q --noconftest -p no:cacheprovider (Get-ChildItem tests\test_dp_*.py, tests\test_sim_*.py).FullName sim_eval\tests
 ```
 
-- Latest run: **539 passed, 1 skipped.**
+- Last run (2026-10-16, on `68e4e68`): **539 passed, 1 skipped.** Re-run before
+  submitting. <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (docs refresh after sprint 4) -->
 - If Isaac's venv has an older editable install of this repo, set
   `$env:PYTHONPATH = "<path-to-this-repo>\src"` first, so the tests import this checkout's
   `demo_pipeline`.
@@ -459,6 +478,7 @@ measured yet is marked **PENDING**.
 | Tracking error, after the velocity feedforward fix | mean **26.8 → 2.1 mm**, at the gripper close 16.0 → 3.3 mm <!-- src: t2-status (sprint 2 Task 2) --> |
 | **Multiplication yield, clean expert, Franka** | **30/30 = 100%** (seeds 100–129, current code, through the sim worker; 9.8 s per variant). It was 27/30 before the handover fix <!-- src: docs/superpowers/notes/2026-10-15-t2-status.md (sprint 4 Task 1); 27/30: t2-status (sprint 2 Task 4) --> |
 | **Multiplication yield, degraded and perfected demos** | **75/75**, up from 34/75 (5 synthetic human demos × {raw, rules-perfected, Nemotron} × 5 variants, the same seeds) <!-- src: t2-status (sprint 4 Task 3) --> |
+| **Multiplication yield, home-start training set** | **100/100** (10 scripted sources × 10 variants, seeds 3100–3199, cameras; every episode starts at the same home pose, spread ≤ 0.0002 rad) <!-- src: t2-status (sprint 6 Task 2) --> |
 | Webcam-teleop smoke (fake hand) | 376/376 steps recorded; live check and replay both verified <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (Sprint 3c T5 Task 3 follow-up) --> |
 
 **The multiply failures were traced, not guessed, and the fix is measured.**
@@ -553,36 +573,39 @@ measured yet is marked **PENDING**.
 idle. Its 11.8 mm off-center grasp is the kind of issue the rules never name.*
 <!-- src: docs/media/README.md (A diagnosis timeline) -->
 
-**Ablation, measured** (20 rendered degraded episodes with ground truth, plus 1 clean one;
-F1 over all issue types; IoU ≥ 0.3):
+**Ablation, pre-registered** (set v2: 32 rendered synthetic demos, with 8 off-center
+grasps, 8 centered-grasp negatives, 6 drops, 6 bad releases and 4 clean; F1 over all issue
+types; arms and thresholds fixed before any result):
 
-| Diagnoser | F1, all types | `grasp_off_center` | False positives | Calls / cost |
-|---|---|---|---|---|
-| rules | **0.82** | 0/20 | 0 | 0 / $0 |
-| rules + code grasp check (offset ≥ 3.3 mm at the close, no model) | **0.95** | 20/20 | 0 | 0 / $0 |
-| **hybrid** (rules + Nemotron + gates) | **0.90** | 20/20 | 10 `bad_release` | 21 / $0.0313 |
-| Nemotron alone (calibrated prompt) | **0.00** | 0/20 | 0 | 21 / $0.0305 |
+| Diagnoser | F1, all types | grasp recall / FP on 8 centered | drop F1 | bad_release F1 | Calls / cost |
+|---|---|---|---|---|---|
+| rules | 0.81 | 0.00 / 0/8 | 0.00 | 0.00 | 0 / $0 |
+| rules + code grasp check | 0.84 | 1.00 / 1/8 | 0.00 | 0.00 | 0 / $0 |
+| **code only** (grasp + release checks) | **0.90** | 1.00 / 1/8 | **1.00** | **1.00** | 0 / $0 |
+| hybrid (rules + Nemotron + gates) | 0.86 | 1.00 / 1/8 | 0.00 | 0.71 | 35 / $0.054 |
+| Nemotron without the measured offset | 0.80 | 1.00 / **8/8** | 0.00 | 0.67 | 33 / $0.050 |
 
-<!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 3, Results table) -->
+<!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 6 Task 1 RESULTS: tables, spend) -->
+
+An earlier, unregistered 20-episode test (sprint 4) gave the same ordering: code grasp
+check 0.95, hybrid 0.90, rules 0.82, Nemotron alone 0.00.
+<!-- src: t4-status (sprint 4 Task 3, Results table) -->
 
 What this says, honestly:
 
-- **The hybrid beats the rules (0.82 → 0.90) only through the grasp**, and on this set
-  that is the code's measured offset plus the gate, not the model's judgement.
-  - Nemotron claimed an off-center grasp on all 21 episodes, the clean one included; the
-    gate dropped that claim.
-  - The zero-call code check scores higher than the hybrid, at no cost.
-- **The hybrid's 10 false positives are all `bad_release`** ("released … outside the bin")
-  on replays that verified the cube in the bin.
-  - A gate for this is proposed, but it was **not applied**: tuning on the scored set would
-    overstate the result.
-- **`slow` is missed by every diagnoser** (0/8). No arm owns it.
-- **Nemotron alone finds nothing** (recall 0 at n = 20), which confirms the live-run
-  finding.
-- **The model's value is still open.** Showing it needs a set with true negatives for the
-  grasp (centered grasps on degraded demos) and real release, drop and wrong-object issues.
-  On this set, the claim the data supports is "rules + a code-measured grasp check".
-  <!-- src: t4-status (sprint 4 Task 3 "What this says, honestly"; sprint 4 final summary) -->
+- **Code alone matches or beats both model arms on every issue type.**
+- **The hybrid's grasp calls are the code metric's.** The two differ on one episode, where
+  the hybrid fell back to the rules.
+- **Without the measured offset, the model fails the pre-registered bar:** it called all 8
+  centered grasps off-center.
+- **On releases, the model flags too much.** The verified-success gate dropped 20 of its
+  claims, and it never reports `drop`.
+- **Shared misses:** every arm misses all 16 `slow` issues and 5 of 41 pauses, because
+  timing comes from the rules.
+- **Limits:** n = 32 synthetic demos, 128×128 frames, one prompt fixed in advance. Larger
+  crops and real webcam scenes are untested.
+- Which role Nemotron keeps is the user's decision.
+  <!-- src: t4-status (sprint 6 Task 1: R1 bar, Breakdown 1-4, "What this means for Nemotron's role", limits) -->
 
 ### Training and evaluation
 
@@ -593,17 +616,31 @@ What this says, honestly:
   episode ran its full 30 s with no policy errors. That checkpoint was never trained on
   real episodes, so its 0/3 says nothing about the method.
   <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md (sim_eval Step 4) -->
-- **ACT on real sim episodes:** cells of 5, 10 and 13 clean-expert episodes trained for
-  10,000 steps (final loss 0.102 / 0.107 / 0.110). **Their Isaac evaluation has not run:
-  policy success is PENDING.** <!-- src: t3-status (sprint 3 Tasks 3-4) -->
+- **Sprint 3 cells** (5, 10 and 13 clean-expert demos, each starting above its own cube):
+  **0/20** each on unseen scenes.
+- **That 0 is too little data, not a bug:** the 13-demo policy succeeds on 3/5 of its own
+  training scenes and 0/5 unseen ones.
+- **Home-start cells, ACT 10k steps, 20 unseen scenes:** `raw_10` (10 scripted demos)
+  **2/20** (Wilson 95% CI 3–30%); `raw_multiply_10` (the same 10 + 100 verified variants)
+  **3/20** (5–36%). Fisher exact p = 1.0, so this is a tie. The multiplied policy grasps
+  more often but drops the cube more (13 drops vs 4). It saw about 1.5 epochs against
+  about 16, so it is probably undertrained.
+- **What n = 20 can't say:** whether multiplying helps. At n = 20 the test had 24% power
+  to detect a true 10% → 30% improvement, so "no significant difference" is not evidence
+  of "no effect".
+  <!-- src: t3-status (Task 4 eval run: 0/20 ×3; sprint 6 Task A; sprint 6 Task B 22:12); CIs and power: docs/superpowers/notes/2026-10-17-power.md (T1, sprint 7) -->
 
-### The chart: PENDING
+### The chart: partly measured
 
-> **PENDING, not yet measured.** Policy success rate on 50 fixed test positions against
-> the number of human demos (5, 10, 20), for three conditions: raw; raw + multiply (a
-> MimicGen-style baseline); perfected + multiply (ours). Logged human minutes per
-> condition.
-> <!-- src: spec §3 -->
+> **Measured:** 10 demos, raw vs raw + multiply: 2/20 vs 3/20 on unseen scenes (p = 1.0).
+> The demos are the **scripted expert's**, not human ones, and n is 20 per cell, not the
+> planned 50.
+> <!-- src: t3-status (sprint 6 Task B); t2-status (sprint 6 Task 2: scripted-expert sources) -->
+>
+> **PENDING:** perfected + multiply, the 5- and 20-demo points, and logged human minutes.
+> The planned chart is policy success on 50 fixed test positions against the number of
+> human demos (5, 10, 20), for raw; raw + multiply (a MimicGen-style baseline); and
+> perfected + multiply (ours). <!-- src: spec §3 -->
 >
 > The web Results page draws it from `GET /results` as soon as the experiment writes
 > `DATA_DIR/results/results.json`; values not measured yet show as "pending".
@@ -618,21 +655,25 @@ Negative results will be reported as they come out.
 
 ## Limitations
 
-- **No policy has been evaluated yet,** so the headline (policy success against human
-  demos) is PENDING. <!-- src: t3-status (sprint 3 Task 4) -->
+- **Policy results are small and not significant yet:** 2/20 vs 3/20 (p = 1.0) on 20
+  unseen scenes, trained on scripted demos. Perfected + multiply and the policy ablation
+  have not run. <!-- src: t3-status (sprint 6 Task B) -->
 - **Every "human" demo so far is synthetic:** the scripted expert, degraded with tremor,
   pauses, slowness, idle time and off-center grasps. The webcam → sim loop is built and
   passed its fake-hand smoke, but no real person has recorded a demo yet.
   <!-- src: docs/media/README.md; docs/superpowers/notes/2026-10-16-web-pages.md (Sprint 3c T5 Task 3 follow-up) -->
-- **Nemotron has not shown measured value over code.** In the 20-episode ablation, a
-  zero-call grasp check beats the hybrid. That set has no grasp negatives and no
-  release, drop or wrong-object truths, so it cannot show what the model might add.
-  <!-- src: t4-status (sprint 4 Task 3) -->
+- **Nemotron did not beat code as a diagnoser.** In the pre-registered v2 test (32 demos,
+  with grasp negatives, drops and bad releases), a zero-call code check scored F1 0.90
+  against the hybrid's 0.86. Without the measured offset, the model called every centered
+  grasp off-center. Wrong-object issues and real webcam frames were not tested.
+  <!-- src: t4-status (sprint 6 Task 1) -->
 - **Rules numbers are on synthetic tremor** (6 Hz Gaussian) and rendered degraded demos,
   not yet on real webcam recordings. <!-- src: t1-status (Tremor run final summary, For the lead 3); t4-status (sprint 4 Task 3) -->
 - **No second arm is demo-grade yet:** OpenArm 0/30, Flexiv 9/30 (see above).
-- **The eval starts from the robot's default joint pose**, which may differ from where the
-  training demos start. <!-- src: t3-status (sim_eval, Open items 2) -->
+- **Start pose:** the sprint 3 demos each started above their own cube, which leaked the
+  cube's position into the first frame. Since sprint 6, every training demo and every eval
+  episode starts at one shared home pose.
+  <!-- src: t2-status (sprint 5 Task 1; sprint 6 Task 2); t3-status (sprint 6 Task B) -->
 - **One task, simulation only, no real hardware.** <!-- src: spec §4 -->
 - **Windows-specific workarounds** for LeRobot: `video_backend=pyav`, and the
   symlink-free training wrapper.
@@ -641,11 +682,12 @@ Negative results will be reported as they come out.
   - Between jobs the PC can still sleep, and an explicit sleep always wins.
   - Long batches resume by seed.
   <!-- src: t2-status (sprint 2 Task 6; sprint 4 Task 2 and final summary) -->
-- **This machine resets about 4% of localhost HTTP responses** (WinError 10054), even
-  from a plain stdlib server. The sim-side client (`sim_worker/http_client.py`, used by
-  `client_multiply.py`) retries, which is safe because `/multiply` is idempotent by seed.
-  The backend's `src/app/sim_client.py` does not retry yet.
-  <!-- src: t2-status (sprint 4 Task 3, "For T4"); sim_client.py checked 2026-10-16 -->
+- **This machine resets about 4% of localhost HTTP responses** (4 of 100 in one probe;
+  WinError 10054), even from a plain stdlib server. The sim-side client
+  (`sim_worker/http_client.py`, used by `client_multiply.py`) retries, which is safe
+  because `/multiply` is idempotent by seed. The backend's `src/app/sim_client.py` retries
+  too: up to 3 times, 10 s apart, on a reset connection or a busy worker.
+  <!-- src: t2-status (sprint 4 Task 3); t4-status (Follow-ups after sprint 4, 2. SimWorkerClient retries, 0b0992c) -->
 - The problem-cost figures are vendor estimates, not our measurements.
 - 16 GB VRAM, so 1 environment and 128×128 cameras. <!-- src: spec §11; t2-status -->
 

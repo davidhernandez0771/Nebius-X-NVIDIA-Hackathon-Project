@@ -1,7 +1,8 @@
 # Perfect, then multiply: Devpost project description (DRAFT)
 
-<!-- Draft written 2026-10-16, refreshed in sprint 3b, and again after sprint 4 (sprint 4
-     results, the ablation, the teleop sink). Every number cites its source note in an HTML
+<!-- Draft written 2026-10-16, refreshed in sprint 3b, after sprint 4 (sprint 4 results, the
+     ablation, the teleop sink), and in sprint 7 (T7's claims audit: policy results, the v2
+     ablation, the 100/100 home-start yield). Every number cites its source note in an HTML
      comment. Sections marked PENDING must be filled in from measured results before submitting. -->
 
 ## Inspiration
@@ -19,7 +20,10 @@ many good demos.
 ## What it does
 
 You record a pick-and-place demonstration by moving your hand in front of a webcam, and a
-simulated Franka arm in NVIDIA Isaac Lab follows it. Then the pipeline runs:
+simulated Franka arm in NVIDIA Isaac Lab follows it. The record loop is built and passed an
+automated fake-hand smoke (376/376 steps, verified); a session with a real person is still to
+come. <!-- src: docs/superpowers/notes/2026-10-16-web-pages.md (Sprint 3c T5 Task 3 follow-up) -->
+Then the pipeline runs:
 
 1. **Measure:** code computes motion metrics in 0.5 s windows. <!-- src: spec §7 -->
 2. **Diagnose:** the result is structured JSON: the demo's segments, its issues with
@@ -30,8 +34,10 @@ simulated Franka arm in NVIDIA Isaac Lab follows it. Then the pipeline runs:
      metrics, the rules' findings and a code-measured grasp offset;
    - the model is asked only for what the rules never name (an off-center grasp, a bad
      release, a drop, the wrong object) and the segments;
-   - gates drop any claim the measurements contradict.
-   <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 1) -->
+   - gates drop any claim the measurements contradict;
+   - measured on a pre-registered 32-demo set, code alone matched or beat this model on
+     every issue type (F1 0.90 vs 0.86); see Results.
+   <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 1; sprint 6 Task 1) -->
 3. **Repair:** code applies those repairs from a fixed, unit-tested menu: trim,
    remove_pause, smooth, retime, recenter_grasp, replan_transit, discard.
 4. **Verify:** Isaac Lab replays the repaired demo, and pure code decides success: cube in
@@ -87,11 +93,12 @@ The web app has four pages:
   wrapper for Windows, an experiment runner, and a policy server that `sim_eval/` uses to
   evaluate policies in Isaac. <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md -->
 - **Testing:**
-  - Every stage was built test-first, with every AI call mocked.
-  - The backend + pipeline suite is at 1090 passed, 0 failed, 16 skipped (the skips need
-    lerobot, torch, Isaac or a GPU).
-  - The web app has 178 tests, and the Isaac-side suites pass 539 tests.
-  <!-- src: test output 2026-10-16 on 97d1c92 (code identical to 68e4e68), recorded in docs/superpowers/notes/2026-10-16-web-pages.md (docs refresh after sprint 4) -->
+  - Every stage was built with tests, nearly all of them written first, with every AI call
+    mocked.
+  - The backend + pipeline suite is at 1294 passed, 0 failed, 18 skipped (the skips need
+    lerobot, torch, Isaac or a GPU, or are opt-in).
+  - The web app has 178 tests. The Isaac-side suites passed 539 tests on 2026-10-16.
+  <!-- src: test output 2026-10-17 (code identical to 9b781d4), recorded in docs/superpowers/notes/2026-10-16-web-pages.md (Sprint 7, Track T5); re-run on the submission commit; Isaac-side 539: docs/superpowers/notes/2026-10-16-web-pages.md (docs refresh after sprint 4); "nearly all first": web-pages.md (one test came after its code) -->
 
 ## How we use NVIDIA Nemotron and Nebius Token Factory
 
@@ -100,14 +107,15 @@ The web app has four pages:
 - **Input per diagnosis:** 7 front-camera key frames captioned with their times, plus 1
   wrist frame at the moment the gripper closes. Token Factory allows at most 8 images per
   prompt. Also the metrics table as compact text, the task sentence, and whether the
-  replay succeeded. In the hybrid, it also gets the rules' findings and the measured grasp
-  offset. <!-- src: t4-nemotron-vl; t4-status (sprint 4 Task 1) -->
+  replay succeeded. In the hybrid, it also gets the rules' findings, the measured grasp
+  offset and the measured release facts. <!-- src: t4-nemotron-vl; t4-status (sprint 4 Task 1; sprint 5 Task 1b) -->
 - **Output:** one JSON diagnosis, validated against the schema and gated against the
   metrics before any repair runs.
 - **Cost and speed (measured):** about $0.0013–$0.0016 and 2.3–3.9 s per diagnosis, with
   8 images. Images are billed as prompt tokens, about 263 tokens per 256×256 image. The
-  20-episode ablation cost $0.0618 for 42 calls.
-  <!-- src: t4-nemotron-vl ($0.001332, 2.52 s, 263 tokens); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2 Task 6: $0.001648, 3.9 s; calibration: $0.001366, 2.3 s; sprint 4 Task 3: 42 calls, $0.0618) -->
+  20-episode ablation cost $0.0618 for 42 calls. The pre-registered 32-demo ablation cost
+  $0.1043 for 68 calls.
+  <!-- src: t4-nemotron-vl ($0.001332, 2.52 s, 263 tokens); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2 Task 6: $0.001648, 3.9 s; calibration: $0.001366, 2.3 s; sprint 4 Task 3: 42 calls, $0.0618; sprint 6 Task 1: 68 calls, $0.1043) -->
 - Every call is logged with its token counts and cost, under a hard budget. A batch stops
   itself, resumably, before it could pass its call or dollar budget, rather than silently
   falling back to rules. <!-- src: t4-status (sprint 3 Task 4) -->
@@ -121,15 +129,12 @@ The web app has four pages:
      in 3 degraded demos. Scored on 5 demos, its recall was 0.
   3. So we built a hybrid: the rules own timing, and the model is given a code-measured
      grasp offset.
-  4. Then we ran an ablation on 20 rendered degraded episodes:
-     - rules **0.82** F1;
-     - hybrid **0.90**;
-     - a zero-call code grasp check **0.95**;
-     - Nemotron alone **0.00**.
-
-  On this set, the hybrid's gain comes from the code measurement, not the model's own
-  judgement, and the hybrid added 10 false `bad_release` claims. We report that as it is.
-  <!-- src: t4-status (sprint 2 Task 6; Diagnoser calibration; sprint 3 Task 3; sprint 4 Task 3); recall 0 on 5 demos: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 4 Task 2, "s1 compare") -->
+  4. Then we pre-registered a fair test: 32 demos with centered-grasp negatives, drops and
+     bad releases, with arms, prompts and thresholds fixed before any call. Code alone
+     scored F1 **0.90**, the hybrid **0.86**, and Nemotron without the measured offset
+     **0.80**: it called every centered grasp off-center. In this sim pipeline, code
+     diagnoses better than the model, and we report that as it is.
+  <!-- src: t4-status (sprint 2 Task 6; Diagnoser calibration; sprint 3 Task 3; sprint 5 Task 1a pre-registration; sprint 6 Task 1 results); recall 0 on 5 demos: docs/superpowers/notes/2026-10-15-t1-status.md (sprint 4 Task 2, "s1 compare") -->
 - **IK lag:** the arm trailed the target, and the cause was the joint PD drive's damping,
   not IK. Joint-velocity feedforward cut the mean tracking error from 26.8 mm to 2.1 mm
   without changing the demo. <!-- src: t2-status (sprint 2 Task 2) -->
@@ -176,15 +181,17 @@ The web app has four pages:
   - 50/50 scripted demos replay and verify in Isaac Lab (20/20 with cameras).
   - **30/30** multiplied variants of the clean expert pass.
   - **75/75** variants of degraded and perfected demos pass.
+  - **100/100** home-start variants (10 sources × 10, with cameras) verify. That is the
+    dataset the policies trained on. <!-- src: t2-status (sprint 6 Task 2) -->
   - Our task is easier than MimicGen's (published 38–74%), so the claim we make is
     narrower: every failure is kept out of the dataset with a named reason.
   <!-- src: t2-status (sprint 2 Tasks 3, 6; sprint 4 Tasks 1, 3); MimicGen range: spec §3 -->
-- **The full pipeline ran live:** a 12-demo set, then 5 human demos × raw / rules /
-  Nemotron, perfected, multiplied and assembled into a training grid that the trainer's
+- **The full pipeline ran live:** a 12-demo set, then 5 synthetic human-style demos (the
+  scripted expert, degraded with ground truth) × raw / rules / Nemotron, perfected, multiplied and assembled into a training grid that the trainer's
   dry run accepted. <!-- src: t4-status (sprint 3 Task 3) -->
-- **An ablation that tells on itself:** we scored our own model-based diagnoser against a
-  zero-cost code baseline, and published that the code baseline wins on this set.
-  <!-- src: t4-status (sprint 4 Task 3) -->
+- **An ablation that tells on itself:** we pre-registered a fair test of our own
+  model-based diagnoser against zero-call code, and published the result: code won on every
+  issue type. <!-- src: t4-status (sprint 5 Task 1a pre-registration; sprint 6 Task 1 results) -->
 - **Webcam teleop into Isaac, end to end:**
   - An automated fake-hand smoke recorded 376/376 steps.
   - The saved demo verified live, and again by an independent replay.
@@ -198,12 +205,16 @@ The web app has four pages:
 
 ## Results
 
-> **PENDING.** The headline chart: policy success on 50 fixed test positions against the
-> number of human demos (5, 10, 20), for raw, raw + multiply (a MimicGen-style baseline),
-> and perfected + multiply (ours). Also the policy ablation at 10 demos (rules-only vs
-> rules + Nemotron repair) and the logged human minutes. <!-- src: spec §3 -->
-> ACT cells of 5, 10 and 13 clean-expert episodes are trained, but not yet evaluated in
-> Isaac. <!-- src: t3-status (sprint 3 Tasks 3-4) -->
+> **Measured so far (one experiment, n = 20 unseen scenes per cell):** ACT trained on 10
+> home-start demos of the *scripted expert* (not human demos) succeeds on **2/20** (10%,
+> 95% CI 3–30%). Trained on the same 10 plus 100 multiplied variants: **3/20** (15%, CI
+> 5–36%). The difference is **not significant** (Fisher p = 1.0): this run shows a tie, not
+> a gain from multiplying. Earlier cells that started above their own cube scored 0/20 at
+> 5, 10 and 13 demos.
+> <!-- src: t3-status (Task 4 eval run: 0/20 ×3; sprint 6 Task B 22:12); CIs: docs/superpowers/notes/2026-10-17-power.md (T1) -->
+>
+> **Still PENDING:** the spec's chart (50 test positions, 5/10/20 *human* demos, perfected
+> + multiply), the policy ablation, and logged human minutes. <!-- src: spec §3 -->
 
 Measured so far (details in the README's Results):
 
@@ -211,17 +222,20 @@ Measured so far (details in the README's Results):
   - clean expert **30/30**, up from 27/30 before the handover fix;
   - degraded and perfected sources **75/75**, up from 34/75.
   <!-- src: t2-status (sprint 2 Task 4; sprint 4 Tasks 1, 3) -->
-- **Diagnosis ablation** (20 degraded episodes, F1 over all issue types):
+- **Diagnosis ablation, pre-registered** (32 rendered demos: 8 off-center grasps, 8
+  centered negatives, 6 drops, 6 bad releases, 4 clean; F1 over all issue types):
 
-  | Diagnoser | F1 |
-  |---|---|
-  | rules | 0.82 |
-  | hybrid | 0.90 |
-  | code-only grasp check | 0.95 |
-  | Nemotron alone | 0.00 |
+  | Diagnoser | Model calls / cost | F1 |
+  |---|---|---|
+  | code only | 0 / $0 | **0.90** |
+  | hybrid, rules + Nemotron | 35 / $0.054 | 0.86 |
+  | rules + code grasp check | 0 / $0 | 0.84 |
+  | rules | 0 / $0 | 0.81 |
+  | Nemotron without the measured offset | 33 / $0.050 | 0.80 |
 
-  **The model's value is still open.** Showing it needs a test set with grasp negatives and
-  real release, drop and wrong-object issues. <!-- src: t4-status (sprint 4 Task 3) -->
+  Without the measured offset, the model called 8/8 centered grasps off-center. **Code alone
+  matched or beat the model on every issue type.** The model never reported a `drop`, and
+  the hybrid's grasp calls are the code metric's. <!-- src: t4-status (sprint 6 Task 1) -->
 - **Second arm** (a negative result): OpenArm 0/30, Flexiv 9/30 multiplied.
   <!-- src: t2-status (sprint 2 Task 5; sprint 3 Task 3) -->
 
@@ -232,12 +246,13 @@ We build on MimicGen (demo multiplication), SkillGen (segment-wise repair), Demo
 feedback to the human), and handrobot and AnyTeleop (webcam teleoperation).
 <!-- src: spec §5 -->
 
-Our claim, to our knowledge: *"A VLM's structured, timestamped diagnosis drives the
-automatic repair of webcam teleoperation demos, verified by physics replay, then
-multiplied across positions and similar arms."* We do not claim to be the first at any of
-the individual pieces. Our own ablation does not yet show the VLM beating a code-only
-check, so the "VLM-driven" part of the claim is still to be shown.
-<!-- src: t4-status (sprint 4 Task 3) -->
+Our claim, to our knowledge: *"A structured, timestamped diagnosis of a teleoperation demo
+drives its automatic repair from a fixed menu; physics replay verifies every repair; and the
+verified demo is multiplied across positions."* We do not claim to be the first at any of
+the individual pieces. We also tested whether a VLM (Nemotron 3.5 Super VL) should be that
+diagnoser; in our pre-registered ablation, code alone matched or beat it on every issue
+type.
+<!-- src: docs/superpowers/notes/2026-10-17-claims-audit.md (proposed wording; it rewords spec §5 and awaits the user's approval); t4-status (sprint 6 Task 1) -->
 
 ## What we built during the submission period
 
@@ -266,24 +281,30 @@ check, so the "VLM-driven" part of the claim is still to be shown.
     keep-awake fix;
   - the hybrid diagnoser and its ablation;
   - the media in `docs/media/`;
-  - the four web pages, `GET /results`, and the webcam-teleop sink.
-  <!-- src: t4-status, t2-status, t1-status, t3-status (sprint 2-4 entries); docs/superpowers/notes/2026-10-16-web-pages.md -->
+  - the four web pages, `GET /results`, and the webcam-teleop sink;
+  - the frozen measurement set v2, the home start pose and `high_release`, the
+    pre-registered v2 ablation, the 100/100 home-start multiply dataset, and the first
+    unseen-scene policy successes (2/20 raw, 3/20 multiplied).
+  <!-- src: t4-status, t2-status, t1-status, t3-status (sprint 2-6 entries); docs/superpowers/notes/2026-10-16-web-pages.md; git e714c9a (set v2), 151b488 (rehome), 883f623 (2/20 vs 3/20) -->
 - **Reused from earlier in this repo** (started 2026-09-13 as *SANT*, a room-organizer app
   for the same hackathon): the Token Factory client and usage logging, the FastAPI backend
   shell, and the browser MediaPipe hand tracking.
 - **PENDING:**
   - a webcam demo recorded by a real person;
-  - the Isaac evaluation of the trained policies, which is the chart;
+  - the spec's chart: 50 test positions, policies trained on *human* demos at 5/10/20,
+    including perfected + multiply (so far only scripted-expert cells at n = 20 are
+    evaluated, and they tie);
   - the policy ablation;
   - a demo-grade second arm.
 
 ## What's next
 
-- Evaluate the trained policies in Isaac, and run the experiments behind the chart and the
-  policy ablation. Report them, whatever they show.
-- Record real webcam demos.
-- Build a diagnosis test set with grasp negatives and real release, drop and wrong-object
-  issues, so the model's contribution can be measured rather than assumed.
+- Evaluate on enough scenes to resolve raw vs multiplied (20 per cell cannot), and train
+  the larger multiplied dataset to equal epochs.
+- Record real webcam demos, and run the perfected + multiply arm.
+- Decide Nemotron's role from measurements: it lost as a diagnoser; other roles are
+  untested.
+<!-- src: t3-status (sprint 6 Task B, next steps); t4-status (sprint 6 Task 1, "What this means for Nemotron's role") -->
 
 ## Built with
 
