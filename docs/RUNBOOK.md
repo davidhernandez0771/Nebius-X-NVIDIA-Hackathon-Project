@@ -6,7 +6,8 @@ one cites its source in an HTML comment. Steps nobody has run on this machine ar
 **UNVERIFIED**. Expected outputs are the ones the notes recorded, with their dates.
 
 Written 2026-10-16 at commit `c32a3d2` + the T6 launch scripts. Updated for sprint 5 at `a3e91ae`
-(§2.6 `fetch_mediapipe.ps1`, §2.7 the one-`DATA_DIR` proposal). Verified machine: Windows 11 Home,
+(§2.6 `fetch_mediapipe.ps1`, §2.7 the one-`DATA_DIR` proposal), and for sprint 7 at `9b781d4`
+(§10 CI). Verified machine: Windows 11 Home,
 RTX 5080 16 GB.
 
 **Contents**
@@ -20,6 +21,7 @@ RTX 5080 16 GB.
 7. [Train and evaluate](#7-train-and-evaluate)
 8. [Build the results and charts](#8-build-the-results-and-charts)
 9. [Troubleshooting](#9-troubleshooting)
+10. [CI on GitHub](#10-ci-on-github)
 
 ---
 
@@ -837,3 +839,118 @@ Cost: about $0.0013–0.0016 per diagnose call, 2.3–3.9 s. Every call is logge
 |---|---|
 | `PermissionError [WinError 32]` on `test.db` in tearDown | Fixed in `tests/conftest.py` (`close_db()`); a held SQLite connection blocked the temp-dir cleanup. <!-- src: fix-windows-tests note, root cause 1 --> |
 | A full `uv run pytest` once didn't finish, or one test failed once | Seen once each, never reproduced (T4, sprint 3b). Re-run; report it with the test name if it repeats. <!-- src: t4-status sprint 3b --> |
+
+---
+
+## 10. CI on GitHub
+
+`.github/workflows/ci.yml` runs on every pull request, and on every push to
+`perfect-then-multiply`. Each job checks out the repo on its own `windows-latest` runner.
+<!-- src: .github/workflows/ci.yml; sprint 7 plan, T6 -->
+
+| Job | Setup | Commands, in order |
+|---|---|---|
+| `python` | `astral-sh/setup-uv@v10.2.0`: uv `0.12.12`, `python-version: "3.14"` (sets `UV_PYTHON`) | `uv sync --locked`, then `uv run pytest -q` |
+| `web` | `actions/setup-node@v7`: Node `24`, npm cache keyed on `web/package-lock.json` | in `web/`: `npm ci`, `npm test`, `npm run build` |
+
+**Why it is set up this way:**
+
+- **Windows runners.** The project runs on Windows. The launch-script tests drive Windows
+  PowerShell and skip on other systems. The local check below is on Windows too, so it covers
+  what CI will run.
+- **Two jobs, two checkouts.** `test_launch_start_stop.py` checks the `-Web` refusal, which needs
+  `web\node_modules` to be absent. That test skips when the folder exists. In one job, `npm ci`
+  would turn it into a skip.
+- **`uv sync --locked`** fails when `uv.lock` is out of date with `pyproject.toml`. A plain sync
+  would quietly re-lock.
+- **No secrets.** There is no `.env` in CI. The Nemotron tests use fakes, and the rules are the
+  fallback (§9.3).
+- **Isaac, torch, lerobot, PIL and pyarrow are not in the SANT deps**, so their tests skip. The
+  same 17 tests skip locally (below).
+- **Version pins.** setup-uv publishes no floating major tag (there is no `v10` ref), so it is
+  pinned to an exact release. uv is pinned to the version used for the local check.
+  `tests/test_ci_workflow.py` pins the triggers, the commands, the job split and these versions.
+
+### 10.1 Run CI's commands locally (verified 2026-10-17)
+
+Do this in a fresh clone in a temp folder, cloned from the local repo. The clone needs no
+network and pushes nothing. Use one clone per job, like CI. In Git Bash:
+
+```
+git clone --branch <your-branch> C:/dev/pm-t6 <tmp>/py
+git clone --branch <your-branch> C:/dev/pm-t6 <tmp>/web
+
+# python job (unset any venv override, so the clone gets its own .venv)
+cd <tmp>/py
+env -u UV_PROJECT_ENVIRONMENT -u VIRTUAL_ENV UV_PYTHON=3.14 uv sync --locked
+env -u UV_PROJECT_ENVIRONMENT -u VIRTUAL_ENV UV_PYTHON=3.14 uv run pytest -q
+
+# web job
+cd <tmp>/web/web
+npm ci
+npm test
+npm run build
+```
+
+Results at `9ee9b63` (this machine: uv 0.12.12, Node v24.19.0, npm 11.17.0):
+
+```
+== uv sync --locked
+Using CPython 3.14.7
+Creating virtual environment at: .venv
+Installed 38 packages in 3.30s
+exit=0
+== uv run pytest -q
+1300 passed, 17 skipped, 2 warnings in 144.32s (0:02:24)
+exit=0                                   (python job: 185 s wall)
+
+== npm ci
+added 234 packages, and audited 235 packages in 6s
+exit=0
+== npm test
+ Test Files  12 passed (12)
+      Tests  178 passed (178)
+exit=0
+== npm run build
+✓ 754 modules transformed.
+✓ built in 5.26s
+exit=0                                   (web job: 27 s wall)
+```
+
+The 17 skips, from a second run with `-rs`, which gave the same 1300 passed:
+
+- 6 need `lerobot`;
+- 3 need `PIL`;
+- 2 need `isaaclab`;
+- 1 needs `torch`;
+- 1 needs `pyarrow`;
+- 3 are GPU runs (`T3_GPU_TESTS=1`);
+- 1 is the opt-in launch E2E (`PM_LAUNCH_E2E=1`).
+
+None of the 17 depends on what is installed on this machine, so a runner should skip the same
+ones.
+
+**Warnings that are not failures:**
+
+- `npm ci` reports 9 audit vulnerabilities and a deprecated `three-mesh-bvh@0.7.8`.
+- npm 11's `allow-scripts` notes that `esbuild`'s postinstall is not allow-listed. The build
+  still works.
+- `vite build` warns that a chunk is over 500 kB.
+
+**What differs on a GitHub runner (not run there; nothing was pushed):**
+
+- There is no NVIDIA GPU. `health.py` then prints `GPU   unknown (nvidia-smi not found or
+  failed)`. That still satisfies the `status.ps1` test, which checks only that a `GPU` line exists.
+  <!-- src: scripts/launch/health.py gpu_memory/print; tests/test_launch_status.py:58 -->
+- The uv and npm caches start cold, so the first run is slower.
+- The npm that ships with the runner's Node 24 may not be 11.17.0.
+- Line endings are the same: `.gitattributes` sets `* text=auto eol=lf`, and this machine has
+  the same system `core.autocrlf=true` as a Git for Windows runner.
+
+### 10.2 When CI fails
+
+| Symptom | Cause and fix |
+|---|---|
+| `uv sync --locked` fails its lock check (the exact message has not been seen here) | `pyproject.toml` changed without `uv lock`. Run `uv lock`, then commit `uv.lock`. |
+| A Python test fails only in CI | First rerun the §10.1 commands in a fresh clone. A clone has no `.env`, no `data\` and no `web\node_modules`, the same as CI. |
+| `npm ci` fails because `package.json` and the lock disagree (the exact message has not been seen here) | `package.json` changed without `npm install`. Run `npm --prefix web install`, then commit `web/package-lock.json`. |
