@@ -1,7 +1,9 @@
 """The home-start multiply dataset for T3 (sprint 6 Task 2): seeds, passports and the manifest. Pure.
 
 Sources: the scripted expert with home_start on scenes sample_scene(seed), seeds SOURCE_SEED0.. (10 of them).
-Variants: source i multiplied into scenes VARIANT_SEED0 + 10 i + k, k < 10. Every seed stays below T3's eval
+Variants: variant k of source i gets scene seed VARIANT_SEED0 + 100 (k // 10) + 10 i + k % 10: blocks of 100 seeds,
+10 sources x 10 variants each, so the first 10 variants keep sprint 6's seeds (3100-3199) when a run asks for
+more (sprint 7: 10 x 30 adds 3200-3399, and the 100 finished episodes are reused). Every seed stays below T3's eval
 scenes (sim_eval.scenes.EVAL_SEED_MIN = 5000), so no training scene is ever a test scene.
 
 Variants are rehomed: transform_trajectory (T1) keeps the hand rigid in the cube's frame until the grasp, so a
@@ -32,6 +34,7 @@ EVAL_SEED_MIN = 5000  # sim_eval.scenes (T3): test scenes start here
 SOURCE_SEED0 = 3000
 VARIANT_SEED0 = 3100
 VARIANTS_PER_BLOCK = 10
+SOURCES_MAX = 10  # sources per block of 100 variant seeds
 
 
 def source_seeds(n: int) -> list[int]:
@@ -39,12 +42,13 @@ def source_seeds(n: int) -> list[int]:
 
 
 def variant_seeds(i: int, n: int) -> list[int]:
-    if n > VARIANTS_PER_BLOCK:
-        raise ValueError(f"at most {VARIANTS_PER_BLOCK} variants per source keep the seed blocks apart, got {n}")
-    first = VARIANT_SEED0 + VARIANTS_PER_BLOCK * i
-    if first + n > EVAL_SEED_MIN:
-        raise ValueError(f"variant seeds {first}..{first + n - 1} would reach the eval scenes ({EVAL_SEED_MIN}+)")
-    return list(range(first, first + n))
+    if not 0 <= i < SOURCES_MAX:
+        raise ValueError(f"source index {i}: at most {SOURCES_MAX} sources keep the variant seed blocks apart")
+    seeds = [VARIANT_SEED0 + SOURCES_MAX * VARIANTS_PER_BLOCK * (k // VARIANTS_PER_BLOCK) + VARIANTS_PER_BLOCK * i
+             + k % VARIANTS_PER_BLOCK for k in range(n)]
+    if seeds and max(seeds) >= EVAL_SEED_MIN:
+        raise ValueError(f"variant seeds up to {max(seeds)} would reach the eval scenes ({EVAL_SEED_MIN}+)")
+    return seeds
 
 
 def source_name(seed: int) -> str:
