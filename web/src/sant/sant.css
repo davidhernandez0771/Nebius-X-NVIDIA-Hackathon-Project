@@ -331,6 +331,7 @@
 
 .sant-rail {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--sant-space-1);
   margin: 0;
   padding: 0;
@@ -724,13 +725,30 @@
   border-bottom: 1px solid var(--sant-line);
 }
 
+/* The app nav's rail spells out the steps on wide screens and keeps only the letters below. */
+@media (max-width: 1100px) {
+  .sant-nav--app .sant-rail__name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+/* A page heading that receives focus after a route change: no ring for a non-control. */
+.sant main h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
 .sant-story {
   flex: 1;
   width: 100%;
-  max-width: calc(var(--sant-measure) + 18rem + var(--sant-space-7));
+  max-width: calc(var(--sant-measure) + 18rem + var(--sant-space-7) + 2 * var(--sant-space-4));
   margin: 0 auto;
   padding: var(--sant-space-7) var(--sant-space-4) var(--sant-space-9);
-  box-sizing: content-box;
+  box-sizing: border-box;
 }
 
 .sant-footer {

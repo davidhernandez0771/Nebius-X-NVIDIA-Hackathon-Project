@@ -50,31 +50,33 @@ export function ResultBars({ arms, p }: { arms: Arm[]; p: string }) {
         </div>
       ))}
       <p className="sant-bars__p">Fisher exact p = {p}</p>
-      <table className="sant-sr-only">
-        <caption>Success rate per arm, with 95% confidence interval</caption>
-        <thead>
-          <tr>
-            <th scope="col">Training data</th>
-            <th scope="col">Successes</th>
-            <th scope="col">Rate</th>
-            <th scope="col">95% CI</th>
-          </tr>
-        </thead>
-        <tbody>
-          {arms.map((a) => (
-            <tr key={a.label}>
-              <th scope="row">{a.label}</th>
-              <td>
-                {a.k} of {a.n}
-              </td>
-              <td>{formatStat((100 * a.k) / a.n, 1)}%</td>
-              <td>
-                {formatStat(a.ciLow, 1)}–{formatStat(a.ciHigh, 1)}%
-              </td>
+      <div className="sant-sr-only">
+        <table>
+          <caption>Success rate per arm, with 95% confidence interval</caption>
+          <thead>
+            <tr>
+              <th scope="col">Training data</th>
+              <th scope="col">Successes</th>
+              <th scope="col">Rate</th>
+              <th scope="col">95% CI</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {arms.map((a) => (
+              <tr key={a.label}>
+                <th scope="row">{a.label}</th>
+                <td>
+                  {a.k} of {a.n}
+                </td>
+                <td>{formatStat((100 * a.k) / a.n, 1)}%</td>
+                <td>
+                  {formatStat(a.ciLow, 1)}–{formatStat(a.ciHigh, 1)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

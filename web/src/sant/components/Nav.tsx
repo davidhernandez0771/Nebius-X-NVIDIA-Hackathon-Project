@@ -40,7 +40,7 @@ export function AppNav({ home = "/", active, links = [], status }: { home?: stri
       <NavLink to={home} className="sant-nav__home" aria-label="SANT home">
         <Logo size="sm" lit="all" />
       </NavLink>
-      <StepRail active={active} compact />
+      <StepRail active={active} />
       {links.length > 0 && (
         <ul className="sant-nav__links">
           {links.map((l) => (
