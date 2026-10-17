@@ -38,14 +38,14 @@ They are built from `results.json` (`"sample": false`). A value nobody has measu
 
 | file | what it shows today | source |
 |---|---|---|
-| `charts/success.svg` | Policy success against the number of demos. **Raw: 0% at 5, 10 and 13 demos** (0/20 each, 20 unseen scenes, seed0 5000; T3's sprint 3 grid `sprint3_clean_expert`, evaluated 2026-10-16). Those cells were trained on the **clean scripted expert's** demos, each starting above its own cube, not on degraded human demos. Raw + multiply and perfected + multiply: **pending**. The x axis is 5, 10, 13 because those are the cells that exist. | `C:\dev\pm-t3\data\results\registry.jsonl` lines 1-3 (each line names its eval file) |
+| `charts/success.svg` | Policy success against the number of demos, for **one experiment only**: T3's sprint 6 Task B run `sprint6_home_a_20261016_205725`, where every demo and eval starts from one home pose. **Raw at 10 demos: 10% (2/20 unseen scenes, seed0 5000), the project's first non-zero.** Raw + multiply at 10 (10 sources + 100 variants) and every 5-demo point: **pending**. The earlier sprint 3 cells (raw 5/10/13, start above their own cube, all 0/20) are left out with `--run-id`, so two setups never share a line; T1's status note keeps them. | `C:\dev\pm-t3\data\results\registry.jsonl` line 4 (its eval file is `evals\sprint6_home_a_20261016_205725\raw_10.json`) |
 | `charts/ablation.svg` | Rules-only against rules + Nemotron repair. **Both pending.** | the same registry (no rules_multiply / perfected_multiply cells yet) |
-| `charts/yield.svg` | Multiplication yield: Franka **90%** (27/30) against MimicGen's published 38–74%. That run predates the handover fix (`f1e21d9`). The 3 failures were the fixed-time swing, so a re-run should be higher (T2, sprint 4). | `C:\dev\pm-t2\data\multiply_franka\yield.json`; MimicGen from the spec, section 5 |
+| `charts/yield.svg` | Multiplication yield: Franka **100%** (100/100). That is the home-start dataset T3 Task B trains on: 10 verified sources × 10 variants (T2, sprint 6). It replaces the pre-fix 90% (27/30). The post-fix clean-expert run (30/30) is listed under `others` in `results.json`. MimicGen's published 38–74% is shown beside it. | `C:\dev\pm-t2\data\episodes\home_v1_manifest.json`; MimicGen from the spec, section 5 |
 
 **To refresh** after new runs:
 
 ```
-uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --input-root C:\dev\pm-t4\data --t2-data C:\dev\pm-t2\data --demos 5,10,13
+uv run python scripts/build_results_json.py --data-dir data --input-root C:\dev\pm-t3\data --input-root C:\dev\pm-t4\data --t2-data C:\dev\pm-t2\data --demos 5,10 --run-id sprint6_home_a_20261016_205725
 uv run python scripts/render_charts.py --results data/results/results.json --out docs/media/charts
 ```
 

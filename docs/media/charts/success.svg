@@ -13,22 +13,17 @@
 <line class="grid" x1="64" x2="470" y1="48.0" y2="48.0" stroke="#e5e7eb"/>
 <text x="56.0" y="52.0" font-size="11" text-anchor="end" fill="#6b7280">100%</text>
 <text x="64.0" y="320.0" font-size="11" text-anchor="middle" fill="#374151">5</text>
-<text x="267.0" y="320.0" font-size="11" text-anchor="middle" fill="#374151">10</text>
-<text x="470.0" y="320.0" font-size="11" text-anchor="middle" fill="#374151">13</text>
+<text x="470.0" y="320.0" font-size="11" text-anchor="middle" fill="#374151">10</text>
 <text x="267.0" y="340.0" font-size="11" text-anchor="middle" fill="#6b7280">human demos</text>
-<polyline class="series" points="64.0,300.0 267.0,300.0 470.0,300.0" fill="none" stroke="#6b7280" stroke-width="2.5"/>
-<circle class="point" cx="64.0" cy="300.0" r="4" fill="#6b7280"/>
-<circle class="point" cx="267.0" cy="300.0" r="4" fill="#6b7280"/>
-<circle class="point" cx="470.0" cy="300.0" r="4" fill="#6b7280"/>
+<g class="pending"><circle cx="42.0" cy="362.0" r="3.5" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="50.0" y="366.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
+<circle class="point" cx="470.0" cy="274.8" r="4" fill="#6b7280"/>
 <line x1="494" x2="514" y1="56.0" y2="56.0" stroke="#6b7280" stroke-width="2.5"/>
 <text x="520.0" y="60.0" font-size="12" text-anchor="start" fill="#111827">Raw human demos</text>
 <g class="pending"><circle cx="42.0" cy="380.0" r="3.5" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="50.0" y="384.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
-<g class="pending"><circle cx="245.0" cy="380.0" r="3.5" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="253.0" y="384.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
 <g class="pending"><circle cx="448.0" cy="380.0" r="3.5" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="456.0" y="384.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
 <line x1="494" x2="514" y1="78.0" y2="78.0" stroke="#2563eb" stroke-width="2.5"/>
 <text x="520.0" y="82.0" font-size="12" text-anchor="start" fill="#111827">Raw + multiply</text>
 <g class="pending"><circle cx="42.0" cy="398.0" r="3.5" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="50.0" y="402.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
-<g class="pending"><circle cx="245.0" cy="398.0" r="3.5" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="253.0" y="402.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
 <g class="pending"><circle cx="448.0" cy="398.0" r="3.5" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="2 1.5"/><text x="456.0" y="402.0" font-size="10" text-anchor="start" fill="#9ca3af">pending</text></g>
 <line x1="494" x2="514" y1="100.0" y2="100.0" stroke="#16a34a" stroke-width="2.5"/>
 <text x="520.0" y="104.0" font-size="12" text-anchor="start" fill="#111827">Perfected + multiply</text>
