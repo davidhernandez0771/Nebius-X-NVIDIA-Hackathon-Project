@@ -116,6 +116,13 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def demo_sha256(path: Path) -> str:
+    """T1's manifest definition (scripts/make_measurement_set_v2.py): the Demo's JSON without created_at; not
+    the file's bytes. (truth_sha256 is the file's bytes.)"""
+    demo = Demo.model_validate_json(path.read_text(encoding="utf-8"))
+    return hashlib.sha256(demo.model_dump_json(exclude={"created_at"}).encode()).hexdigest()
+
+
 def check_manifest(dirs: list[Path], manifest: Path) -> tuple[list[Path], list[dict]]:
     """The episodes whose demo.json and truth.json match the frozen manifest's SHA-256s, and the rejected ones."""
     entries = {d["id"]: d for d in json.loads(manifest.read_text(encoding="utf-8"))["demos"]}
@@ -129,7 +136,7 @@ def check_manifest(dirs: list[Path], manifest: Path) -> tuple[list[Path], list[d
         entry = entries.get(demo_id)
         if entry is None:
             rejected.append({"episode": ep.name, "reason": f"demo {demo_id!r} is not in the manifest"})
-        elif _sha256(ep / "demo.json") != entry["demo_sha256"]:
+        elif demo_sha256(ep / "demo.json") != entry["demo_sha256"]:
             rejected.append({"episode": ep.name, "reason": "demo.json does not match the manifest"})
         elif not (ep / "truth.json").is_file() or _sha256(ep / "truth.json") != entry["truth_sha256"]:
             rejected.append({"episode": ep.name, "reason": "truth.json does not match the manifest"})
