@@ -1,6 +1,6 @@
 # Tool feedback (DRAFT)
 
-<!-- Draft written 2026-10-16 from the project's dated notes, refreshed in sprint 3b and again after sprint 4. Each finding cites its source.
+<!-- Draft written 2026-10-16 from the project's dated notes, refreshed in sprint 3b, after sprint 4, and in sprint 7 (v2 ablation, video probe). Each finding cites its source.
      The "would we build with it again" answers are a draft for the team to confirm. -->
 
 Context: one developer machine, Windows 11, RTX 5080 16 GB. Simulation-only Physical AI
@@ -28,9 +28,9 @@ OpenAI Python SDK.
 - **Cheap and fast enough for a per-demo pipeline step:** about $0.0013–$0.0016 and
   2.3–3.9 s per 8-image diagnosis. <!-- src: t4-nemotron-vl; docs/superpowers/notes/2026-10-15-t4-status.md (sprint 2 Task 6; Diagnoser calibration) -->
 - **Usage fields in every response** let us log exact prompt/completion tokens and keep a
-  hard budget per sprint. Through the 20-episode ablation, the usage log totals 51 calls
-  and $0.0737.
-  <!-- src: t4-nemotron-vl; docs/superpowers/notes/2026-10-15-t4-status.md (sprint 4 Task 3: "usage log 9 → 51 calls, $0.011922 → $0.073744") -->
+  hard budget per sprint. Through our pre-registered 32-demo ablation, the usage log totals
+  119 calls and $0.178.
+  <!-- src: t4-nemotron-vl; docs/superpowers/notes/2026-10-15-t4-status.md (sprint 6 Task 1: "usage log 51 → 119 calls, $0.073744 → $0.178014") -->
 
 **What needs work**
 
@@ -73,8 +73,10 @@ repairs from a fixed menu, and a keep / repair / discard decision.
 
 - **Format compliance:** valid JSON (no fences, no prose, times inside the demo), against a
   fairly strict schema-generated prompt. It was valid on the first try in the first three
-  live diagnoses, and the 42 ablation calls needed no retries or fallbacks.
-  <!-- src: t4-nemotron-vl; t4-status sprint 2 Task 6 and Diagnoser calibration (1 call each); sprint 4 Task 3 -->
+  live diagnoses, and the 42 sprint-4 ablation calls needed no retries or fallbacks. Of the
+  68 v2 ablation calls, 4 were retries, and one demo fell back to rules after two invalid
+  replies (a zero-length segment).
+  <!-- src: t4-nemotron-vl; t4-status sprint 2 Task 6 and Diagnoser calibration (1 call each); sprint 4 Task 3; sprint 6 Task 1 (spend, model fallbacks) -->
 - **Semantic segmentation:** on a real Isaac episode it split the demo into approach
   0–1 s, grasp 1–1.5, lift 1.5–3.5, carry 3.5–6, release 6–6.5 and retreat 6.5–7.5. That
   matches the gripper events and is finer than our rules' three segments.
@@ -88,58 +90,70 @@ repairs from a fixed menu, and a keep / repair / discard decision.
   <!-- src: t4-status (Diagnoser calibration, Before / after and Tokens) -->
 
 **What needs work** (our measurements: 3 early live diagnoses, 5 in the first pipeline run,
-and 42 in a 20-episode ablation)
-<!-- src: t4-nemotron-vl; t4-status (sprint 2 Task 6; calibration; sprint 3 Task 3; sprint 4 Task 3) -->
+42 calls in a 20-episode ablation, and 68 calls in a pre-registered 32-demo ablation)
+<!-- src: t4-nemotron-vl; t4-status (sprint 2 Task 6; calibration; sprint 3 Task 3; sprint 4 Task 3; sprint 6 Task 1) -->
 
-- **Calibrating it is a seesaw, and on our ablation its own judgement added nothing
-  measurable over code.**
+- **Calibrating it is a seesaw. On a pre-registered 32-demo test, its own judgement added
+  nothing measurable over code.**
   - After we calibrated it against false positives (below), it kept every degraded demo:
     it reported 0 of 9 real issues on 3 demos, and its recall over 5 scored demos was 0.
-  - In a hybrid prompt, it was told the rules' timing findings and a code-measured grasp
-    offset. It then claimed `grasp_off_center` on all 21 episodes, the clean one included.
-    The measured-offset gate dropped the clean one, so the 20 claims left were all true.
-  - It also reported 10 `bad_release`s ("released … outside the bin") on replays that
-    verified the cube in the bin.
+  - We then fixed a test in advance: 32 rendered demos (8 off-center grasps, 8
+    centered-grasp negatives, 6 drops, 6 bad releases, 4 clean), with arms, prompts, gates
+    and thresholds registered before any call.
   - F1 over all issue types:
 
-    | Diagnoser | F1 |
-    |---|---|
-    | rules | 0.82 |
-    | hybrid | 0.90 |
-    | zero-call code grasp check | 0.95 |
-    | Nemotron alone | 0.00 |
+    | Diagnoser | Model calls | F1 |
+    |---|---|---|
+    | rules | 0 | 0.81 |
+    | rules + code grasp check | 0 | 0.84 |
+    | code only (grasp + release checks) | 0 | **0.90** |
+    | hybrid (rules + Nemotron, told the measured grasp offset) | 35 | 0.86 |
+    | Nemotron without the measured offset | 33 | 0.80 |
 
-  - The set has no grasp negatives, so it cannot show whether the model really reads the
-    wrist frame. That question is still open.
-  <!-- src: t4-status (sprint 3 Task 3; sprint 4 Task 3); t1-status (sprint 4 Task 2, "s1 compare") -->
+  - Without the measured offset, it called **all 8 centered grasps off-center**, so it did
+    not read grasp centering from the 128×128 wrist frame. With the offset, its grasp calls
+    were the code metric's.
+  - It **never reported a drop** (it labelled them `bad_release`), and a verified-success
+    gate had to drop 20 release claims on replays that verified.
+  - Code alone matched or beat both model arms on every issue type. Limits: 32 synthetic,
+    scripted demos; 128×128 frames; one prompt.
+  <!-- src: t4-status (sprint 3 Task 3; sprint 5 Task 1a pre-registration; sprint 6 Task 1 results); t1-status (sprint 4 Task 2, "s1 compare") -->
 
 - **Out of the box, it over-reported on a clean demo.** With our first prompt, on a
   perfect scripted demo that our rules correctly rated `keep`, it returned `repair` with
   **5 issues, all false**: two jitter, two slow, and one `rim_contact`. The rim contact
   contradicted the contact columns in the table it was given (no arm-bin contact, 0 N max
   force). The calibrated prompt fixed this on that episode (above), and a metric gate now
-  drops contradicted claims either way. One sample does not give a false-positive rate,
-  and recall is not measured yet. <!-- src: t4-status sprint 2 Task 6; Diagnoser calibration -->
+  drops contradicted claims either way. One sample does not give a false-positive rate.
+  Recall was measured later: the calibrated prompt alone scored 0 on 20 degraded episodes
+  (see above). <!-- src: t4-status sprint 2 Task 6; Diagnoser calibration; sprint 4 Task 3 (Nemotron alone, recall 0 at n = 20) -->
 - **Misreading the numeric table.** On a synthetic demo it said "gripper remains open"
   while the table said closed throughout. It also read a constant `dist_ee_cube = 0.000`
   column as "no motion" and invented two idle periods, although speed was 0.11–0.12 m/s
   there. <!-- src: t4-nemotron-vl -->
 - **Time bounds snap to the input windows.** It bounded a true 1.0–1.9 s pause as
-  1.0–1.5 s. That is partly our fault (0.5 s metric windows), but it never interpolated.
+  1.0–1.5 s. That is partly our fault (0.5 s metric windows), but in that one call it did not interpolate.
   <!-- src: t4-nemotron-vl -->
 - Part of this was our prompt: "find what makes this demo a poor training example"
   presumed a problem existed. Rewording it to "decide whether this demo is a good training
   example as recorded" was part of the fix. <!-- src: t4-status (Diagnoser calibration, What changed) -->
-- There is no video input (the modality is text+image→text), so we sample key frames.
-  Native short-video input would suit robot demos well. <!-- src: t4-nemotron-vl -->
+- **Video input works, but the listing doesn't say so.** The modality field says
+  `text+image->text`, yet a `video_url` part was accepted (a 14.1 s, 10 fps, 256×256 MP4:
+  2,397 prompt tokens, $0.000776, 6.2 s). Please list video in the modality field and
+  document its format and limits. In our one probe, it got the outcome and the gripper-open
+  time (11.0 s vs 10.96 s) but missed two 0.85 s pauses.
+  <!-- src: docs/superpowers/notes/2026-10-16-nemotron-roles.md (Probe 1) -->
 
 **Onboarding:** fast, because it sits behind the same Token Factory API as the text
 Nemotron models.
 
 **Would we build with it again?** *Draft: yes, but only behind code checks, and only for
 what code cannot see.*
-- Here that means segment labels and, still to be shown, wrong object, drops and grasp
-  quality from the wrist view.
+- In this sim pipeline, code sees almost everything. On our pre-registered test, the model
+  did not detect drops (0/6) or read grasp centering from the wrist frame, and code matched
+  or beat it on every issue type. What is left is segment labels (unscored), video-only
+  demos with no sim state, and language tasks, none of them measured yet.
+  <!-- src: t4-status (sprint 6 Task 1); docs/superpowers/notes/2026-10-16-nemotron-roles.md -->
 - Our ablation says to measure the model against a zero-cost code baseline before trusting
   it, and to gate every kinematic claim. Our architecture already assumed this ("the AI
   decides, code acts, physics checks").
@@ -164,8 +178,9 @@ and feeds a pure-Python success check. <!-- src: t2-status -->
 - **It holds up over batches:** 50/50 scripted demos verified (13 s each without cameras),
   20/20 with cameras at a median 38.0 s and a 5980 MiB GPU peak.
   - Multiplied variants: 27/30 at first. After our own handover fix (pipeline-side, not
-    Isaac), 30/30 clean, and 75/75 from degraded and perfected demos.
-  <!-- src: t2-status (sprint 2 Tasks 3, 4, 6; sprint 4 Tasks 1, 3) -->
+    Isaac), 30/30 clean, and 75/75 from degraded and perfected demos, and 100/100 for the
+    home-start training set (10 sources × 10 variants, with cameras).
+  <!-- src: t2-status (sprint 2 Tasks 3, 4, 6; sprint 4 Tasks 1, 3; sprint 6 Task 2) -->
 - **The bundled tutorials** (`scripts/tutorials/05_controllers/run_diff_ik.py`, the
   scene, rigid-object and sensor tutorials) were the reliable API reference.
   <!-- src: sprint1 plan, T2 API source of truth -->
@@ -199,19 +214,21 @@ and feeds a pure-Python success check. <!-- src: t2-status -->
   targets lag by about damping / stiffness would help.
   <!-- src: t2-status (sprint 2 Task 2) -->
 - **Joint limits matter more than reach for the OpenArm.** Its ±45° wrist confines a
-  vertical grasp to a ~0.2 m height band, so it scored 0/30 in our shared workspace while
+  vertical grasp to a ~0.15–0.2 m height band, so it scored 0/30 in our shared workspace while
   the Franka scored 27/30 (30/30 after our handover fix). A per-robot workspace hint in the
   asset docs would help. <!-- src: t2-status (sprint 2 Task 5; sprint 4 Task 1) -->
 - **Gripper finger masses on the Flexiv Rizon 4s + Grav.** The near-massless finger bodies
-  slip or drag the cube, so it scored only 9/30 multiplied. Realistic finger masses need a
-  grip re-tune. <!-- src: t2-status (sprint 3 Task 3 and final summary, Open items 3) -->
+  slip or drag the cube. It scored 9/30 multiplied, but most of the 21 failures (15) came
+  from our old handover swing, since fixed and not re-run; the other 6 are grip slips.
+  Realistic finger masses need a grip re-tune.
+  <!-- src: t2-status (sprint 3 Task 3 and final summary, Open items 2-3) -->
 - The first launch downloads assets (37 s here). Fine, but worth saying in the quickstart.
   <!-- src: t2-status -->
 
 **Onboarding:** the pip route (Isaac Sim 6.2.0.0 + Isaac Lab `release/3.0.0` on
 Python 3.12) worked on Windows, with the venv kept outside OneDrive. The main friction was
 the API changes from older tutorials (quaternion order, launcher, prim paths), not the
-install. <!-- src: spec §6; t2-status. Versions per the task brief. -->
+install. <!-- src: spec §6; t2-status (header: Isaac Lab 3.0.0 / Isaac Sim 6.2 / Python 3.12); 2026-10-16-prepublish-audit.md (Task 3: Isaac Sim 6.2.0.0); 2026-10-16-fix-windows-tests.md (Verification) -->
 
 **Would we build with it again?** *Draft: yes.* Physics replay with real contact forces is
 what makes "verified" mean something in this project, and it ran on a single consumer GPU.
