@@ -19,6 +19,8 @@ import math
 from collections.abc import Iterable
 from datetime import datetime, timezone
 
+from demo_pipeline.stats import wilson_ci
+
 Sourced = tuple[str, dict]
 
 MIMICGEN = (0.38, 0.74)  # published data-generation success range
@@ -42,6 +44,23 @@ def _rate(v) -> float | None:
     if isinstance(v, bool) or not isinstance(v, (int, float)) or math.isnan(v) or not 0.0 <= v <= 1.0:
         return None
     return float(v)
+
+
+def _is_int(v) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _ci(value: float, detail: dict) -> tuple[dict | None, str]:
+    """The Wilson 95% interval from the measurement's own counts, or None and why it can't be computed."""
+    n, k = detail.get("n"), detail.get("successes")
+    if not _is_int(n) or n <= 0:
+        return None, f"n is not a positive integer ({n!r})"
+    if not _is_int(k):
+        return None, f"successes is not an integer ({k!r})"
+    if abs(k / n - value) > 1e-6:
+        return None, f"successes / n = {k}/{n} does not match the rate {value}"
+    low, high = wilson_ci(k, n)
+    return {"low": low, "high": high, "successes": k, "n": n, "method": "wilson_95"}, ""
 
 
 def _norm_path(p: str | None) -> str | None:
@@ -113,6 +132,9 @@ def _pick(found: list[dict], rejected: list[dict], why: str, checked: list[str])
         order = sorted(range(len(found)), key=lambda i: (found[i]["when"], i))
         best = found[order[-1]]
         entry = {"value": best["value"], "file": best["file"], "detail": best["detail"]}
+        entry["ci"], why_no_ci = _ci(best["value"], best["detail"])
+        if why_no_ci:
+            entry["ci_missing"] = why_no_ci
         others = [{"value": found[i]["value"], "file": found[i]["file"]} for i in order[:-1]]
         if others:
             entry["others"] = others

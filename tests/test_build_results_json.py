@@ -190,3 +190,13 @@ def test_t2_roots_add_the_yield_folder_and_dataset_manifests_but_not_per_demo_yi
     assert r["multiply_yield"]["ours"] == 1.0
     assert r["sources"]["multiply_yield.ours"]["file"] == str(t2 / "episodes" / "home_v1_manifest.json")
     assert "rejected" not in r["sources"]["multiply_yield.ours"]
+
+
+def test_the_cli_prints_each_points_counts_and_wilson_ci(tmp_path, capsys):
+    data, t2 = tmp_path / "data", tmp_path / "t2"
+    _populate(data, t2)
+    brj.main(["--data-dir", str(data), "--t2-data", str(t2)])
+    lines = {ln.split(" = ")[0].strip(): ln for ln in capsys.readouterr().out.splitlines() if " = " in ln}
+    assert "0.3 (15/50, Wilson 95% CI 19.1-43.8%)" in lines["series.raw_multiply.success[0]"]
+    assert "no CI: successes is not an integer" in lines["series.raw.success[0]"]  # the row has no counts
+    assert "CI" not in lines["multiply_yield.ours"]

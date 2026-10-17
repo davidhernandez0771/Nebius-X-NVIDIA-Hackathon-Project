@@ -132,6 +132,14 @@ def build(data: Path, *, t2_data: list[Path] = (), input_roots: list[Path] = (),
     return out
 
 
+def _ci_note(src: dict) -> str:
+    """A success point's counts and Wilson CI for the summary line, or why it has none; empty for other values."""
+    if src.get("ci"):
+        ci = src["ci"]
+        return f" ({ci['successes']}/{ci['n']}, Wilson 95% CI {ci['low'] * 100:.1f}-{ci['high'] * 100:.1f}%)"
+    return f" (no CI: {src['ci_missing']})" if src.get("ci_missing") else ""
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data-dir", type=Path, default=None, help="default DATA_DIR")
@@ -154,7 +162,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"wrote {out}: {len(filled)} values from source files, {len(r['pending'])} pending, "
           f"{len(r['skipped_inputs'])} inputs skipped")
     for k in filled:
-        print(f"  {k} = {r['sources'][k]['value']}  <- {r['sources'][k]['file']}")
+        src = r["sources"][k]
+        print(f"  {k} = {src['value']}{_ci_note(src)}  <- {src['file']}")
     return 0
 
 

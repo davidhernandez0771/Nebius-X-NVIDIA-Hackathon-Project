@@ -243,3 +243,57 @@ def test_a_multiply_dataset_manifest_counts_its_variants_as_a_yield_run():
     assert src["detail"]["attempts"] == 100 and src["detail"]["successes"] == 100
     assert src["detail"]["reasons"] == {} and src["detail"]["name"] == "home_v1" and src["detail"]["home_start"] is True
     assert [o["value"] for o in src["others"]] == [0.9]
+
+
+# --- Wilson 95% CI on each success point (sprint 7) -----------------------------------------------------
+
+def test_a_measured_point_carries_its_wilson_ci_from_its_own_counts():
+    out = build_results([_row("raw", 10, 0.1, line=4)], [], [], [])  # the fixture's n is 50, so 5/50
+    ci = out["sources"]["series.raw.success[1]"]["ci"]
+    assert ci["successes"] == 5 and ci["n"] == 50 and ci["method"] == "wilson_95"
+    assert ci["low"] == pytest.approx(0.0435, abs=5e-4) and ci["high"] == pytest.approx(0.2136, abs=5e-4)
+    assert ci["low"] < 0.1 < ci["high"]
+
+
+def test_an_eval_file_point_carries_its_ci_too():
+    rows = [_row("raw", 10, None, checkpoint="C:/ck")]
+    evals = [("C:/data/evals/raw_10.json", {"run": {"cell": "raw_10", "checkpoint": "C:/ck", "started": "x"},
+                                            "summary": {"n": 20, "successes": 2, "success_rate": 0.1}})]
+    ci = build_results(rows, evals, [], [])["sources"]["series.raw.success[1]"]["ci"]
+    assert (ci["successes"], ci["n"]) == (2, 20)
+    assert ci["low"] == pytest.approx(0.0279, abs=5e-4) and ci["high"] == pytest.approx(0.3010, abs=5e-4)
+
+
+def test_ablation_bars_carry_a_ci():
+    rows = [_row("rules_multiply", 10, 0.3, line=1), _row("perfected_multiply", 10, 0.4, line=2)]
+    out = build_results(rows, [], [], [], demos=[5, 10, 20])
+    assert out["sources"]["ablation.bars.rules.success"]["ci"]["successes"] == 15
+    assert out["sources"]["ablation.bars.ours.success"]["ci"]["successes"] == 20
+
+
+def test_a_pending_point_has_no_ci():
+    src = build_results([], [], [], [])["sources"]["series.raw.success[0]"]
+    assert "ci" not in src and "ci_missing" not in src
+
+
+@pytest.mark.parametrize("n, successes, why", [
+    (None, 2, "n"), (20, None, "successes"), (0, 0, "n"), (20, 21, "successes"), (20, 2.0, "successes"),
+    (20, 3, "does not match")])
+def test_a_point_whose_counts_are_missing_or_inconsistent_has_a_null_ci_and_says_why(n, successes, why):
+    rows = [_row("raw", 10, None, checkpoint="C:/ck")]
+    evals = [("C:/data/evals/raw_10.json", {"run": {"cell": "raw_10", "checkpoint": "C:/ck", "started": "x"},
+                                            "summary": {"n": n, "successes": successes, "success_rate": 0.1}})]
+    src = build_results(rows, evals, [], [])["sources"]["series.raw.success[1]"]
+    assert src["value"] == 0.1  # the rate still counts; only its interval is unknown
+    assert src["ci"] is None and why in src["ci_missing"]
+
+
+def test_the_ci_is_for_the_measurement_that_won():
+    rows = [_row("raw", 5, 0.3, evaluated_at="2026-10-17T10:00:00+00:00", line=1),
+            _row("raw", 5, 0.5, evaluated_at="2026-10-18T10:00:00+00:00", line=2)]
+    assert build_results(rows, [], [], [])["sources"]["series.raw.success[0]"]["ci"]["successes"] == 25
+
+
+def test_the_series_shape_stays_what_the_page_parses():
+    out = build_results([_row("raw", 10, 0.1)], [], [], [])
+    assert set(out["series"][0]) == {"key", "label", "success"}
