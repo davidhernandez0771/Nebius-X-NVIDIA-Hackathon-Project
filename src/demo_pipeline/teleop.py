@@ -6,6 +6,8 @@ frame; the backend relays it unchanged; the sim worker calls `to_ee_target()` an
 
 Image conventions: `wrist_uv` is raw (unmirrored) MediaPipe normalized coordinates,
 u left->right, v top->bottom. The user watches a mirrored view, so u is mirrored here.
+The optional `control` is the browser's control-region mapping of the palm center, in the
+same raw orientation; when present it replaces the image-region and palm-width fractions.
 Robot conventions: Isaac Lab world frame, Z-up, meters, quaternions (w, x, y, z).
 """
 
@@ -36,11 +38,16 @@ class HandPoseMsg(_Model):
     yaw_rad: float = Field(ge=-math.pi, le=math.pi)  # atan2(dx, -dy) of lm0 -> lm9 in px; up = 0, raw right = +pi/2
     frame_w: int = Field(gt=0)
     frame_h: int = Field(gt=0)
+    # Optional (web/src/teleop/controlRegion.ts): the palm center remapped into the user's control
+    # region and clamped, raw unmirrored like wrist_uv, plus depth from palm width (0 far, 1 near).
+    control: tuple[float, float, float] | None = None
 
     @model_validator(mode="after")
     def _ranges(self) -> "HandPoseMsg":
         if not all(0.0 <= c <= 1.0 for c in self.wrist_uv):
             raise ValueError(f"wrist_uv must lie in [0, 1], got {self.wrist_uv}")
+        if self.control is not None and not all(0.0 <= c <= 1.0 for c in self.control):
+            raise ValueError(f"control must lie in [0, 1], got {self.control}")
         if self.tracking_ok and self.palm_width <= 0:
             raise ValueError("palm_width must be > 0 while tracking_ok")
         return self
@@ -90,16 +97,24 @@ def to_ee_target(msg: HandPoseMsg, calib: Calibration = Calibration()) -> Pose:
     """Map a hand measurement to a gripper-down end-effector target inside the workspace.
 
     y follows the mirrored image u (u_min..u_max -> y max..min), z follows image height
-    (1 - v), x follows palm width (palm_far..palm_near). Every axis is clamped to the
+    (1 - v), x follows palm width (palm_far..palm_near). When msg.control is present, its
+    (u, v, depth) are already fractions of the user's control region and depth range, so they
+    are used directly (still mirrored and inverted the same way). Every axis is clamped to the
     workspace. Yaw rotates the gripper about world z, clamped to +-yaw_limit.
 
     The pose is computed from whatever the message holds; the caller should hold its
     last target while msg.tracking_ok is false.
     """
-    u_mirrored = 1.0 - msg.wrist_uv[0]
-    s_y = _fraction(u_mirrored, calib.u_min, calib.u_max)
-    s_z = _fraction(1.0 - msg.wrist_uv[1], 1.0 - calib.v_max, 1.0 - calib.v_min)
-    s_x = _fraction(msg.palm_width, calib.palm_far, calib.palm_near)
+    if msg.control is not None:
+        u, v, depth = msg.control
+        s_y = _fraction(1.0 - u, 0.0, 1.0)
+        s_z = _fraction(1.0 - v, 0.0, 1.0)
+        s_x = _fraction(depth, 0.0, 1.0)
+    else:
+        u_mirrored = 1.0 - msg.wrist_uv[0]
+        s_y = _fraction(u_mirrored, calib.u_min, calib.u_max)
+        s_z = _fraction(1.0 - msg.wrist_uv[1], 1.0 - calib.v_max, 1.0 - calib.v_min)
+        s_x = _fraction(msg.palm_width, calib.palm_far, calib.palm_near)
     if calib.invert_y:
         s_y = 1.0 - s_y
     if calib.invert_z:

@@ -8,6 +8,7 @@
 // correct on non-square frames such as 1280x720.
 
 import { LANDMARK, type HandLandmark, type TrackedHand } from "../hand/contracts";
+import { toControl, type TeleopControlSettings } from "./controlRegion";
 
 /** Not in contracts.ts's LANDMARK table; MediaPipe's pinky MCP. */
 const PINKY_MCP = 17;
@@ -21,6 +22,10 @@ export interface HandPoseMsg {
   yaw_rad: number; // atan2(dx, -dy) of lm0 -> lm9 in px; up = 0, raw right = +pi/2
   frame_w: number;
   frame_h: number;
+  // Optional: the palm center remapped into the user's control region, clamped, plus depth from palm
+  // width (0 far, 1 near); raw unmirrored like wrist_uv. See controlRegion.ts. Absent: the sim maps
+  // wrist_uv and palm_width with its own Calibration, as before.
+  control?: [number, number, number];
 }
 
 export interface FrameInfo {
@@ -31,7 +36,12 @@ export interface FrameInfo {
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 
-export function toHandPoseMsg(hand: TrackedHand | null, frame: FrameInfo, last?: HandPoseMsg): HandPoseMsg {
+export function toHandPoseMsg(
+  hand: TrackedHand | null,
+  frame: FrameInfo,
+  last?: HandPoseMsg,
+  control?: TeleopControlSettings | null,
+): HandPoseMsg {
   const { timestamp, frameWidth: w, frameHeight: h } = frame;
   const untracked = (): HandPoseMsg => ({
     ...(last ?? { wrist_uv: [0, 0], palm_width: 0, pinch_ratio: 0, yaw_rad: 0 }),
@@ -63,9 +73,10 @@ export function toHandPoseMsg(hand: TrackedHand | null, frame: FrameInfo, last?:
     frame_w: w,
     frame_h: h,
   };
+  if (control?.enabled) msg.control = toControl(lm, msg.palm_width, control);
 
   // A collapsed palm or NaN landmark would be rejected by the backend; report "no hand" instead.
-  const numbers = [msg.palm_width, msg.pinch_ratio, msg.yaw_rad, ...msg.wrist_uv];
+  const numbers = [msg.palm_width, msg.pinch_ratio, msg.yaw_rad, ...msg.wrist_uv, ...(msg.control ?? [])];
   if (!(palmPx > 0) || !numbers.every(Number.isFinite)) return untracked();
   return msg;
 }

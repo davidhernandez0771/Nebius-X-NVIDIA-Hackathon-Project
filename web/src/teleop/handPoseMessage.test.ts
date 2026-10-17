@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { HandFrame, HandLandmark, TrackedHand } from "../hand/contracts";
 import fixture from "./__fixtures__/hand_pose_msg.json";
+import { DEFAULT_TELEOP_CONTROL } from "./controlRegion";
 import { toHandPoseMsg, type HandPoseMsg } from "./handPoseMessage";
 import { TeleopClient, type TeleopStatus } from "./teleopClient";
 
@@ -63,9 +64,34 @@ describe("toHandPoseMsg", () => {
     expect(msg.tracking_ok).toBe(false);
   });
 
+  it("adds no control field unless control settings are given and enabled", () => {
+    const keys = ["frame_h", "frame_w", "palm_width", "pinch_ratio", "t_ms", "tracking_ok", "wrist_uv", "yaw_rad"];
+    expect(Object.keys(toHandPoseMsg(FIXTURE_HAND, HD)).sort()).toEqual(keys);
+    const off = { ...DEFAULT_TELEOP_CONTROL, enabled: false };
+    expect(Object.keys(toHandPoseMsg(FIXTURE_HAND, HD, undefined, off)).sort()).toEqual(keys);
+  });
+
+  it("control is the palm center in the region plus depth, by hand formula", () => {
+    const msg = toHandPoseMsg(FIXTURE_HAND, HD, undefined, DEFAULT_TELEOP_CONTROL);
+    // Palm center = mean of landmarks 0, 5, 9, 17; default region x 0.225..0.775, y 0.15..0.70.
+    const cx = (0.5 + 0.45 + 0.55 + 0.55) / 4;
+    const cy = (0.75 + 0.6 + 0.55 + 0.62) / 4;
+    expect(msg.control![0]).toBeCloseTo((cx - 0.225) / 0.55, 12);
+    expect(msg.control![1]).toBeCloseTo((cy - 0.15) / 0.55, 12);
+    expect(msg.control![2]).toBeCloseTo((msg.palm_width - 0.07) / (0.13 - 0.07), 12);
+  });
+
+  it("a lost hand keeps the last control, like the other fields", () => {
+    const tracked = toHandPoseMsg(FIXTURE_HAND, HD, undefined, DEFAULT_TELEOP_CONTROL);
+    const lost = toHandPoseMsg(null, { ...HD, timestamp: 2000 }, tracked, DEFAULT_TELEOP_CONTROL);
+    expect(lost.control).toEqual(tracked.control);
+    expect(lost.tracking_ok).toBe(false);
+  });
+
   it("matches the committed cross-language fixture", () => {
-    const msg = toHandPoseMsg(FIXTURE_HAND, HD);
+    const msg = toHandPoseMsg(FIXTURE_HAND, HD, undefined, DEFAULT_TELEOP_CONTROL);
     expect(Object.keys(msg).sort()).toEqual(Object.keys(fixture).sort());
+    for (let i = 0; i < 3; i++) expect(msg.control![i]).toBeCloseTo(fixture.control[i], 12);
     expect(msg.t_ms).toBe(fixture.t_ms);
     expect(msg.tracking_ok).toBe(fixture.tracking_ok);
     expect(msg.wrist_uv).toEqual(fixture.wrist_uv);
@@ -131,6 +157,16 @@ describe("TeleopClient", () => {
     client.push(frame(0, [left, right]));
     client.push(frame(100, [left]));
     expect(sent().map((m) => m.wrist_uv)).toEqual([[0.7, 0.6], [0.1, 0.9]]);
+  });
+
+  it("sends control only after setControl, and stops after setControl(null)", () => {
+    const { client, sent } = newClient();
+    client.push(frame(0));
+    client.setControl(DEFAULT_TELEOP_CONTROL);
+    client.push(frame(100));
+    client.setControl(null);
+    client.push(frame(200));
+    expect(sent().map((m) => m.control !== undefined)).toEqual([false, true, false]);
   });
 
   it("does not send while the socket is not open", () => {
