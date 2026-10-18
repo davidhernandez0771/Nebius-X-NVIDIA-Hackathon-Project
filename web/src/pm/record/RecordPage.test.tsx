@@ -633,3 +633,42 @@ describe("Record page: 3D reach", () => {
     expect(Math.abs(turned - facing)).toBeLessThan(10);
   });
 });
+
+// --- Break-through: reach crossing the workspace plane in depth, for T7's hand art ----------------
+
+describe("Record page: break-through cue for the hand art", () => {
+  type BtFrame = { breakthrough?: number; breakthroughDir?: 1 | -1; recording?: boolean; resets?: number } | null;
+  const bt = () => (art.props!.source as () => BtFrame)()!;
+  const at = (distance: number, x = 0.5) => hand3d({ distance, center: { x, y: 0.45 } });
+
+  it("counts reach crossing the cube's row in depth: +1 pushing toward the camera, -1 backing away", async () => {
+    await startCamera();
+    let t = holdFor(0, 1500, at(0.5)); // auto-centering: this distance becomes depth 0.5
+    t = holdFor(t, 600, at(0.62)); // back: depth below the band
+    const c0 = bt().breakthrough!;
+    t = holdFor(t, 600, at(0.4)); // through the plane, toward the camera
+    expect([bt().breakthrough, bt().breakthroughDir]).toEqual([c0 + 1, 1]);
+    holdFor(t, 600, at(0.62)); // back out
+    expect([bt().breakthrough, bt().breakthroughDir]).toEqual([c0 + 2, -1]);
+  });
+
+  it("is not bumped by reaching the max or min, or by crossing the square's 2D edges", async () => {
+    await startCamera();
+    let t = holdFor(0, 1500, at(0.5));
+    t = holdFor(t, 600, at(0.4));
+    const c0 = bt().breakthrough!;
+    t = holdFor(t, 600, at(0.25)); // all the way forward: depth clamps at 1
+    t = holdFor(t, 600, at(0.4, 0.95)); // the palm leaves the square sideways
+    t = holdFor(t, 600, at(0.4, 0.05));
+    holdFor(t, 600, at(0.4, 0.5));
+    expect(bt().breakthrough).toBe(c0);
+  });
+
+  it("sends the overlay the recording state and the reset count too", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ recording: true })));
+    sendHand(0, hand3d());
+    expect(bt()).toMatchObject({ recording: true, resets: 0 });
+  });
+});

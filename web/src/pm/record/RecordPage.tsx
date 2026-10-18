@@ -33,6 +33,7 @@ import {
 } from "./framing";
 import { LazyHandArtOverlay, type HandArtFrame } from "../handArt";
 import { ArtCue } from "./artCue";
+import { BreakthroughCue } from "./breakthroughCue";
 import { HandControlPanel } from "./HandControlPanel";
 import ResetGestureRing from "./ResetGestureRing";
 import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
@@ -221,6 +222,7 @@ export default function RecordPage() {
     let last: HandPoseMsg | undefined;
     const latch = new PinchLatch(); // the gripper: 3D pinch, hysteresis, 2 frames to change
     const cue = new ArtCue();
+    const breakthrough = new BreakthroughCue(); // reach crossing the cube's row in depth
     let resetGesture: ReturnType<typeof createResetGesture> | null = null; // made on the first frame (aspect)
     // Auto-centered reach: unless the depth range was calibrated or set by hand, center it on the
     // hand's natural distance once tracking starts (ReachCenterer: ~1 s of palm widths).
@@ -254,9 +256,14 @@ export default function RecordPage() {
       const tracked = hand && reachSize !== null ? { center: palmCenter(hand.landmarks), palmWidth: reachSize } : null;
       const framing = s.enabled ? controlFraming(tracked, s) : framingCheck(msg);
       // Display only: the overlay reads this; nothing flows back into the message or the gripper.
+      const crossing = breakthrough.update(msg.tracking_ok ? msg.control?.[2] ?? null : null);
       artHand.current = {
         landmarks: hand?.landmarks ?? null,
         gripperClosed: gripper === 1,
+        recording: recordingNow.current,
+        resets: resets.current,
+        breakthrough: crossing.count,
+        breakthroughDir: crossing.dir,
         cue: cue.update({ gripper, recording: recordingNow.current, resets: resets.current }),
       };
       if (canvas.current) draw(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current);
