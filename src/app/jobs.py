@@ -100,9 +100,14 @@ class JobRunner:
         self._futures: dict[str, Future] = {}
         self._lock = threading.Lock()
 
+    @staticmethod
+    def new_id(kind: str) -> str:
+        return DemoStore.new_id(kind)
+
     def submit(self, kind: str, fn: Callable[[], dict], *, demo_id: str | None = None,
-               params: dict | None = None) -> Job:
-        job = Job(id=DemoStore.new_id(kind), kind=kind, demo_id=demo_id, params=params or {})
+               params: dict | None = None, job_id: str | None = None) -> Job:
+        """job_id: an id from new_id(), for a job that needs to know its own id."""
+        job = Job(id=job_id or self.new_id(kind), kind=kind, demo_id=demo_id, params=params or {})
         with self._lock:
             self._jobs[job.id] = job
         self._futures[job.id] = self._executor.submit(self._run, job.id, fn)
