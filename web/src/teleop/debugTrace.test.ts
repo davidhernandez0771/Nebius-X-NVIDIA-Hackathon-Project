@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { FRAME, makeHandPose } from "./__fixtures__/handPoses";
 import { DEFAULT_TELEOP_CONTROL } from "./controlRegion";
-import { DebugTrace, TRACE_SECONDS, traceFileName, traceFrame, type TraceSignals } from "./debugTrace";
+import { DebugTrace, TRACE_SECONDS, TRACE_VERSION, traceFileName, traceFrame, type TraceSignals } from "./debugTrace";
 import { toHandPoseMsg } from "./handPoseMessage";
 import type { HandFrame, TrackedHand } from "../hand/contracts";
 
@@ -12,7 +12,7 @@ function hand(): TrackedHand {
 }
 const frameAt = (t: number, h: TrackedHand | null): HandFrame => ({ timestamp: t, frameWidth: FRAME.w, frameHeight: FRAME.h, hands: h ? [h] : [] });
 const SIGNALS: TraceSignals = {
-  pinch: { value: 1.234567891, source: "3d" },
+  pinch: 1.234567891,
   gripper: 0,
   victory: 0.1234567,
   size3d: 0.1111111,
@@ -34,7 +34,7 @@ describe("traceFrame", () => {
     expect(e.frame).toEqual([FRAME.w, FRAME.h]);
     expect(e.landmarks).toHaveLength(21);
     expect(e.world).toHaveLength(21);
-    expect(e.pinch).toEqual({ value: 1.23457, source: "3d" });
+    expect(e.pinch).toBe(1.23457); // the 2D pinch gap (pinch.ts)
     expect(e.victory).toBe(0.12346);
     expect(e.reach).toEqual({ palmWidth: expect.any(Number), size3d: 0.11111, used: 0.10505, reach3d: false });
     expect(e.reach.palmWidth).toBeGreaterThan(0);
@@ -42,6 +42,10 @@ describe("traceFrame", () => {
     expect(e.sent.tracking_ok).toBe(true);
     expect(e.sent.control).toHaveLength(3);
     expect(e.gripper).toBe(0);
+  });
+
+  it("is version 3: the pinch is the 2D gap (hand v4), not the 3D pinch with its source", () => {
+    expect(TRACE_VERSION).toBe(3);
   });
 
   it("rounds to 5 decimals, so ten seconds stay small", () => {
@@ -72,7 +76,7 @@ describe("DebugTrace", () => {
     const trace = new DebugTrace(100);
     for (let t = 0; t <= 100; t += 33) trace.push(entry(t, hand()));
     const file = trace.toJSON({ settings: DEFAULT_TELEOP_CONTROL, startedAt: "2026-10-17T20:00:00.000Z" });
-    expect(file).toMatchObject({ kind: "pm-hand-trace", version: 2, startedAt: "2026-10-17T20:00:00.000Z", frameWidth: FRAME.w });
+    expect(file).toMatchObject({ kind: "pm-hand-trace", version: 3, startedAt: "2026-10-17T20:00:00.000Z", frameWidth: FRAME.w });
     expect(file.settings).toEqual(DEFAULT_TELEOP_CONTROL);
     expect(file.frames).toHaveLength(4);
     expect(JSON.parse(JSON.stringify(file))).toEqual(file);

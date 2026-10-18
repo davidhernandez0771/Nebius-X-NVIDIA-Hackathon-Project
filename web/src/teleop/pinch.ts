@@ -1,83 +1,51 @@
-// Hand v3: the gripper from the thumb-index pinch, in 3D when MediaPipe gives world landmarks.
+// Live test #8: the gripper from the simplest pinch. Thumb tip and index tip together = closed.
 //
-// pinch = |wl4 - wl8| / (|wl5 - wl6| + |wl6 - wl7| + |wl7 - wl8|): thumb tip to index tip over the
-// index finger's own length, so it doesn't change with distance or with how the hand is turned.
-// Without world landmarks it falls back to the 2D pinch_ratio (|lm4 - lm8| px / palm width px)
-// with the sim's own GripperLatch thresholds.
+// gap = |lm4 - lm8| / |lm0 - lm9|, both in image px: the 2D distance between the thumb and index
+// tips over the hand's size (wrist to middle knuckle), so it doesn't change with the distance
+// from the camera. No world landmarks, no calibration (the 3D pinch and Calibrate pinch of hand
+// v3 are gone).
 //
-// PinchLatch keeps GripperLatch's hysteresis and needs CHANGE_FRAMES frames in a row to change
-// state. Nothing freezes it: no palm-angle or handedness gating (live test #4: MediaPipe's
-// handedness is mirrored on the user's camera, and gating on it froze the normal pose).
+// PinchLatch closes on the first frame below PINCH_CLOSE_BELOW. It opens only after the gap has
+// stayed above PINCH_OPEN_ABOVE (clearly apart) for PINCH_OPEN_HOLD_MS, so one noisy frame can
+// never drop what the gripper holds. In between it holds. Nothing freezes it: no palm-angle or
+// handedness gating (live test #4: MediaPipe's handedness is mirrored on the user's camera).
 
-import type { HandLandmark, TrackedHand } from "../hand/contracts";
+import type { HandLandmark } from "../hand/contracts";
 
-export type PinchSource = "3d" | "2d";
+export const PINCH_CLOSE_BELOW = 0.25; // tips about 2 cm apart on an adult hand
+export const PINCH_OPEN_ABOVE = 0.5; // about 4.5 cm apart
+export const PINCH_OPEN_HOLD_MS = 150;
 
-export interface PinchReading {
-  value: number;
-  source: PinchSource;
-}
-
-/** A Calibrate pinch result: the median 3D pinch with the hand open, and pinched. */
-export interface PinchCal {
-  open: number;
-  pinched: number;
-}
-
-export interface PinchThresholds {
-  closeBelow: number;
-  openAbove: number;
-}
-
-// Never calibrated: an open, relaxed hand reads about 1 index-finger length; MediaPipe's pinch
-// rarely gets the tips fully together, so about 0.2. Calibrate pinch replaces these.
-export const DEFAULT_PINCH_CAL: PinchCal = { open: 1.0, pinched: 0.2 };
-// The 2D fallback: the sim's GripperLatch defaults (src/demo_pipeline/teleop.py).
-export const PINCH_2D: PinchThresholds = { closeBelow: 0.35, openAbove: 0.45 };
-export const CHANGE_FRAMES = 2;
-const CLOSE_AT = 0.35; // of the way from pinched to open
-const OPEN_AT = 0.65;
-
-const dist = (a: HandLandmark, b: HandLandmark): number => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-const round3 = (v: number) => Math.round(v * 1000) / 1000;
-
-/** The 3D pinch, or null when the index finger has no length. */
-export function pinch3d(world: readonly HandLandmark[]): number | null {
-  const len = dist(world[5], world[6]) + dist(world[6], world[7]) + dist(world[7], world[8]);
-  if (!(len > 0)) return null;
-  const v = dist(world[4], world[8]) / len;
+/** The pinch gap for one hand, or null when the hand has no size. */
+export function pinchGap(lm: readonly HandLandmark[], frameWidth: number, frameHeight: number): number | null {
+  const px = (a: number, b: number) => Math.hypot((lm[a].x - lm[b].x) * frameWidth, (lm[a].y - lm[b].y) * frameHeight);
+  const size = px(0, 9);
+  if (!(size > 0)) return null;
+  const v = px(4, 8) / size;
   return Number.isFinite(v) ? v : null;
-}
-
-/** The pinch for a tracked hand: 3D from its world landmarks, else the message's 2D pinch_ratio. */
-export function readPinch(hand: TrackedHand, pinchRatio2d: number): PinchReading {
-  const world = hand.worldLandmarks;
-  const v = world && world.length >= 21 ? pinch3d(world) : null;
-  return v !== null ? { value: v, source: "3d" } : { value: pinchRatio2d, source: "2d" };
-}
-
-/** The 3D hysteresis band for a calibration (null: DEFAULT_PINCH_CAL). */
-export function pinchThresholds(cal: PinchCal | null): PinchThresholds {
-  const { open, pinched } = cal ?? DEFAULT_PINCH_CAL;
-  return { closeBelow: round3(pinched + CLOSE_AT * (open - pinched)), openAbove: round3(pinched + OPEN_AT * (open - pinched)) };
 }
 
 export class PinchLatch {
   state: 0 | 1 = 0;
-  private streak = 0;
+  private wideSince: number | null = null; // while closed: when the gap went (and stayed) wide
 
-  /** reading: this frame's pinch, or null with no hand (holds). thresholds3d: for 3D readings. */
-  update(reading: PinchReading | null, thresholds3d: PinchThresholds): 0 | 1 {
-    if (!reading) {
-      this.streak = 0;
+  /** gap: this frame's pinchGap, or null with no hand (holds). t: the frame's timestamp, ms. */
+  update(gap: number | null, t: number): 0 | 1 {
+    if (gap === null) {
+      this.wideSince = null;
       return this.state;
     }
-    const t = reading.source === "3d" ? thresholds3d : PINCH_2D;
-    const want: 0 | 1 = reading.value < t.closeBelow ? 1 : reading.value > t.openAbove ? 0 : this.state;
-    if (want === this.state) this.streak = 0;
-    else if (++this.streak >= CHANGE_FRAMES) {
-      this.state = want;
-      this.streak = 0;
+    if (gap < PINCH_CLOSE_BELOW) {
+      this.state = 1;
+      this.wideSince = null;
+    } else if (gap > PINCH_OPEN_ABOVE && this.state === 1) {
+      this.wideSince ??= t;
+      if (t - this.wideSince >= PINCH_OPEN_HOLD_MS) {
+        this.state = 0;
+        this.wideSince = null;
+      }
+    } else {
+      this.wideSince = null;
     }
     return this.state;
   }

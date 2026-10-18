@@ -170,12 +170,10 @@ describe("sanitizeTeleopControl", () => {
     expect(sanitizeTeleopControl({ ...DEFAULT_TELEOP_CONTROL, depthAuto: false }).depthAuto).toBe(false);
     expect(sanitizeTeleopControl({ ...DEFAULT_TELEOP_CONTROL, depthAuto: "no" }).depthAuto).toBe(true);
   });
-  it("hand v3: a pinch calibration loads only when sane; hand art shows by default", () => {
+  it("hand v4: a saved pinch calibration (hand v3) is dropped; hand art shows by default", () => {
     const d = DEFAULT_TELEOP_CONTROL;
-    expect([d.indexPinchCal, d.showHandArt]).toEqual([null, true]);
-    expect(sanitizeTeleopControl({ ...d, indexPinchCal: { open: 0.9, pinched: 0.2 } }).indexPinchCal).toEqual({ open: 0.9, pinched: 0.2 });
-    for (const bad of [{ open: 0.2, pinched: 0.9 }, { open: "a", pinched: 0.1 }, { open: 9, pinched: 0.1 }, { open: 0.9, pinched: -1 }, 3])
-      expect(sanitizeTeleopControl({ ...d, indexPinchCal: bad }).indexPinchCal).toBeNull();
+    expect(d.showHandArt).toBe(true);
+    expect("indexPinchCal" in sanitizeTeleopControl({ ...d, indexPinchCal: { open: 0.9, pinched: 0.2 } })).toBe(false);
     expect(sanitizeTeleopControl({ ...d, showHandArt: false }).showHandArt).toBe(false);
     // Settings saved by the sprint 8 branch load as plain v3 settings; its pinchCal (a different
     // normalizer, |wl0 - wl9|) is not reused.

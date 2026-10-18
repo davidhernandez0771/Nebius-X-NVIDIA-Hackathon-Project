@@ -11,8 +11,7 @@ import {
   type CalibrationState,
   type TeleopControlSettings,
 } from "../../teleop/controlRegion";
-import { PINCH_2D, pinchThresholds, type PinchReading } from "../../teleop/pinch";
-import type { PinchCalState } from "../../teleop/pinchCalibration";
+import { PINCH_CLOSE_BELOW, PINCH_OPEN_ABOVE, PINCH_OPEN_HOLD_MS } from "../../teleop/pinch";
 
 const SIZE_MIN = 0.2; // SANT's slider range; calibration may go a little smaller
 const DEPTH_MIN = 0.03;
@@ -23,13 +22,6 @@ const STEP_TEXT: Record<CalibrationState["step"], string> = {
   move: "Move your hand slowly around the space you want to use: left, right, up, and down to where the table should be. Keep your whole hand in view.",
   near: "Now hold your hand comfortably close to the camera (the arm reaches forward).",
   far: "Now hold your hand back, away from the camera (the arm pulls back).",
-  done: "",
-  failed: "",
-};
-
-const PINCH_STEP_TEXT: Record<PinchCalState["step"], string> = {
-  open: "Hold your hand open, thumb and index spread.",
-  pinch: "Now pinch: touch your thumb and index tips together, and hold.",
   done: "",
   failed: "",
 };
@@ -46,13 +38,10 @@ type Props = {
   readout: {
     palmWidth: number | null;
     size3d: number | null; // the 3D reach signal (reach3d.ts), same units as palmWidth
-    pinch: PinchReading | null;
+    pinch: number | null; // the pinch gap (pinch.ts)
     victory: number | null; // the V sign score, 0..1 (the reset gesture needs 0.85)
     control: readonly [number, number, number] | null;
   };
-  pinchCalibration: PinchCalState | null;
-  onCalibratePinch: () => void;
-  onCancelPinchCalibration: () => void;
 };
 
 export function HandControlPanel({
@@ -65,9 +54,6 @@ export function HandControlPanel({
   recentering,
   onRecenter,
   readout,
-  pinchCalibration,
-  onCalibratePinch,
-  onCancelPinchCalibration,
 }: Props) {
   const r = settings.region;
   const set = (patch: Partial<TeleopControlSettings>) => onChange({ ...settings, ...patch });
@@ -232,31 +218,7 @@ export function HandControlPanel({
       )}
       {!canCalibrate && !running && <p className="muted small">Start the camera to calibrate by hand.</p>}
 
-      <PinchMeter reading={readout.pinch} settings={settings} />
-      {pinchCalibration && pinchCalibration.step !== "done" && pinchCalibration.step !== "failed" ? (
-        <div className="stack" role="status">
-          <p className="small">{PINCH_STEP_TEXT[pinchCalibration.step]}</p>
-          <progress max={1} value={pinchCalibration.progress} aria-label="Pinch calibration step progress" />
-          <button type="button" className="ghost-button" onClick={onCancelPinchCalibration}>
-            Cancel pinch calibration
-          </button>
-        </div>
-      ) : (
-        <button type="button" className="ghost-button" onClick={onCalibratePinch} disabled={!canCalibrate}>
-          Calibrate pinch
-        </button>
-      )}
-      {pinchCalibration?.step === "done" && pinchCalibration.result && (
-        <p className="small" role="status">
-          Pinch calibrated: open {pinchCalibration.result.open.toFixed(2)}, pinched {pinchCalibration.result.pinched.toFixed(2)}.
-        </p>
-      )}
-      {pinchCalibration?.step === "failed" && (
-        <p className="small" role="alert">
-          {pinchCalibration.error}
-        </p>
-      )}
-
+      <PinchMeter value={readout.pinch} />
       <label className="row">
         <input type="checkbox" checked={settings.showHandArt} onChange={(e) => set({ showHandArt: e.target.checked })} />
         <span>Hand art over the camera view (display only)</span>
@@ -271,7 +233,7 @@ export function HandControlPanel({
         <dd data-testid="control-now">{c ? `u ${c[0].toFixed(2)} · v ${c[1].toFixed(2)} · depth ${c[2].toFixed(2)}` : "–"}</dd>
         <dt>Pinch</dt>
         <dd data-testid="pinch-now">
-          {readout.pinch ? `${readout.pinch.value.toFixed(2)} (${readout.pinch.source.toUpperCase()})` : "–"}
+          {readout.pinch !== null ? readout.pinch.toFixed(2) : "–"}
         </dd>
         <dt>V sign</dt>
         <dd data-testid="victory-now">{readout.victory !== null ? readout.victory.toFixed(2) : "–"}</dd>
@@ -284,15 +246,12 @@ export function HandControlPanel({
   );
 }
 
-/** The live pinch on a bar, with the two thresholds marked: closes below the left mark, opens
- *  above the right one, holds in between. 3D values use the calibration; 2D, the sim's own. */
-function PinchMeter({ reading, settings }: { reading: PinchReading | null; settings: TeleopControlSettings }) {
-  const is2d = reading?.source === "2d";
-  const { closeBelow: close, openAbove: open } = is2d ? PINCH_2D : pinchThresholds(settings.indexPinchCal);
-  const max = Math.max(1.5, (settings.indexPinchCal?.open ?? 1) * 1.25);
+/** The live pinch gap on a bar, with the two fixed thresholds marked: closes below the left mark,
+ *  opens once it stays above the right one for 150 ms, holds in between. */
+function PinchMeter({ value }: { value: number | null }) {
+  const max = 1.5;
   const pct = (v: number) => `${Math.min(100, Math.max(0, (v / max) * 100))}%`;
-  const thresholds = `closes below ${close.toFixed(2)}, opens above ${open.toFixed(2)}`;
-  const value = reading?.value ?? null;
+  const thresholds = `closes below ${PINCH_CLOSE_BELOW.toFixed(2)}, opens above ${PINCH_OPEN_ABOVE.toFixed(2)} for ${PINCH_OPEN_HOLD_MS} ms`;
   return (
     <div className="calibration-field">
       <span className="calibration-field-label">
@@ -304,21 +263,16 @@ function PinchMeter({ reading, settings }: { reading: PinchReading | null; setti
         role="meter"
         aria-label="Pinch"
         aria-valuemin={0}
-        aria-valuemax={Number(max.toFixed(2))}
+        aria-valuemax={max}
         aria-valuenow={value !== null ? Number(value.toFixed(2)) : undefined}
         aria-valuetext={value !== null ? `${value.toFixed(2)}: ${thresholds}` : `no hand; ${thresholds}`}
       >
         {value !== null && <div className="pm-pinch-fill" style={{ width: pct(value) }} />}
-        <div className="pm-pinch-mark" style={{ left: pct(close) }} title="closes below" />
-        <div className="pm-pinch-mark" style={{ left: pct(open) }} title="opens above" />
+        <div className="pm-pinch-mark" style={{ left: pct(PINCH_CLOSE_BELOW) }} title="closes below" />
+        <div className="pm-pinch-mark" style={{ left: pct(PINCH_OPEN_ABOVE) }} title="opens above" />
       </div>
       <span className="calibration-field-hint">
-        Thumb tip to index tip, over your index finger's length: {thresholds}
-        {is2d
-          ? " (2D: no 3D landmarks this frame)."
-          : settings.indexPinchCal
-            ? " (your calibration)."
-            : " (typical values; Calibrate pinch fits them to your hand)."}
+        Thumb tip to index tip, over your hand's size (wrist to middle knuckle): {thresholds}.
       </span>
     </div>
   );

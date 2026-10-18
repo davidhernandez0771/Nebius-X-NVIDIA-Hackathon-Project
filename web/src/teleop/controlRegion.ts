@@ -10,8 +10,6 @@
 // cursor's region (sant.hand.controlRegion) and the teleop region are tuned independently.
 
 import { DEFAULT_CONTROL_REGION, type ControlRegion, type HandLandmark } from "../hand/contracts";
-import type { PinchCal } from "./pinch";
-
 export const PALM_LANDMARKS = [0, 5, 9, 17] as const; // wrist, index MCP, middle MCP, pinky MCP
 export const TELEOP_CONTROL_STORAGE_KEY = "pm.teleop.region";
 
@@ -24,7 +22,6 @@ export interface TeleopControlSettings {
   invertX: boolean; // flips left-right
   invertY: boolean; // flips up-down
   // Hand v3 (pinch.ts). The sprint 8 branch's pinchCal used another normalizer, so a new name.
-  indexPinchCal: PinchCal | null; // Calibrate pinch: the user's open and pinched values; null: defaults
   showHandArt: boolean; // the display-only hand-art overlay on Record
   reach3d: boolean; // reach from the image-vs-world scale fit (reach3d.ts); false: pixel palm width
 }
@@ -42,7 +39,6 @@ export const DEFAULT_TELEOP_CONTROL: TeleopControlSettings = {
   depthAuto: true,
   invertX: false,
   invertY: false,
-  indexPinchCal: null,
   showHandArt: true,
   reach3d: false,
 };
@@ -128,18 +124,9 @@ export function sanitizeTeleopControl(raw: unknown): TeleopControlSettings {
     depthAuto: bool(o.depthAuto, d.depthAuto),
     invertX: bool(o.invertX, d.invertX),
     invertY: bool(o.invertY, d.invertY),
-    indexPinchCal: sanitizePinchCal(o.indexPinchCal),
     showHandArt: bool(o.showHandArt, d.showHandArt),
     reach3d: bool(o.reach3d, d.reach3d),
   };
-}
-
-const PINCH_VALUE_MAX = 5; // thumb-index over index length; an open hand is about 1
-
-function sanitizePinchCal(raw: unknown): PinchCal | null {
-  if (!raw || typeof raw !== "object") return null;
-  const { open, pinched } = raw as Record<string, unknown>;
-  return finite(open) && finite(pinched) && 0 <= pinched && pinched < open && open <= PINCH_VALUE_MAX ? { open, pinched } : null;
 }
 
 type KeyValueStore = Pick<Storage, "getItem" | "setItem">;

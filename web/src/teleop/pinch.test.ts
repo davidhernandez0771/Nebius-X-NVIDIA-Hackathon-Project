@@ -1,131 +1,106 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalHand, makeHandPose, pinchThumbTip, type V3 } from "./__fixtures__/handPoses";
-import type { TrackedHand } from "../hand/contracts";
-import {
-  CHANGE_FRAMES,
-  DEFAULT_PINCH_CAL,
-  PINCH_2D,
-  PinchLatch,
-  pinch3d,
-  pinchThresholds,
-  readPinch,
-  type PinchReading,
-} from "./pinch";
+import { FIST_FLEX, FRAME, canonicalHand, makeHandPose, pinchThumbTip } from "./__fixtures__/handPoses";
+import type { HandLandmark } from "../hand/contracts";
+import { PINCH_CLOSE_BELOW, PINCH_OPEN_ABOVE, PINCH_OPEN_HOLD_MS, PinchLatch, pinchGap } from "./pinch";
 
 const rad = (d: number) => (d * Math.PI) / 180;
-const dist = (a: V3, b: V3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+const gap = (lm: HandLandmark[]) => pinchGap(lm, FRAME.w, FRAME.h)!;
 
-function hand(opts: Parameters<typeof makeHandPose>[0] = {}): TrackedHand {
-  const { world, landmarks } = makeHandPose(opts);
-  return { landmarks, worldLandmarks: world, handedness: "Right" };
-}
-
-/** A thumb tip placed so the 3D pinch reads `v` (index finger length units). */
-function thumbAt(v: number): V3 {
+/** Thumb tip `cm` centimeters from the index tip, sideways (canonical hand, palm to the camera). */
+function tipsApart(cm: number, opts: Parameters<typeof makeHandPose>[0] = {}): HandLandmark[] {
   const c = canonicalHand();
-  const len = dist(c[5], c[6]) + dist(c[6], c[7]) + dist(c[7], c[8]);
-  return { ...c[8], x: c[8].x - v * len };
+  return makeHandPose({ ...opts, thumbTip: { ...c[8], x: c[8].x - cm / 100 } }).landmarks;
 }
 
-const TH = pinchThresholds(null);
-const r3 = (value: number): PinchReading => ({ value, source: "3d" });
-
-describe("pinch3d: |wl4 - wl8| over the index finger's length (5-6-7-8)", () => {
-  it("is small for a pinch, large for an open hand, and scale-free", () => {
-    const open = makeHandPose().world;
-    const pinch = makeHandPose({ thumbTip: pinchThumbTip() }).world;
-    expect(pinch3d(pinch)!).toBeLessThan(TH.closeBelow);
-    expect(pinch3d(open)!).toBeGreaterThan(TH.openAbove);
-    const bigger = pinch.map((p) => ({ x: p.x * 1.4, y: p.y * 1.4, z: p.z * 1.4 }));
-    expect(pinch3d(bigger)!).toBeCloseTo(pinch3d(pinch)!, 9);
-    expect(pinch3d(makeHandPose({ thumbTip: thumbAt(0.6) }).world)!).toBeCloseTo(0.6, 6);
+describe("pinchGap: 2D thumb tip to index tip, over the hand's size (wrist to middle knuckle)", () => {
+  it("is near 0 with the tips together and over 1 with the hand open", () => {
+    expect(gap(makeHandPose({ thumbTip: pinchThumbTip() }).landmarks)).toBeLessThan(0.1);
+    expect(gap(makeHandPose().landmarks)).toBeGreaterThan(1);
   });
 
-  it("doesn't change when the hand turns, pitches or shows its back (no palm-angle gating)", () => {
-    const at = (rot: { x?: number; y?: number; z?: number }) => pinch3d(makeHandPose({ rot, thumbTip: thumbAt(0.3) }).world)!;
-    for (const rot of [{ y: rad(80) }, { y: rad(170) }, { x: rad(90) }, { z: rad(45) }]) expect(at(rot)).toBeCloseTo(0.3, 6);
+  it("does not change with the hand's distance from the camera", () => {
+    const near = gap(tipsApart(3, { distance: 0.35 }));
+    const far = gap(tipsApart(3, { distance: 0.8 }));
+    expect(near).toBeCloseTo(far, 1);
   });
 
-  it("is null for a degenerate finger", () => {
-    const flat = Array.from({ length: 21 }, () => ({ x: 0, y: 0, z: 0 }));
-    expect(pinch3d(flat)).toBeNull();
-  });
-});
-
-describe("readPinch", () => {
-  it("uses the world landmarks when there are 21", () => {
-    const r = readPinch(hand({ thumbTip: thumbAt(0.5) }), 0.9);
-    expect(r.source).toBe("3d");
-    expect(r.value).toBeCloseTo(0.5, 6);
+  it("is in px: a non-square frame does not stretch it", () => {
+    const lm: HandLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    lm[0] = { x: 0.5, y: 0.6, z: 0 };
+    lm[9] = { x: 0.5, y: 0.4, z: 0 }; // 0.2 of 480 px = 96 px
+    lm[4] = { x: 0.45, y: 0.3, z: 0 };
+    lm[8] = { x: 0.55, y: 0.3, z: 0 }; // 0.1 of 640 px = 64 px
+    expect(pinchGap(lm, 640, 480)).toBeCloseTo(64 / 96, 6);
   });
 
-  it("falls back to the 2D pinch_ratio without world landmarks", () => {
-    const h = hand();
-    expect(readPinch({ ...h, worldLandmarks: undefined }, 0.42)).toEqual({ value: 0.42, source: "2d" });
-    expect(readPinch({ ...h, worldLandmarks: h.worldLandmarks!.slice(0, 5) }, 0.42).source).toBe("2d");
+  it("is null when the hand has no size", () => {
+    const lm: HandLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    expect(pinchGap(lm, 640, 480)).toBeNull();
+  });
+
+  it("tips 2 cm apart read closed; 4.5 cm apart read clearly open", () => {
+    expect(gap(tipsApart(2))).toBeLessThan(PINCH_CLOSE_BELOW);
+    expect(gap(tipsApart(4.5))).toBeGreaterThan(PINCH_OPEN_ABOVE);
   });
 });
 
-describe("pinchThresholds", () => {
-  it("sit 35% and 65% of the way from pinched to open", () => {
-    expect(pinchThresholds({ open: 1.2, pinched: 0.2 })).toEqual({ closeBelow: 0.55, openAbove: 0.85 });
-    expect(pinchThresholds(null)).toEqual(pinchThresholds(DEFAULT_PINCH_CAL));
-    expect(TH.closeBelow).toBeLessThan(TH.openAbove);
-  });
-});
+describe("PinchLatch: close at once below the close mark; open only after a wide gap held ~150 ms", () => {
+  const FRAME_MS = 1000 / 30;
 
-describe("PinchLatch: hysteresis, 2 consecutive frames to change", () => {
-  it(`closes after ${CHANGE_FRAMES} frames below the close threshold, opens after ${CHANGE_FRAMES} above the open one`, () => {
-    expect(CHANGE_FRAMES).toBe(2);
-    const l = new PinchLatch();
-    expect(l.update(r3(1), TH)).toBe(0);
-    expect(l.update(r3(0.1), TH)).toBe(0);
-    expect(l.update(r3(0.1), TH)).toBe(1);
-    expect(l.update(r3(1), TH)).toBe(1);
-    expect(l.update(r3(1), TH)).toBe(0);
+  it("has the fixed thresholds", () => {
+    expect([PINCH_CLOSE_BELOW, PINCH_OPEN_ABOVE, PINCH_OPEN_HOLD_MS]).toEqual([0.25, 0.5, 150]);
   });
 
-  it("ignores a one-frame blip", () => {
+  it("closes on the first frame below the close mark", () => {
     const l = new PinchLatch();
-    for (const v of [1, 0.1, 1, 0.1, 1]) expect(l.update(r3(v), TH)).toBe(0);
+    expect(l.update(1.2, 0)).toBe(0);
+    expect(l.update(0.2, 33)).toBe(1);
   });
 
-  it("holds between the thresholds", () => {
+  it("one wide frame while holding never opens it", () => {
     const l = new PinchLatch();
-    l.update(r3(0.1), TH);
-    l.update(r3(0.1), TH);
-    const mid = (TH.closeBelow + TH.openAbove) / 2;
-    for (let i = 0; i < 5; i++) expect(l.update(r3(mid), TH)).toBe(1);
+    l.update(0.1, 0);
+    expect(l.update(1.3, 33)).toBe(1); // a noisy frame
+    expect(l.update(0.1, 66)).toBe(1);
+    for (let t = 100; t < 2000; t += FRAME_MS) expect(l.update(Math.floor(t / FRAME_MS) % 5 === 0 ? 1.3 : 0.15, t)).toBe(1);
   });
 
-  it("holds while the hand is lost, and the lost frame breaks a streak", () => {
+  it("opens once the gap stays wide for 150 ms", () => {
     const l = new PinchLatch();
-    l.update(r3(0.1), TH);
-    expect(l.update(null, TH)).toBe(0);
-    expect(l.update(r3(0.1), TH)).toBe(0); // the streak restarted
-    expect(l.update(r3(0.1), TH)).toBe(1);
-    expect(l.update(null, TH)).toBe(1);
+    l.update(0.1, 0);
+    expect(l.update(0.8, 100)).toBe(1);
+    expect(l.update(0.8, 200)).toBe(1);
+    expect(l.update(0.8, 249)).toBe(1);
+    expect(l.update(0.8, 250)).toBe(0);
   });
 
-  it("2D readings use the sim's 2D thresholds, whatever the 3D calibration", () => {
+  it("between the marks it holds, and restarts the open timer", () => {
     const l = new PinchLatch();
-    const tight = pinchThresholds({ open: 3, pinched: 2 }); // 3D: closes below 2.35
-    const twoD = (value: number): PinchReading => ({ value, source: "2d" });
-    l.update(twoD(PINCH_2D.closeBelow + 0.05), tight);
-    expect(l.update(twoD(PINCH_2D.closeBelow + 0.05), tight)).toBe(0);
-    l.update(twoD(PINCH_2D.closeBelow - 0.05), tight);
-    expect(l.update(twoD(PINCH_2D.closeBelow - 0.05), tight)).toBe(1);
+    l.update(0.1, 0);
+    l.update(0.8, 100);
+    expect(l.update(0.35, 200)).toBe(1); // between: hold
+    expect(l.update(0.8, 260)).toBe(1); // the wide gap starts again here
+    expect(l.update(0.8, 400)).toBe(1);
+    expect(l.update(0.8, 410)).toBe(0);
+    expect(l.update(0.35, 450)).toBe(0); // open, between: stays open
   });
 
-  it("a pinch closes whatever the hand's rotation: no freeze", () => {
+  it("holds with no hand, and a lost hand restarts the open timer", () => {
     const l = new PinchLatch();
-    for (const rot of [{ y: rad(80) }, { y: rad(170) }]) {
-      const latch = new PinchLatch();
-      const h = hand({ rot, thumbTip: pinchThumbTip() });
-      latch.update(readPinch(h, 1), TH);
-      expect(latch.update(readPinch(h, 1), TH)).toBe(1);
+    l.update(0.1, 0);
+    l.update(0.9, 100);
+    expect(l.update(null, 200)).toBe(1);
+    expect(l.update(0.9, 260)).toBe(1);
+    expect(l.update(0.9, 410)).toBe(0);
+    expect(l.update(null, 500)).toBe(0);
+  });
+
+  it("a pinch closes with the palm sideways or the back of the hand to the camera; a fist does not", () => {
+    for (const deg of [80, 170]) {
+      const l = new PinchLatch();
+      expect([deg, l.update(gap(makeHandPose({ rot: { y: rad(deg) }, thumbTip: pinchThumbTip() }).landmarks), 0)]).toEqual([deg, 1]);
     }
-    expect(l.state).toBe(0);
+    expect(new PinchLatch().update(gap(makeHandPose({ flex: FIST_FLEX }).landmarks), 0)).toBe(0);
   });
 });

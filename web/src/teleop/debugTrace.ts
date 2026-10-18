@@ -1,18 +1,17 @@
 // Record debug trace: a few seconds of everything the hand control sees and sends, frame by
 // frame, as a JSON file the user downloads and hands to the lead. Ported from pm/t4-diagnoser's
-// 5ceab31 for hand v3: the 3D pinch, the V sign score, both reach signals and the break-through cue.
+// 5ceab31 for hand v3: the pinch, the V sign score, both reach signals and the break-through cue.
 
 import type { HandFrame, TrackedHand } from "../hand/contracts";
 import type { TeleopControlSettings } from "./controlRegion";
 import type { HandPoseMsg } from "./handPoseMessage";
-import type { PinchReading } from "./pinch";
 
 export const TRACE_SECONDS = 10;
-export const TRACE_VERSION = 2; // 1: pm/t4-diagnoser's sprint 8 trace
+export const TRACE_VERSION = 3; // 1: pm/t4-diagnoser's sprint 8 trace; 2: hand v3's 3D pinch {value, source}
 
 /** The page's per-frame values beyond the message. */
 export interface TraceSignals {
-  pinch: PinchReading | null;
+  pinch: number | null; // the 2D pinch gap (pinch.ts)
   gripper: 0 | 1;
   victory: number | null;
   size3d: number | null; // the 3D reach signal
@@ -29,7 +28,7 @@ export interface TraceFrame {
   handedness: string | null;
   landmarks: number[][] | null; // 21 x [x, y, z], raw normalized image coordinates
   world: number[][] | null; // 21 x [x, y, z], meters (worldLandmarks)
-  pinch: PinchReading | null;
+  pinch: number | null; // the 2D pinch gap (pinch.ts)
   victory: number | null;
   reach: { palmWidth: number | null; size3d: number | null; used: number | null; reach3d: boolean };
   breakthrough: { count: number; dir: 1 | -1 };
@@ -60,7 +59,7 @@ export function traceFrame(frame: HandFrame, hand: TrackedHand | null, msg: Hand
     handedness: hand?.handedness ?? null,
     landmarks: hand ? hand.landmarks.map(xyz) : null,
     world: hand?.worldLandmarks ? hand.worldLandmarks.map(xyz) : null,
-    pinch: s.pinch ? { value: r5(s.pinch.value), source: s.pinch.source } : null,
+    pinch: r5n(s.pinch),
     victory: r5n(s.victory),
     reach: { palmWidth: msg.tracking_ok ? r5(msg.palm_width) : null, size3d: r5n(s.size3d), used: r5n(s.reachSize), reach3d: s.reach3d },
     breakthrough: { count: s.breakthrough, dir: s.breakthroughDir },

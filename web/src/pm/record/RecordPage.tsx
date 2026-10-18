@@ -12,8 +12,7 @@ import {
   type TeleopControlSettings,
 } from "../../teleop/controlRegion";
 import { toHandPoseMsg, type HandPoseMsg } from "../../teleop/handPoseMessage";
-import { PinchLatch, pinchThresholds, readPinch, type PinchReading } from "../../teleop/pinch";
-import { PinchCalibrator, type PinchCalState } from "../../teleop/pinchCalibration";
+import { PinchLatch, pinchGap } from "../../teleop/pinch";
 import { createResetGesture, type ResetGestureStatus } from "../../teleop/resetGesture";
 import { victoryScore } from "../../teleop/victoryPose";
 import { reachSize3d } from "../../teleop/reach3d";
@@ -176,7 +175,7 @@ export default function RecordPage() {
     msg: HandPoseMsg;
     framing: Framing;
     gripper: 0 | 1;
-    pinch: PinchReading | null;
+    pinch: number | null; // the pinch gap (pinch.ts)
     victory: number | null;
     reset: ResetGestureStatus;
     size3d: number | null; // the 3D reach signal, shown next to the palm width either way
@@ -184,7 +183,6 @@ export default function RecordPage() {
   const [settings, setSettings] = useState<TeleopControlSettings>(loadTeleopControl);
   const [calibration, setCalibration] = useState<CalibrationState | null>(null);
   const [recentering, setRecentering] = useState(false);
-  const [pinchCal, setPinchCal] = useState<PinchCalState | null>(null);
   const [trace, setTrace] = useState<TraceUi | null>(null);
   const [resetToast, setResetToast] = useState<ResetToast | null>(null);
   const resetToastAt = useRef<number | null>(null);
@@ -194,8 +192,6 @@ export default function RecordPage() {
   const calibrator = useRef<TeleopCalibrator | null>(null);
   const centerer = useRef<ReachCenterer | null>(null);
   const calibrationStep = useRef<CalibrationState["step"] | null>(null);
-  const pinchCalibrator = useRef<PinchCalibrator | null>(null);
-  const pinchCalStep = useRef<PinchCalState["step"] | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const session = useRef<{ tracker: TrackingAdapter; link: RecordLink | null } | null>(null);
   const artHand = useRef<HandArtFrame | null>(null); // polled by the hand-art overlay each animation frame
@@ -219,7 +215,6 @@ export default function RecordPage() {
     tracer.current = null;
     artHand.current = null;
     calibrator.current = null;
-    pinchCalibrator.current = null;
     centerer.current = null;
     session.current?.tracker.cleanup();
     session.current?.link?.close();
@@ -240,7 +235,7 @@ export default function RecordPage() {
     session.current = { tracker, link: null };
     let lastUi = -Infinity;
     let last: HandPoseMsg | undefined;
-    const latch = new PinchLatch(); // the gripper: 3D pinch, hysteresis, 2 frames to change
+    const latch = new PinchLatch(); // the gripper: closes at once, opens after a wide gap held 150 ms
     const cue = new ArtCue();
     const breakthrough = new BreakthroughCue(); // reach crossing the cube's row in depth
     let resetGesture: ReturnType<typeof createResetGesture> | null = null; // made on the first frame (aspect)
@@ -255,9 +250,9 @@ export default function RecordPage() {
       // The same message the link sends, so what the page shows is what the sim gets.
       const msg = toHandPoseMsg(hand, frame, last, s);
       last = msg;
-      // The gripper: the 3D pinch (2D without world landmarks); the link sends it as HandPoseMsg.grip.
-      const pinch = msg.tracking_ok && hand ? readPinch(hand, msg.pinch_ratio) : null;
-      const gripper = latch.update(pinch, pinchThresholds(s.indexPinchCal));
+      // The gripper: thumb tip and index tip together = closed; the link sends it as HandPoseMsg.grip.
+      const pinch = msg.tracking_ok && hand ? pinchGap(hand.landmarks, frame.frameWidth, frame.frameHeight) : null;
+      const gripper = latch.update(pinch, frame.timestamp);
       session.current?.link?.push(frame, gripper);
       // Reset gesture: the V sign held 1.5 s, gripper open, hand still -> the Reset scene control.
       const victory = msg.tracking_ok && hand ? victoryScore(hand, frame.frameWidth, frame.frameHeight).score : null;
@@ -297,8 +292,6 @@ export default function RecordPage() {
       if (canvas.current) draw(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current);
       const uiTick = frame.timestamp - lastUi >= UI_INTERVAL_MS;
       if (calibrator.current) calibrate(calibrator.current, frame.timestamp, tracked, uiTick);
-      if (pinchCalibrator.current)
-        calibratePinch(pinchCalibrator.current, frame.timestamp, pinch?.source === "3d" ? pinch.value : null, uiTick);
       if (tracer.current) {
         const signals: TraceSignals = {
           pinch,
@@ -398,33 +391,9 @@ export default function RecordPage() {
     setTrace({ state: "recording", progress: 0 });
   }
 
-  /** One frame of Calibrate pinch; the result is applied (and saved) at once. */
-  function calibratePinch(cal: PinchCalibrator, t: number, value: number | null, uiTick: boolean) {
-    const state = cal.push({ t, value });
-    const finished = state.step === "done" || state.step === "failed";
-    if (finished) pinchCalibrator.current = null;
-    if (state.step === "done" && state.result) updateSettings({ ...settingsRef.current, indexPinchCal: state.result });
-    if (uiTick || finished || state.step !== pinchCalStep.current) {
-      pinchCalStep.current = state.step;
-      setPinchCal(state);
-    }
-  }
-
-  function startPinchCalibration() {
-    pinchCalibrator.current = new PinchCalibrator();
-    pinchCalStep.current = "open";
-    setPinchCal({ step: "open", progress: 0 });
-  }
-
-  function cancelPinchCalibration() {
-    pinchCalibrator.current = null;
-    setPinchCal(null);
-  }
-
   function stop() {
     teardown();
     setCalibration(null);
-    setPinchCal(null);
     setTrace((t) => (t?.state === "recording" ? null : t)); // a finished file stays downloadable
     setRecentering(false);
     setTrack("idle");
@@ -607,9 +576,6 @@ export default function RecordPage() {
           victory: pose?.victory ?? null,
           control: pose?.msg.tracking_ok ? pose.msg.control ?? null : null,
         }}
-        pinchCalibration={pinchCal}
-        onCalibratePinch={startPinchCalibration}
-        onCancelPinchCalibration={cancelPinchCalibration}
       />
 
       <p className="muted small panel-note">
