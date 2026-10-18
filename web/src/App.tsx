@@ -1,5 +1,5 @@
-﻿import { lazy, Suspense, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+﻿import { lazy, Suspense, useEffect, useState } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { DashboardShell } from "./components";
 import Icon from "./components/Icon";
 import Home from "./pages/Home";
@@ -15,6 +15,7 @@ import DatasetPage from "./pm/dataset/DatasetPage";
 import RecordPage from "./pm/record/RecordPage";
 import ReviewPage from "./pm/review/ReviewPage";
 import ResultsPage from "./pm/results/ResultsPage";
+import { siteModeOf } from "./sant/motion/crossing";
 import { SantRoot } from "./sant/SantRoot";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
@@ -37,6 +38,13 @@ export default function App() {
   // so it survives navigation. See HAND_INTERACTION_PLAN.md.
   const hand = useHandPointer();
   const [calibrationOpen, setCalibrationOpen] = useState(false);
+  // The new SANT site (/site, /robots, …) has no hand cursor: hide its controls there, and turn the
+  // camera off if it was left on, since there is no switch on those pages to turn it off.
+  const onSite = siteModeOf(useLocation().pathname) !== null;
+  const { enabled: handOn, disable: handOff } = hand;
+  useEffect(() => {
+    if (onSite && handOn) handOff();
+  }, [onSite, handOn, handOff]);
 
   return (
     <>
@@ -96,18 +104,22 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <button
-        type="button"
-        className="hand-calibration-trigger"
-        aria-label="Hand-control calibration"
-        aria-expanded={calibrationOpen}
-        onClick={() => setCalibrationOpen((open) => !open)}
-      >
-        <Icon name="settings" size={16} />
-      </button>
-      <CalibrationPanel api={hand} open={calibrationOpen} onClose={() => setCalibrationOpen(false)} />
-      <HandToggle enabled={hand.enabled} status={hand.status} onEnable={hand.enable} onDisable={hand.disable} />
-      <HandCursorOverlay api={hand} />
+      {!onSite && (
+        <>
+          <button
+            type="button"
+            className="hand-calibration-trigger"
+            aria-label="Hand-control calibration"
+            aria-expanded={calibrationOpen}
+            onClick={() => setCalibrationOpen((open) => !open)}
+          >
+            <Icon name="settings" size={16} />
+          </button>
+          <CalibrationPanel api={hand} open={calibrationOpen} onClose={() => setCalibrationOpen(false)} />
+          <HandToggle enabled={hand.enabled} status={hand.status} onEnable={hand.enable} onDisable={hand.disable} />
+          <HandCursorOverlay api={hand} />
+        </>
+      )}
     </>
   );
 }

@@ -8,18 +8,18 @@ describe("powerOnPlan", () => {
     expect(plan.map((p) => p.phase)).toEqual(["cover", "gather", "navigate", "light", "light", "light", "light", "reveal", "done"]);
   });
 
-  it("lights S, A, N, T one stagger apart", () => {
+  it("lights the symbol's four steps one (short) stagger apart", () => {
     const lights = powerOnPlan(false).filter((p) => p.phase === "light");
     expect(lights.map((p) => p.unit)).toEqual([0, 1, 2, 3]);
     const gaps = lights.slice(1).map((p, i) => p.at - lights[i].at);
-    expect(gaps).toEqual([STAGGER.sant, STAGGER.sant, STAGGER.sant]);
+    expect(gaps).toEqual([STAGGER.cross, STAGGER.cross, STAGGER.cross]);
   });
 
   it("lights each unit at the moment its dust lands", () => {
     const plan = powerOnPlan(false);
     const gather = plan.find((p) => p.phase === "gather");
     if (gather?.phase !== "gather") throw new Error("no gather step");
-    expect(gather.stagger).toBe(STAGGER.sant);
+    expect(gather.stagger).toBe(STAGGER.cross);
     for (const light of plan) {
       if (light.phase !== "light") continue;
       expect(light.at).toBe(gather.at + gather.duration + light.unit * gather.stagger);
@@ -48,9 +48,11 @@ describe("powerOnPlan", () => {
     expect(plan.find((p) => p.phase === "reveal")!.at).toBeGreaterThan(lastLight);
   });
 
-  it("ends at the power-on duration token", () => {
+  it("ends at the power-on duration token, inside the 600–900 ms the crossing is meant to take", () => {
     const plan = powerOnPlan(false);
     expect(plan[plan.length - 1]).toMatchObject({ phase: "done", at: DURATIONS.power });
+    expect(DURATIONS.power).toBeGreaterThanOrEqual(600);
+    expect(DURATIONS.power).toBeLessThanOrEqual(900);
   });
 
   it("is in time order", () => {

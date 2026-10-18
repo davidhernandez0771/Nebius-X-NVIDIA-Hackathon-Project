@@ -1428,28 +1428,44 @@
   padding-right: var(--sant-space-2);
 }
 
-/* -------------------------------------------------------------- power-on */
+/* ----------------------------------------------- power-on: the story <-> app crossing */
 
+/* The overlay takes the colours of the page it crosses to (data-mode). The canvas draws the
+   dot-matrix cover and the dust; the logo symbol sits in the middle. */
 .sant-poweron {
   position: fixed;
   inset: 0;
   z-index: 2000;
   display: grid;
   place-items: center;
-  background: var(--sant-bg);
-  clip-path: circle(0px at var(--x) var(--y));
-  transition:
-    clip-path 420ms var(--sant-ease-emph),
-    opacity 180ms var(--sant-ease-in);
+  background: transparent;
   cursor: default;
 }
 
-.sant-poweron[data-phase="cover"],
-.sant-poweron[data-phase="reveal"] {
+/* No 2D canvas: a plain cover grows from the click instead, then fades. */
+.sant-poweron[data-dust="off"] {
+  background: var(--sant-bg);
+  clip-path: circle(0px at var(--x) var(--y));
+  transition:
+    clip-path 340ms var(--sant-ease-emph),
+    opacity 300ms var(--sant-ease-in);
+}
+
+.sant-poweron[data-dust="off"][data-phase="cover"],
+.sant-poweron[data-dust="off"][data-phase="reveal"] {
   clip-path: circle(150vmax at var(--x) var(--y));
 }
 
-.sant-poweron[data-phase="reveal"] {
+.sant-poweron[data-dust="off"][data-phase="reveal"] {
+  opacity: 0;
+}
+
+/* The symbol goes out with the first dots of the reveal. */
+.sant-poweron .sant-poweron__mark {
+  transition: opacity 160ms var(--sant-ease-in);
+}
+
+.sant-poweron[data-phase="reveal"] .sant-poweron__mark {
   opacity: 0;
 }
 
@@ -1524,4 +1540,70 @@
   ::view-transition-new(*) {
     animation: none !important;
   }
+}
+
+/* ------------------------------------------- the crossing as a view transition */
+
+/* The reveal: the covered screen (old snapshot) breaks into an 18 px dot matrix, like the cover's
+   own cells, and the dots shrink away over the new page. The nav joins the page for this one. */
+@property --sant-dot {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 18px;
+}
+
+:root[data-crossing] .sant-nav {
+  view-transition-name: none;
+}
+
+:root[data-crossing="reveal"]::view-transition-old(root) {
+  z-index: 1;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent calc((18px - var(--sant-dot)) / 2), #000 0 calc((18px + var(--sant-dot)) / 2), transparent 0),
+    linear-gradient(to bottom, transparent calc((18px - var(--sant-dot)) / 2), #000 0 calc((18px + var(--sant-dot)) / 2), transparent 0);
+  mask-image:
+    linear-gradient(to right, transparent calc((18px - var(--sant-dot)) / 2), #000 0 calc((18px + var(--sant-dot)) / 2), transparent 0),
+    linear-gradient(to bottom, transparent calc((18px - var(--sant-dot)) / 2), #000 0 calc((18px + var(--sant-dot)) / 2), transparent 0);
+  -webkit-mask-size: 18px 18px;
+  mask-size: 18px 18px;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  animation: sant-cross-dots 300ms cubic-bezier(0.3, 0, 1, 1) both;
+}
+
+:root[data-crossing="reveal"]::view-transition-new(root) {
+  animation: none;
+}
+
+@keyframes sant-cross-dots {
+  from { --sant-dot: 18px; }
+  to { --sant-dot: 0px; }
+}
+
+/* Reduced motion or Effects off: the crossing is a quick crossfade. These come after the reduced
+   rules above on purpose: the user asked for this one fade even when motion is reduced. */
+:root[data-crossing="fade"]::view-transition-old(root) {
+  animation: sant-xfade-out 160ms cubic-bezier(0.2, 0, 0, 1) both !important;
+}
+
+:root[data-crossing="fade"]::view-transition-new(root) {
+  animation: sant-xfade-in 160ms cubic-bezier(0.2, 0, 0, 1) both !important;
+}
+
+/* Without view transitions: the new page fades in from its own colour. */
+.sant.sant-crossfade {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--sant-bg);
+  pointer-events: none;
+  animation: sant-xfade-out 160ms cubic-bezier(0.2, 0, 0, 1) both !important;
+}
+
+@keyframes sant-xfade-out {
+  to { opacity: 0; }
+}
+
+@keyframes sant-xfade-in {
+  from { opacity: 0; }
 }

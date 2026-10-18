@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { Link, MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { MotionProvider } from "../motion/MotionProvider";
 import { powerOnPlan } from "../motion/powerOn";
 import { DURATIONS } from "../motion/tokens";
@@ -33,12 +33,15 @@ function stubReducedMotion(reduce: boolean) {
   );
 }
 
+// The test's own pages: /story is paper, /app is volt.
+const testModes = (p: string) => (p === "/story" ? "paper" : p === "/app" ? "volt" : null);
+
 function app(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <MotionProvider>
         <ToastProvider>
-          <PowerOnProvider>
+          <PowerOnProvider modeOf={testModes}>
             <Routes>
               <Route
                 path="/story"
@@ -193,5 +196,142 @@ describe("PowerOn (story → app)", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(document.querySelector(".sant-poweron")).toBeNull();
     expect(screen.getByRole("heading", { name: "App page" })).toBeTruthy();
+  });
+});
+
+// Story ↔ app crossings between plain links, in both directions, and ones the provider didn't start.
+function CodeBack() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate("/story")}>
+      Back by code
+    </button>
+  );
+}
+
+function site(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <MotionProvider>
+        <ToastProvider>
+          <PowerOnProvider modeOf={testModes}>
+            <Routes>
+              <Route
+                path="/story"
+                element={
+                  <StoryShell>
+                    <h1>Story page</h1>
+                    <Link to="/app">Go to the app</Link>
+                    <Link to="/other">Another page</Link>
+                  </StoryShell>
+                }
+              />
+              <Route
+                path="/app"
+                element={
+                  <AppShell title="App page" active={1}>
+                    <Link to="/story">Back to the story</Link>
+                    <CodeBack />
+                  </AppShell>
+                }
+              />
+              <Route path="/other" element={<h1>Other page</h1>} />
+            </Routes>
+          </PowerOnProvider>
+        </ToastProvider>
+      </MotionProvider>
+    </MemoryRouter>,
+  );
+}
+
+describe("the story ↔ app crossing on links", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const navigateAt = () => {
+    const step = powerOnPlan(false).find((s) => s.phase === "navigate");
+    if (!step) throw new Error("no navigate step");
+    return step.at;
+  };
+
+  it("plays on a plain link from a story page to an app page, in the app's colours", () => {
+    stubReducedMotion(false);
+    vi.useFakeTimers();
+    site("/story");
+    fireEvent.click(screen.getByRole("link", { name: "Go to the app" }));
+    const overlay = document.querySelector(".sant-poweron");
+    expect(overlay?.getAttribute("data-mode")).toBe("volt");
+    expect(screen.getByRole("heading", { name: "Story page" })).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(navigateAt());
+    });
+    expect(screen.getByRole("heading", { name: "App page" })).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(DURATIONS.power);
+    });
+    expect(document.querySelector(".sant-poweron")).toBeNull();
+  });
+
+  it("plays in reverse on a link from an app page back to the story, in the story's colours", () => {
+    stubReducedMotion(false);
+    vi.useFakeTimers();
+    site("/app");
+    fireEvent.click(screen.getByRole("link", { name: "Back to the story" }));
+    expect(document.querySelector(".sant-poweron")?.getAttribute("data-mode")).toBe("paper");
+    act(() => {
+      vi.advanceTimersByTime(DURATIONS.power + 20);
+    });
+    expect(screen.getByRole("heading", { name: "Story page" })).toBeTruthy();
+    expect(document.querySelector(".sant-poweron")).toBeNull();
+  });
+
+  it("leaves links that don't cross alone", () => {
+    stubReducedMotion(false);
+    site("/story");
+    fireEvent.click(screen.getByRole("link", { name: "Another page" }));
+    expect(document.querySelector(".sant-poweron")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Other page" })).toBeTruthy();
+  });
+
+  it("covers a crossing it didn't start (back button, code) with the second half", () => {
+    stubReducedMotion(false);
+    vi.useFakeTimers();
+    site("/app");
+    fireEvent.click(screen.getByRole("button", { name: "Back by code" }));
+    expect(screen.getByRole("heading", { name: "Story page" })).toBeTruthy();
+    expect(document.querySelector(".sant-poweron")?.getAttribute("data-mode")).toBe("paper");
+    act(() => {
+      vi.advanceTimersByTime(DURATIONS.power);
+    });
+    expect(document.querySelector(".sant-poweron")).toBeNull();
+  });
+
+  it("is a quick crossfade when motion is reduced: the route changes at once under a fading cover", () => {
+    stubReducedMotion(true);
+    site("/story");
+    fireEvent.click(screen.getByRole("link", { name: "Go to the app" }));
+    expect(screen.getByRole("heading", { name: "App page" })).toBeTruthy();
+    expect(document.querySelector(".sant-poweron")).toBeNull();
+    expect(document.querySelector(".sant-crossfade")?.getAttribute("data-mode")).toBe("volt");
+  });
+
+  it("uses a view transition for the crossfade where the browser has one", () => {
+    stubReducedMotion(true);
+    const startViewTransition = vi.fn((update: () => void) => {
+      update();
+      return { finished: Promise.resolve() };
+    });
+    vi.stubGlobal("document", Object.assign(document, { startViewTransition }));
+    site("/story");
+    fireEvent.click(screen.getByRole("link", { name: "Go to the app" }));
+    expect(startViewTransition).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "App page" })).toBeTruthy();
+    expect(document.querySelector(".sant-crossfade")).toBeNull();
+    delete (document as unknown as { startViewTransition?: unknown }).startViewTransition;
   });
 });
