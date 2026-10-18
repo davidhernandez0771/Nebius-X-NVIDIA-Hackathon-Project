@@ -45,6 +45,7 @@ type Props = {
   onRecenter: () => void;
   readout: {
     palmWidth: number | null;
+    size3d: number | null; // the 3D reach signal (reach3d.ts), same units as palmWidth
     pinch: PinchReading | null;
     victory: number | null; // the V sign score, 0..1 (the reset gesture needs 0.7)
     control: readonly [number, number, number] | null;
@@ -165,9 +166,20 @@ export function HandControlPanel({
           onChange={(e) => set({ depthNear: Math.max(Number(e.target.value), settings.depthFar + DEPTH_GAP), depthAuto: false })}
         />
         <span className="calibration-field-hint">
-          Palm width now: {readout.palmWidth !== null ? readout.palmWidth.toFixed(3) : "–"}. Hand far = arm back, hand
-          near = arm forward.
+          Palm width now: <span data-testid="reach-2d">{readout.palmWidth !== null ? readout.palmWidth.toFixed(3) : "–"}</span>
+          ; 3D size now: <span data-testid="reach-3d">{readout.size3d !== null ? readout.size3d.toFixed(3) : "–"}</span>
+          . Reach uses the {settings.reach3d ? "3D size" : "palm width"}. Hand far = arm back, hand near = arm forward.
         </span>
+      </label>
+
+      <label className="row">
+        <input
+          type="checkbox"
+          checked={settings.reach3d}
+          disabled={!settings.enabled}
+          onChange={(e) => set({ reach3d: e.target.checked })}
+        />
+        <span>3D reach: from the hand's 3D shape, so turning the hand changes reach less (off: palm width)</span>
       </label>
 
       <button type="button" className="ghost-button" onClick={onRecenter} disabled={!canCalibrate}>

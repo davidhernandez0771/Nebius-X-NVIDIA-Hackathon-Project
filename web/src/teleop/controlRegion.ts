@@ -26,6 +26,7 @@ export interface TeleopControlSettings {
   // Hand v3 (pinch.ts). The sprint 8 branch's pinchCal used another normalizer, so a new name.
   indexPinchCal: PinchCal | null; // Calibrate pinch: the user's open and pinched values; null: defaults
   showHandArt: boolean; // the display-only hand-art overlay on Record
+  reach3d: boolean; // reach from the image-vs-world scale fit (reach3d.ts); false: pixel palm width
 }
 
 // SANT's default size (0.55), centered horizontally, lifted so the bottom edge sits at 0.70 of the
@@ -43,6 +44,7 @@ export const DEFAULT_TELEOP_CONTROL: TeleopControlSettings = {
   invertY: false,
   indexPinchCal: null,
   showHandArt: true,
+  reach3d: false,
 };
 
 export const REGION_SIZE_MIN = 0.15;
@@ -128,6 +130,7 @@ export function sanitizeTeleopControl(raw: unknown): TeleopControlSettings {
     invertY: bool(o.invertY, d.invertY),
     indexPinchCal: sanitizePinchCal(o.indexPinchCal),
     showHandArt: bool(o.showHandArt, d.showHandArt),
+    reach3d: bool(o.reach3d, d.reach3d),
   };
 }
 

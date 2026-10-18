@@ -9,6 +9,7 @@
 
 import { LANDMARK, type HandLandmark, type TrackedHand } from "../hand/contracts";
 import { smoothDepth, toControl, type TeleopControlSettings } from "./controlRegion";
+import { depthSize } from "./reach3d";
 
 /** Not in contracts.ts's LANDMARK table; MediaPipe's pinky MCP. */
 const PINKY_MCP = 17;
@@ -77,7 +78,8 @@ export function toHandPoseMsg(
     frame_h: h,
   };
   if (control?.enabled) {
-    const c = toControl(lm, msg.palm_width, control);
+    // Reach from the pixel palm width; with 3D reach on, from the scale fit (same units).
+    const c = toControl(lm, depthSize(hand, msg.palm_width, w, h, control.reach3d), control);
     // Depth is smoothed against the last tracked message (after a lost hand it starts fresh).
     if (last?.tracking_ok && last.control) c[2] = smoothDepth(c[2], last.control[2], timestamp - last.t_ms);
     msg.control = c;

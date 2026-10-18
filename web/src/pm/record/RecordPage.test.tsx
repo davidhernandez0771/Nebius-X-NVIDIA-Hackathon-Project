@@ -604,3 +604,32 @@ describe("Record page: reset gesture", () => {
     expect(Number(screen.getByTestId("victory-now").textContent)).toBeGreaterThan(0.9);
   });
 });
+
+// --- Optional 3D reach (off by default), both reach signals shown live -----------------------
+
+describe("Record page: 3D reach", () => {
+  it("is off by default; both the palm width and the 3D size are shown live", async () => {
+    await startCamera();
+    expect((screen.getByRole("checkbox", { name: /3d reach/i }) as HTMLInputElement).checked).toBe(false);
+    holdFor(0, 200, hand3d({ rot: { y: rad(60) } }));
+    const pw = Number(screen.getByTestId("reach-2d").textContent);
+    const s3 = Number(screen.getByTestId("reach-3d").textContent);
+    expect(pw).toBeGreaterThan(0);
+    expect(s3).toBeGreaterThan(pw * 1.5); // turned 60 degrees: the pixel palm width shrinks, the 3D size doesn't
+  });
+
+  it("turned on: reach re-centers on the 3D size, and turning the hand barely moves it", async () => {
+    await startCamera();
+    let t = holdFor(0, 1200, hand3d()); // the palm-width auto-centering finishes
+    fireEvent.click(screen.getByRole("checkbox", { name: /3d reach/i }));
+    expect(stored().reach3d).toBe(true);
+    expect(screen.getByText(/hold your hand where it feels natural/i)).toBeTruthy(); // re-centering on the new signal
+    t = holdFor(t, 1200, hand3d());
+    const facing = Number(screen.getByRole("meter", { name: /reach/i }).getAttribute("aria-valuenow"));
+    expect(facing).toBeGreaterThan(40);
+    expect(facing).toBeLessThan(60);
+    holdFor(t, 600, hand3d({ rot: { y: rad(60) } }));
+    const turned = Number(screen.getByRole("meter", { name: /reach/i }).getAttribute("aria-valuenow"));
+    expect(Math.abs(turned - facing)).toBeLessThan(10);
+  });
+});

@@ -16,6 +16,7 @@ import { PinchLatch, pinchThresholds, readPinch, type PinchReading } from "../..
 import { PinchCalibrator, type PinchCalState } from "../../teleop/pinchCalibration";
 import { createResetGesture, type ResetGestureStatus } from "../../teleop/resetGesture";
 import { victoryScore } from "../../teleop/victoryPose";
+import { reachSize3d } from "../../teleop/reach3d";
 import type { TeleopStatus } from "../../teleop/teleopClient";
 import { teleopSocketUrl } from "../api";
 import { PageTitle } from "../common";
@@ -170,6 +171,7 @@ export default function RecordPage() {
     pinch: PinchReading | null;
     victory: number | null;
     reset: ResetGestureStatus;
+    size3d: number | null; // the 3D reach signal, shown next to the palm width either way
   } | null>(null);
   const [settings, setSettings] = useState<TeleopControlSettings>(loadTeleopControl);
   const [calibration, setCalibration] = useState<CalibrationState | null>(null);
@@ -190,10 +192,13 @@ export default function RecordPage() {
   const canReset = useRef(false); // sim connected and not recording, like the Reset scene button
 
   function updateSettings(next: TeleopControlSettings) {
+    const switchedReach = next.reach3d !== settingsRef.current.reach3d;
     settingsRef.current = next;
     setSettings(next);
     saveTeleopControl(next);
     session.current?.link?.setControl(next.enabled ? next : null);
+    // A new reach signal: center its range on the hand again, so the natural distance stays the cube's row.
+    if (switchedReach && next.depthAuto && session.current) startRecenter();
   }
 
   function teardown() {
@@ -242,8 +247,11 @@ export default function RecordPage() {
         position: msg.tracking_ok && hand ? palmCenter(hand.landmarks) : null,
       });
       if (reset.event === "fire" && canReset.current) control("reset_scene");
-      if (centerer.current) recenter(centerer.current, frame.timestamp, msg);
-      const tracked = msg.tracking_ok && hand ? { center: palmCenter(hand.landmarks), palmWidth: msg.palm_width } : null;
+      // Reach is computed from the palm width, or the 3D size with 3D reach on (falling back per frame).
+      const size3d = msg.tracking_ok && hand ? reachSize3d(hand, frame.frameWidth, frame.frameHeight) : null;
+      const reachSize = msg.tracking_ok ? (s.reach3d && size3d) || msg.palm_width : null;
+      if (centerer.current) recenter(centerer.current, frame.timestamp, reachSize);
+      const tracked = hand && reachSize !== null ? { center: palmCenter(hand.landmarks), palmWidth: reachSize } : null;
       const framing = s.enabled ? controlFraming(tracked, s) : framingCheck(msg);
       // Display only: the overlay reads this; nothing flows back into the message or the gripper.
       artHand.current = {
@@ -258,7 +266,7 @@ export default function RecordPage() {
         calibratePinch(pinchCalibrator.current, frame.timestamp, pinch?.source === "3d" ? pinch.value : null, uiTick);
       if (uiTick || reset.event) {
         lastUi = frame.timestamp;
-        setPose({ msg, framing, gripper, pinch, victory, reset });
+        setPose({ msg, framing, gripper, pinch, victory, reset, size3d });
       }
     });
     try {
@@ -280,8 +288,8 @@ export default function RecordPage() {
   type Tracked = { center: { x: number; y: number }; palmWidth: number } | null;
 
   /** One frame of reach centering; the result applies (and saves) at once. */
-  function recenter(c: ReachCenterer, t: number, msg: HandPoseMsg) {
-    const reach = c.push(t, msg.tracking_ok ? msg.palm_width : null);
+  function recenter(c: ReachCenterer, t: number, size: number | null) {
+    const reach = c.push(t, size);
     if (!reach) return;
     centerer.current = null;
     setRecentering(false);
@@ -502,6 +510,7 @@ export default function RecordPage() {
         onRecenter={startRecenter}
         readout={{
           palmWidth: pose?.msg.tracking_ok ? pose.msg.palm_width : null,
+          size3d: pose?.msg.tracking_ok ? pose.size3d : null,
           pinch: pose?.msg.tracking_ok ? pose.pinch : null,
           victory: pose?.victory ?? null,
           control: pose?.msg.tracking_ok ? pose.msg.control ?? null : null,

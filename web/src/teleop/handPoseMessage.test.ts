@@ -4,6 +4,7 @@ import type { HandFrame, HandLandmark, TrackedHand } from "../hand/contracts";
 import fixture from "./__fixtures__/hand_pose_msg.json";
 import { DEFAULT_TELEOP_CONTROL, DEPTH_SMOOTHING_MS, depthFraction, smoothDepth } from "./controlRegion";
 import { toHandPoseMsg, type HandPoseMsg } from "./handPoseMessage";
+import { FRAME, makeHandPose } from "./__fixtures__/handPoses";
 import { TeleopClient, type TeleopStatus } from "./teleopClient";
 
 // Unlisted landmarks sit at the frame center, except a default 128 px palm (landmarks 5 and 17),
@@ -240,5 +241,34 @@ describe("TeleopClient", () => {
     ]);
     client.close();
     expect(socket.readyState).toBe(3);
+  });
+});
+
+describe("toHandPoseMsg: optional 3D reach", () => {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const posed = (rotY: number): TrackedHand => {
+    const { world, landmarks } = makeHandPose({ rot: { y: rad(rotY) } });
+    return { landmarks, worldLandmarks: world, handedness: "Right" };
+  };
+  const F = { timestamp: 0, frameWidth: FRAME.w, frameHeight: FRAME.h };
+  const depth = (h: TrackedHand, reach3d: boolean) => toHandPoseMsg(h, F, undefined, { ...DEFAULT_TELEOP_CONTROL, reach3d }).control![2];
+
+  it("is off by default: depth comes from the pixel palm width, world landmarks or not", () => {
+    expect(DEFAULT_TELEOP_CONTROL.reach3d).toBe(false);
+    const h = posed(60);
+    const flat = { ...h, worldLandmarks: undefined };
+    expect(toHandPoseMsg(h, F, undefined, DEFAULT_TELEOP_CONTROL).control).toEqual(toHandPoseMsg(flat, F, undefined, DEFAULT_TELEOP_CONTROL).control);
+    expect(depth(posed(60), false)).toBeLessThan(depth(posed(0), false) - 0.3); // turning reads as "farther"
+  });
+
+  it("with 3D reach on, turning the hand barely moves the reach", () => {
+    expect(Math.abs(depth(posed(60), true) - depth(posed(0), true))).toBeLessThan(0.08);
+  });
+
+  it("3D reach on changes depth only, never u or v", () => {
+    const h = posed(60);
+    const on = toHandPoseMsg(h, F, undefined, { ...DEFAULT_TELEOP_CONTROL, reach3d: true }).control!;
+    const off = toHandPoseMsg(h, F, undefined, DEFAULT_TELEOP_CONTROL).control!;
+    expect(on.slice(0, 2)).toEqual(off.slice(0, 2));
   });
 });
