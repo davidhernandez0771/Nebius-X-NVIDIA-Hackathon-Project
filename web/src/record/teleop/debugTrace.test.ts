@@ -44,8 +44,23 @@ describe("traceFrame", () => {
     expect(e.gripper).toBe(0);
   });
 
-  it("is version 3: the pinch is the 2D gap (hand v4), not the 3D pinch with its source", () => {
-    expect(TRACE_VERSION).toBe(3);
+  it("is version 4: adds the hand lock and every detection (version 3: the 2D pinch gap, hand v4)", () => {
+    expect(TRACE_VERSION).toBe(4);
+  });
+
+  it("records every detection (label, palm center) and the lock, so a live trace is a hand-lock fixture", () => {
+    const other: TrackedHand = { ...hand(), handedness: "Left", landmarks: hand().landmarks.map((p) => ({ ...p, x: p.x - 0.3 })) };
+    const f: HandFrame = { ...frameAt(500, hand()), hands: [other, hand()] };
+    const lock = { phase: "holding" as const, handedness: "Right" as const, progress: 1, held: "glitch" as const };
+    const e = traceFrame(f, hand(), toHandPoseMsg(hand(), f, undefined, DEFAULT_TELEOP_CONTROL), { ...SIGNALS, lock });
+    expect(e.hands).toBe(2);
+    expect(e.seen.map((s) => s.handedness)).toEqual(["Left", "Right"]);
+    expect(e.seen[0].palm[0]).toBeCloseTo(e.seen[1].palm[0] - 0.3, 4);
+    expect(e.lock).toEqual({ phase: "holding", handedness: "Right", held: "glitch" });
+  });
+
+  it("records no lock when none is given", () => {
+    expect(entry(0, hand()).lock).toBeNull();
   });
 
   it("rounds to 5 decimals, so ten seconds stay small", () => {
@@ -76,7 +91,7 @@ describe("DebugTrace", () => {
     const trace = new DebugTrace(100);
     for (let t = 0; t <= 100; t += 33) trace.push(entry(t, hand()));
     const file = trace.toJSON({ settings: DEFAULT_TELEOP_CONTROL, startedAt: "2026-10-17T20:00:00.000Z" });
-    expect(file).toMatchObject({ kind: "pm-hand-trace", version: 3, startedAt: "2026-10-17T20:00:00.000Z", frameWidth: FRAME.w });
+    expect(file).toMatchObject({ kind: "pm-hand-trace", version: 4, startedAt: "2026-10-17T20:00:00.000Z", frameWidth: FRAME.w });
     expect(file.settings).toEqual(DEFAULT_TELEOP_CONTROL);
     expect(file.frames).toHaveLength(4);
     expect(JSON.parse(JSON.stringify(file))).toEqual(file);

@@ -5,6 +5,7 @@
 import type { TrackedHand } from "../hand/contracts";
 import { palmCenter, type TeleopControlSettings } from "./teleop/controlRegion";
 import { CALIBRATION, type Framing } from "./framing";
+import { lockChipText, type HandLockStatus } from "./teleop/handLock";
 
 // MediaPipe hand skeleton: landmark index pairs.
 const BONES = [
@@ -20,7 +21,8 @@ function cssVar(name: string): string {
 }
 
 /** Mirrored, like a mirror: the user's right hand appears on the right. artDrawing: the hand-art
- *  overlay draws the hand, so the 2D bones (its no-WebGL fallback) are skipped. */
+ *  overlay draws the hand, so the 2D bones (its no-WebGL fallback) are skipped. lock: the hand
+ *  lock's status, drawn as a small chip in the top-left corner ("locked: right hand"). */
 export function drawStage(
   canvas: HTMLCanvasElement,
   hand: TrackedHand | null,
@@ -29,6 +31,7 @@ export function drawStage(
   gripper: 0 | 1,
   artDrawing: boolean,
   palette: StagePalette = {},
+  lock?: HandLockStatus,
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -52,6 +55,7 @@ export function drawStage(
   ctx.fillStyle = palette.label ?? cssVar("--text-muted");
   ctx.font = `${11 * dpr}px ${palette.font ?? "sans-serif"}`;
   ctx.fillText("table", x(box.u1) + 4 * dpr, y(box.v1) - 4 * dpr);
+  if (lock) drawLockChip(ctx, lock, dpr, palette);
   if (!hand) return;
 
   const lm = hand.landmarks;
@@ -83,5 +87,30 @@ export function drawStage(
   if (gripper) {
     ctx.fillStyle = palette.dot ?? cssVar("--accent");
     ctx.fill();
+  }
+}
+
+/** The hand lock chip: a small box in the top-left corner; while searching (or lost) a bar under the
+ *  text fills as the hand is held still. Solid edge when locked, dashed otherwise. */
+function drawLockChip(ctx: CanvasRenderingContext2D, lock: HandLockStatus, dpr: number, palette: StagePalette) {
+  const text = lockChipText(lock);
+  const pad = 6 * dpr;
+  const h = 20 * dpr;
+  ctx.font = `${11 * dpr}px ${palette.font ?? "sans-serif"}`;
+  const w = ctx.measureText(text).width + 2 * pad;
+  const x0 = 8 * dpr;
+  const y0 = 8 * dpr;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+  ctx.fillRect(x0, y0, w, h);
+  ctx.lineWidth = dpr;
+  ctx.setLineDash(lock.phase === "locked" ? [] : [3 * dpr, 3 * dpr]);
+  ctx.strokeStyle = lock.phase === "locked" ? palette.dot ?? cssVar("--accent") : palette.edge ?? cssVar("--warm-line");
+  ctx.strokeRect(x0, y0, w, h);
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(text, x0 + pad, y0 + h - 6 * dpr);
+  if (lock.phase === "searching" || lock.phase === "lost") {
+    ctx.fillStyle = palette.dot ?? cssVar("--accent");
+    ctx.fillRect(x0, y0 + h - 2 * dpr, w * lock.progress, 2 * dpr);
   }
 }
