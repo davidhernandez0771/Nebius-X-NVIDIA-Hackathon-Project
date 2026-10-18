@@ -11,6 +11,8 @@ import {
   type CalibrationState,
   type TeleopControlSettings,
 } from "../../teleop/controlRegion";
+import { PINCH_2D, pinchThresholds, type PinchReading } from "../../teleop/pinch";
+import type { PinchCalState } from "../../teleop/pinchCalibration";
 
 const SIZE_MIN = 0.2; // SANT's slider range; calibration may go a little smaller
 const DEPTH_MIN = 0.03;
@@ -25,6 +27,13 @@ const STEP_TEXT: Record<CalibrationState["step"], string> = {
   failed: "",
 };
 
+const PINCH_STEP_TEXT: Record<PinchCalState["step"], string> = {
+  open: "Hold your hand open, thumb and index spread.",
+  pinch: "Now pinch: touch your thumb and index tips together, and hold.",
+  done: "",
+  failed: "",
+};
+
 type Props = {
   settings: TeleopControlSettings;
   onChange: (s: TeleopControlSettings) => void;
@@ -34,7 +43,10 @@ type Props = {
   onCancelCalibration: () => void;
   recentering: boolean;
   onRecenter: () => void;
-  readout: { palmWidth: number | null; pinch: number | null; control: readonly [number, number, number] | null };
+  readout: { palmWidth: number | null; pinch: PinchReading | null; control: readonly [number, number, number] | null };
+  pinchCalibration: PinchCalState | null;
+  onCalibratePinch: () => void;
+  onCancelPinchCalibration: () => void;
 };
 
 export function HandControlPanel({
@@ -47,6 +59,9 @@ export function HandControlPanel({
   recentering,
   onRecenter,
   readout,
+  pinchCalibration,
+  onCalibratePinch,
+  onCancelPinchCalibration,
 }: Props) {
   const r = settings.region;
   const set = (patch: Partial<TeleopControlSettings>) => onChange({ ...settings, ...patch });
@@ -200,6 +215,36 @@ export function HandControlPanel({
       )}
       {!canCalibrate && !running && <p className="muted small">Start the camera to calibrate by hand.</p>}
 
+      <PinchMeter reading={readout.pinch} settings={settings} />
+      {pinchCalibration && pinchCalibration.step !== "done" && pinchCalibration.step !== "failed" ? (
+        <div className="stack" role="status">
+          <p className="small">{PINCH_STEP_TEXT[pinchCalibration.step]}</p>
+          <progress max={1} value={pinchCalibration.progress} aria-label="Pinch calibration step progress" />
+          <button type="button" className="ghost-button" onClick={onCancelPinchCalibration}>
+            Cancel pinch calibration
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="ghost-button" onClick={onCalibratePinch} disabled={!canCalibrate}>
+          Calibrate pinch
+        </button>
+      )}
+      {pinchCalibration?.step === "done" && pinchCalibration.result && (
+        <p className="small" role="status">
+          Pinch calibrated: open {pinchCalibration.result.open.toFixed(2)}, pinched {pinchCalibration.result.pinched.toFixed(2)}.
+        </p>
+      )}
+      {pinchCalibration?.step === "failed" && (
+        <p className="small" role="alert">
+          {pinchCalibration.error}
+        </p>
+      )}
+
+      <label className="row">
+        <input type="checkbox" checked={settings.showHandArt} onChange={(e) => set({ showHandArt: e.target.checked })} />
+        <span>Hand art over the camera view (display only)</span>
+      </label>
+
       <button type="button" className="calibration-panel-reset" onClick={() => onChange(DEFAULT_TELEOP_CONTROL)}>
         Reset to defaults
       </button>
@@ -208,12 +253,54 @@ export function HandControlPanel({
         <dt>Control now</dt>
         <dd data-testid="control-now">{c ? `u ${c[0].toFixed(2)} · v ${c[1].toFixed(2)} · depth ${c[2].toFixed(2)}` : "–"}</dd>
         <dt>Pinch</dt>
-        <dd>{readout.pinch !== null ? readout.pinch.toFixed(2) : "–"}</dd>
+        <dd data-testid="pinch-now">
+          {readout.pinch ? `${readout.pinch.value.toFixed(2)} (${readout.pinch.source.toUpperCase()})` : "–"}
+        </dd>
       </dl>
       <p className="muted small">
         u is side, v is height (1 = table), depth is reach (0.5 = the cube's row). A 0 or 1 means your hand is past
         that edge, so moving further changes nothing.
       </p>
     </GlassCard>
+  );
+}
+
+/** The live pinch on a bar, with the two thresholds marked: closes below the left mark, opens
+ *  above the right one, holds in between. 3D values use the calibration; 2D, the sim's own. */
+function PinchMeter({ reading, settings }: { reading: PinchReading | null; settings: TeleopControlSettings }) {
+  const is2d = reading?.source === "2d";
+  const { closeBelow: close, openAbove: open } = is2d ? PINCH_2D : pinchThresholds(settings.indexPinchCal);
+  const max = Math.max(1.5, (settings.indexPinchCal?.open ?? 1) * 1.25);
+  const pct = (v: number) => `${Math.min(100, Math.max(0, (v / max) * 100))}%`;
+  const thresholds = `closes below ${close.toFixed(2)}, opens above ${open.toFixed(2)}`;
+  const value = reading?.value ?? null;
+  return (
+    <div className="calibration-field">
+      <span className="calibration-field-label">
+        <span>Pinch now</span>
+        <span className="calibration-field-value">{value !== null ? value.toFixed(2) : "–"}</span>
+      </span>
+      <div
+        className="pm-pinch-bar"
+        role="meter"
+        aria-label="Pinch"
+        aria-valuemin={0}
+        aria-valuemax={Number(max.toFixed(2))}
+        aria-valuenow={value !== null ? Number(value.toFixed(2)) : undefined}
+        aria-valuetext={value !== null ? `${value.toFixed(2)}: ${thresholds}` : `no hand; ${thresholds}`}
+      >
+        {value !== null && <div className="pm-pinch-fill" style={{ width: pct(value) }} />}
+        <div className="pm-pinch-mark" style={{ left: pct(close) }} title="closes below" />
+        <div className="pm-pinch-mark" style={{ left: pct(open) }} title="opens above" />
+      </div>
+      <span className="calibration-field-hint">
+        Thumb tip to index tip, over your index finger's length: {thresholds}
+        {is2d
+          ? " (2D: no 3D landmarks this frame)."
+          : settings.indexPinchCal
+            ? " (your calibration)."
+            : " (typical values; Calibrate pinch fits them to your hand)."}
+      </span>
+    </div>
   );
 }

@@ -134,6 +134,33 @@
   transition: height 80ms linear;
 }
 
+.pm-pinch-bar {
+  position: relative;
+  height: 12px;
+  border: var(--border);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-dim, rgba(255, 255, 255, 0.14));
+}
+
+.pm-pinch-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 80ms linear;
+}
+
+.pm-pinch-mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--warm-line, #f0a35e);
+}
+
 .pm-height-table {
   position: absolute;
   left: -2px;

@@ -6,8 +6,9 @@ import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import RecordPage from "./RecordPage";
 import { renderAt, stubBackend } from "../testing";
 import type { SimStatus } from "./recordLink";
-import type { HandFrame, HandLandmark } from "../../hand/contracts";
+import type { HandFrame, HandLandmark, TrackedHand } from "../../hand/contracts";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../teleop/controlRegion";
+import { canonicalHand, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../teleop/__fixtures__/handPoses";
 
 const tracker = vi.hoisted(() => ({
   start: vi.fn(),
@@ -21,6 +22,7 @@ type TeleopStatus = { socketOpen: boolean; simConnected: boolean; lastError: str
 const links = vi.hoisted(() => ({ list: [] as FakeLinkShape[] }));
 interface FakeLinkShape {
   sent: string[];
+  grips: (0 | 1 | undefined)[];
   controls: unknown[];
   closed: boolean;
   emitStatus(s: TeleopStatus): void;
@@ -31,6 +33,7 @@ vi.mock("../../hand/tracking", () => ({ createMediapipeTracker: () => tracker })
 vi.mock("./recordLink", () => ({
   RecordLink: class {
     sent: string[] = [];
+    grips: (0 | 1 | undefined)[] = [];
     controls: unknown[] = [];
     closed = false;
     private statusCbs = new Set<(s: TeleopStatus) => void>();
@@ -38,7 +41,9 @@ vi.mock("./recordLink", () => ({
     constructor() {
       links.list.push(this as unknown as FakeLinkShape);
     }
-    push() {}
+    push(_frame: unknown, grip?: 0 | 1) {
+      this.grips.push(grip);
+    }
     setControl(s: unknown) {
       this.controls.push(s);
     }
@@ -255,6 +260,7 @@ describe("Record page: hand control", () => {
     expect(screen.getByText(/at the table/i)).toBeTruthy();
     expect(screen.getByText("Gripper open")).toBeTruthy();
     sendFrame(1200, handAt(0.5, r.centerY - r.height / 2, 0.2)); // top of the region, pinching
+    sendFrame(1300, handAt(0.5, r.centerY - r.height / 2, 0.2)); // the gripper changes on 2 frames in a row
     expect(Number(screen.getByRole("meter", { name: /robot height/i }).getAttribute("aria-valuenow"))).toBe(100);
     expect(screen.getByText("Gripper closed")).toBeTruthy();
   });
@@ -362,5 +368,119 @@ describe("Record page: reach", () => {
     const r = DEFAULT_TELEOP_CONTROL.region;
     sendFrame(100, handAt(0.5, r.centerY + r.height / 2 + 0.1)); // below the box: v clamped to 1
     expect(screen.getByTestId("control-now").textContent).toMatch(/^u 0\.50 · v 1\.00 · depth 0\.\d\d$/);
+  });
+});
+
+// --- Hand v3: 3D pinch from HandLandmarker's world landmarks, no freezing ------------------------
+
+/** A HandLandmarker hand with world landmarks (meters). */
+function hand3d(opts: HandPoseOptions = {}): TrackedHand {
+  const { world, landmarks } = makeHandPose(opts);
+  return { landmarks, worldLandmarks: world, handedness: "Right" };
+}
+
+/** An open hand whose thumb tip sits so the 3D pinch reads `v` index-finger lengths. */
+function pinchAt(v: number, opts: HandPoseOptions = {}): TrackedHand {
+  const c = canonicalHand();
+  const d = (a: number, b: number) => Math.hypot(c[a].x - c[b].x, c[a].y - c[b].y, c[a].z - c[b].z);
+  const len = d(5, 6) + d(6, 7) + d(7, 8);
+  return hand3d({ ...opts, thumbTip: { ...c[8], x: c[8].x - v * len } });
+}
+
+function sendHand(t: number, h: TrackedHand | null) {
+  const f: HandFrame = { timestamp: t, frameWidth: 640, frameHeight: 480, hands: h ? [h] : [] };
+  act(() => frameCallback()(f));
+}
+
+function holdFor(t0: number, ms: number, h: TrackedHand) {
+  for (let t = t0; t <= t0 + ms; t += 33) sendHand(t, h);
+  return t0 + ms + 33;
+}
+
+const lastGrip = (link: FakeLinkShape) => link.grips[link.grips.length - 1];
+const rad = (d: number) => (d * Math.PI) / 180;
+
+describe("Record page: 3D pinch (hand v3)", () => {
+  it("closes on 2 pinched frames in a row and sends the grip with the hand pose", async () => {
+    const link = await startCamera();
+    sendHand(0, hand3d());
+    expect(lastGrip(link)).toBe(0);
+    sendHand(33, hand3d({ thumbTip: pinchThumbTip() }));
+    expect(lastGrip(link)).toBe(0);
+    sendHand(66, hand3d({ thumbTip: pinchThumbTip() }));
+    expect(lastGrip(link)).toBe(1);
+    holdFor(100, 200, hand3d({ thumbTip: pinchThumbTip() }));
+    expect(screen.getByText("Gripper closed")).toBeTruthy();
+    holdFor(400, 200, hand3d());
+    expect(lastGrip(link)).toBe(0);
+  });
+
+  it("never freezes: a pinch closes with the palm sideways or the back of the hand to the camera", async () => {
+    for (const deg of [80, 170]) {
+      const link = await startCamera();
+      holdFor(0, 100, hand3d({ rot: { y: rad(deg) } }));
+      holdFor(200, 100, hand3d({ rot: { y: rad(deg) }, thumbTip: pinchThumbTip() }));
+      expect([deg, lastGrip(link)]).toEqual([deg, 1]);
+      cleanup();
+      links.list = [];
+    }
+  });
+
+  it("the arm keeps following the hand whatever its rotation", async () => {
+    await startCamera();
+    holdFor(0, 200, hand3d({ rot: { y: rad(170) }, center: { x: 0.4, y: 0.45 } }));
+    const before = screen.getByTestId("control-now").textContent;
+    holdFor(300, 200, hand3d({ rot: { y: rad(170) }, center: { x: 0.6, y: 0.45 } }));
+    expect(screen.getByTestId("control-now").textContent).not.toBe(before);
+  });
+
+  it("without world landmarks, falls back to the 2D pinch", async () => {
+    const link = await startCamera();
+    sendFrame(0, handAt(0.5, 0.5, 0.2));
+    sendFrame(33, handAt(0.5, 0.5, 0.2));
+    expect(lastGrip(link)).toBe(1);
+    expect(screen.getByTestId("pinch-now").textContent).toMatch(/2D/);
+  });
+
+  it("shows the live pinch value against both thresholds", async () => {
+    await startCamera();
+    holdFor(0, 200, pinchAt(0.6));
+    const m = screen.getByRole("meter", { name: "Pinch" });
+    expect(Number(m.getAttribute("aria-valuenow"))).toBeCloseTo(0.6, 1);
+    expect(m.getAttribute("aria-valuetext")).toMatch(/closes below 0\.48, opens above 0\.72/);
+    expect(screen.getByTestId("pinch-now").textContent).toMatch(/0\.60 \(3D\)/);
+  });
+});
+
+describe("Record page: Calibrate pinch", () => {
+  it("hold open, then pinch: the thresholds are saved and a loose pinch then closes the gripper", async () => {
+    const link = await startCamera();
+    const loose = pinchAt(0.6); // between the default thresholds (0.48 / 0.72): no grip by default
+    let t = holdFor(0, 300, loose);
+    expect(lastGrip(link)).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Calibrate pinch" }));
+    t = holdFor(t, 100, hand3d());
+    expect(screen.getByText(/hold your hand open/i)).toBeTruthy();
+    t = holdFor(t, 2100, hand3d());
+    expect(screen.getByText(/now pinch/i)).toBeTruthy();
+    t = holdFor(t, 2200, loose);
+    expect(screen.getByText(/pinch calibrated/i)).toBeTruthy();
+    const cal = stored().indexPinchCal;
+    expect(cal.pinched).toBeCloseTo(0.6, 2);
+    expect(cal.open).toBeGreaterThan(1);
+
+    t = holdFor(t, 300, hand3d());
+    expect(lastGrip(link)).toBe(0);
+    holdFor(t, 300, loose);
+    expect(lastGrip(link)).toBe(1);
+  });
+
+  it("can be cancelled", async () => {
+    await startCamera();
+    fireEvent.click(screen.getByRole("button", { name: "Calibrate pinch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel pinch calibration" }));
+    expect(screen.getByRole("button", { name: "Calibrate pinch" })).toBeTruthy();
+    expect(stored()?.indexPinchCal ?? null).toBeNull();
   });
 });
