@@ -12,7 +12,6 @@ export const HAND_BONES: ReadonlyArray<readonly [number, number]> = [
 ];
 
 const TIPS = new Set([4, 8, 12, 16, 20]);
-const PALM = [0, 5, 9, 13, 17];
 
 // Sizes as fractions of the hand scale (wrist to middle knuckle).
 const BONE_RADIUS = 0.05;
@@ -34,10 +33,6 @@ export interface PackedSkeleton {
   bones: Float32Array;
   boneRadius: number;
   scale: number;
-  /** Palm center: the mean of the wrist and the four knuckles. */
-  palm: [number, number];
-  /** 5 x (x, y, dx, dy): each fingertip and its unit direction out of the finger (DIP to tip). */
-  tips: Float32Array;
 }
 
 /** Wrist to middle knuckle, in aspect-corrected units (the overlay's unit of hand size). */
@@ -63,18 +58,5 @@ export function packSkeleton(lm: readonly HandLandmark[] | null | undefined, opt
   const bones = new Float32Array(HAND_BONES.length * 4);
   HAND_BONES.forEach(([a, b], i) => bones.set([px(lm[a]), py(lm[a]), px(lm[b]), py(lm[b])], i * 4));
 
-  const palm: [number, number] = [
-    PALM.reduce((s, i) => s + px(lm[i]), 0) / PALM.length,
-    PALM.reduce((s, i) => s + py(lm[i]), 0) / PALM.length,
-  ];
-
-  const tips = new Float32Array(20);
-  [4, 8, 12, 16, 20].forEach((t, f) => {
-    const dx = px(lm[t]) - px(lm[t - 1]);
-    const dy = py(lm[t]) - py(lm[t - 1]);
-    const len = Math.hypot(dx, dy);
-    tips.set(len > 1e-6 ? [px(lm[t]), py(lm[t]), dx / len, dy / len] : [px(lm[t]), py(lm[t]), 0, 1], f * 4);
-  });
-
-  return { joints, bones, boneRadius: BONE_RADIUS * scale, scale, palm, tips };
+  return { joints, bones, boneRadius: BONE_RADIUS * scale, scale };
 }

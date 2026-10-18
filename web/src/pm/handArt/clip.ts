@@ -10,22 +10,7 @@ export interface ClipFrame {
   /** 21 raw (unmirrored) landmarks, or null when no hand was tracked. */
   landmarks: HandLandmark[] | null;
   gripperClosed: boolean;
-  /** Optional Record state, for replaying the hand-art events. */
-  frozen?: boolean;
-  recording?: boolean;
-  resets?: number;
 }
-
-/** The optional Record state a frame can carry. */
-export type ClipSignals = Pick<ClipFrame, "frozen" | "recording" | "resets">;
-
-const signalsOf = (f: ClipSignals): ClipSignals => {
-  const out: ClipSignals = {};
-  if (typeof f.frozen === "boolean") out.frozen = f.frozen;
-  if (typeof f.recording === "boolean") out.recording = f.recording;
-  if (typeof f.resets === "number" && Number.isFinite(f.resets)) out.resets = f.resets;
-  return out;
-};
 
 export interface HandClip {
   version: 1;
@@ -34,7 +19,7 @@ export interface HandClip {
   frames: ClipFrame[];
 }
 
-export interface ClipSample extends ClipSignals {
+export interface ClipSample {
   landmarks: HandLandmark[] | null;
   gripperClosed: boolean;
 }
@@ -49,7 +34,7 @@ export function sampleClip(c: HandClip, tMs: number): ClipSample {
   while (i < c.frames.length - 2 && c.frames[i + 1].t <= t) i++;
   const f0 = c.frames[i];
   const f1 = c.frames[i + 1];
-  if (!f0.landmarks || !f1.landmarks) return { landmarks: f0.landmarks, gripperClosed: f0.gripperClosed, ...signalsOf(f0) };
+  if (!f0.landmarks || !f1.landmarks) return { landmarks: f0.landmarks, gripperClosed: f0.gripperClosed };
   const k = f1.t > f0.t ? Math.min(1, (t - f0.t) / (f1.t - f0.t)) : 0;
   const b = f1.landmarks;
   return {
@@ -59,7 +44,6 @@ export function sampleClip(c: HandClip, tMs: number): ClipSample {
       z: p.z + (b[j].z - p.z) * k,
     })),
     gripperClosed: f0.gripperClosed,
-    ...signalsOf(f0),
   };
 }
 
@@ -70,7 +54,7 @@ export function parseClip(raw: unknown): HandClip {
   if (o.frames.length < 2) throw new Error("A clip needs at least 2 frames.");
   let prev = -Infinity;
   const frames = o.frames.map((f: unknown, i: number): ClipFrame => {
-    const fr = f as { t?: unknown; landmarks?: unknown; gripperClosed?: unknown } & ClipSignals;
+    const fr = f as { t?: unknown; landmarks?: unknown; gripperClosed?: unknown };
     if (typeof fr?.t !== "number" || !Number.isFinite(fr.t)) throw new Error(`Frame ${i} has no time t.`);
     if (fr.t <= prev) throw new Error(`Frame times must increase (frame ${i}).`);
     prev = fr.t;
@@ -85,7 +69,7 @@ export function parseClip(raw: unknown): HandClip {
       if (!ok) throw new Error(`Frame ${i} must have 21 landmarks with x, y and z, or null.`);
       landmarks = (fr.landmarks as HandLandmark[]).map(({ x, y, z }) => ({ x, y, z }));
     }
-    return { t: fr.t, landmarks, gripperClosed: fr.gripperClosed === true, ...signalsOf(fr) };
+    return { t: fr.t, landmarks, gripperClosed: fr.gripperClosed === true };
   });
   return { version: 1, source: typeof o.source === "string" ? o.source : "unknown", frames };
 }
@@ -104,17 +88,12 @@ export class ClipRecorder {
     return this.frames.length;
   }
 
-  add(timestamp: number, landmarks: readonly HandLandmark[] | null, gripperClosed: boolean, signals: ClipSignals = {}) {
+  add(timestamp: number, landmarks: readonly HandLandmark[] | null, gripperClosed: boolean) {
     if (this.frames.length >= this.maxFrames) return;
     this.t0 ??= timestamp;
     const t = timestamp - this.t0;
     if (this.frames.length && t <= this.frames[this.frames.length - 1].t) return;
-    this.frames.push({
-      t,
-      landmarks: landmarks ? landmarks.map(({ x, y, z }) => ({ x, y, z })) : null,
-      gripperClosed,
-      ...signalsOf(signals),
-    });
+    this.frames.push({ t, landmarks: landmarks ? landmarks.map(({ x, y, z }) => ({ x, y, z })) : null, gripperClosed });
   }
 
   toClip(): HandClip {
@@ -134,7 +113,6 @@ interface Pose {
   curl: number; // 0 open .. 1 fist (index to pinky)
   pinch: number; // 0 .. 1, thumb tip onto the index tip
   spread: number; // finger splay multiplier
-  vee: number; // 0 .. 1, ring, pinky and thumb fold away: the victory sign (reset)
 }
 
 type V3 = [number, number, number];
@@ -183,16 +161,14 @@ function poseHand(p: Pose): HandLandmark[] {
   KNUCKLES.forEach((k, f) => {
     const base = 5 + f * 4;
     local[base] = k;
-    const curl = f === 0 ? Math.max(p.curl, p.pinch * 0.45) : f >= 2 ? Math.max(p.curl, p.vee) : p.curl;
-    const chain = fingerChain(k, SEGMENTS[f], SPLAY[f] * p.spread, curl);
+    const chain = fingerChain(k, SEGMENTS[f], SPLAY[f] * p.spread, f === 0 ? Math.max(p.curl, p.pinch * 0.45) : p.curl);
     chain.forEach((v, j) => (local[base + 1 + j] = v));
   });
 
   // Thumb: an open chain that swings across the palm as the hand closes.
-  const fold = Math.max(p.curl, p.vee);
-  const swing = (-38 + 26 * fold) * DEG;
+  const swing = (-38 + 26 * p.curl) * DEG;
   const cmc: V3 = [-0.22, 0.22, -0.02];
-  const thumb = fingerChain(cmc, [0.3, 0.24, 0.21], swing, fold * 0.6);
+  const thumb = fingerChain(cmc, [0.3, 0.24, 0.21], swing, p.curl * 0.6);
   local[1] = cmc;
   [local[2], local[3], local[4]] = thumb;
   if (p.pinch > 0) {
@@ -212,34 +188,20 @@ function poseHand(p: Pose): HandLandmark[] {
 }
 
 // [time ms, pose]; the last key equals the first so the clip loops without a jump.
-const OPEN = { curl: 0.05, pinch: 0, spread: 1, vee: 0 };
-const PINCH = { curl: 0.15, pinch: 1, spread: 0.8, vee: 0 };
-const FIST = { curl: 1, pinch: 0, spread: 0.7, vee: 0 };
-const VEE = { curl: 0.05, pinch: 0, spread: 1.5, vee: 1 };
+const OPEN = { curl: 0.05, pinch: 0, spread: 1 };
 const KEYS: Array<[number, Pose]> = [
   [0, { cx: 0.52, cy: 0.8, size: 0.3, roll: 0.05, ...OPEN }],
   [1600, { cx: 0.47, cy: 0.74, size: 0.32, roll: -0.12, ...OPEN }],
-  [2300, { cx: 0.46, cy: 0.74, size: 0.32, roll: -0.1, ...PINCH }],
-  [3600, { cx: 0.42, cy: 0.7, size: 0.33, roll: -0.05, ...PINCH }],
+  [2300, { cx: 0.46, cy: 0.74, size: 0.32, roll: -0.1, curl: 0.15, pinch: 1, spread: 0.8 }],
+  [3600, { cx: 0.42, cy: 0.7, size: 0.33, roll: -0.05, curl: 0.15, pinch: 1, spread: 0.8 }],
   [4300, { cx: 0.4, cy: 0.7, size: 0.32, roll: 0.1, ...OPEN }],
   [5300, { cx: 0.56, cy: 0.76, size: 0.29, roll: 0.25, ...OPEN, spread: 1.4 }],
-  [6000, { cx: 0.57, cy: 0.77, size: 0.29, roll: 0.2, ...FIST }],
-  [7200, { cx: 0.55, cy: 0.75, size: 0.3, roll: 0.15, ...FIST }],
+  [6000, { cx: 0.57, cy: 0.77, size: 0.29, roll: 0.2, curl: 1, pinch: 0, spread: 0.7 }],
+  [7200, { cx: 0.55, cy: 0.75, size: 0.3, roll: 0.15, curl: 1, pinch: 0, spread: 0.7 }],
   [8000, { cx: 0.54, cy: 0.78, size: 0.3, roll: -0.2, ...OPEN, spread: 1.3 }],
-  [9000, { cx: 0.5, cy: 0.79, size: 0.31, roll: 0.3, ...OPEN }],
-  [10600, { cx: 0.49, cy: 0.79, size: 0.3, roll: 0.36, ...OPEN }],
-  [11300, { cx: 0.5, cy: 0.76, size: 0.31, roll: 0.0, ...VEE }],
-  [12400, { cx: 0.51, cy: 0.76, size: 0.31, roll: -0.05, ...VEE }],
-  [13200, { cx: 0.52, cy: 0.79, size: 0.3, roll: 0.05, ...OPEN }],
-  [14000, { cx: 0.52, cy: 0.8, size: 0.3, roll: 0.05, ...OPEN }],
+  [9000, { cx: 0.5, cy: 0.79, size: 0.31, roll: 0.15, ...OPEN }],
+  [10000, { cx: 0.52, cy: 0.8, size: 0.3, roll: 0.05, ...OPEN }],
 ];
-
-// The Record state over the clip: recording 5.0-8.6 s (it spans a fist and its release),
-// no hand tracked 9.0-10.6 s (out of view), and one reset at 12.0 s (the victory sign held).
-const RECORDING: [number, number] = [5000, 8600];
-const NO_HAND: [number, number] = [9000, 10600];
-const RESET_AT = 12000;
-const inside = (t: number, [a, b]: [number, number]) => t >= a && t < b;
 
 const ease = (k: number) => k * k * (3 - 2 * k);
 
@@ -257,11 +219,7 @@ function poseAt(t: number): Pose {
   return out;
 }
 
-/**
- * A 14 s looping clip at 30 fps that plays every hand-art event: open, pinch, release, recording
- * (with a fist and release inside it), the hand out of view, the victory sign and a reset.
- * Deterministic.
- */
+/** A 10 s looping clip at 30 fps: open, pinch, release, fist, release. Deterministic. */
 export function syntheticClip(fps = 30): HandClip {
   const duration = KEYS[KEYS.length - 1][0];
   const frames: ClipFrame[] = [];
@@ -269,15 +227,7 @@ export function syntheticClip(fps = 30): HandClip {
   for (let i = 0; i <= n; i++) {
     const t = Math.round((i * 1000) / fps);
     const p = poseAt(i === n ? 0 : t); // the last frame repeats the first
-    const tt = i === n ? 0 : t;
-    const lost = inside(tt, NO_HAND);
-    frames.push({
-      t,
-      landmarks: lost ? null : poseHand(p),
-      gripperClosed: !lost && (p.pinch > 0.6 || p.curl > 0.7),
-      recording: inside(tt, RECORDING),
-      resets: tt >= RESET_AT ? 1 : 0,
-    });
+    frames.push({ t, landmarks: poseHand(p), gripperClosed: p.pinch > 0.6 || p.curl > 0.7 });
   }
   return { version: 1, source: "synthetic", frames };
 }

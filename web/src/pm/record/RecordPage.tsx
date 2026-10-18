@@ -283,10 +283,6 @@ export default function RecordPage() {
       artHand.current = {
         landmarks: hand?.landmarks ?? null,
         gripperClosed: gripper === 1,
-        recording: recordingNow.current,
-        resets: resets.current,
-        breakthrough: crossing.count,
-        breakthroughDir: crossing.dir,
         cue: cue.update({ gripper, recording: recordingNow.current, resets: resets.current }),
       };
       if (canvas.current) draw(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current);

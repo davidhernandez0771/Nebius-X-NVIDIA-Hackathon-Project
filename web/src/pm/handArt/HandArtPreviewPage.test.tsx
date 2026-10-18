@@ -1,9 +1,8 @@
-// The preview route: the six styles, the event sequence, clip controls, measuring and
-// loading a recorded clip.
+// The preview route: style picker, clip controls and loading a recorded clip.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { HandArtOverlayProps, HandArtStats } from "./HandArtOverlay";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { HandArtOverlayProps } from "./HandArtOverlay";
 
 const seen = vi.hoisted(() => ({ props: null as HandArtOverlayProps | null }));
 
@@ -18,10 +17,7 @@ vi.mock("./HandArtOverlay", () => ({
 import HandArtPreviewPage from "./HandArtPreviewPage";
 import { syntheticClip } from "./clip";
 
-afterEach(() => {
-  cleanup();
-  vi.useRealTimers();
-});
+afterEach(cleanup);
 
 const fileWith = (text: string, name = "clip.json") => {
   const f = new File([text], name, { type: "application/json" });
@@ -29,95 +25,29 @@ const fileWith = (text: string, name = "clip.json") => {
   return f;
 };
 
-const NAMES = ["Ink strokes", "Ink bloom", "Particle burst", "Particle trail", "Dot ripple", "Glitch"];
-
 describe("HandArtPreviewPage", () => {
-  it("follows the clip's events by default, with each of the six styles on offer", () => {
+  it("plays the synthetic clip in auto style with every style on offer", () => {
     render(<HandArtPreviewPage />);
     expect(screen.getByRole("heading", { name: "Hand art" })).toBeTruthy();
     expect(seen.props!.style).toBe("auto");
-    expect(screen.getByRole("radio", { name: "Follow the events" })).toBeTruthy();
-    for (const name of NAMES) expect(screen.getByRole("radio", { name: new RegExp(`^${name}`) })).toBeTruthy();
+    for (const name of ["Auto", "Text marks", "Dither", "Halftone", "Particles", "Glow lines"])
+      expect(screen.getByRole("radio", { name })).toBeTruthy();
     const frame = seen.props!.source!()!;
     expect(frame.landmarks).toHaveLength(21);
-    expect(frame).toHaveProperty("recording");
-    expect(frame).toHaveProperty("resets");
   });
 
-  it("marks recording, gripper, no hand and reset on the clip timeline", () => {
-    const { container } = render(<HandArtPreviewPage />);
-    for (const kind of ["recording", "closed", "lost"]) expect(container.querySelector(`.ha-span-${kind}`)).toBeTruthy();
-    expect(container.querySelector(".ha-reset")).toBeTruthy();
-  });
-
-  it("pins a picked style, switches reduced motion and the busy background", () => {
-    const { container } = render(<HandArtPreviewPage />);
-    fireEvent.click(screen.getByRole("radio", { name: /^Dot ripple/ }));
-    expect(seen.props!.style).toBe("ripple");
+  it("pins the picked style and switches reduced motion", () => {
+    render(<HandArtPreviewPage />);
+    fireEvent.click(screen.getByRole("radio", { name: "Halftone" }));
+    expect(seen.props!.style).toBe("halftone");
     fireEvent.click(screen.getByRole("checkbox", { name: "Reduce motion" }));
     expect(seen.props!.reducedMotion).toBe(true);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Busy background" }));
-    expect(container.querySelector(".ha-stage-busy")).toBeTruthy();
-  });
-
-  it("fires the break-through both ways, and with no direction", () => {
-    render(<HandArtPreviewPage />);
-    const frame = () => seen.props!.source!()!;
-    expect(frame().breakthrough).toBe(0);
-    fireEvent.click(screen.getByRole("button", { name: "Push through" }));
-    expect(frame()).toMatchObject({ breakthrough: 1, breakthroughDir: 1 });
-    fireEvent.click(screen.getByRole("button", { name: "Back out" }));
-    expect(frame()).toMatchObject({ breakthrough: 2, breakthroughDir: -1 });
-    fireEvent.click(screen.getByRole("button", { name: "Cross with no direction" }));
-    expect(frame().breakthrough).toBe(3);
-    expect(frame().breakthroughDir).toBeUndefined();
   });
 
   it("holds the gripper closed on request", () => {
     render(<HandArtPreviewPage />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Hold gripper closed" }));
     expect(seen.props!.source!()!.gripperClosed).toBe(true);
-  });
-
-  it("measures each style in turn and tabulates the frame times", () => {
-    vi.useFakeTimers();
-    render(<HandArtPreviewPage />);
-    const stats = (gpu: number): HandArtStats => ({
-      fps: 60,
-      cpuMeanMs: 0.5,
-      cpuP95Ms: 0.7,
-      gpuMeanMs: gpu,
-      gpuP95Ms: gpu * 2,
-      width: 640,
-      height: 480,
-      styleA: "ink",
-      styleB: "ink",
-      morphing: false,
-      target: "ink",
-      breaking: false,
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Measure each style" }));
-    const keys = new Set();
-    for (let i = 0; i < 7; i++) {
-      keys.add(seen.props!.statsKey); // fresh statistics per step
-      if (i === 6) {
-        const before = seen.props!.source!()!.breakthrough!;
-        act(() => vi.advanceTimersByTime(1000));
-        expect(seen.props!.source!()!.breakthrough).toBeGreaterThan(before); // break-throughs firing
-        act(() => seen.props!.onStats!(stats(i + 1)));
-        act(() => vi.advanceTimersByTime(2500));
-      } else {
-        act(() => seen.props!.onStats!(stats(i + 1)));
-        act(() => vi.advanceTimersByTime(3500));
-      }
-    }
-    expect(keys.size).toBe(7);
-    const rows = screen.getAllByRole("row").slice(1);
-    expect(rows).toHaveLength(7);
-    expect(rows[0].textContent).toContain("Ink strokes");
-    expect(rows[5].textContent).toContain("6.00 ms");
-    expect(rows[6].textContent).toContain("Break-through");
-    expect(screen.getByRole("button", { name: "Measure each style" })).toBeTruthy();
   });
 
   it("loads a recorded clip, and explains a file that isn't one", async () => {

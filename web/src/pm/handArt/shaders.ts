@@ -1,20 +1,10 @@
-// GLSL for the hand art. Written for three.js ShaderMaterial (GLSL ES 1.0 style; three
-// translates it for WebGL2).
+// GLSL for the two passes. Written for three.js ShaderMaterial (GLSL ES 1.0 style;
+// three translates it for WebGL2).
 //
-// handFragment(style) draws the hand straight from the skeleton uniforms, one full-screen
-// pass, in one of six styles, on a transparent background with a soft dark backdrop under the
-// hand so it reads over the webcam. One program per style keeps each small: the six together
-// in one program took over a second to compile on Windows (D3D inlines every branch). A
-// crossfade draws the two styles' programs additively, each weighted by the same noise mask,
-// which sums to exactly the mix of the two (premultiplied colors mix linearly):
-//   0 ink     idle: dry-brush strokes along the bones, thick at the joints, over a hairline
-//   1 bloom   grab: brush strokes bursting out of the palm, sparse to dense
-//   2 burst   release: streaks shooting out of the fingertips
-//   3 trail   recording: a particle hand with a luminous trail (TRAIL_FRAG's feedback buffer)
-//   4 ripple  frozen: a calm dot field rippling out from the palm
-//   5 glitch  reset: the hand tears into displaced rows, dark slabs and pixel fragments, then
-//             snaps back
-// Space: p = (u * aspect, v), y up; one CSS pixel is uPx / uRes.y.
+// Pass 1, FIELD_FRAG, draws the skeleton into a low-res offscreen target:
+//   r = bone/joint coverage, g = glow falloff, b = thin lines + joint rings, a = nearness (z).
+// Pass 2, POST_FRAG, turns that field into one of five styles, or a noise-masked
+// morph between two of them, on a transparent background.
 
 export const QUAD_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -24,18 +14,77 @@ void main() {
 }
 `;
 
-const COMMON = /* glsl */ `
+export const FIELD_FRAG = /* glsl */ `
 precision highp float;
 varying vec2 vUv;
+uniform vec4 uJoints[21]; // x, y, radius, z
 uniform vec4 uBones[21];  // ax, ay, bx, by
 uniform float uAspect;
 uniform float uBoneR;
+
+float segDist(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a;
+  vec2 ba = b - a;
+  float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-8), 0.0, 1.0);
+  return length(pa - ba * h);
+}
+
+void main() {
+  vec2 p = vec2(vUv.x * uAspect, vUv.y);
+  float dBone = 1e3;
+  for (int i = 0; i < 21; i++) dBone = min(dBone, segDist(p, uBones[i].xy, uBones[i].zw));
+
+  float dJoint = 1e3;
+  float dRing = 1e3;
+  float zNear = 0.0;
+  for (int i = 0; i < 21; i++) {
+    float len = length(p - uJoints[i].xy);
+    float d = len - uJoints[i].z;
+    dRing = min(dRing, abs(len - uJoints[i].z * 0.8));
+    if (d < dJoint) { dJoint = d; zNear = uJoints[i].w; }
+  }
+
+  float aa = uBoneR * 0.35;
+  float bone = 1.0 - smoothstep(uBoneR - aa, uBoneR + aa, dBone);
+  float joint = 1.0 - smoothstep(-aa, aa, dJoint);
+  float edge = max(min(dBone - uBoneR, dJoint), 0.0);
+  float glow = exp(-edge / (uBoneR * 1.6));
+  float w = uBoneR * 0.22;
+  float thin = 1.0 - smoothstep(w - aa * 0.4, w + aa * 0.4, min(dBone, dRing));
+  float near = clamp(0.5 - zNear * 4.0, 0.0, 1.0);
+  gl_FragColor = vec4(max(bone, joint), glow, thin, near);
+}
+`;
+
+export const POST_FRAG = /* glsl */ `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uField;
+uniform vec2 uRes;        // drawing-buffer pixels
+uniform float uPx;        // pixel ratio: style sizes are in CSS pixels
 uniform float uTime;      // seconds; frozen under reduced motion
+uniform int uStyleA;
+uniform int uStyleB;
+uniform float uMix;
+uniform float uSeed;
+uniform float uGrip;      // 0 open .. 1 closed, eased
+uniform float uPresence;  // 0 no hand .. 1 hand, eased
+uniform vec3 uTeal;
+uniform vec3 uAmber;
+uniform vec3 uViolet;
+
+vec4 field(vec2 px) { return texture2D(uField, px / uRes); }
 
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
+}
+
+vec2 hash22(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.xx + p3.yz) * p3.zy);
 }
 
 float vnoise(vec2 p) {
@@ -46,361 +95,116 @@ float vnoise(vec2 p) {
              mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-float segDist(vec2 p, vec2 a, vec2 b) {
-  vec2 pa = p - a;
-  vec2 ba = b - a;
-  float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-10), 0.0, 1.0);
-  return length(pa - ba * h);
+float box(vec2 p, vec2 b) {
+  vec2 d = abs(p) - b;
+  return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
-// Distance from q to the nearest bone's centerline.
-float handD(vec2 q) {
+// Textmode: a ramp of eight marks drawn from shapes, darkest to densest. No font.
+float mark(float lv, vec2 p, float aa) {
+  float w = 0.09;
   float d = 1e3;
-  for (int i = 0; i < 21; i++) d = min(d, segDist(q, uBones[i].xy, uBones[i].zw));
-  return d;
-}
-`;
-
-export const handFragment = (style: number) => /* glsl */ `
-#define STYLE ${style}
-${COMMON}
-uniform vec2 uRes;        // drawing-buffer pixels
-uniform float uPx;        // pixel ratio
-uniform float uScale;     // hand size: wrist to middle knuckle
-uniform vec2 uPalm;
-uniform vec4 uBurst[5];   // fingertip x, y, dir x, dir y at the release
-uniform vec3 uBounds;     // x, y, radius: nothing is drawn outside
-uniform float uMix;       // crossfade 0..1; 0: no crossfade, this pass draws alone
-uniform float uPassB;     // 1: this pass draws the incoming style (and the seam)
-uniform float uSeed;
-uniform float uAge;       // seconds since this pass's style began
-uniform float uBreakT;    // 0..1 through a break-through; < 0: none playing
-uniform float uBreakDir;  // 1 pushing through toward the camera, -1 backing out, 0 unknown
-uniform float uBreakSeed;
-uniform float uBreakFlash; // 1: reduced motion, a brief flash only
-uniform float uGrip;      // 0 open .. 1 closed, eased
-uniform float uPresence;  // 0 no hand .. 1 hand, eased
-uniform sampler2D uTrail;
-uniform vec3 uInk;
-uniform vec3 uTeal;
-uniform vec3 uAmber;
-uniform vec3 uShade;
-
-float cpx;    // one CSS pixel in p units
-vec3 accent;  // teal, amber while the gripper is closed
-
-float hairline(float d, float w) {
-  return 1.0 - smoothstep(w - cpx * 0.6, w + cpx * 0.6, d);
-}
-
-// Over-compositing of premultiplied colors: top over bottom.
-vec4 over(vec4 top, vec4 bottom) {
-  return top + bottom * (1.0 - top.a);
-}
-
-vec4 sInk(vec2 p, float dP) {
-  float W = uBoneR * 2.0;
-  float boil = floor(uTime * 7.0);
-  float cov = 0.0;
-  float tone = 1.0;
-  for (int i = 0; i < 21; i++) {
-    vec2 a = uBones[i].xy;
-    vec2 b = uBones[i].zw;
-    vec2 ba = b - a;
-    float L = length(ba);
-    if (L < 1e-5) continue;
-    vec2 t = ba / L;
-    vec2 pa = p - a;
-    float u = dot(pa, t) / L;
-    if (u < -0.15 || u > 1.15) continue;
-    float fi = float(i);
-    float v = dot(pa, vec2(-t.y, t.x)) + W * 0.07 * (hash12(vec2(fi, boil)) - 0.5);
-    if (abs(v) > W * 1.4) continue;
-    // Each bone's stroke weight drifts slowly: some bold, some barely there.
-    float weight = 0.18 + 0.82 * smoothstep(0.3, 0.7, vnoise(vec2(fi * 1.7, uTime * 0.35)));
-    float prof = 0.5 + 0.5 * pow(abs(2.0 * u - 1.0), 1.5);   // thick at the joints
-    float ends = smoothstep(-0.13, 0.0, u) * (1.0 - smoothstep(1.0, 1.13, u));
-    float br = 0.65 * vnoise(vec2(u * L / W * 0.4 + fi * 7.0, v / W * 5.0 + boil * 3.1))
-             + 0.35 * vnoise(vec2(u * L / W * 0.9 - fi * 3.0, v / W * 11.0 - boil * 1.7));
-    float halfW = W * weight * prof * ends * (0.85 + 0.3 * br);
-    float inside = 1.0 - smoothstep(halfW - cpx * 0.7, halfW + cpx * 0.7, abs(v));
-    bool tip = i == 3 || i == 7 || i == 11 || i == 15 || i == 20;
-    float dry = 0.2 + smoothstep(0.55, 1.1, u) * (tip ? 0.6 : 0.3); // the brush lifts off
-    float c = inside * smoothstep(dry - 0.06, dry + 0.06, br);
-    if (c > cov) { cov = c; tone = 0.6 + 0.4 * br; }
+  if (lv < 0.5) return 0.0;
+  else if (lv < 1.5) d = length(p) - 0.14;
+  else if (lv < 2.5) d = box(p, vec2(0.5, w));
+  else if (lv < 3.5) d = min(box(p, vec2(0.55, w)), box(p, vec2(w, 0.55)));
+  else if (lv < 4.5) {
+    vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.7071;
+    d = min(box(q, vec2(0.7, w)), box(q, vec2(w, 0.7)));
   }
-  float hair = hairline(dP, cpx * 0.6) * 0.85;
-  vec4 stroke = vec4(uInk * tone * cov, cov);
-  return over(stroke, vec4(accent * hair, hair));
+  else if (lv < 5.5) d = abs(length(p) - 0.48) - w;
+  else if (lv < 6.5) d = min(box(vec2(p.x, abs(p.y) - 0.28), vec2(0.62, w)), box(vec2(abs(p.x) - 0.28, p.y), vec2(w, 0.62)));
+  else d = box(p, vec2(0.6));
+  return 1.0 - smoothstep(-aa, aa, d);
 }
 
-vec4 sBloom(vec2 p, float dP, float age) {
-  const float N = 40.0;
-  vec2 d = p - uPalm;
-  float r = length(d);
-  float theta = atan(d.y, d.x);
-  // Blooms out sparse to dense, then settles smaller and sparser so a long grab still shows the hand.
-  float settle = smoothstep(0.9, 1.7, age);
-  float grow = (1.0 - pow(1.0 - clamp(age / 0.55, 0.0, 1.0), 3.0)) * (1.0 - 0.35 * settle);
-  float density = (0.12 + 0.88 * (1.0 - pow(1.0 - clamp(age / 0.8, 0.0, 1.0), 2.0))) * (1.0 - 0.5 * settle);
-  float k0 = floor(theta / 6.2832 * N);
-  float cov = 0.0;
-  float tone = 1.0;
-  for (int j = -1; j <= 1; j++) {
-    float k = mod(k0 + float(j), N);
-    float hk = hash12(vec2(k, 3.0 + uSeed));
-    if (hk > density) continue;
-    float phi = (k + 0.5 + (hash12(vec2(k, 9.0)) - 0.5) * 0.7) / N * 6.2832;
-    vec2 dir = vec2(cos(phi), sin(phi));
-    float breathe = 1.0 + 0.06 * sin(uTime * 2.0 + k);
-    float len = uScale * (0.55 + 0.8 * hash12(vec2(k, 17.0))) * grow * breathe;
-    float r0 = uScale * 0.1 * hash12(vec2(k, 23.0));
-    float s = (dot(d, dir) - r0) / max(len, 1e-5);
-    if (s < 0.0 || s > 1.0) continue;
-    float across = dot(d, vec2(-dir.y, dir.x));
-    float w = uScale * (0.035 + 0.045 * hash12(vec2(k, 31.0))) * pow(sin(3.1416 * s), 0.7);
-    float br = vnoise(vec2(s * 7.0 + k * 3.0, across / max(w, 1e-5) * 3.0 + k * 11.0));
-    float inside = 1.0 - smoothstep(w - cpx * 0.7, w + cpx * 0.7, abs(across));
-    float c = inside * smoothstep(0.18 + 0.4 * s - 0.05, 0.18 + 0.4 * s + 0.05, br);
-    if (c > cov) { cov = c; tone = 0.7 + 0.3 * br; }
-  }
-  vec3 ink = mix(uInk, uAmber, 0.7 + 0.3 * uGrip) * tone;
-  float hair = hairline(dP, cpx * 1.3);
-  float core = 1.0 - smoothstep(uScale * 0.05, uScale * 0.07, r);
-  vec4 strokes = vec4(ink * cov, cov);
-  return over(vec4(accent * max(hair, core), max(hair, core)), strokes);
+vec2 sAscii(vec2 px) {
+  float cell = 9.0 * uPx;
+  vec2 id = floor(px / cell);
+  vec4 f = field((id + 0.5) * cell);
+  float v = clamp(f.r * 0.85 + f.g * 0.5, 0.0, 1.0);
+  float lv = floor(clamp(v - hash12(id * 1.7 + 4.0) * 0.3, 0.0, 1.0) * 7.99); // mixed marks, not a solid core
+  if (lv > 0.5 && hash12(id + floor(uTime * 5.0)) > 0.94) lv = min(lv + 1.0, 7.0); // live shimmer
+  vec2 local = fract(px / cell) * 2.0 - 1.0;
+  return vec2(mark(lv, local, 3.0 / cell), 0.0);
 }
 
-vec4 sBurst(vec2 p, float dP, float age) {
-  float glow = 0.0;
-  float head = 0.0;
-  for (int f = 0; f < 5; f++) {
-    vec2 tip = uBurst[f].xy;
-    float base = atan(uBurst[f].w, uBurst[f].z);
-    // A flash where the fingertip let go.
-    float flash = (1.0 - smoothstep(0.0, 0.18, age)) * (1.0 - smoothstep(0.0, uScale * 0.09, length(p - tip)));
-    glow = max(glow, flash);
-    for (int j = 0; j < 18; j++) {
-      vec2 id = vec2(float(f) * 19.0 + float(j), uSeed);
-      float t = age - 0.12 * hash12(id + 1.0);
-      if (t <= 0.0 || t > 1.0) continue;
-      float ang = base + (hash12(id + 2.0) - 0.5) * 2.0;
-      vec2 dir = vec2(cos(ang), sin(ang));
-      float speed = uScale * (1.1 + 1.6 * hash12(id + 3.0));
-      float dist = speed * (1.0 - pow(1.0 - t, 2.5)) * 0.85;
-      float len = uScale * (0.1 + 0.25 * hash12(id + 4.0)) * (1.0 - t * 0.7);
-      vec2 hd = tip + dir * dist;
-      vec2 tl = hd - dir * len;
-      float w = cpx * (0.5 + 0.9 * hash12(id + 5.0));
-      float c = (1.0 - smoothstep(w, w + cpx, segDist(p, tl, hd))) * (1.0 - smoothstep(0.55, 1.0, t));
-      glow = max(glow, c);
-      head = max(head, c * (1.0 - smoothstep(0.0, uScale * 0.05, length(p - hd))));
-    }
-  }
-  vec3 col = mix(uInk, accent, head);
-  float hair = hairline(dP, cpx * 0.6) * 0.8;
-  return over(vec4(col * glow, glow), vec4(accent * hair, hair));
+float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
+float bayer8(vec2 a) { return bayer4(0.5 * a) * 0.25 + bayer2(a); }
+
+vec2 sBayer(vec2 px) {
+  float block = 2.0 * uPx;
+  vec2 q = floor(px / block);
+  vec4 f = field((q + 0.5) * block);
+  float v = clamp(f.r * 0.5 + f.g * 0.38, 0.0, 1.0);
+  return vec2(step(bayer8(q) + 0.03, v), 0.0);
 }
 
-vec4 sTrail(vec2 p, float dP) {
-  float cell = cpx * 4.0;
-  vec2 id = floor(p / cell);
-  vec2 h = vec2(hash12(id), hash12(id + 7.7));
-  vec2 drift = vec2(sin(uTime * 1.3 + h.x * 6.283), cos(uTime * 1.1 + h.y * 6.283)) * 0.15;
-  vec2 pos = (id + 0.5 + (h - 0.5) * 0.7 + drift) * cell;
-  float near = 1.0 - smoothstep(uBoneR * 0.4, uBoneR * 2.2, dP);
-  float spark = 0.0;
-  if (hash12(id + 17.0) < near * 0.9) {
-    float rad = cpx * (0.5 + 1.1 * near * hash12(id + 5.0));
-    spark = (1.0 - smoothstep(rad - cpx * 0.6, rad + cpx * 0.6, length(p - pos))) * (0.55 + 0.45 * sin(uTime * 5.0 + h.x * 40.0));
-  }
-  float trail = texture2D(uTrail, vUv).r;
-  vec4 light = vec4(mix(uInk, accent, 0.3) * spark, spark);
-  vec4 streak = vec4(accent * trail * 0.8, trail * 0.8);
-  return over(light, streak);
+vec2 sHalftone(vec2 px) {
+  float sp = 7.0 * uPx;
+  float c = cos(0.42);
+  float s = sin(0.42);
+  vec2 r = mat2(c, -s, s, c) * px;
+  vec2 cr = (floor(r / sp) + 0.5) * sp;
+  vec4 f = field(mat2(c, s, -s, c) * cr);
+  float v = clamp(f.r * 0.8 + f.g * 0.65, 0.0, 1.0);
+  float d = length(r - cr) - sqrt(v) * sp * 0.62;
+  return vec2(v > 0.04 ? 1.0 - smoothstep(-0.75 * uPx, 0.75 * uPx, d) : 0.0, 0.0);
 }
 
-vec4 sRipple(vec2 p) {
-  float sp = cpx * 9.0;
-  vec2 c = (floor(p / sp) + 0.5) * sp;
-  vec2 d = c - uPalm;
-  float r = length(d);
-  float R = uScale * 2.1;
-  if (r > R) return vec4(0.0);
-  float wave = sin(r / (uScale * 0.22) - uTime * 2.2);
-  vec2 off = (r > 1e-5 ? d / r : vec2(0.0)) * wave * cpx * 2.2;
-  float inHand = 1.0 - smoothstep(uBoneR * 0.8, uBoneR * 1.6, handD(c));
-  float rad = cpx * (0.8 + 0.5 * (wave * 0.5 + 0.5) + 1.2 * inHand);
-  float dotC = 1.0 - smoothstep(rad - cpx * 0.6, rad + cpx * 0.6, length(p - c - off));
-  float fade = 1.0 - smoothstep(R * 0.55, R, r);
-  float a = dotC * fade * mix(0.35 + 0.25 * (wave * 0.5 + 0.5), 0.95, inHand);
-  return vec4(mix(uInk, accent, inHand) * a, a);
+vec2 sParticles(vec2 px) {
+  float sp = 6.0 * uPx;
+  vec2 id = floor(px / sp);
+  vec2 h = hash22(id);
+  vec2 drift = vec2(sin(uTime * 1.3 + h.x * 6.283), cos(uTime * 1.1 + h.y * 6.283)) * 0.14;
+  vec2 pos = (id + 0.5 + (h - 0.5) * 0.7 + drift) * sp;
+  vec4 f = field(pos);
+  float v = clamp(f.r * 0.6 + f.g * 0.8, 0.0, 1.0);
+  if (hash12(id + 17.0) > v * 1.15) return vec2(0.0);
+  float rad = (0.55 + 1.5 * v) * uPx;
+  float cov = 1.0 - smoothstep(rad - 0.7 * uPx, rad + 0.7 * uPx, length(px - pos));
+  cov *= 0.6 + 0.4 * sin(uTime * 4.0 + h.x * 40.0);
+  return vec2(cov, hash12(id + 3.7) < 0.12 ? 1.0 : 0.0);
 }
 
-vec4 sGlitch(vec2 p, float age) {
-  // Strong at once, then snaps back between 0.5 and 0.7 s.
-  float g = smoothstep(0.0, 0.06, age) * (1.0 - smoothstep(0.5, 0.7, age));
-  float band = floor(p.y / (cpx * 7.0));
-  float tick = floor(uTime * 14.0);
-  float shift = (hash12(vec2(band, tick)) - 0.5) * uScale * 0.5 * g * step(0.55, hash12(vec2(band, tick + 0.5)));
-  vec2 pg = p + vec2(shift, 0.0);
-  float dG = handD(pg);
-  vec4 hand = sInk(pg, dG);
-
-  float reach = uScale * 1.5 * (0.6 + 0.4 * g);
-  float inZone = 1.0 - smoothstep(reach * 0.6, reach, length(p - uPalm));
-  // Dark brush slabs: ragged-ended runs along each band.
-  float run = uScale * 0.16;
-  float s = floor(pg.x / run + hash12(vec2(band, 1.0)) * 5.0);
-  float ragged = vnoise(vec2(pg.x / (cpx * 3.0), band * 1.3));
-  float slab = step(hash12(vec2(band, s) + uSeed), 0.32) * step(0.25, ragged) * inZone * g;
-  float edge = slab * (1.0 - step(cpx * 1.2, mod(p.y, cpx * 7.0))); // a light top edge
-  // Pixel fragments scattering off the hand.
-  vec2 cell = floor(p / (cpx * 4.0));
-  float frag = step(hash12(cell + tick * 0.37), 0.1 * g) * (1.0 - smoothstep(uScale * 0.15, uScale * 0.6, dG));
-  vec4 slabs = vec4(uShade * slab * 0.92 + accent * edge * 0.9, max(slab * 0.92, edge));
-  vec4 frags = vec4(mix(uInk, accent, hash12(cell)) * frag, frag);
-  return over(frags, over(slabs, hand));
+vec2 sLines(vec2 px) {
+  vec4 f = field(px);
+  float glow = f.g * f.g * 0.38;
+  float body = f.r * 0.1;
+  float scan = 0.85 + 0.15 * sin(px.y / uPx * 0.9 - uTime * 6.0); // a faint travelling sheen
+  return vec2(clamp(f.b + (glow + body) * scan, 0.0, 1.0), 0.0);
 }
 
-// Cell edges (F2 - F1, 0 on an edge) and a per-cell random: the shards of a broken surface.
-vec2 cells(vec2 x) {
-  vec2 i = floor(x);
-  vec2 f = fract(x);
-  float d1 = 8.0;
-  float d2 = 8.0;
-  float id = 0.0;
-  for (int yy = -1; yy <= 1; yy++) {
-    for (int xx = -1; xx <= 1; xx++) {
-      vec2 g = vec2(float(xx), float(yy));
-      vec2 o = vec2(hash12(i + g), hash12(i + g + 19.7));
-      float d = length(g + o - f);
-      if (d < d1) { d2 = d1; d1 = d; id = hash12(i + g + 3.3); }
-      else if (d < d2) d2 = d;
-    }
-  }
-  return vec2(d2 - d1, id);
-}
-
-// The break-through: the hand passing through the workspace surface. A noise-edged front (the
-// style crossfade's mask, made radial) races out from the palm when pushing through, or closes
-// in on it when backing out. The art is shoved across the front like a lens, and the side the
-// front has passed breaks into glassy shards with bright cracks drifting the same way. Without
-// a direction, only the front and the lens. Returns the effect, and where to sample the art.
-vec4 breakFx(vec2 p, out vec2 q) {
-  q = p;
-  float bt = uBreakT;
-  vec2 d = p - uPalm;
-  float r = length(d);
-  vec2 n = r > 1e-5 ? d / r : vec2(0.0);
-  bool pull = uBreakDir < -0.5;
-  bool shards = abs(uBreakDir) > 0.5;
-  float sgn = pull ? -1.0 : 1.0;
-  float env = 1.0 - smoothstep(0.62, 1.0, bt);
-
-  // Noise on the direction (not the angle, which would seam where it wraps).
-  float wob = 1.0 + 0.24 * (vnoise(n * 1.7 + vec2(uBreakSeed * 7.0, uBreakSeed * 3.1)) - 0.5);
-  float k = pull ? 1.0 - bt * bt : 1.0 - (1.0 - bt) * (1.0 - bt);
-  float R = mix(uScale * 0.06, uScale * 2.3, k) * wob;
-  float w = uScale * (0.07 + 0.12 * (1.0 - bt));
-  float x = (r - R) / w;
-  float front = exp(-x * x) * env;
-  q = p - n * front * uScale * 0.16 * sgn;
-
-  // Broken: inside the front when pushing through, outside it when backing out.
-  float broken = pull ? smoothstep(R - w, R + w, r) : 1.0 - smoothstep(R - w, R + w, r);
-  broken *= 1.0 - smoothstep(uScale * 2.0, uScale * 2.6, r);
-  float crack = 0.0;
-  float pane = 0.0;
-  if (shards && broken > 0.001) {
-    float size = uScale * 0.3;
-    vec2 cp = (p - n * sgn * uScale * 0.4 * bt) / size + uBreakSeed * 13.1;
-    vec2 v = cells(cp);
-    // Dense and bright at the palm, where it gives; broken up and fainter farther out.
-    float near = 1.0 - smoothstep(0.0, uScale * 2.0, r);
-    float keep = step(0.62 - 0.5 * near, vnoise(cp * 1.3 + 4.0));
-    crack = (1.0 - smoothstep(0.0, cpx * (1.4 + 1.6 * near) / size, v.x)) * broken * keep * (0.35 + 0.65 * near);
-    pane = (0.06 + 0.16 * v.y) * broken * (1.0 - bt);
-  }
-  // A flash at the palm: as the surface gives (push), or as it closes (pull).
-  float flashT = pull ? smoothstep(0.55, 0.9, bt) * (1.0 - smoothstep(0.9, 1.0, bt)) : 1.0 - smoothstep(0.0, 0.3, bt);
-  float flash = exp(-r / (uScale * 0.18)) * flashT;
-
-  float a = clamp(max(max(front * 0.85, crack * 0.95 * env), max(pane * env, flash)), 0.0, 1.0);
-  vec3 c = mix(uInk, accent, clamp(front + 0.4 * crack, 0.0, 1.0));
-  return vec4(c * a, a);
-}
-
-vec4 styleAt(vec2 p, float dP, float age) {
-#if STYLE == 0
-  return sInk(p, dP);
-#elif STYLE == 1
-  return sBloom(p, dP, age);
-#elif STYLE == 2
-  return sBurst(p, dP, age);
-#elif STYLE == 3
-  return sTrail(p, dP);
-#elif STYLE == 4
-  return sRipple(p);
-#else
-  return sGlitch(p, age);
-#endif
+vec2 styleAt(int s, vec2 px) {
+  if (s == 0) return sAscii(px);
+  if (s == 1) return sBayer(px);
+  if (s == 2) return sHalftone(px);
+  if (s == 3) return sParticles(px);
+  return sLines(px);
 }
 
 void main() {
-  cpx = uPx / uRes.y;
-  accent = mix(uTeal, uAmber, uGrip);
-  vec2 p = vec2(vUv.x * uAspect, vUv.y);
-  if (uPresence < 0.005 || length(p - uBounds.xy) > uBounds.z) {
-    gl_FragColor = vec4(0.0);
-    return;
-  }
-  vec2 q = p;
-  vec4 fx = vec4(0.0);
-  if (uBreakT >= 0.0 && uBreakFlash < 0.5) fx = breakFx(p, q);
-  float dP = handD(q);
-  vec4 col = styleAt(q, dP, uAge);
-
-  // A soft dark backdrop under the hand, so the art reads over a busy webcam image.
-  float back = 0.34 * exp(-max(dP - uBoneR, 0.0) / (uScale * 0.3));
-  col = over(col, vec4(uShade * back, back));
-  col = over(fx, col);
-  // Reduced motion: the break-through is a brief brightening of the hand, nothing moves.
-  if (uBreakT >= 0.0 && uBreakFlash > 0.5) {
-    float f = 1.0 - uBreakT;
-    col.rgb = mix(col.rgb, accent * col.a, 0.8 * f);
-    float halo = 0.55 * f * exp(-max(dP - uBoneR, 0.0) / (uScale * 0.15));
-    col = over(col, vec4(accent * halo, halo));
-  }
-
+  vec2 px = vUv * uRes;
+  vec2 a = styleAt(uStyleA, px);
+  vec2 b = a;
+  float wB = 0.0;
+  float seam = 0.0;
   if (uMix > 0.0) {
-    float n = 0.65 * vnoise(p / (cpx * 90.0) + uSeed * 3.17) + 0.35 * vnoise(p / (cpx * 34.0) - uSeed * 1.31);
+    b = styleAt(uStyleB, px);
+    float n = 0.65 * vnoise(px / (90.0 * uPx) + uSeed * 3.17) + 0.35 * vnoise(px / (34.0 * uPx) - uSeed * 1.31);
     float k = 0.08;
     float t = uMix * (1.0 + 2.0 * k) - k;
-    float wB = smoothstep(n - k, n + k, t);
-    float seam = (1.0 - abs(2.0 * wB - 1.0)) * (1.0 - smoothstep(uBoneR, uBoneR * 4.0, dP)) * 0.6;
-    col *= (uPassB > 0.5 ? wB : 1.0 - wB) * (1.0 - seam);
-    if (uPassB > 0.5) col += vec4(accent * seam, seam);
+    wB = smoothstep(n - k, n + k, t);
+    seam = 1.0 - abs(2.0 * wB - 1.0);
   }
-  gl_FragColor = col * uPresence;
-}
-`;
-
-// The recording trail's feedback buffer: last frame, faded and drifting down, plus sparks
-// along the hand. Rendered at low resolution into ping-pong targets; the trail style samples it.
-export const TRAIL_FRAG = /* glsl */ `
-${COMMON}
-uniform sampler2D uPrev;
-uniform vec2 uFieldRes;
-uniform float uDecay;
-uniform vec2 uDrift;
-uniform float uEmit;
-
-void main() {
-  vec2 p = vec2(vUv.x * uAspect, vUv.y);
-  float prev = texture2D(uPrev, vUv + uDrift).r * uDecay;
-  float d = handD(p);
-  float spark = (1.0 - smoothstep(uBoneR * 0.3, uBoneR * 1.5, d)) * step(0.55, hash12(floor(vUv * uFieldRes) + floor(uTime * 30.0)));
-  gl_FragColor = vec4(min(1.0, prev + spark * 0.3 * uEmit), 0.0, 0.0, 1.0);
+  vec4 f = field(px);
+  float cov = mix(a.x, b.x, wB);
+  float accent = mix(a.y, b.y, wB);
+  float seamCov = seam * smoothstep(0.05, 0.6, f.g);
+  vec3 ink = mix(uTeal, uAmber, uGrip) * (0.82 + 0.3 * f.a);
+  vec3 col = mix(ink, uViolet, clamp(accent + seam, 0.0, 1.0));
+  float alpha = clamp(max(cov, seamCov * 0.9), 0.0, 1.0) * uPresence;
+  gl_FragColor = vec4(min(col, vec3(1.0)) * alpha, alpha);
 }
 `;
