@@ -20,13 +20,20 @@ class RobotSpec:
     arm_joints: str  # regex for the IK joints
     hand_body: str  # IK link
     finger_joints: tuple[str, ...]  # every finger joint gets the same target
-    gripper_open: float
-    gripper_closed: float
+    gripper_open: float | tuple[float, ...]
+    gripper_closed: float | tuple[float, ...]
     tcp_offset: tuple[float, float, float]  # hand origin -> fingertip center, in the hand frame (m)
     hand_in_tool_wxyz: tuple[float, float, float, float]  # the hand frame's orientation in the tool frame
     base_pos: tuple[float, float, float]  # robot root position in the world (m)
     init_joint_pos: dict[str, float] | None = None  # overrides the asset's start pose (None: keep it)
     ik_limit_gain: float = 0.0  # Isaac DifferentialIK null-space joint-limit avoidance (0 = off)
+    # "Bring your robot" (sim_worker.urdf_import) only; the built-in robots come from Isaac Lab asset configs.
+    # gripper_open / gripper_closed may then be one value per finger joint.
+    urdf_path: str | None = None  # the uploaded URDF; scene_cfg imports it through Isaac Lab's UrdfConverter
+    ros_packages: tuple[tuple[str, str], ...] = ()  # (package name, folder) for package:// mesh paths
+    passive_finger_joints: tuple[str, ...] = ()  # mimic joints: they follow a finger joint and get no drive
+    arm_links: tuple[str, ...] = ()  # every moving body (arm links, hand, fingers), for the arm contact sensors
+    finger_links: tuple[str, ...] = ()  # the bodies that touch the cube, for the grasp contact sensor
 
 
 ROBOTS: dict[str, RobotSpec] = {
@@ -83,8 +90,23 @@ ROBOTS: dict[str, RobotSpec] = {
 }
 
 
+_UPLOADED: dict[str, RobotSpec] = {}  # "Bring your robot" specs, registered by the process that runs them
+
+
+def register_robot(spec: RobotSpec) -> None:
+    if spec.name in ROBOTS:
+        raise ValueError(f"{spec.name} is a built-in robot")
+    _UPLOADED[spec.name] = spec
+
+
 def robot_spec(name: str) -> RobotSpec:
-    return ROBOTS[name]
+    return ROBOTS[name] if name in ROBOTS else _UPLOADED[name]
+
+
+def finger_targets(spec: RobotSpec, closed: bool) -> tuple[float, ...]:
+    """The joint target of each of spec.finger_joints for the gripper closed or open."""
+    value = spec.gripper_closed if closed else spec.gripper_open
+    return tuple(value) if isinstance(value, tuple) else (value,) * len(spec.finger_joints)
 
 
 def _qmul(a: np.ndarray, b: np.ndarray) -> np.ndarray:

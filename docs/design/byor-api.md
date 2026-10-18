@@ -63,7 +63,7 @@ returns the same robot (`200`, `"created": false`) and keeps its roles and repor
   "created": true,
   "urdf": "franka_description/robots/panda_arm_hand.urdf",
   "sha256": "3f9a1c2b7d5e...",
-  "n_links": 11,
+  "n_links": 12,
   "n_joints": 11,
   "issues": [],
   "parts": "/robots/byor_3f9a1c2b7d/parts"
@@ -178,7 +178,8 @@ done.
   (fixed joints in between are fine and are not listed).
 - `tcp_offset`: `[x, y, z]` from the hand link's origin to the grasp point, in the hand frame. `null` uses the
   derived TCP (§3).
-- `gripper_open` / `gripper_closed`: joint values for the driving gripper joints. `null` uses the derived ones.
+- `gripper_open` / `gripper_closed`: joint values for the driving gripper joints: one number for all of them, or
+  `{joint: value}`. `null` uses the derived ones.
 - `mount.pos`: where the robot's base sits in the world. The default `[0, 0, 0]` is where the Franka sits: the
   table starts 0.15 m in front of it, and the task's cubes are 0.40–0.60 m away. A small arm may need to sit
   closer (`[0.25, 0, 0]`); the report card states the mount.
