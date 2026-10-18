@@ -240,3 +240,41 @@ They get the same information as the model: the same sampled frames and the same
 - The items are not fully independent (seeds shared across lineages).
 - n = 40 and 60, so the CIs are wide for a 1-item difference.
 - Each item was run once at temperature 0.2, so run-to-run variance is not measured.
+
+## Status (2026-10-18)
+
+**Done, on `pm/nemotron-judge`** (not pushed, merged or rebased):
+
+| Task | Commit | Tests |
+|---|---|---|
+| Pure half: schemas, summary, perturbations, code baselines, scoring | `3d5cb86` | `tests/test_intent.py` |
+| Nemotron calls, spend cap, per-call log | `2b0c3f6` | `tests/test_intent_ai.py` (mocked) |
+| Pre-registration, runner and item lists (before any call) | `631ad93`, `72434d4` (hash fix) | — |
+| Dev run, freeze | `903ea4c` | — |
+| Test results | `24fe709` | — |
+| Review card schema and `review_verdict()` | `65ee726` | `tests/test_intent.py` |
+
+- **Suite:** `uv run pytest -q` gives **1512 passed / 18 skipped / 0 failed**.
+- `review_verdict()` was added after the test. It composes the card from the outputs and changes neither call.
+- **Spend:** 108 calls, **$0.1064** estimated, of the $5 cap.
+  - Each call is logged in `data/intent_eval/{dev,test}/calls.jsonl` and `data/intent_eval/usage_log.jsonl`
+    (git-ignored).
+  - The key was read from `C:\dev\pm-t4\.env` and never printed or committed. No `.env` is in this worktree.
+- **To reproduce** (Pillow is only added for the run; the project's dependencies are unchanged):
+
+  ```
+  uv run --with pillow python scripts/intent_eval.py run --sets docs/superpowers/notes/2026-10-18-nemotron-judge/sets.json --phase test --env <path to .env>
+  uv run --with pillow python scripts/intent_eval.py report --phase test
+  ```
+
+  A re-run resumes and skips finished items. Delete `data/intent_eval/test/` to start over, which costs about $0.10.
+
+**Not done:**
+- **The app does not call these yet.** `app.jobs` and the demos router still run only the diagnoser.
+  - The wiring: label each recorded demo, judge each verified copy against its human demo, and store
+    `ReviewVerdict` next to `passport.json`.
+  - The Review page (T1) can then read it.
+- **The honest next test** is transfer, not this set:
+  - recordings with other objects and colours, and a real person's webcam demo once Record saves one;
+  - the same pixel rules, unchanged, against the same prompts.
+  - That is where code rules should break and the model may not. This set could not show that.
