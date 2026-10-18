@@ -120,6 +120,18 @@ describe("Record session with the hand lock", () => {
     expect(hook.result.current.pose?.lock?.phase).toBe("searching");
   });
 
+  it("the V reset re-picks the hand once; the V hand relocks and a kept-up V never fires twice", async () => {
+    const { HandLock } = await import("./teleop/handLock");
+    const repick = vi.spyOn(HandLock.prototype, "reset");
+    const hook = await startSession();
+    // ~4.5 s of the V sign held still: lock (0.3 s), fire (1.5 s later), relock (0.3 s), and the
+    // relock gap (< the gesture's 500 ms release) must not re-arm the gesture for a second fire.
+    feed(recordFrames(135, () => [{ ...MAIN, victory: true }]));
+    expect(repick).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.pose?.lock).toMatchObject({ phase: "locked", handedness: "Left" });
+    repick.mockRestore();
+  });
+
   it("before any lock the latest pose shows no landmarks", async () => {
     const hook = await startSession();
     feed(recordFrames(3, () => [MAIN, OTHER]));
