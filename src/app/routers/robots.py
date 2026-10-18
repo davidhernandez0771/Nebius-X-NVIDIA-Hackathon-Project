@@ -18,7 +18,7 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from sim_worker.byor_store import RobotStore, UploadError
@@ -144,7 +144,11 @@ def _pydantic_issues(e: ValidationError, code: str) -> list[Issue]:
 # --- routes ------------------------------------------------------------------------------------------------------
 
 @router.post("", status_code=201)
-async def upload_robot(file: UploadFile, response: Response, store: RobotStore = Depends(get_store)) -> dict:
+async def upload_robot(response: Response, file: UploadFile | None = File(None),
+                       store: RobotStore = Depends(get_store)) -> dict:
+    if file is None:
+        raise _fail(400, error("not_urdf", "no file: send multipart/form-data with the .urdf or .zip in the field "
+                                           "named `file`", "file"))
     data = await file.read()
     try:
         info, created = store.add(file.filename or "", data)
