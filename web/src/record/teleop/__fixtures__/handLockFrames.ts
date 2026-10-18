@@ -6,7 +6,7 @@
 // No real two-hand trace exists yet: before this branch the debug trace kept only the picked hand.
 
 import type { HandFrame, Handedness, TrackedHand } from "../../../hand/contracts";
-import { FRAME, makeHandPose } from "./handPoses";
+import { FRAME, makeHandPose, pinchThumbTip } from "./handPoses";
 
 export const FRAME_MS = 1000 / 30;
 
@@ -15,6 +15,7 @@ export interface HandSpec {
   label: Handedness | null;
   center: { x: number; y: number };
   distance?: number; // meters; smaller = closer to the camera, bigger in the image
+  pinched?: boolean; // thumb tip on the index tip (the gripper closes)
 }
 
 function rng(seed: number): () => number {
@@ -26,7 +27,12 @@ function rng(seed: number): () => number {
 }
 
 export function trackedHand(spec: HandSpec, noise = 0, rand: () => number = Math.random): TrackedHand {
-  const pose = makeHandPose({ center: spec.center, distance: spec.distance ?? 0.5, left: spec.label === "Left" });
+  const pose = makeHandPose({
+    center: spec.center,
+    distance: spec.distance ?? 0.5,
+    left: spec.label === "Left",
+    ...(spec.pinched ? { thumbTip: pinchThumbTip() } : {}),
+  });
   const jitter = () => (rand() - 0.5) * 2 * noise;
   return {
     handedness: spec.label,

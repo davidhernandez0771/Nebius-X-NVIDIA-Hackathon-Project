@@ -5,9 +5,11 @@
 import type { HandFrame, TrackedHand } from "../../hand/contracts";
 import type { TeleopControlSettings } from "./controlRegion";
 import type { HandPoseMsg } from "./handPoseMessage";
+import { palmCenter } from "./controlRegion";
+import type { HandLockStatus } from "./handLock";
 
 export const TRACE_SECONDS = 10;
-export const TRACE_VERSION = 3; // 1: pm/t4-diagnoser's sprint 8 trace; 2: hand v3's 3D pinch {value, source}
+export const TRACE_VERSION = 4; // 1: pm/t4-diagnoser's sprint 8 trace; 2: hand v3's 3D pinch {value, source}; 3: the 2D pinch gap; 4: the hand lock + every detection
 
 /** The page's per-frame values beyond the message. */
 export interface TraceSignals {
@@ -19,13 +21,16 @@ export interface TraceSignals {
   reach3d: boolean;
   breakthrough: number;
   breakthroughDir: 1 | -1;
+  lock?: HandLockStatus; // the hand lock's status this frame (handLock.ts)
 }
 
 export interface TraceFrame {
   t: number; // HandFrame.timestamp, ms
   frame: [number, number]; // width, height in px
-  hands: number;
-  handedness: string | null;
+  hands: number; // every detection in the frame, not only the locked hand
+  handedness: string | null; // the hand used (locked or held)
+  seen: { handedness: string | null; palm: [number, number] }[]; // every detection: label, palm center (raw)
+  lock: Pick<HandLockStatus, "phase" | "handedness" | "held"> | null;
   landmarks: number[][] | null; // 21 x [x, y, z], raw normalized image coordinates
   world: number[][] | null; // 21 x [x, y, z], meters (worldLandmarks)
   pinch: number | null; // the 2D pinch gap (pinch.ts)
@@ -57,6 +62,11 @@ export function traceFrame(frame: HandFrame, hand: TrackedHand | null, msg: Hand
     frame: [frame.frameWidth, frame.frameHeight],
     hands: frame.hands.length,
     handedness: hand?.handedness ?? null,
+    seen: frame.hands.map((h) => {
+      const p = palmCenter(h.landmarks);
+      return { handedness: h.handedness, palm: [r5(p.x), r5(p.y)] as [number, number] };
+    }),
+    lock: s.lock ? { phase: s.lock.phase, handedness: s.lock.handedness, held: s.lock.held } : null,
     landmarks: hand ? hand.landmarks.map(xyz) : null,
     world: hand?.worldLandmarks ? hand.worldLandmarks.map(xyz) : null,
     pinch: r5n(s.pinch),

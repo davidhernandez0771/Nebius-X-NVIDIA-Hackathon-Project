@@ -30,6 +30,13 @@ interface FakeLinkShape {
 }
 
 vi.mock("../../../hand/tracking", () => ({ createMediapipeTracker: () => tracker }));
+// Every frame's hand is used, as before the hand lock: these tests jump one hand between poses, which
+// the lock would hold as glitches. The lock is tested in record/teleop/handLock.test.ts and
+// record/useRecordSession.handLock.test.ts.
+vi.mock("../../../record/teleop/handLock", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../record/teleop/handLock")>()),
+  HandLock: (await import("../../../record/teleop/__fixtures__/passThroughLock")).PassThroughHandLock,
+}));
 // The hand-art overlay is WebGL (three.js); here only its mounting and props matter.
 const art = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
 vi.mock("../../../record/handArt", () => ({

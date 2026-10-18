@@ -1,10 +1,11 @@
 // The Record page's teleop session: camera and hand tracking, the hand pose message and pinch
 // latch, the link to the sim, the reset gesture, reach centering, Calibrate by hand, the debug
-// trace and the hand-art cues. Moved out of RecordPage.tsx unchanged, so the old page
-// (/legacy/pm/record) and the new one (/record) run the same code; each only lays it out.
+// trace, the hand-art cues and the hand lock (teleop/handLock.ts: one hand drives the arm, every
+// other is ignored). Moved out of RecordPage.tsx unchanged, so the old page (/legacy/pm/record)
+// and the new one (/record) run the same code; each only lays it out.
 
 import { useEffect, useRef, useState } from "react";
-import type { HandFrame, TrackedHand, TrackingAdapter, TrackingStatus } from "../hand/contracts";
+import type { HandFrame, TrackingAdapter, TrackingStatus } from "../hand/contracts";
 import {
   ReachCenterer,
   TeleopCalibrator,
@@ -19,6 +20,7 @@ import { PinchLatch, pinchGap } from "./teleop/pinch";
 import { createResetGesture, type ResetGestureStatus } from "./teleop/resetGesture";
 import { victoryScore } from "./teleop/victoryPose";
 import { reachSize3d } from "./teleop/reach3d";
+import { HandLock, type HandLockStatus } from "./teleop/handLock";
 import { DebugTrace, traceFileName, traceFrame, type TraceSignals } from "./teleop/debugTrace";
 import { latencyTraceRequested, type TeleopStatus } from "./teleop/teleopClient";
 import { teleopSocketUrl } from "../pm/api";
@@ -39,9 +41,6 @@ const RESET_TOAST_MS = 2500; // how long "Reset fired" stays up after each fire 
 export const SINK_COMMAND = "C:\\isaac\\env_isaaclab\\Scripts\\python.exe sim_worker\\scripts\\teleop_sink.py --viz kit";
 export const STEP_S = 0.02; // the sim records at 50 Hz (sim_worker/teleop_session.py TELEOP_DT)
 
-// Same choice as TeleopClient: the right hand, else the first one.
-const pickHand = (hands: TrackedHand[]) => hands.find((h) => h.handedness === "Right") ?? hands[0] ?? null;
-
 export type Phase = { state: "idle" } | { state: "starting" } | { state: "streaming" } | { state: "error"; message: string };
 
 /** Shown each time the reset gesture fires; `notSent` says why no reset_scene went out. */
@@ -60,6 +59,9 @@ export type PoseUi = {
   size3d: number | null; // the 3D reach signal, shown next to the palm width either way
   /** The tracked hand's landmarks in raw camera coordinates (display only); null without a hand. */
   landmarks: readonly (readonly [number, number])[] | null;
+  /** The hand lock (handLock.ts): which hand drives the arm, or why none does. Always set by the
+   *  session; optional so a PoseUi written before the lock still type-checks. */
+  lock?: HandLockStatus;
 };
 
 function cameraMessage(err: unknown): string {
@@ -91,6 +93,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
   const calibrationStep = useRef<CalibrationState["step"] | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const session = useRef<{ tracker: TrackingAdapter; link: RecordLink | null } | null>(null);
+  const handLockRef = useRef<HandLock | null>(null); // the running session's hand lock, for Re-pick
   const artHand = useRef<HandArtFrame | null>(null); // polled by the hand-art overlay each animation frame
   const artActive = useRef(false); // the overlay is drawing (WebGL up)
   const resets = useRef(0); // Reset scene presses, for the hand-art cue
@@ -112,6 +115,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
 
   function teardown() {
     tracer.current = null;
+    handLockRef.current = null;
     artHand.current = null;
     calibrator.current = null;
     centerer.current = null;
@@ -135,6 +139,9 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     let lastUi = -Infinity;
     let last: HandPoseMsg | undefined;
     const latch = new PinchLatch(); // the gripper: closes at once, opens after a wide gap held 150 ms
+    const handLock = new HandLock(); // the one hand that drives the arm (handLock.ts)
+    handLockRef.current = handLock;
+    let lockPhase: HandLockStatus["phase"] | null = null;
     const cue = new ArtCue();
     const breakthrough = new BreakthroughCue(); // reach crossing the cube's row in depth
     let resetGesture: ReturnType<typeof createResetGesture> | null = null; // made on the first frame (aspect)
@@ -145,25 +152,32 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     tracker.onStatus(setTrack);
     tracker.onFrame((frame: HandFrame) => {
       const s = settingsRef.current;
-      const hand = pickHand(frame.hands);
+      // The hand lock: only the locked hand (or, for up to 0.7 s, a held copy of it) reaches anything below;
+      // every other hand in the frame is dropped here. `held`: this frame repeats the last pose.
+      const { hand, status: lock } = handLock.update(frame);
+      const held = lock.held !== null;
+      const view: HandFrame = { ...frame, hands: hand ? [hand] : [] };
       // The same message the link sends, so what the page shows is what the sim gets.
       const msg = toHandPoseMsg(hand, frame, last, s);
       last = msg;
       // The gripper: thumb tip and index tip together = closed; the link sends it as HandPoseMsg.grip.
-      const pinch = msg.tracking_ok && hand ? pinchGap(hand.landmarks, frame.frameWidth, frame.frameHeight) : null;
+      // A held frame is no new evidence: the latch gets no gap, so the gripper stays as it was.
+      const pinch = msg.tracking_ok && hand && !held ? pinchGap(hand.landmarks, frame.frameWidth, frame.frameHeight) : null;
       const gripper = latch.update(pinch, frame.timestamp);
-      session.current?.link?.push(frame, gripper);
+      session.current?.link?.push(view, gripper);
       // Reset gesture: the V sign held 1.5 s, gripper open, hand still -> the Reset scene control.
-      const victory = msg.tracking_ok && hand ? victoryScore(hand, frame.frameWidth, frame.frameHeight).score : null;
+      const victory = msg.tracking_ok && hand && !held ? victoryScore(hand, frame.frameWidth, frame.frameHeight).score : null;
       resetGesture ??= createResetGesture({ aspect: frame.frameWidth / frame.frameHeight });
       const reset = resetGesture.update({
         timestamp: frame.timestamp,
         victory,
         gripperOpen: gripper === 0,
-        position: msg.tracking_ok && hand ? palmCenter(hand.landmarks) : null,
+        position: msg.tracking_ok && hand && !held ? palmCenter(hand.landmarks) : null,
       });
       if (reset.event === "fire") {
         if (canReset.current) control("reset_scene");
+        // The reset gesture also re-picks the hand (not while recording): the next hand held still 0.3 s locks.
+        if (!recordingNow.current) handLock.reset();
         const notSent = canReset.current ? null : simReadyNow.current ? "stop recording first" : "the sim isn't connected";
         resetToastAt.current = frame.timestamp;
         setResetToast({ at: frame.timestamp, notSent });
@@ -174,7 +188,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
       // Reach is computed from the palm width, or the 3D size with 3D reach on (falling back per frame).
       const size3d = msg.tracking_ok && hand ? reachSize3d(hand, frame.frameWidth, frame.frameHeight) : null;
       const reachSize = msg.tracking_ok ? (s.reach3d && size3d) || msg.palm_width : null;
-      if (centerer.current) recenter(centerer.current, frame.timestamp, reachSize);
+      if (centerer.current) recenter(centerer.current, frame.timestamp, held ? null : reachSize);
       const tracked = hand && reachSize !== null ? { center: palmCenter(hand.landmarks), palmWidth: reachSize } : null;
       const framing = s.enabled ? controlFraming(tracked, s) : framingCheck(msg);
       // Display only: the overlay reads this; nothing flows back into the message or the gripper.
@@ -184,9 +198,9 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
         gripperClosed: gripper === 1,
         cue: cue.update({ gripper, recording: recordingNow.current, resets: resets.current, breakthrough: crossing.count }),
       };
-      if (canvas.current) drawStage(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current, paletteRef.current);
+      if (canvas.current) drawStage(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current, paletteRef.current, lock);
       const uiTick = frame.timestamp - lastUi >= UI_INTERVAL_MS;
-      if (calibrator.current) calibrate(calibrator.current, frame.timestamp, tracked, uiTick);
+      if (calibrator.current) calibrate(calibrator.current, frame.timestamp, held ? null : tracked, uiTick);
       if (tracer.current) {
         const signals: TraceSignals = {
           pinch,
@@ -197,13 +211,16 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
           reach3d: s.reach3d,
           breakthrough: crossing.count,
           breakthroughDir: crossing.dir,
+          lock,
         };
         traceStep(tracer.current, traceFrame(frame, hand, msg, signals), uiTick);
       }
-      if (uiTick || reset.event) {
+      const lockChanged = lock.phase !== lockPhase;
+      lockPhase = lock.phase;
+      if (uiTick || reset.event || lockChanged) {
         lastUi = frame.timestamp;
         const landmarks = msg.tracking_ok && hand ? hand.landmarks.map((p) => [p.x, p.y] as const) : null;
-        setPose({ msg, framing, gripper, pinch, victory, reset, size3d, landmarks });
+        setPose({ msg, framing, gripper, pinch, victory, reset, size3d, landmarks, lock });
       }
     });
     try {
@@ -301,6 +318,11 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     setPhase({ state: "idle" });
   }
 
+  /** Re-pick the hand: drop the lock; the next hand held still for 0.3 s drives the arm. */
+  function repickHand() {
+    handLockRef.current?.reset();
+  }
+
   function control(action: ControlAction) {
     if (action === "reset_scene") resets.current++;
     return session.current?.link?.sendControl(action);
@@ -343,6 +365,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     startCalibration,
     cancelCalibration,
     startTrace,
+    repickHand,
   };
 }
 
