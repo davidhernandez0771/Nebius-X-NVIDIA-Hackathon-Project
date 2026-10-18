@@ -1,20 +1,26 @@
-# SANT website: content and story spec
+# SANT website: content and story spec (sprint 9, the new pitch)
 
-- **Owner:** T1 (sprint 8). Docs only; T5 builds the design system and shells, and the page round builds
-  the pages from this spec.
-- **Written:** 2026-10-17, at `8572b6e` (`origin/perfect-then-multiply`).
-- **Decisions this spec follows** (the user's, from the sprint 8 plan):
-  - **Name:** SANT, Simulate · Augment · Neaten · Train. **Tagline:** "Perfect, then multiply".
-  - **"Combo 2, split by page"** (from the moodboard):
-    - Story pages (Home, Results, About) are **Field Notes** (paper).
-    - App pages (Record, Review, Dataset) are **Volt** (dark).
-    - Crossing from story to app "powers on".
-- **Updated 2026-10-17** with the lead's visual references (`refs`, below):
-  - the new UI pieces are in [§11](#11-new-ui-pieces-from-the-visual-references);
-  - the six hand-art states are in [§12](#12-hand-art-six-states);
-  - what everything looks like with motion off is in [§13](#13-motion-off-everything-in-one-table).
-  - The logo is now a **symbol**, not letters (`logo-brief.md`).
-  - The references add **no measurements**. Every number below still comes from the fact registry.
+- **Owner:** T1. Docs only. T5 (Landing), T6 (My robots), T3 (Results), T7 (Record HUD) and T1 (Review)
+  build the pages from this spec (sprint 9 plan, `docs/superpowers/plans/2026-10-18-sprint9-website.md`).
+- **Rewritten:** 2026-10-18 for the new pitch, on `pm/web-review` from `origin/perfect-then-multiply` at `3e817f1`.
+  It replaces the sprint 8 spec (`8eb45bc`, `db0f24d` on `pm/t1-core`; merged with PR #37 and kept whole at `content-spec-sprint8.md`). Sections 11–13 (UI pieces, hand-art states, motion
+  off) are carried over from it with small edits; everything before them is new.
+- **The pitch** (the user's, 2026-10-17; plan9 "The product"):
+  - Robots need huge amounts of demonstration data, and teleoperation doesn't scale.
+  - Tesla, Figure and NVIDIA are racing to turn human video into robot training data. The known gap:
+    video lacks the physics.
+  - **SANT turns a $0 webcam demo of a human hand into robot training data that is checked in real physics
+    (NVIDIA Isaac Lab), fixed, multiplied and labeled.**
+  - **Physics** judges "does it work". **Nemotron** watches what you did and writes and validates the label.
+  - **The user flow:** **Show** (Record) → **Review** (physics + Nemotron verdict, fixes) → **Get** (a
+    dataset, or a trained robot and its report card).
+  - **"Bring your robot"** (coming next): upload a URDF, give its parts roles, run the same workflow, get
+    data plus a report card.
+- **The look** is decided (memory "website-design-decisions"; `docs/design/visual-references.md`):
+  - story pages (Landing, Results) are **Field Notes** (paper);
+  - app pages (My robots, Record, Review, Dataset) are **Volt** (dark);
+  - the robot-shelf prototype's select HUD is the app pages' visual language
+    (`docs/design/prototypes/robot-shelf.html`).
 
 ## 0. How to read this spec
 
@@ -22,62 +28,80 @@
 `R2`), the exact wording to use, and its source as `note:line`. A page section lists the IDs it shows. If a
 number is not in the registry, it does not go on the site. Add it here first, with its source.
 
-**Source abbreviations.** Line numbers are at `8572b6e`. The notes are append-only, so these lines should
-stay valid; re-check them with `git blame` if a note is ever edited.
+**Source abbreviations.** Line numbers are at the base of this branch unless the row says otherwise. The
+notes are append-only, so these lines should stay valid; re-check them with `git blame` if a note is ever
+edited.
 
 | short | file |
 |---|---|
 | `t1` / `t2` / `t3` / `t4` | `docs/superpowers/notes/2026-10-15-t<N>-status.md` |
+| `t3s8` | the sprint 8 part of `t3` (lines 1220–1357), merged with PR #38 |
 | `vl` | `docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md` |
 | `roles` | `docs/superpowers/notes/2026-10-16-nemotron-roles.md` |
 | `web` | `docs/superpowers/notes/2026-10-16-web-pages.md` |
 | `power` | `docs/superpowers/notes/2026-10-17-power.md` |
 | `audit` | `docs/superpowers/notes/2026-10-17-claims-audit.md` |
 | `spec` | `docs/superpowers/specs/2026-10-15-perfect-then-multiply-design.md` |
-| `plan8` | the lead's sprint 8 plan (`sprint8-plan.md`, not in the repo; design decisions only, no measurements) |
-| `refs` | the lead's visual references, 2026-10-17 (`visual-references-2026-10-17.md`, not in the repo; inspiration only, no measurements) |
+| `media` | `docs/media/README.md` |
+| `plan9` | `docs/superpowers/plans/2026-10-18-sprint9-website.md` (decisions and copy direction, no measurements) |
+| `refs` | `docs/design/visual-references.md` (inspiration only, no measurements) |
+| `store` | the local demo store the Review fixture was exported from: `C:\dev\pm-t4\data\demos\s1_0002*` (the same run as `media`'s `s1_0002` GIF) |
 
 **Wording rules** (these apply on every page):
-1. **Quote the confirmatory result:** 3/40 vs 17/40 on the 40 fresh scenes (R1–R3).
+1. **Quote the confirmatory result:** 3/40 vs 17/40 on the 40 fresh scenes (R1–R3). The 300-copy arm
+   (R16–R18) is the second, independent comparison on the same scenes.
    - Never lead with the pooled 4/60 vs 24/60 (R4). If it appears at all, give its selection caveat with it.
-2. **Never say "perfected + multiplied" about 17/40.** That arm was raw + multiplied. The 10 sources were
-   scripted-expert demos that were already clean, so no repair ran (R10, C3).
-   - The moodboard's "17/40 perfected + multiplied" pane is placeholder copy. Do not reuse it.
-3. **Never call the 10 source demos "human" or "webcam" demos.** They came from a scripted expert (R10).
-   - The "human" demos in the GIFs are synthetic: the scripted expert with noise added (V4).
-4. **Never write "multiplying is proven" or "always helps".** Use T3's suggested wording (R14), or the short
-   form in [Beat 3](#beat-3--proof).
-5. **Every page that shows the result also shows its limits,** at least C1–C4, in the same viewport or one
-   click away. Never put them in a footnote only.
-6. **Nemotron:** say what was measured (N1–N7). Never say it "diagnoses" or "judges" demos in the shipped
-   pipeline: code won that test (N1).
-7. **Vendor estimates are labelled as such** (P1–P3). They are not our measurements.
-8. **No "first" claims** (spec:104-109). "To our knowledge" stays wherever the claim sentence appears.
-9. **Rounding:** show k/n with every rate (3/40, not just 7.5%), and round CIs to whole percents only in
-   tight spots (R1/R2 give both forms).
-10. **A pending result says "pending",** never 0 and never a projection.
+2. **Never call the 10 source demos "human" or "webcam" demos.** They came from a scripted expert (R10).
+   The pitch is about human video; **the proof so far is not.** Every proof beat says so in the same
+   viewport: "scripted-expert source demos; human demos come next" (plan9).
+3. **Never say "perfected + multiplied" about 17/40 or 16/40.** Those arms were raw + multiplied. The
+   sources were already clean, so no repair ran (R10, C3).
+4. **Never write "multiplying is proven" or "always helps".** Use T3's suggested wording (R14), or the
+   short form in [Beat 3](#beat-3-proof).
+5. **More copies did not help (yet):** 300 copies scored 16/40 vs 17/40 for 100 (R17). Say it plainly
+   wherever the 300 appear. Never imply "more copies → better robot".
+6. **Every page that shows the result also shows its limits,** at least C1–C4, in the same viewport or one
+   click away. Never in a footnote only.
+7. **Nemotron, two tenses:**
+   - **Measured** (say what was measured): N1–N8. Code beat it as a visual demo judge (N1); it turned plain
+     repair requests into repair ops 34/34 (N5).
+   - **The pitch's role** (writes and validates the label; judges "is it what you meant"): **not built and
+     not measured yet** (L1–L3). Present it as "what Nemotron does in SANT" only with "coming next" or
+     "being tested" next to it. Never print an accuracy for it.
+8. **"Bring your robot" is coming next.** Only the measured robot facts (B1–B5) are numbers. The upload,
+   role picker and report card are a preview (plan9), and every screen of it says "preview".
+9. **The companies (P4–P6) are context, not our numbers.** Name what each is doing, with no figures. If a
+   figure is ever wanted, add it here with a public source first.
+10. **No "first" claims** (spec:104-109). "To our knowledge" stays wherever the claim sentence appears.
+11. **Rounding:** show k/n with every rate (3/40, not just 7.5%). Round CIs to whole percents only in tight
+    spots (R1/R2 give both forms).
+12. **A pending result says "pending",** never 0 and never a projection.
 
-**Placeholder copy in the moodboard that must not ship.** It was illustration, not data:
-- "verified ×200";
-- "One demo in. Two hundred verified demos out.";
-- "a grid of 200";
-- "Demo 0004 · 13.8 s → 9.3 s · pause 1.4 s". The 13.8 → 9.3 s demo is `s1_0002`, not 0004 (V1), and no
-  "1.4 s" pause is in any note;
-- "17/40 perfected + multiplied".
-
-The largest verified multiplied set is 300 variants from 10 sources (Y2), not 200 from 1.
+**Placeholder copy that must not ship** (illustration, not data):
+- "verified ×200", "One demo in. Two hundred verified demos out.", "a grid of 200";
+- "Demo 0004 · 13.8 s → 9.3 s · pause 1.4 s". The 13.8 → 9.3 s demo is `s1_0002`, not 0004 (V1); its
+  pauses are 2.02 s and 1.60 s (V5); no "1.4 s" pause is in any note. `refs` uses "PAUSE 1.4 s" as an
+  illustration of a detection box: label real boxes from the demo's own issues;
+- "17/40 perfected + multiplied";
+- the prototype's "copies 100/100 verified" top line on the shelf: true for the training set (Y1), but the
+  shelf must cite Y1 next to it or drop it;
+- "5.7× better" as the headline: the user rejected it as the pitch (memory "pitch-human-video-to-robot-data").
 
 ## 1. Fact registry
 
-### Problem (vendor estimates, not ours)
+### Problem and context
 
 | ID | Wording on the site | Source |
 |---|---|---|
 | P1 | Teleoperation rigs cost $6k–$80k (vendor estimate) | spec:33 |
 | P2 | Operators cost $25–$50 an hour (vendor estimate) | spec:34 |
 | P3 | 20–30% of demos are discarded (vendor estimate) | spec:35 |
+| P4 | **Tesla:** Optimus learns from videos of people doing the task | plan9 "The product" (no figure; cite a public source before adding one) |
+| P5 | **Figure:** Project Go-Big, training from human video at internet scale | plan9 (as P4) |
+| P6 | **NVIDIA:** GR00T-Mimic multiplies a few demos; GR00T-Dreams generates demos with a video model | plan9 (as P4) |
+| P7 | The gap: video has no physics. It shows the hand, not the forces, and a generated video can be physically wrong | plan9; memory "pitch-human-video-to-robot-data" |
 
-### The headline result (T3, sprint 7)
+### The headline result (T3, sprints 7 and 8)
 
 | ID | Wording on the site | Source |
 |---|---|---|
@@ -86,25 +110,28 @@ The largest verified multiplied set is 300 variants from 10 sources (Y2), not 20
 | R3 | Fisher exact **p = 0.0005** (two-sided; 0.00055 in T3's table, 0.000549 in T1's recount). Short form: "p < 0.001" | t3:1156; t1:2090-2095; t3:1172 |
 | R4 | Pooled over all 60 scenes: 4/60 vs 24/60, p = 2.2 × 10⁻⁵. **Optimistic:** includes the 20 scenes used to choose the pair | t3:1157 |
 | R5 | The 40 scenes (seeds 5020–5059) were run after the pair was chosen and never used to choose anything. The run stopped at a pre-set time (13:00), not on the result, and nobody looked at p between blocks | t3:1060-1069, 1143, 1145-1146, 1156 |
-| R6 | Both policies: ACT, 30k training steps each. **Equal steps, not equal epochs:** ~49 passes over the data for raw vs ~4.5 for multiplied | t3:1080-1081, 1167 |
-| R7 | The confidence intervals don't overlap | t3:1161 |
+| R6 | All policies: ACT, 30k training steps each. **Equal steps, not equal epochs:** ~49 passes over the data for raw, ~4.5 for 100 copies, ~1.6 for 300 copies | t3:1080-1081, 1167; t3s8:1257 |
+| R7 | The confidence intervals of R1 and R2 don't overlap | t3:1161 |
 | R8 | Even after a ×4 correction for the sprint's earlier looks, p ≈ 0.002 | t3:1163-1164 |
-| R9 | The multiplied policy's main failure is dropping the cube: 22 of its 23 failures | t3:1176-1177 |
+| R9 | The multiplied policy's main failure is dropping the cube: 22 of its 23 failures (100 copies); 23 of 24 (300 copies) | t3:1176-1177; t3s8:1325 |
 | R10 | The 10 source demos came from a **scripted expert** (no human, no noise), all starting from one home pose | t2:897; t3:907 |
 | R11 | Multiplied training set: 10 sources + 100 variants, 53,170 frames (raw: 4,886 frames) | t3:907-908 |
 | R12 | Earlier, smaller runs, none significant alone: 2/20 vs 3/20 (10 demos, 10k steps, p = 1.0); 1/20 vs 5/20 (5 demos, 10k steps, p = 0.18); 1/20 vs 7/20 (10 demos, 30k steps, n = 20, p = 0.044, the pair later extended) | t3:907-908, 914; t3:1041, 1188-1189; t3:1071, 1095-1096 |
 | R13 | The first policies (sprint 3) scored 0/20 on unseen scenes; the 0 was too little data, not a bug | t3:725; t3:801 |
 | R14 | T3's suggested sentence: "on 40 held-out home-start scenes, ACT trained on 10 demos + 100 multiplied variants succeeded 17/40 (43%, 95% CI 28–58%) vs 3/40 (8%, 3–20%) for the 10 demos alone (Fisher p < 0.001); one training run per cell, 30k steps each." | t3:1171-1173 |
 | R15 | Multiplying moved the failure later: from "doesn't get the cube" to "gets it, sometimes loses it" | t3:1181 |
+| R16 | The same 10 demos + **300** physics-verified variants (a separate, independently multiplied set): **16/40 (40.0%)**, 95% CI 26.3–55.4% | t3s8:1307 |
+| R17 | 300 vs 100 copies: **16/40 vs 17/40, p = 1.0.** No detectable difference at n = 40 ("not 'no effect'"); the 300-copy policy saw each variant ~1.6 times vs ~4.5 | t3s8:1314, 1321-1324, 1257 |
+| R18 | 300 copies vs the 10 demos alone: 16/40 vs 3/40, **p = 0.0012**. The multiply effect replicates with a second multiplied dataset (the raw arm and the seeds are shared) | t3s8:1313, 1318-1320 |
 
-### Caveats (shown wherever R1–R3 are)
+### Caveats (shown wherever R1–R3 or R16–R18 are)
 
 | ID | Wording on the site | Source |
 |---|---|---|
-| C1 | One task (a 5 cm cube into a bin), one simulated arm (Franka), one policy type (ACT), **one training run per arm** | t3:1165-1166; spec:62 |
+| C1 | One task (a 5 cm cube into a bin), one simulated arm (Franka), one policy type (ACT), **one training run per arm** | t3:1165-1166; spec:62; t3s8:1335 |
 | C2 | Equal steps, not equal epochs (R6) | t3:1167 |
 | C3 | No human demos yet, and no repair: the sources were already-clean scripted demos, so this tests **multiplying**, not perfecting | t2:897; README.md:54-56 |
-| C4 | It still drops the cube (R9) | t3:1176 |
+| C4 | It still drops the cube (R9) | t3:1176; t3s8:1325 |
 | C5 | Whether perfecting noisy human demos first adds more is not measured yet | README.md:55-56; audit:125 |
 
 ### Yield and verification
@@ -119,20 +146,22 @@ The largest verified multiplied set is 300 variants from 10 sources (Y2), not 20
 | Y6 | MimicGen publishes 38–74% for this step. **Context, not a like-for-like comparison:** our task is easier (one 5 cm cube, a large open bin, a top-down grasp) | spec:53; t2:252-253 |
 | Y7 | Every episode starts from the same home pose (first-frame joint spread ≤ 0.0002 rad) | t2:915 |
 
-### Perfecting (the GIFs)
+### Perfecting (the GIFs and the Review fixture)
 
 | ID | Wording on the site | Source |
 |---|---|---|
-| V1 | One demo before and after repair: **13.8 s → 9.3 s**, both replays succeeded (`s1_0002`) | t1:1500 |
+| V1 | One demo before and after repair: **13.8 s → 9.3 s**, both replays succeeded (`s1_0002`) | t1:1500; store `s1_0002/passport.json`, `s1_0002_rules/passport.json` |
 | V2 | A second demo: 10.6 s → 7.8 s (`s1_0003`, idle at both ends) | t1:1501 |
 | V3 | A degraded demo: 14.1 s, with tremor, 2 pauses, slowness ×1.27, idle at both ends, and an 11.8 mm off-center grasp (`degraded_0004`) | t1:1503 |
-| V4 | These "human" demos are **synthetic**: the scripted expert, with tremor, pauses, slowness, idle and off-center grasps added on purpose | docs/media/README.md:15-17; audit:257 |
+| V4 | These "human" demos are **synthetic**: the scripted expert, with tremor, pauses, slowness, idle and off-center grasps added on purpose | media:15-17; audit:257 |
+| V5 | `s1_0002`'s diagnosis by the rules: idle for the first 0.82 s; jitter over the whole demo (jerk RMS above 20 m/s³); a 2.02 s pause at 4.50–6.52 s; a 1.60 s pause at 8.98–10.58 s. Repairs: trim, remove both pauses, smooth (medium). Replays: 13.76 s, path 2.28 m → 9.32 s, path 1.10 m; both succeeded | store `s1_0002_rules/diagnosis.json`, `s1_0002_rules/passport.json`, `s1_0002/passport.json`; media:23 |
+| V6 | The same demo, diagnosed by the sprint 3 Nemotron (`nvidia/Nemotron-3.5-Super-VL`): no issues, decision "keep". The rules found 4 | store `s1_0002/diagnosis.json`; media:59 |
 
-### Nemotron (measured roles)
+### Nemotron, measured
 
 | ID | Wording on the site | Source |
 |---|---|---|
-| N1 | **As a demo judge, it lost to code.** Pre-registered test, 32 synthetic demos: code alone F1 **0.90**; rules + Nemotron **0.86**; rules alone 0.81 | t4:1323; t1:1636-1640 (set) |
+| N1 | **As a visual demo judge, it lost to code.** Pre-registered test, 32 synthetic demos: code alone F1 **0.90**; rules + Nemotron **0.86**; rules alone 0.81 | t4:1323; t1:1636-1640 (set) |
 | N2 | Without the code-measured grasp offset, Nemotron called **all 8** centered grasps off-center | t4:1329, 1336 |
 | N3 | It never reported a drop (code found 6/6) | t4:1317, 1347-1348 |
 | N4 | That test cost 68 calls, $0.1043 | t4:1305 |
@@ -141,344 +170,291 @@ The largest verified multiplied set is 300 variants from 10 sources (Y2), not 20
 | N7 | Video input works on Token Factory (one probe: a 14.1 s clip, $0.000776) | roles:56-58 |
 | N8 | Models: `nvidia/Nemotron-3.5-Super-VL` (images); `nvidia/nemotron-3-super-120b-a12b` (requests), on Nebius Token Factory | vl:8; t4:1439 |
 
+### Nemotron, the pitch's role (not measured yet)
+
+| ID | Wording on the site | Source |
+|---|---|---|
+| L1 | **What it will do:** watch the replay and the measured facts, then write the demo's language label (the task sentence plus a sentence per phase) and check it against what you asked for ("gently, left corner"). If they don't match, it says why and asks for a repair from the fixed menu | plan9 "The product"; roles:183-197 (R4); memory "pitch-human-video-to-robot-data" |
+| L2 | **Why labels matter:** language-conditioned robot models (VLAs) train on a demo plus its instruction. Today every demo gets one templated sentence, "pick up the red cube and place it in the blue bin" | roles:187-190; `src/demo_pipeline/rules.py:113`; store `s1_0002_rules/diagnosis.json` |
+| L3 | **Status: not built, not measured.** It will be measured with a pre-registered test (matching vs mismatching demos, Nemotron vs a code baseline) and reported whatever it shows. ACT, the policy we train, ignores the task text, so a downstream gain can't be measured with it | memory "pitch-human-video-to-robot-data"; roles:196-197 |
+
+### Robots ("Bring your robot")
+
+| ID | Wording on the site | Source |
+|---|---|---|
+| B1 | **Franka Panda:** our main robot. Every result above is on it (C1) | t3:907; t2:4 |
+| B2 | **OpenArm: 0/30** variants (multiply, the same source and seeds as Franka). **Why:** its ±45° wrist confines a vertical grasp to a ~0.2 m height band. **A design limit found in simulation**, before anyone built a cell around it | t2:310-311, 368, 528 |
+| B3 | **Flexiv Rizon 4s: 9/30** variants on the same seeds. **Why:** the gripper model's near-massless fingers slip or drag the cube; reach is fine | t2:513, 529, 540, 592 |
+| B4 | **SO-101** and **AgileX PiPER:** open URDFs, **coming next** (no runs yet) | memory "open-robot-arm-catalog" (licenses: SO-101 Apache-2.0, PiPER MIT, as in the shelf prototype) |
+| B5 | **Your robot:** upload a URDF, mark the base, the hand and the gripper, and run the same workflow. **Preview:** the upload and role picker are not built | plan9 "Bring your robot" |
+
 ### The app and the system
 
 | ID | Wording on the site | Source |
 |---|---|---|
 | A1 | The Record → Isaac path works end to end. An automated fake hand recorded **376/376** steps at 19.1 ms per step, and the demo was verified live and again by replay | web:415-425 |
-| A2 | **A real person's recorded demo is not yet in a note.** The live hand tests are under way (sprint 8, T4/T6), but no real-person demo has been recorded and verified in a note | web:436; plan8 (T4 "live test #3", "live test #4") |
-| A3 | Parallel evaluation: **2.12×** faster at 4 scenes at once, and 7 of 8 outcomes agree with one-at-a-time | t2:1044 |
+| A2 | **A real person's recorded demo is not yet in a note.** A live run with a real person at the webcam has not been done (as of this base) | web:436 |
+| A3 | Parallel evaluation: **2.12×** faster at 4 scenes at once, and 7 of 8 outcomes agree with one-at-a-time. Headline numbers use one-at-a-time | t2:1044; t3s8:1268-1270 |
 | A4 | Stack: Isaac Lab 3.0.0 / Isaac Sim 6.2, Python 3.12; LeRobot 0.6.1 ACT; one RTX 5080 16 GB | t2:4; t3:6 |
-| A5 | The **300-copy policy** (trained on Y2) is **pending**: T3 trains it in sprint 8; its eval comes after review | plan8 (T3; "Next round") |
 
 ## 2. Sitemap
 
-The route paths are T5's call (plan8: T5 owns the route tree). The names below are proposals. Today's app
-pages live at `/pm/record`, `/pm/review`, `/pm/dataset` and `/pm/results` (`web/src/App.tsx`).
-
-| Page | Mode | Proposed path | Single job |
-|---|---|---|---|
-| Home (landing) | paper | `/` | In one scroll, make a visitor understand what SANT does, believe the result, and want to try it |
-| Results | paper | `/results` | Let a skeptical reader check the claim and its limits in two minutes |
-| About / How it works | paper | `/how-it-works` | Explain each stage, what we measured there, where Nemotron fits, and who built it |
-| Record | volt | `/app/record` (today `/pm/record`) | Drive the simulated arm with your hand and save one demo |
-| Review | volt | `/app/review` (today `/pm/review`) | See what is wrong with a demo, then perfect it and see it verified |
-| Dataset | volt | `/app/dataset` (today `/pm/dataset`) | See what you have collected and export it |
+| Page | Mode | Path (sprint 9) | Owner | Single job |
+|---|---|---|---|---|
+| Landing | paper | `/site` (later `/`) | T5 | In one scroll: the industry problem, how SANT answers it, the proof and its limits, "bring your robot", then try it |
+| Results | paper | `/site/results` | T3 | Let a skeptical reader check the claim, every run and its limits in two minutes, and read a robot report card |
+| My robots | volt | `/robots` | T6 | Pick the robot you're making data for, and see what the simulator found about each one |
+| Robot setup | volt | `/robots` → "+" (placeholder) | T6 | Preview of "Bring your robot": upload a URDF and give its parts roles |
+| Record | volt | today `/pm/record`; HUD pieces at `/site/record-hud` | T4 / T7 | **Show:** do the task with your hand in front of the webcam; the simulated robot copies you |
+| Review | volt | `/review2` (later `/review`) | T1 | **Review:** see what physics and Nemotron decided about your demo, what was wrong, and what was fixed |
+| Dataset | volt | today `/pm/dataset` | (next round) | **Get:** the verified, multiplied, labeled demos, and the export |
 
 **Navigation:**
-- **Story nav (paper):** symbol + wordmark · How it works · Results · **Try it →**. "Try it" is the power-on crossing.
-- **App nav (volt):** the glass pill nav (§11.8): symbol · Record · Review · Dataset · "← The story", which crosses back to paper.
+- **Story nav (paper):** symbol + wordmark · How it works (Landing Beat 2) · Results · Robots · **Try it**.
+  "Try it" is the power-on crossing into Record.
+- **App nav (volt):** the glass pill nav (§11.8): symbol · **Robots** —— **Record** —— **Review** ——
+  **Dataset** · "The story", which crosses back to paper. The order is the user flow: pick a robot, show,
+  review, get.
 
-The old room-organizer routes stay until the page round (plan8, T5 task 5).
+## 3. Landing: the scroll story
 
-## 3. Home (landing): the scroll story
+**Job:** one scroll from "why does this matter" to "try it". Built as a sticky picture with text steps
+scrolling past it (T5 owns the motion). Each beat says what moves and what the visitor sees with **motion
+off** (`prefers-reduced-motion` or the "Effects off" toggle).
 
-**Job:** one scroll from "why" to "try it". It is built as a sticky graphic with text steps scrolling past it
-(the moodboard's Scrollama pattern). T5 owns the motion presets. The beats below say what moves, and what
-the visitor sees with **motion off**: `prefers-reduced-motion`, or the "Effects off" toggle (plan8).
-
-**Global motion-off rule:**
-- every beat renders its **end state**, static;
-- no scroll-jacking, and no smooth scroll;
-- every number is printed in full, with its denominator;
-- nothing that carries meaning is dithered or ASCII-rendered (plan8).
+**Global motion-off rule:** every beat renders its end state, static; no scroll-jacking; every number in
+full with its denominator; nothing that carries meaning is dithered or ASCII-rendered.
 
 ### Beat 0: hero
 
 - **Copy:**
-  - Eyebrow: `SIMULATE · AUGMENT · NEATEN · TRAIN`
-  - H1 (Instrument Serif): **Perfect, then multiply.**
-  - Sub: Record one robot demo by moving your hand in front of a webcam. Get back many physics-checked
-    training demos.
-  - Buttons: **Try it** (primary; crosses to Record) · See the result (scrolls to Beat 3).
+  - H1 (Instrument Serif): **Show a robot once. Get the data to teach it.**
+  - Sub: Do a task with your hand in front of a webcam. SANT replays it on a simulated robot, checks it in
+    real physics, fixes it, multiplies it and labels it. Out comes robot training data.
+  - Buttons: **Try it** (primary; the power-on into Record) · **See the proof** (scrolls to Beat 3).
+  - Small line under the buttons: Simulate · Augment · Neaten · Train. Perfect, then multiply.
 - **Numbers:** none.
-- **What animates:**
-  - the SANT symbol builds in (`logo-brief.md` §3 gives each direction's build). Until the user's symbol
-    exists, T5's text placeholder "S·A·N·T" lights unit by unit;
-  - the headline fades in line by line.
-- **Motion off:** the symbol (or placeholder) is shown in its finished state, and the text is static.
-- **Not adopted from `refs`:** Active Theory's black-void hero with dust. The landing stays paper; the dust
-  appears only at the crossing (Beat 6).
-- **Media:**
-  - **missing:** a looping, muted clip of a real hand driving the arm (needs A2; see §9). Until then, no
-    hand video.
-  - Do not use the fake-hand run as if it were a person.
+- **What animates** (plan9 T5): our own take on Linear's principle. A slow, heavy hand silhouette moves; a
+  fast swarm of small robot-cursor marks follows it and multiplies around it: one demo, many copies.
+- **Motion off:** the hand at rest with the swarm frozen around it, as one still picture.
+- **Media:** no real-hand video (A2). Do not use the fake-hand run (A1) as if it were a person.
 
 ### Beat 1: the problem
 
 - **Copy:**
-  - H2: **Robots learn by copying. They need a lot of copies.**
+  - H2: **Robots learn from demonstrations. Nobody has enough.**
   - Body:
-    - A robot policy learns a task from demonstrations, and it needs many.
-    - Human demos are the expensive part: teleoperation rigs cost $6k–$80k, operators $25–$50 an hour,
-      and 20–30% of demos get thrown away.
-    - *(Small print: vendor estimates.)*
-  - Second step: **A webcam is nearly free. Its demos are noisy.**
-    - Shaky hands, pauses, idle time, off-center grasps.
-    - And ten demos, noisy or not, are not much to learn from.
-- **Numbers:** P1, P2, P3, each labelled a vendor estimate.
-- **What animates:** the three costs count up as they enter. A sample demo trace, drawn as a line, wobbles
-  and stalls where the pauses are.
-- **Motion off:** the final figures, and a static trace with the pauses marked.
-- **Media:** the trace can come from `degraded_0004`'s data (V3). That is synthetic; caption it so.
+    - A robot learns a task by copying examples, and it needs a great many.
+    - The usual way to make them is teleoperation: a person drives the robot through the task. Rigs cost
+      $6k–$80k, operators $25–$50 an hour, and 20–30% of demos get thrown away. *(Vendor estimates.)*
+  - Second step: **So the biggest labs are learning from human video.**
+    - Three short rows, one per company, no numbers (P4–P6):
+      - **Tesla:** Optimus learns from videos of people doing the work.
+      - **Figure:** Project Go-Big trains on human video at internet scale.
+      - **NVIDIA:** GR00T-Mimic multiplies a few demos; GR00T-Dreams generates new ones with a video model.
+  - Third step: **Video has no physics.** (P7)
+    - A video shows a hand, not the grip, the weight or the contact. A generated video can show a cube
+      floating into a bin. A robot trained on that learns the wrong thing.
+- **Numbers:** P1, P2, P3 (each labelled a vendor estimate); P4–P7 carry no numbers.
+- **What animates:** the three costs count up once; on "Video has no physics", the hand picture loses its
+  shadow and contact marks (the "missing physics").
+- **Motion off:** the final figures; the hand picture shown once with and once without its contact marks.
+- **Company names in plain text only.** No logos, no brand colours (`logo-brief.md` §5).
 
-### Beat 2: S·A·N·T, step by step
+### Beat 2: how SANT works
 
-The four letters are the brand. The pipeline runs in a different order: record, neaten, verify, multiply,
-train. Each step therefore lights **its** letter, and S lights twice (recording, then verifying). This is
-open decision **O1**; the alternative is to drop the letter tags from the steps.
+Three steps, the user flow, beside one sticky picture of a hand, the robot and a growing stack of data.
 
-Each step is a text step beside one sticky picture of the arm, the demo and the dataset.
+| Step | Copy (H3 + one or two sentences) | Numbers | What animates | Motion off |
+|---|---|---|---|---|
+| 1 Show | **Do it once, with your hand.** Your browser tracks your hand and a simulated robot in NVIDIA Isaac Lab copies it. A webcam is all you need. | none (A1 belongs on Results) | the hand path draws and the robot ghost follows | the drawn path and the robot at its end pose |
+| 2 Review | **Physics checks it. Nemotron reads it.** Isaac Lab replays the demo: if the cube doesn't end up in the bin, it doesn't count. Code measures every move and fixes shakes, pauses and idle time from a fixed menu. Nemotron writes what the demo shows, and checks it is what you meant *(coming next, L1–L3)*. | V1 (13.8 s → 9.3 s, synthetic, V4) | the trace's pauses collapse and the wobble smooths; a check resolves | before and after traces side by side, both durations printed, the check shown |
+| 3 Get | **One demo becomes a dataset.** New cube and bin positions; every copy is replayed and verified again; only verified copies are kept, labeled, and exported for training (LeRobot format). | Y1 (100/100); Y2 (300/300) | one path copies itself into a 10 × 10 grid, then 10 × 30, at the true counts | a static grid, labelled "10 sources × 30 variants, 300/300 verified" |
 
-| Step | Letter lit | Copy (H3 + one or two sentences) | Numbers | What animates | Motion off |
-|---|---|---|---|---|---|
-| 1 Record | **S**imulate | **Your hand drives a simulated arm.** The browser tracks your hand, and a Franka arm in NVIDIA Isaac Lab follows it. Press stop, and it's a demo. | none (A1 belongs on About) | the hand path draws, and the arm ghost follows it | the drawn path and the arm at its end pose |
-| 2 Neaten | **N**eaten | **Code measures every move, then repairs it.** Speed, shake, pauses, idle time, grasp centering: a timestamped list of problems. Repairs come from a fixed menu: trim, remove pauses, smooth, retime, recenter. | V1 (13.8 s → 9.3 s) | the trace's pauses collapse and the wobble smooths; the duration counter runs 13.8 → 9.3 | before and after traces, side by side, with both durations printed |
-| 3 Verify | **S**imulate | **Physics decides.** Isaac Lab replays the repaired demo. If the cube doesn't end up in the bin, the demo doesn't count. | Y5 (50/50) | a check mark resolves on the replayed path | the check mark is shown |
-| 4 Multiply | **A**ugment | **One verified demo becomes many.** New cube and bin positions, and every copy is replayed and verified again. | Y1 (100/100); Y2 (300/300) | one path copies itself into a grid of 10 × 10, then 10 × 30, at the true counts | a static grid, labelled "10 sources × 30 variants, 300/300 verified" |
-| 5 Train | **T**rain | **Out comes a standard dataset.** Only verified demos are exported, in LeRobot format, and a policy trains on them. | none | the grid flows into a dataset block | the dataset block, static |
-
-**Grid counts are real counts:** 10 × 10 = 100 (Y1) and 10 × 30 = 300 (Y2). Do not draw 200 (see §0).
+- **Grid counts are real counts:** 10 × 10 = 100 (Y1) and 10 × 30 = 300 (Y2). Never 200.
+- **The S·A·N·T letters** are the brand line under the hero, not step tags. (This closes sprint 8's O1.)
 
 ### Beat 3: proof
 
 - **Copy:**
-  - Eyebrow: `THE TEST`
-  - H2: **Same 10 demos. Multiplied, the robot succeeded 5.7× as often.**
-    - Arithmetic: 42.5 / 7.5 = 5.67, from R1 and R2.
-    - Drop the ratio if the user prefers only the measured values. The alternative H2 is **Same 10 demos.
-      3 of 40 vs 17 of 40.**
-  - Two bars, each with its k/n: **The 10 demos alone, 3/40 (7.5%)** · **The same 10 + 100 multiplied,
-    verified variants, 17/40 (42.5%)**.
+  - H2: **Same 10 demos. Multiplied, the robot succeeded 17 times out of 40 instead of 3.**
+  - Three bars, each with its k/n (count-up tiles, §11.4):
+    - **The 10 demos alone: 3/40 (7.5%)**
+    - **+ 100 verified copies: 17/40 (42.5%)**
+    - **+ 300 verified copies: 16/40 (40.0%)**
   - Under the bars: "On 40 new scenes, chosen before the test and never used to pick anything. 95%
-    confidence intervals 3–20% and 28–58%; they don't overlap. Fisher exact p = 0.0005."
+    confidence intervals 3–20%, 28–58% and 26–55%. Fisher exact p = 0.0005 for 100 copies and 0.0012 for
+    300, each against the 10 demos alone."
+  - One sentence on the plateau (R17): "Tripling the copies didn't help at the same training budget: 16/40
+    vs 17/40."
   - **"What it does not show yet"** (always visible under the bars):
+    - the 10 demos came from a scripted expert, not a person, and needed no repair: this tests
+      multiplying, not perfecting. **Human demos come next** (C3, rule 2);
     - one task, one simulated arm, one policy type, one training run per arm (C1);
-    - the 10 demos came from a scripted expert, not a person, and needed no repair. This tests
-      multiplying, not perfecting (C3);
     - equal training steps, not equal epochs (C2);
-    - it still drops the cube in 22 of its 23 failures (C4).
-  - Link: **See every run and how we tested →** (Results).
-- **Numbers:** R1, R2, R3, R5, R7; C1–C4. R6 (49 vs 4.5 epochs) goes on Results.
-- **What animates:**
-  - the two numbers count from 0 to 7.5 and to 42.5, as count-up tiles
-    ([§11.4](#114-count-up-tiles-results-and-home-beat-3)). The k/n labels are shown from the start, never
-    animated;
-  - the bars grow;
-  - the CI whiskers draw last.
-  - The counter must land on exactly 7.5 and 42.5, and never pass them.
-- **Motion off:**
-  - both bars at full length, with the whiskers and the "3/40" and "17/40" labels;
-  - the caveat list is the same text with motion on or off.
-- **Media:**
-  - **exists:** `docs/media/charts/comparison.svg`. It shows the pooled n = 60 for this pair, so on the
-    landing page **draw the 40-scene bars from R1/R2**, not that SVG (see §4, the data note).
-  - **missing:** a short sim clip of the multiplied policy succeeding, and one of it dropping the cube.
-    T3 notes there is no video for the eval cells (t3:919).
+    - it still mostly fails by dropping the cube (C4).
+  - Link: **See every run and how we tested** (Results).
+- **Numbers:** R1, R2, R3, R5, R16, R17, R18; C1–C4.
+- **What animates:** the tiles count from 0 to 7.5, 42.5 and 40.0 and land exactly (never overshoot); the
+  bars grow; the CI whiskers draw last. The k/n labels are shown from the start.
+- **Motion off:** all three bars at full length with whiskers and k/n; the caveats are the same text.
+- **T5's CountUp** "7.5% → 42.5%, captioned 'same 10 demos'" (plan9) is this beat's first two tiles.
+- **Media missing:** sim clips of the multiplied policy succeeding and dropping (no eval video, t3:919).
 
-### Beat 4: the yield
+### Beat 4: bring your robot
 
 - **Copy:**
-  - H2: **Every copy is checked in physics. They all passed.**
-  - Body:
-    - The training set multiplied 100 of 100, and a larger set 300 of 300. Each variant was replayed in
-      Isaac Lab and kept only if the cube landed in the bin.
-    - For context, MimicGen publishes 38–74% for this step on harder tasks. Ours is one cube and a large
-      open bin, so this is context, not a contest.
-- **Numbers:** Y1, Y2, Y6 (with its caveat). Y3/Y4 belong on Results.
-- **What animates:** the yield ring fills to 100%, and the MimicGen band appears as a muted range.
-- **Motion off:** a static ring at 100% with the label "300/300", and the band.
-- **Media:** **exists:** `docs/media/charts/yield.svg`. It shows 100/100 (Y1) and the MimicGen band. A
-  300/300 version is **missing**; T1 can refresh it if `results.json` is pointed at `home_v2`.
+  - H2: **Bring your robot. Find out if it can do the job before you build it.**
+  - Body: Load your robot's model (a URDF), mark its base, hand and gripper, and run the same workflow. SANT
+    gives you training data for that robot, and a report card: what it can reach, how often it succeeds,
+    and why it fails.
+  - **A real example** (B2): "OpenArm couldn't place a single copy: 0 of 30. Its wrist turns only ±45°, so
+    it can grasp straight down only inside a band about 0.2 m tall. The simulator found that before anyone
+    built a cell around it."
+  - Two more lines, small: "Flexiv Rizon 4s: 9 of 30; its gripper model lets the cube slip (B3). Franka:
+    our main robot (B1)."
+  - Status line: **Coming next.** Upload and part roles are a preview (B5).
+  - Link: **See the robots** (My robots).
+- **Numbers:** B2, B3 (and B1 with no figure).
+- **What animates:** the shelf teaser: three cartridges, the OpenArm one slides out with its "Design flaw
+  found" sticker.
+- **Motion off:** the three cartridges, OpenArm already out.
 
-### Beat 5: where NVIDIA Nemotron fits (honestly)
+### Beat 5: where NVIDIA Nemotron fits
 
 - **Copy:**
-  - H2: **We tested where the AI helps. Code won one test; Nemotron won the other.**
+  - H2: **Physics decides if it works. Nemotron decides if it's what you meant.**
   - Two cards:
-    1. **As a judge of demos: code wins.** In a pre-registered test on 32 synthetic demos, code alone
-       scored F1 0.90 and rules + Nemotron 0.86. Without the measured grasp offset, the model called all 8
-       centered grasps off-center. So code measures the demos.
-    2. **As a translator of plain-English repair requests: promising.** "Don't trim the end, just remove
-       the pauses." Nemotron turned 34 of 34 such requests into the right repair operations; a keyword
-       parser got 31. A small test (not significant, p = 0.25), and a prototype that isn't in the app yet.
-  - Footer line: Runs on Nebius Token Factory, at about $0.0002 per request.
-- **Numbers:** N1, N2, N5, N6 (the request cost only).
-- **What animates:** the two cards flip in; the F1 bars grow.
+    1. **Measured: as a visual judge, code beat it.** In a pre-registered test on 32 synthetic demos, code
+       alone scored F1 0.90 and rules + Nemotron 0.86. Without the measured grasp offset, the model called
+       all 8 centered grasps off-center. So code and physics judge the motion (N1, N2).
+    2. **Measured: it understands what people ask for.** "Don't trim the end, just remove the pauses."
+       Nemotron turned 34 of 34 such requests into the right repairs; a keyword parser got 31. A small test
+       (not significant, p = 0.25) (N5).
+  - Then the role, with its status (L1–L3): **Next: Nemotron writes each demo's label and checks it against
+    your request.** Robot models that follow instructions train on a demo plus its sentence. Not built yet;
+    it will be tested before we claim it works.
+  - Footer line: Runs on Nebius Token Factory, at about $0.0002 per request (N6).
+- **Numbers:** N1, N2, N5, N6.
 - **Motion off:** both cards static.
-- **Open decision O2:** if the user decides to ship R6 in Review, card 2's last clause becomes "and it's in
-  the Review page". Until then, keep "a prototype that isn't in the app yet" (t4:1559).
 
-### Beat 6: Try it
+### Beat 6: try it
 
 - **Copy:**
-  - H2: **Your hand. A webcam. A robot that follows.**
-  - Body: Record a demo in your browser. Nothing is sent anywhere until you press Start; the camera asks for
-    permission only then.
-  - **Pinch-sheet teaser** above the button: a small sheet the visitor pinches and drags with the
-    mouse, finger or trackpad ([§11.6](#116-pinch-sheet-teaser-home-beat-6)).
-    - Label: **Try a pinch.** Hint under it: "Grab the sheet and drag it. On the next page your hand does
-      this to a robot gripper."
-  - Button: **Power on →**. This is the story → app crossing: the page "powers on" into Volt (plan8).
+  - H2: **Your hand. A webcam. A robot that copies you.**
+  - Body: Record a demo in your browser. Nothing is sent anywhere until you press Start camera; the camera
+    asks for permission only then.
+  - **Pinch-sheet teaser** (§11.6), optional (plan9): **Try a pinch.** "Grab the sheet and drag it. On the
+    next page your hand does this to a robot gripper."
+  - Button: **Power on**. The story → app crossing into Record (§11.7).
   - Small print: Needs the local SANT backend and an Isaac Lab sim worker; see the RUNBOOK.
 - **Numbers:** none.
-- **What animates:** the **dust power-on** ([§11.7](#117-dust-power-on-home-beat-6--record)):
-  - paper dims to black;
-  - drifting dust gathers into the SANT symbol;
-  - the symbol lights, and the Volt Record page resolves around it.
-- **Motion off:** an instant cut to the Record page, with no transition. The teaser becomes a static
-  picture (§11.6).
-- **Camera rule:** the camera prompt never fires on page load. Only the Record page's own "Start camera"
-  triggers it (moodboard, landing story; web:31, where the socket opens only after the camera starts).
+- **Motion off:** an instant cut to Record; the teaser is a still.
+- **Camera rule:** the camera prompt never fires on page load, only on Record's own "Start camera" (web:31).
 
-### Footer (all story pages)
+### Footer (story pages)
 
-- "Built with NVIDIA Isaac Lab, NVIDIA Nemotron and Nebius Token Factory." Plain text only; see
-  `logo-brief.md` §5.
+- "Built with NVIDIA Isaac Lab, NVIDIA Nemotron and Nebius Token Factory." Plain text (`logo-brief.md` §5).
 - "Our entry for the Nebius x NVIDIA Global AI Hackathon, Physical AI track. Everything runs in simulation."
   (README.md:10-12.)
 - Team: David Hernandez Del Risco and Susana Rojas (README.md:152).
-- Links: GitHub, the RUNBOOK, Results, How it works.
+- Links: GitHub, the RUNBOOK, Results, Robots.
+- Credits for the visual inspiration (`refs`): inspiration only; no code or assets were copied.
 
 ## 4. Results (paper)
 
-**Job:** a skeptical reader can check the claim, see every run (including the null ones), and find each
-source.
+**Job:** a skeptical reader can check the claim, see every run (including the null ones), find each
+source, and read a robot's report card.
 
 **Sections, in order:**
 
-1. **Headline:** H1 **Multiplying 10 demos made the robot better.** Then a sub with R14, verbatim.
-   - Numbers: R1, R2, R3, R7.
-   - Under the sub, three **count-up tiles** ([§11.4](#114-count-up-tiles-results-and-home-beat-3)):
-     **3/40 · 7.5%** (R1), **17/40 · 42.5%** (R2), **p = 0.0005** (R3, static).
-2. **The chart:** two bars with CI whiskers and k/n, 40-scene confirmatory (R1/R2), redrawn in the paper
-   style.
-   - Below it, a toggle **"All 60 scenes"** shows R4, with its caveat as the toggle's label text.
-3. **How we kept it fair:** a numbered list.
-   1. The pair to extend was chosen by a rule fixed in advance (R5).
-   2. The 40 confirmatory scenes were new (R5).
-   3. The stopping time was fixed in advance, and no one looked at p between blocks (R5).
-   4. Statistics: Wilson 95% CIs and two-sided Fisher exact tests, from `demo_pipeline/stats.py`, with a
-      power analysis done before the extension (power:6-14).
-   5. Even with a ×4 correction for the earlier looks, p ≈ 0.002 (R8).
-4. **Every run so far:** a table of all six sprint 7 cells (t3:1186-1193), plus the sprint 3 zeros (R13).
-   - Columns: training data · steps · scenes · successes · 95% CI.
-   - Caption: "Smaller runs at 20 scenes each could not tell the arms apart (R12). That's why we ran 40
-     more."
-5. **What it does not show yet:** C1–C5, plus the epochs line (R6).
-6. **How it fails:** R9 and R15. One sentence on the next lever: "Reducing drops (grip force, slower
-   transit, more data)" (t3:1181-1182).
-7. **The yield:** Y1–Y6, with the MimicGen context caveat (Y6). Chart: `yield.svg`.
-8. **Nemotron, measured:** the v2 ablation table (t4:1314-1323, five arms, F1 all types: 0.81 / 0.84 /
-   **0.90** / 0.86 / 0.80), N2, N3, then the R6 table (t4:1502-1512) with N5's caveats. Costs: N4, N6.
-9. **What's next:**
-   - the 300-copy policy (A5, **pending**);
-   - real human demos (A2);
-   - perfected + multiplied, the arm that tests repair (C5);
-   - more training runs per arm (C1).
-10. **Sources:** links to the notes above and to `docs/media/README.md`.
+1. **Headline:** H1 **Multiplying 10 demos made the robot better. Tripling the copies didn't help more.**
+   Sub: R14, verbatim, then R18 in one sentence.
+   - Count-up tiles: **3/40 · 7.5%** (R1), **17/40 · 42.5%** (R2), **16/40 · 40.0%** (R16), with
+     **p = 0.0005** and **p = 0.0012** as static lines (R3, R18).
+2. **The "how many copies" chart** (plan9 T3): x = copies (0, 100, 300), y = success on the 40 scenes,
+   Wilson whiskers, k/n on every point. Caption: the honest plateau (R17) and its caveat: equal steps, so 300
+   copies got ~1.6 epochs vs ~4.5 (R6). It draws as the values "arrive" (refs: Live Data Loading).
+   - A toggle **"All 60 scenes"** shows R4, with its caveat as the toggle's label text.
+3. **How we kept it fair:** the pair was chosen by a rule fixed in advance (R5); the 40 scenes were new
+   (R5); the stopping time was fixed, no one looked at p between blocks (R5); Wilson 95% CIs and two-sided
+   Fisher exact tests (`demo_pipeline/stats.py`), with a power analysis before the extension (power:6-14);
+   ×4 correction still gives p ≈ 0.002 (R8); headline evals run one scene at a time (A3).
+4. **Every run so far:** all sprint 7 cells (t3:1186-1193), the sprint 8 300-copy cell (t3s8:1303-1307; its 10 human demos column means the scripted sources, R10) and
+   the sprint 3 zeros (R13). Columns: training data · steps · scenes · successes · 95% CI.
+   Caption: "Smaller runs at 20 scenes each could not tell the arms apart (R12). That's why we ran 40 more."
+5. **What it does not show yet:** C1–C5, plus the epochs line (R6), plus A2 (no real person's demo yet).
+6. **How it fails:** R9 and R15. The next lever: "reducing drops (grip force, slower transit, more data)"
+   (t3:1181-1182).
+7. **The yield:** Y1–Y6, with the MimicGen context caveat (Y6).
+8. **Report card template** (plan9 T3), filled for Franka from real facts only:
+   - success %: R2 / R16 with k/n;
+   - failure reasons: drops 22 of 23 (R9);
+   - reach: **pending** (no reach map is measured yet);
+   - a second card for OpenArm: multiply 0/30, reason "wrist range ±45°" (B2); a third for Flexiv: 9/30,
+     "gripper slip" (B3). Their policy success: **pending** (no policy trained on them).
+9. **Nemotron, measured:** the v2 ablation table (t4:1314-1323), N2, N3, the R6 repair-request table
+   (t4:1502-1512) with N5's caveats, costs N4, N6. Then L1–L3 as "next", with no number.
+10. **Sources:** links to every note above and to `docs/media/README.md`.
 
-**Data note for the page round (important):**
-- `results.json`, and so `comparison.svg`, holds the **pooled** counts for the 30k pair (4/60 vs 24/60),
-  because that is what T3's results files hold (t1:2125-2126, sprint 7 open items).
-- The confirmatory 3/40 vs 17/40 is **not** in `results.json`. Two ways to show it:
-  - **(a)** add a seed-range filter (5020–5059) to `build_results_json.py`. That is T1's file; ask T1.
-  - **(b)** put R1–R3 in the page's static content, citing this spec.
-- **Do not compute it in the browser from pooled numbers.**
-- The in-app Results page today reads `web/src/pm/mocks/results.sample.json` under a "SAMPLE DATA" banner
-  (web:44-48). The story Results page must read the real file, or this spec's facts, and never show the
-  sample.
+**Data note:**
+- `results.json` holds the **pooled** counts for the 30k pair (4/60 vs 24/60) (t1:2125-2126). The 40-scene
+  confirmatory split and the 300-copy cell are not in it yet. Show them from this spec's static facts
+  (R1–R3, R16–R18), or ask T1 for a seed-range filter in `build_results_json.py`. **Never compute them in
+  the browser from pooled numbers.**
+- Never show `web/src/pm/mocks/results.sample.json` on the story page.
 
-**Media:**
-- **exists:** `charts/comparison.svg` (pooled), `charts/yield.svg`, `charts/success.svg` (10k cells only),
-  `charts/ablation.svg` (both arms pending: a policy-ablation placeholder, do not show it).
-- **missing:**
-  - a 40-scene confirmatory chart (needs data note a or b);
-  - a 300-copy point (A5);
-  - a perfected + multiply arm (C5).
+## 5. My robots (volt) and Robot setup
 
-## 5. About / How it works (paper)
+**Job:** pick the robot you're making data for, and see at a glance what the simulator found about each.
 
-**Job:** for the reader who wants the mechanism. What each stage does, what we measured there, where
-Nemotron fits, what we build on, and who we are.
+**Visual:** the approved robot-shelf prototype, rebuilt in React (plan9 T6), with its two fixes (no
+intersecting cartridges; a softer key light).
 
-**Sections, in order:**
+**Each cartridge** (data in `robots.json`, every number cited):
 
-1. **The rule.**
-   - The spec's rule is "the AI decides, code acts, physics checks" (spec:27). After N1 that overclaims the
-     AI's part.
-   - Proposed: **"Code measures, code repairs, physics checks."** This is open decision **O3**.
-2. **The pipeline:** one block per stage, each with "what we measured" in Geist Mono.
-   - **Record:** browser hand tracking (MediaPipe), a WebSocket relay, the Isaac Lab arm.
-     - Measured: A1.
-     - Honest line: A2.
-   - **Measure + diagnose:** code metrics, with the rules detector naming each issue.
-     - Measured: the rules found every injected pause, jitter and idle (docs/media/README.md:57-58).
-     - Measured: code F1 0.90 (N1).
-   - **Repair:** the fixed menu (trim, remove_pause, smooth, retime, recenter_grasp, replan_transit,
-     discard; t4:1417-1421).
-     - Measured: V1, V2.
-   - **Verify:** physics replay.
-     - Measured: Y5, Y7.
-   - **Multiply:** new cube and bin positions, each variant re-verified.
-     - Measured: Y1–Y4, with Y6 as context.
-   - **Export + train:** LeRobot dataset, ACT.
-     - Measured: R1–R3 (link to Results). Stack: A4.
-   - **Evaluate:** unseen scenes; parallel eval.
-     - Measured: A3.
-3. **Where Nemotron fits:** the Beat 5 copy, longer.
-   - Add N7 (video input) as a capability we probed, not a feature.
-   - Add N8 (model IDs) and N6 (costs).
-   - Link the roles note for the untested roles (roles:97-251).
-4. **What we build on:** MimicGen, SkillGen, DemoBridge, ISR, DQAF, handrobot and AnyTeleop (spec:91-96).
-   - Then the claim sentence. **The wording is the user's decision (O4).**
-     - The spec's sentence (spec:100-102) is flagged as an overclaim by audit:115.
-     - The proposed rewording is audit:115 and TECHNICAL.md:222.
-   - Keep "to our knowledge". No "first" claims (spec:104-109).
-5. **Limitations:** C1–C5, A2, and "simulation only; one task" (spec:58-85).
-6. **Team and history:**
-   - README.md:152 (team);
-   - README.md:155-156: SANT began as a room organizer and became this tool on 2026-10-15.
-7. **Credits:**
-   - NVIDIA and Nebius in plain text (`logo-brief.md` §5);
-   - the visual inspiration: Zach Lieberman and the other `refs` studies, and Active Theory. Inspiration
-     only; no code or assets were copied.
+| Robot | Sticker | Detail-card lines | Facts |
+|---|---|---|---|
+| Franka Panda | **Tested** | "7-DOF, parallel gripper. Our main robot." · "Multiply: 30/30 clean-expert copies (Y3); 100/100 and 300/300 in the training sets (Y1, Y2)." · "Policy: 3/40 → 17/40 with 100 copies (R1, R2)." | B1, Y1–Y3, R1, R2 |
+| OpenArm | **Design flaw found** | "7-DOF, open source." · "Multiply: 0/30." · "Why: its ±45° wrist confines a straight-down grasp to a ~0.2 m band." | B2 |
+| Flexiv Rizon 4s | **Tested** | "7-DOF, force control." · "Multiply: 9/30." · "Why: the gripper model's fingers slip or drag the cube." | B3 |
+| SO-101 | **Coming next** | "5-DOF + jaw, low cost. Open URDF (Apache-2.0)." · "Not run yet." | B4 |
+| AgileX PiPER | **Coming next** | "6-DOF, low cost. Open URDF (MIT)." · "Not run yet." | B4 |
+| Your robot (+) | **Preview** | "Upload a URDF. Mark the base, hand and gripper." | B5 |
 
-**Media:**
-- **exists:** `s1_0002_raw_vs_perfected.gif` (V1), `s1_0003_raw_vs_perfected.gif` (V2),
-  `degraded_0004_rules_timeline.gif` (V3), and the sheets. Every caption carries V4 ("synthetic").
-- **missing:**
-  - a pipeline diagram in the new style (T5 / page round);
-  - a clip of the arm following a real hand (A2).
+- **Top line** (the prototype's "copies 100/100 verified"): keep it only as "Franka: 100/100 copies
+  verified" with Y1 one click away, or drop it.
+- **Empty or error state:** "Couldn't load the robot list. Reload the page." (static JSON, so rare.)
+
+**Robot setup (placeholder, "Preview" on every screen):**
+- H1 **Bring your robot**. Sub: "Load a URDF, then tell SANT which parts are the base, the hand and the
+  gripper."
+- A part tree (refs: Data Tree) with clearly fake parts, and three role slots (Base · Hand · Gripper)
+  connected by lines (refs: Node Connection).
+- Button **Upload a URDF** (disabled) with "Preview: uploads aren't built yet."
+- What it will produce: "Training data for your robot, and a report card: reach, success %, and why it
+  fails." No numbers.
 
 ## 6. Record (volt)
 
-**Job:** drive the simulated arm with your hand, and save one demo.
+**Job:** **Show.** Do the task with your hand; the simulated robot copies you; save one demo.
 
-**Sections, in order** (this keeps today's flow; web:372-385):
+The flow and states are unchanged from sprint 8 (web:372-385); the HUD pieces are T7's (§11, plan9 T7).
 
-0. **App nav:** the glass pill nav ([§11.8](#118-pill-nav-app-pages)).
-1. **Header:** H1 **Record a demo**. Sub: "Move your hand; the arm follows. Pinch to close the gripper."
-2. **Camera and link:**
-   - the camera view with the hand overlay (T7's hand-art, behind its toggle; plan8). The overlay changes
-     style with each action ([§12](#12-hand-art-six-states));
-   - the **tracking HUD** over the camera view ([§11.1](#111-tracking-hud-record));
-   - the **glyph loader** while hand tracking and the sim start ([§11.5](#115-glyph-loader-record-and-the-crossing));
-   - status pills (in teal, for live state): Camera · Relay · Sim.
-   - Primary button: **Start camera** until the camera is on.
-3. **Controls:**
-   - **Start recording**, which runs the **3-2-1 countdown** ([§11.2](#112-3-2-1-countdown-record)) and
-     then becomes **Stop and save**;
-   - **Reset scene**: a button, plus the reset gesture.
-     - Gesture: hold ✌ (Victory) for 1.5 s, and T6's ring fills (plan8, T6 task 2).
-     - Label: "Hold ✌ to reset the scene".
-4. **Live readouts** (Geist Mono; T4's panel): confidence, palm angle, grasp mode (pinch / fist), clutch.
-   - Show a **"Frozen"** pill (amber) when the hand is edge-on or tracking is unsure.
-   - Optional: the **dial HUD** for the gripper, reach and joint angles ([§11.9](#119-dial-hud-record-optional)).
+**Sections, in order:**
+0. **App nav:** the pill nav (§11.8), Record lit.
+1. **Header:** H1 **Show it once**. Sub: "Move your hand; the robot follows. Pinch to close the gripper."
+2. **Camera and link:** the camera view with the hand overlay (§12) and the tracking HUD (§11.1); the
+   glyph loader while tracking and the sim start (§11.5); status pills Camera · Relay · Sim. Primary
+   button **Start camera** until the camera is on.
+3. **Controls:** **Start recording** (runs the 3-2-1 countdown, §11.2, then becomes **Stop and save**);
+   **Reset scene** (button, plus ✌ held for 1.5 s; "Hold ✌ to reset the scene").
+4. **Live readouts** (the instrument rack, `record-console.html`): grip, height, reach, palm angle, grasp
+   mode, clutch. An amber **Frozen** pill when the hand is edge-on or tracking is unsure. **No tachometer.**
 5. **Result:** the sim's last result line, the recorded length (sim seconds and steps), and **Review this
-   demo →**.
+   demo** (to Review, with `?id=`).
 
-**Copy for the states** (these replace or keep today's states; web:31-33, 384):
+**Copy for the states:**
 
 | State | Copy |
 |---|---|
@@ -488,123 +464,136 @@ Nemotron fits, what we build on, and who we are.
 | Frozen (edge-on / low confidence) | "Holding still: turn your palm toward the camera to take control again." |
 | Sim not connected | "The sim isn't connected. Start the sim worker:" + the exact sink command (as today) |
 | Relay error | "The relay rejected a message. Recording is paused." |
-| Saved, verified | "Saved and verified in physics. Review it →" |
-| Saved, failed | "Saved. The replay did not put the cube in the bin; you can still review and repair it." |
+| Saved, verified | "Saved and verified in physics. Review it." |
+| Saved, failed | "Saved. The replay did not put the cube in the bin; you can still review and fix it." |
 
-**Numbers:** none static. Every value on this page is live. Do not print A1 here.
-
-**Media:** **missing:** a recorded live session (A2), for the landing hero and the video.
+**Numbers:** live only. Do not print A1 here.
 
 ## 7. Review (volt)
 
-**Job:** see what is wrong with a demo, then perfect it and watch physics check it.
+**Job:** **Review.** See what physics and Nemotron decided about your demo, what was wrong with it, and
+what was fixed, as one scan from the raw demo to the perfected one.
 
-**Sections, in order** (from web:34-40):
+**Visual language:** the robot-shelf select HUD (plan9): black stage, thin frames, crosshair "×" boxes,
+`x: y:` coordinates, mosaic tiles that resolve, scrambled text that settles. Amber marks issues; teal marks
+what is verified. Plus `refs`' Human to Machine (glitch morph raw → perfected), Codex Code Review (the issue
+list) and the Tessel X-ray scan.
 
-1. **Header:** the demo id, its length and its pipeline **status glyph**
-   ([§11.3](#113-pipeline-status-glyphs-review-and-dataset)), replacing the teal / amber pill.
-   - The Perfect panel's steps (today Queued · Perfecting · Done, `web/src/pm/review/PerfectPanel.tsx:20-24`)
-     use the same glyph set.
-2. **The demo strip,** in three lanes:
-   - **Frames** (today "what the model saw"; renamed, because code is the judge, N1; open decision **O5**);
-   - **Phases**: approach, carry, retreat;
-   - **Repairs.**
-3. **Issues** (amber pills) and **repairs** (teal once applied). Claims struck out by a gate keep the
-   strike-through.
-4. **Before / after:** the hand-speed plot against the parent demo.
-5. **Perfect:** the primary button, with job polling.
-   - States: running · verified · failed · timed out (as today).
-6. **Ask for a repair** (only if O2 ships R6): a text box with the placeholder "e.g. 'Don't trim the end,
-   just remove the pauses'".
-   - Show the parsed ops before they are applied; code applies them and physics checks.
-7. **Passport:** the demo's lineage.
+**Sections, in order:**
+
+1. **App nav** (pill nav, Review lit) and a **demo picker** (the list of demos, as today).
+2. **Title block** (HUD style): the demo id, its source (human / repaired / variant), its length in sim
+   seconds, its robot, its scene seed.
+3. **The scan** (the one big moment): the demo's front-camera replay inside a thin frame. A scan band sweeps
+   the timeline; where it passes an issue, a detection box locks on with the issue's own label and time
+   (e.g. `PAUSE 2.02 s · 4.50–6.52 s`, from the diagnosis, never invented). Then the frame **glitch-morphs**
+   from the raw demo into the perfected one (mosaic → resolve), and the clock shortens to the perfected
+   length.
+   - Below the frame, the timeline in three lanes: **Issues** (amber), **Phases**, **Fixes** (teal), with the
+     scan line on it.
+   - With no frames served, the scan uses the demo's end-effector path (top-down X-ray of `ee_pos`) instead
+     of camera frames. Say which one is shown.
+4. **Issues and fixes, code-review style:** each issue is a row with its time range, its type, the
+   measured evidence in mono ("speed < 0.01 m/s for 2.02 s"), and the fix applied under it (trim,
+   remove_pause, smooth…), like a reviewed line and its suggested change. Gated claims stay struck through
+   with "dropped: the measured metrics contradict it".
+5. **The verdict card:**
+   - **Physics:** "Verified ✓, the cube ended in the bin" or "Failed ✗" + the reasons, from the replay's
+     verification (success, duration, path length). If the backend doesn't serve it: "not served by this
+     backend yet", never a guess.
+   - **Label:** the demo's label, and who wrote it: "rules template" or the Nemotron model id. Today it is
+     always the template sentence (L2).
+   - **Matches your request:** "Not checked yet: Nemotron's label check is coming next (L3)." Never "yes" or
+     "no" until that check runs.
+   - **Fixed:** "N issues, M fixes", counted from the diagnosis.
+6. **Before / after numbers** (from the two verifications, when both exist): length, path length, settle
+   time.
+7. **Perfect** (for a human demo): the primary button **Perfect this demo**, with the rules / Nemotron
+   choice and job polling (as today: running · verified · failed · timed out).
+8. **Passport:** lineage (parent link), robot, seed, diagnosis source.
 
 **Copy:**
-- Empty state: "No demos yet. Record one →".
-- Backend down: "The backend isn't running. Start it with `start.ps1 -Backend`."
-- Sim down (503): "The sim worker isn't running, so repairs can't be verified yet."
+- Empty state: "No demos yet. Record one with your webcam." + **Record a demo**.
+- Backend down: "Can't reach the SANT backend. Start it with `start.ps1 -Backend`, then reload." The page
+  then offers the **recorded example** (below).
+- Sim down (503): "The sim worker isn't running, so fixes can't be verified yet."
+- Not diagnosed: "Not reviewed yet. Perfect runs the diagnosis, the fixes and the physics check."
 
-**Numbers:** live, per demo. No static figures.
+**The recorded example** (for viewing without a backend, and for the video): `s1_0002` → `s1_0002_rules`,
+exported from `store` with every value unchanged (V1, V5, V6). It is labelled on the page: "Recorded
+example: a synthetic demo (the scripted expert with tremor, pauses and idle added on purpose)" (V4).
+- It shows **both** diagnosers honestly: the rules found 4 issues; the sprint 3 Nemotron found none (V6).
 
-**Media:**
-- **exists:** `s1_0002_raw_vs_perfected.gif`, usable as the empty-state illustration, with the caption
-  "Example: a synthetic demo, 13.8 s → 9.3 s after repair" (V1, V4).
+**Numbers:** live per demo, or the example's own (V1, V5, V6). No static figures.
 
 ## 8. Dataset (volt)
 
-**Job:** see what you've collected, and export it.
+**Job:** **Get.** See what you've collected, and export it. (Not rebuilt in sprint 9.)
 
-**Sections, in order** (web:41-43):
-
+**Sections, in order:**
 1. **Counts:** per source (human / perfected / multiplied), human minutes, perfected-per-human,
    variants-per-perfected.
-2. **Latest demos:** each row starts with its **status glyph**
-   ([§11.3](#113-pipeline-status-glyphs-review-and-dataset)), followed by the status word.
-3. **Export:** "Export verified demos as a LeRobot dataset". It is disabled until there is at least one
-   verified demo.
+2. **The shelf of demos** (refs: Grokipedia): each demo or copy is a spine; the selected one slides out with
+   its card: frame, verified glyph, label, copies.
+3. **Export:** "Export verified demos as a LeRobot dataset", disabled until there is one verified demo.
 
 **Copy:**
 - Empty state: "Nothing to export yet. Every demo you record and verify lands here."
 - `/export` missing: "This backend has no export endpoint. Update SANT and restart it."
 
-**Numbers:** live only. **Do not** pre-fill Y1/Y2 as if they were the user's dataset. If a reference is
-wanted, add the line "For scale: our test set is 10 sources × 30 variants, 300/300 verified" (Y2), styled
-as a note.
+**Numbers:** live only. Do not pre-fill Y1/Y2 as the user's dataset. For scale, a styled note: "Our test
+set: 10 sources × 30 variants, 300/300 verified" (Y2).
 
 ## 9. Media inventory
 
-**Exists** (`docs/media/**`, each ≤ 2 MB; docs/media/README.md:3-5):
+**Exists** (`docs/media/**`, each ≤ 2 MB):
 
 | File | Shows | Use on | Caption must say |
 |---|---|---|---|
-| `s1_0002_raw_vs_perfected.gif` | before / after one repair, 13.8 → 9.3 s (V1) | Home Beat 2, About, Review empty state | synthetic demo (V4) |
-| `s1_0003_raw_vs_perfected.gif` | 10.6 → 7.8 s (V2) | About | synthetic (V4) |
-| `s1_0002_raw_sheet.png` | 6 captioned frames | About | synthetic (V4) |
-| `degraded_0004_rules_timeline.gif` | a degraded demo with the rules' diagnosis (V3) | About (the Measure stage) | synthetic (V4); the off-center grasp is found by the code metric, not the rules |
-| `degraded_0004_sheet.png` | its frames | About | synthetic (V4) |
-| `charts/comparison.svg` | all pairs; the 30k pair **pooled** (R4) | Results, under the toggle | pooled, so optimistic (R4) |
-| `charts/success.svg` | the 10k cells by demo count (R12) | Results, "Every run" | 10k steps, n = 20 |
-| `charts/yield.svg` | 100/100 vs MimicGen 38–74% (Y1, Y6) | Home Beat 4, Results | context, not like-for-like (Y6) |
-| `charts/ablation.svg` | the policy ablation, **both pending** | nowhere yet | (pending) |
+| `s1_0002_raw_vs_perfected.gif` | before / after one repair, 13.8 → 9.3 s (V1) | Landing Beat 2, Review | synthetic demo (V4) |
+| `s1_0003_raw_vs_perfected.gif` | 10.6 → 7.8 s (V2) | Results | synthetic (V4) |
+| `s1_0002_raw_sheet.png` | 6 captioned frames | Results | synthetic (V4) |
+| `degraded_0004_rules_timeline.gif` | a degraded demo with the rules' diagnosis (V3) | Results | synthetic (V4); the off-center grasp is found by the code metric, not the rules |
+| `charts/comparison.svg` | all pairs; the 30k pair **pooled** (R4) | Results, under the toggle | pooled, so optimistic |
+| `charts/success.svg` | the 10k cells (R12) | Results, "Every run" | 10k steps, n = 20 |
+| `charts/yield.svg` | 100/100 vs MimicGen 38–74% (Y1, Y6) | Results | context, not like-for-like |
+| `charts/ablation.svg` | both arms **pending** | nowhere | (pending) |
+| `web/src/site/review/example/*` | the Review example, exported from `store` (s1_0002 raw + perfected: trajectories, diagnoses, verifications, front-camera frames every 0.2 s) | Review | synthetic (V4) |
 
-These charts are the current style. The page round can redraw them in the paper style from the same data.
-
-**Missing** (the page round shows "pending" or leaves the slot out; never a mock-up passed off as real):
+**Missing** (the page shows "pending" or leaves the slot out; never a mock-up passed off as real):
 
 | Needed for | Missing media | Blocked on |
 |---|---|---|
-| Home hero, Record, video | a live session: a real hand driving the Isaac arm, recorded and verified | A2: the user's live test #4 (plan8) |
-| Home Beat 3, Results | a 40-scene confirmatory chart | data note §4 (a or b) |
-| Results "What's next" | the 300-copy policy's result | A5: T3's training, then eval (plan8) |
-| Results | perfected + multiply vs raw + multiply | not run (C5) |
-| Home Beat 3 | sim clips of a success and of a drop by the multiplied policy | no eval video exists (t3:919) |
-| Home Beat 4 | a 300/300 yield chart | a T1 refresh pointed at `home_v2` (Y2) |
-| Every page, the crossing | the SANT symbol (now a symbol, not letters) | the user (`logo-brief.md`) |
-| Record | a capture of T7's hand-art overlay, one clip per state (§12) | T7 (plan8) |
-| Home Beat 6 | a still of the pinch sheet, for motion off (§11.6) | page round |
-| Social / OG | a share image | page round |
+| Landing hero, Record, video | a real person's hand driving the robot, recorded and verified | A2 |
+| Landing Beat 3, Results | sim clips of a multiplied-policy success and a drop | no eval video (t3:919) |
+| Results | perfected + multiplied vs raw + multiplied | not run (C5) |
+| Review "Matches", Landing Beat 5 | Nemotron's label check and its test | L3 |
+| My robots, Results report card | a reach map per robot | not measured |
+| Every page | the SANT symbol | the user (`logo-brief.md`) |
+| Record | the hand-art overlay per state (§12) | the user's Poet Engineer references (plan9 T7) |
 
 ## 10. Open decisions for the user
 
 | ID | Question | Proposal |
 |---|---|---|
-| O1 | Steps in pipeline order with letter tags (S lights twice), or untagged steps? | Tagged, with S twice. It keeps the brand and the truth |
-| O2 | Ship R6 (plain-English repair requests) in Review? | Your call. Beat 5 card 2 and Review §6 change with it |
-| O3 | Change the rule "the AI decides, code acts, physics checks"? | "Code measures, code repairs, physics checks" |
-| O4 | Claim sentence wording (spec §5) | audit:115's proposed wording |
-| O5 | Rename the Review lane "what the model saw" to "Frames"? | Yes |
-| O6 | Beat 3 headline: the 5.7× ratio, or the raw counts only? | Counts only, if in doubt. A ratio of two small rates invites over-reading |
-| O7 | Dust colours at the crossing: `refs` has teal/gold, then orange/red | Teal and violet only. Gold reads as amber (issues, gripper closed), and orange/red as errors (§11.7) |
-| O8 | Ship the optional pieces: depth contours, the swarm intro, the dial HUD, an audio toggle? | Dial HUD only if the sim streams the values (§11.9). The others after the core states work |
-| O9 | Show "cube" and "bin" boxes in the HUD? | Not on the webcam: the cube and bin aren't in the camera image (§11.1) |
+| O1 | Hero H1: "Show a robot once. Get the data to teach it." or "We make the data robots learn from." | The first: it names the user's action |
+| O2 | Ship the plain-English repair box (N5) in Review? | Your call; it is measured (34/34) but not wired in |
+| O3 | Beat 3 H2 uses counts ("17 times out of 40 instead of 3"), no ratio | Counts. The user rejected "5.7×" as the pitch |
+| O4 | Show the 300-copy bar on the landing, or only on Results? | Both. Hiding the plateau would read as cherry-picking |
+| O5 | Company rows in Beat 1 (P4–P6): names only, or add public figures with sources? | Names only for now |
+| O6 | Dust colours at the crossing | Teal and violet only (§11.7) |
+| O7 | Optional pieces: depth contours, the swarm intro, the dial HUD, an audio toggle | Dial HUD only if the sim streams the values; others later |
+| O8 | "Cube" and "bin" boxes in the Record HUD? | Not on the webcam: they aren't in the camera image (§11.1) |
 
 ## 11. New UI pieces (from the visual references)
 
+*Sections 11–13 are carried over from the sprint 8 spec; only the cross-references changed. T7 owns the Record pieces now (plan9), and the hand-art waits for the user's Poet Engineer references.*
+
 `refs` is inspiration only. We build our own versions and copy no one's code, assets or exact
-compositions. Credit the inspiration on About, under Credits, where it fits.
+compositions. Credit the inspiration in the story footer (§3, Footer).
 
 **Rules for every piece:**
-- **Volt colours** (plan8):
+- **Volt colours** (the sprint 8 plan):
   - teal `#19F5C2` means live or OK;
   - violet `#A78BFA` is secondary;
   - amber `#FFB000` means issues, repairs and "gripper closed" (`refs`).
@@ -619,10 +608,10 @@ compositions. Credit the inspiration on About, under Credits, where it fits.
 | 11.1 | Tracking HUD | Record | *Object Detector Shader*, *Micrographics System* |
 | 11.2 | 3-2-1 countdown | Record | *Dotted Countdown* |
 | 11.3 | Pipeline status glyphs | Review, Dataset | *Status Icon System* |
-| 11.4 | Count-up tiles | Results, Home Beat 3 | *CSS Count Up Animations* |
+| 11.4 | Count-up tiles | Results, Landing Beat 3 | *CSS Count Up Animations* |
 | 11.5 | Glyph loader | Record, the crossing | Active Theory's loader |
-| 11.6 | Pinch-sheet teaser | Home Beat 6 | *Pinchable Fabric Sheet* |
-| 11.7 | Dust power-on | Home Beat 6 → Record | Active Theory's hero dust |
+| 11.6 | Pinch-sheet teaser | Landing Beat 6 | *Pinchable Fabric Sheet* |
+| 11.7 | Dust power-on | Landing Beat 6 → Record | Active Theory's hero dust |
 | 11.8 | Pill nav | app pages | Active Theory's nav |
 | 11.9 | Dial HUD (optional) | Record | *Rolling Dial Shader* |
 
@@ -666,8 +655,8 @@ compositions. Credit the inspiration on About, under Credits, where it fits.
 ### 11.3 Pipeline status glyphs (Review and Dataset)
 
 - **Where:**
-  - in the Review header (§7.1) and the Perfect panel's steps;
-  - in front of each row in Dataset's "Latest demos" (§8.2).
+  - in the Review header (§7.2) and the Perfect panel's steps;
+  - in front of each row in each demo in Dataset (§8.2).
 - **Look:** rounded-square icons, one per state. **The status word always sits next to the glyph.**
 
 | State | Glyph (a proposal; T5 draws them) | Colour | Word | Comes from (today's web code) |
@@ -691,9 +680,9 @@ compositions. Credit the inspiration on About, under Credits, where it fits.
   **Variant**. The badge is never a close button (`logo-brief.md` §7).
 - **Motion off:** each glyph is static; a running state shows its word with "…" and no sweep.
 
-### 11.4 Count-up tiles (Results and Home Beat 3)
+### 11.4 Count-up tiles (Results and Landing Beat 3)
 
-- **Where:** Results §1 (three tiles), and Home Beat 3 (the two bar values).
+- **Where:** Results §1 (three tiles), and Landing Beat 3 (the two bar values).
 - **What they say:**
 
 | Tile | Big number | Small line (static from the start) | Fact |
@@ -728,9 +717,9 @@ compositions. Credit the inspiration on About, under Credits, where it fits.
   in amber, and the loader stops.
 - **Motion off:** the step words as plain text, each followed by "…" until done, then "done".
 
-### 11.6 Pinch-sheet teaser (Home Beat 6)
+### 11.6 Pinch-sheet teaser (Landing Beat 6)
 
-- **Where:** Home Beat 6, above **Power on →**, in a small framed panel.
+- **Where:** Landing Beat 6, above **Power on →**, in a small framed panel.
 - **What it is:** a small sheet (cloth-like) that the visitor pinches and drags with the mouse, finger or
   trackpad. It springs back when let go.
 - **What it says:**
@@ -744,7 +733,7 @@ compositions. Credit the inspiration on About, under Credits, where it fits.
 - **Motion off:** a still picture of the sheet, mid-pinch, with the same label. It does not move or
   respond (the still is listed as missing in §9).
 
-### 11.7 Dust power-on (Home Beat 6 → Record)
+### 11.7 Dust power-on (Landing Beat 6 → Record)
 
 - **Where:** the story → app crossing, started by **Power on →** (Beat 6) or **Try it →** in the story nav.
 - **What happens:**
@@ -785,7 +774,7 @@ compositions. Credit the inspiration on About, under Credits, where it fits.
 
 ## 12. Hand-art: six states
 
-The hand overlay on Record (T7; plan8) changes style with each action. These are the six core states
+The hand overlay on Record (T7; the sprint 8 plan) changes style with each action. These are the six core states
 from `refs`; depth and the landing swarm are optional ([§12.2](#122-optional-states)).
 
 **Rules for every state:**
@@ -797,7 +786,7 @@ from `refs`; depth and the landing swarm are optional ([§12.2](#122-optional-st
   mode, "Frozen", "● Recording", "Hold ✌ to reset the scene".
 - **Precedence**, if two apply at once: reset > paused/frozen > grab / release (short bursts) > recording
   > idle.
-- **The overlay's toggle** (plan8) turns all of this off and leaves the plain landmarks.
+- **The overlay's toggle** (the sprint 8 plan) turns all of this off and leaves the plain landmarks.
 
 ### 12.1 The six states
 
@@ -808,7 +797,7 @@ from `refs`; depth and the landing swarm are optional ([§12.2](#122-optional-st
 | **Release (open)** | the gripper command goes to open | **Particle burst:** streaks shoot out from the fingertips | a short burst at the fingertips, then back to idle or recording | Gripper: **open** | *Particle Burst* |
 | **Recording / moving** | the sim is recording (after the countdown, §11.2) | **Particle silhouette with a luminous trail** | the hand as particles, leaving a fading trail of its path | **● Recording** pill | *Particle Figure*, *Particle Face Illustration* |
 | **Paused / frozen** | palm turned away or edge-on, or low confidence: today's "Frozen" | **Rippling dot field:** calm, low energy | the hand settles into a quiet dot field; the arm holds still | amber **Frozen** pill, with "Holding still: turn your palm toward the camera to take control again." | *Dot Field Motion* |
-| **Reset (✌)** | ✌ held until T6's ring fills (1.5 s, plan8) | **Glitch brush:** black brush forms plus pixel fragments, then a snap back | the ring fills while held; on completion a glitch, then the clean idle hand | "Hold ✌ to reset the scene", then "Scene reset" | *Glitch Brush Study* |
+| **Reset (✌)** | ✌ held until T6's ring fills (1.5 s, the sprint 8 plan) | **Glitch brush:** black brush forms plus pixel fragments, then a snap back | the ring fills while held; on completion a glitch, then the clean idle hand | "Hold ✌ to reset the scene", then "Scene reset" | *Glitch Brush Study* |
 
 **While recording,** the grab and release bursts play on top of the particle silhouette, and the hand
 stays amber while the gripper is closed.
@@ -836,7 +825,7 @@ The words next to the art (the table's "Label" column) carry every state, so not
 
 ## 13. Motion off: everything in one table
 
-"Motion off" means `prefers-reduced-motion`, or the "Effects off" toggle (plan8). The global rule in §3
+"Motion off" means `prefers-reduced-motion`, or the "Effects off" toggle (the sprint 8 plan). The global rule in §3
 still applies: end states, no scroll-jacking, every number in full with its denominator.
 
 | Piece | Motion on | Motion off |
