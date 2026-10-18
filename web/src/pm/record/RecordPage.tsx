@@ -18,7 +18,7 @@ import { createResetGesture, type ResetGestureStatus } from "../../teleop/resetG
 import { victoryScore } from "../../teleop/victoryPose";
 import { reachSize3d } from "../../teleop/reach3d";
 import { DebugTrace, TRACE_SECONDS, traceFileName, traceFrame, type TraceSignals } from "../../teleop/debugTrace";
-import type { TeleopStatus } from "../../teleop/teleopClient";
+import { latencyTraceRequested, type TeleopStatus } from "../../teleop/teleopClient";
 import { teleopSocketUrl } from "../api";
 import { PageTitle } from "../common";
 import {
@@ -310,7 +310,7 @@ export default function RecordPage() {
       return;
     }
     // Open the relay only once the camera works, so a blocked camera never streams.
-    const link = new RecordLink(teleopSocketUrl());
+    const link = new RecordLink(teleopSocketUrl(), WebSocket, { trace: latencyTraceRequested(window.location.search) });
     link.setControl(settingsRef.current.enabled ? settingsRef.current : null);
     link.onStatus(setRelay);
     link.onSimStatus(setSim);

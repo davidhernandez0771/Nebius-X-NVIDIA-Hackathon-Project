@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { HandFrame, HandLandmark, TrackedHand } from "../hand/contracts";
 import fixture from "./__fixtures__/hand_pose_msg.json";
 import { DEFAULT_TELEOP_CONTROL, DEPTH_SMOOTHING_MS, depthFraction, smoothDepth } from "./controlRegion";
 import { toHandPoseMsg, type HandPoseMsg } from "./handPoseMessage";
 import { FRAME, makeHandPose } from "./__fixtures__/handPoses";
-import { TeleopClient, type TeleopStatus } from "./teleopClient";
+import { MIN_INTERVAL_MS, TeleopClient, type TeleopStatus } from "./teleopClient";
 
 // Unlisted landmarks sit at the frame center, except a default 128 px palm (landmarks 5 and 17),
 // since a zero-width palm is reported as "no hand".
@@ -164,18 +164,34 @@ function frame(timestamp: number, hands: TrackedHand[] = [FIXTURE_HAND]): HandFr
   return { timestamp, hands, frameWidth: 1280, frameHeight: 720 };
 }
 
-function newClient(): { client: TeleopClient; socket: FakeSocket; sent: () => HandPoseMsg[] } {
+function newClient(opts?: { trace?: boolean }): { client: TeleopClient; socket: FakeSocket; sent: () => HandPoseMsg[] } {
   FakeSocket.instances = [];
-  const client = new TeleopClient("ws://test/ws/teleop?role=browser", FakeSocket as unknown as typeof WebSocket);
+  const client = new TeleopClient("ws://test/ws/teleop?role=browser", FakeSocket as unknown as typeof WebSocket, opts);
   const socket = FakeSocket.instances[0];
   return { client, socket, sent: () => socket.sent.map((s) => JSON.parse(s) as HandPoseMsg) };
 }
 
 describe("TeleopClient", () => {
-  it("throttle drops frames under 33 ms apart", () => {
+  it("throttle drops frames well under 33 ms apart", () => {
     const { client, sent } = newClient();
-    for (const t of [0, 10, 32, 33, 50, 66, 100]) client.push(frame(t));
+    for (const t of [0, 10, 20, 33, 50, 66, 100]) client.push(frame(t));
     expect(sent().map((m) => m.t_ms)).toEqual([0, 33, 66, 100]);
+  });
+
+  // MediaPipe runs on requestAnimationFrame, and frame timestamps jitter by a millisecond or two. A frame due
+  // ~33 ms after the last send must not be dropped for arriving at 32.4 ms: that left a 66 ms gap on a 30 fps
+  // loop (or 50 ms on a 60 fps one), up to ~40% of the time.
+  it.each([
+    ["a 30 fps loop sends every frame", 1000 / 30, 1],
+    ["a 60 fps loop sends every second frame", 1000 / 60, 2],
+  ])("throttle tolerates frame jitter: %s", (_name, period, every) => {
+    const { client, sent } = newClient();
+    const jitter = [0, -1.5, 1.2, -0.8, 1.5, -1.3, 0.4, -1.5, 1.1, -0.6];
+    const times = Array.from({ length: 60 }, (_, k) => k * period + jitter[k % jitter.length]);
+    for (const t of times) client.push(frame(t));
+    expect(sent().length).toBe(Math.ceil(times.length / every));
+    const gaps = sent().slice(1).map((m, i) => m.t_ms - sent()[i].t_ms);
+    expect(Math.max(...gaps)).toBeLessThan(MIN_INTERVAL_MS + 4);
   });
 
   it("sends tracking_ok false at most 5 times per second when no hand is present", () => {
@@ -215,6 +231,33 @@ describe("TeleopClient", () => {
     client.push(frame(200, []), 1); // lost: the latch's held state goes along
     client.push(frame(300));
     expect(sent().map((m) => m.grip)).toEqual([1, 0, 1, undefined]);
+  });
+
+  it("adds no latency trace unless asked", () => {
+    const { client, socket } = newClient();
+    client.push(frame(0));
+    expect(JSON.parse(socket.sent[0]).trace).toBeUndefined();
+  });
+
+  describe("with the latency trace on", () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it("stamps each hand pose with its capture and send times in epoch ms", () => {
+      vi.spyOn(performance, "now").mockReturnValue(1000);
+      vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+      const { client, socket } = newClient({ trace: true });
+      client.push(frame(988)); // the webcam frame went into MediaPipe 12 ms ago
+      expect(JSON.parse(socket.sent[0]).trace).toEqual({ cap: 1_700_000_000_000 - 12, send: 1_700_000_000_000 });
+    });
+
+    it("leaves the hand pose itself unchanged", () => {
+      const plain = newClient();
+      plain.client.push(frame(0));
+      const traced = newClient({ trace: true });
+      traced.client.push(frame(0));
+      const { trace: _t, ...rest } = JSON.parse(traced.socket.sent[0]);
+      expect(rest).toEqual(JSON.parse(plain.socket.sent[0]));
+    });
   });
 
   it("does not send while the socket is not open", () => {
