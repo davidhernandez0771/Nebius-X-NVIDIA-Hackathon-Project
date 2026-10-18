@@ -1,7 +1,9 @@
 // The select HUD, ported line for line from docs/design/prototypes/robot-shelf.html (the user called it perfect):
 // tilted orbits with travelling dots, light streaks, the frame, mosaic tiles in the robot's own palette and effect,
 // crosshair "×" boxes, x/y coordinates and the scrambling title block. Only the fonts changed (see fonts.ts), and
-// the lock-on point is nudged to keep the frame on small screens (hudAnchor.ts).
+// the lock-on point is nudged to keep the frame on small screens (hudAnchor.ts). The mosaic tiles no longer read
+// pixels back every frame: each tile's source pixels are captured once per selection (and on resize), and every
+// mosaic level is built once and cached.
 import type { Robot } from "./robots";
 import { MONO, SANS } from "./fonts";
 import { rnd } from "./spiral";
@@ -9,6 +11,7 @@ import { hudAnchor, hudFrame } from "./hudAnchor";
 
 type Tile = { u: number; v: number; w: number; h: number; kind: "img" | "dots" | "cross"; delay: number; sx: number; sy: number };
 type Orbit = { rx: number; ry: number; rot: number; dash: number[]; sp: number };
+type Mosaic = { w: number; h: number; data: Uint8ClampedArray; levels: Map<number, HTMLCanvasElement> };
 
 const ORBITS: Orbit[] = [
   { rx: 1.05, ry: 0.42, rot: -0.32, dash: [2, 5], sp: 0.35 },
@@ -30,6 +33,9 @@ export class Hud {
   private tiles: Tile[] = [];
   private robot: Robot | null = null;
   private born = 0;
+  private mosaics: (Mosaic | null)[] = [];
+  private mosaicKey = "";
+  private dirty = false;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -49,6 +55,7 @@ export class Hud {
     this.dpr = dpr;
     this.canvas.width = w * dpr;
     this.canvas.height = h * dpr;
+    this.mosaicKey = "";
   }
 
   select(robot: Robot | null, index: number, now: number) {
@@ -57,10 +64,57 @@ export class Hud {
     if (!robot) return;
     this.paintArt(robot);
     this.makeTiles(robot, index + 1);
+    this.mosaicKey = "";
+    this.prepareMosaics();
   }
 
+  /** Captures each image tile's source pixels at its current size (once per selection or resize). */
+  private prepareMosaics() {
+    const { fw, fh } = hudFrame(this.canvas.width, this.canvas.height);
+    const key = `${fw}x${fh}`;
+    if (key === this.mosaicKey) return;
+    this.mosaicKey = key;
+    this.mosaics = this.tiles.map((tl) => {
+      if (tl.kind !== "img") return null;
+      const w = Math.max(1, (tl.w * fw) | 0), h = Math.max(1, (tl.h * fh) | 0);
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      if (!g) return null;
+      g.imageSmoothingEnabled = false;
+      g.drawImage(this.art, tl.sx * 160, tl.sy * 90, 80, 60, 0, 0, w, h);
+      return { w, h, data: g.getImageData(0, 0, w, h).data, levels: new Map() };
+    });
+  }
+
+  /** The tile pixelated into `step`-px blocks, built on first use and cached. */
+  private mosaicLevel(n: number, step: number): HTMLCanvasElement | null {
+    const m = this.mosaics[n];
+    if (!m) return null;
+    let c = m.levels.get(step);
+    if (c) return c;
+    const nx = Math.ceil(m.w / step), ny = Math.ceil(m.h / step);
+    c = document.createElement("canvas");
+    c.width = Math.ceil(nx * step);
+    c.height = Math.ceil(ny * step);
+    const g = c.getContext("2d");
+    if (!g) return null;
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++) {
+        const ix = (((j * step) | 0) * m.w + ((i * step) | 0)) * 4;
+        g.fillStyle = "rgb(" + m.data[ix] + "," + m.data[ix + 1] + "," + m.data[ix + 2] + ")";
+        g.fillRect(i * step, j * step, step, step);
+      }
+    m.levels.set(step, c);
+    return c;
+  }
+
+  /** Clears the HUD once after a deselect (not every frame). */
   clear() {
+    if (!this.dirty) return;
     this.canvas.getContext("2d")?.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.dirty = false;
   }
 
   private paintArt(r: Robot) {
@@ -95,8 +149,10 @@ export class Hud {
     hx.clearRect(0, 0, W, H);
     const r = this.robot;
     if (!r) return;
+    this.dirty = true;
     const reduce = this.reduce, d = this.dpr, art = this.art, hudC = this.canvas;
     const age = Math.min(1, (now - this.born) / 1100);
+    this.prepareMosaics();
     ({ cx, cy } = hudAnchor(cx * d, cy * d, W, H, d));
     const { R, fw, fh } = hudFrame(W, H), fx = cx - fw * 0.5, fy = cy - fh * 0.55;
     hx.lineWidth = 1 * d;
@@ -126,13 +182,8 @@ export class Hud {
         hx.imageSmoothingEnabled = false;
         hx.drawImage(art, tl.sx * 160, tl.sy * 90, 80, 60, x, y2, w, h);
         if (block > 1) {
-          const tmp = hx.getImageData(Math.max(0, x | 0), Math.max(0, y2 | 0), Math.max(1, w | 0), Math.max(1, h | 0));
-          for (let by = 0; by < tmp.height; by += block * d)
-            for (let bx = 0; bx < tmp.width; bx += block * d) {
-              const ix = ((by | 0) * tmp.width + (bx | 0)) * 4;
-              hx.fillStyle = "rgb(" + tmp.data[ix] + "," + tmp.data[ix + 1] + "," + tmp.data[ix + 2] + ")";
-              hx.fillRect(x + bx, y2 + by, block * d, block * d);
-            }
+          const lvl = this.mosaicLevel(n, block * d);
+          if (lvl) hx.drawImage(lvl, Math.max(0, x | 0), Math.max(0, y2 | 0));
         }
         if (r.fx === "scan") { hx.fillStyle = "rgba(0,0,0,.35)"; for (let sy = 0; sy < h; sy += 3 * d) hx.fillRect(x, y2 + sy, w, d); }
         if (r.fx === "glitch" && !reduce && Math.sin(t * 13 + n) > 0.6) { hx.drawImage(hudC, x, y2 + h * 0.3, w, h * 0.2, x + 8 * d, y2 + h * 0.3, w, h * 0.2); }

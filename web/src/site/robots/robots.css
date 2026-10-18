@@ -240,3 +240,17 @@
     --cw: 88px;
   }
 }
+
+/* ?perf readout */
+.robots-perf {
+  position: absolute;
+  right: 18px;
+  top: 40px;
+  z-index: 4;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--rb-ink-2);
+  font: 10px/1.4 var(--sant-font-data, ui-monospace, monospace);
+  pointer-events: none;
+}

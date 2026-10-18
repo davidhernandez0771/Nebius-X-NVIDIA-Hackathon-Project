@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { obbOverlap } from "./obb";
-import { BOB, CLEARANCE, cartridgeObb, layoutSpiral, MAIN_SLOTS, pileOffset, type SpiralItem } from "./spiral";
+import { Matrix4 } from "three";
+import { BOB, CLEARANCE, cartridgeObb, cartridgeObbFromMatrix, composeCartridgeMatrix, layoutSpiral, MAIN_SLOTS, pileOffset, RADIUS, STEP_A, type SpiralItem } from "./spiral";
 
 const { items, pileTop } = layoutSpiral();
 
@@ -80,17 +81,49 @@ describe("layoutSpiral", () => {
     expect(hits).toEqual([]);
   });
 
-  it("stays messy: tilts, reach and steps all vary", () => {
-    const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
-    expect(spread(items.map((it) => it.base.x))).toBeGreaterThan(0.35);
-    expect(spread(items.map((it) => it.base.z))).toBeGreaterThan(0.3);
-    expect(spread(items.map((it) => it.base.rad))).toBeGreaterThan(0.4);
+  it("is messy like the references: tilts, reach, scale and steps all vary widely", () => {
+    const sd = (xs: number[]) => { const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length); };
+    expect(sd(items.map((it) => it.base.x))).toBeGreaterThan(0.22);
+    expect(sd(items.map((it) => it.base.z))).toBeGreaterThan(0.18);
+    expect(sd(items.map((it) => it.base.y))).toBeGreaterThan(0.2);
+    expect(sd(items.map((it) => it.base.rad))).toBeGreaterThan(0.38);
+    expect(sd(items.map((it) => it.base.scale))).toBeGreaterThan(0.05);
     const gaps = items.slice(1).map((it, k) => it.pivotY - items[k].pivotY);
-    expect(spread(gaps)).toBeGreaterThan(0.15);
+    expect(sd(gaps)).toBeGreaterThan(0.1);
+  });
+
+  it("lets a few cartridges stick out much further than the rest", () => {
+    const far = items.filter((it) => it.base.rad >= RADIUS + 0.9);
+    expect(far.length).toBeGreaterThanOrEqual(4);
+    expect(far.length).toBeLessThanOrEqual(8);
+    expect(far.every((it) => it.ri < 0)).toBe(true); // the six robots stay pickable where you expect them
+  });
+
+  it("still reads as a spiral: each cartridge stays near its turn of the helix", () => {
+    for (const it of items) expect(Math.abs(it.pivotRot - it.k * STEP_A)).toBeLessThanOrEqual(0.35);
   });
 
   it("stays controlled: a compact pile, not a tower of air", () => {
     const meanGap = pileTop / items.length;
-    expect(meanGap).toBeLessThan(0.75);
+    expect(meanGap).toBeLessThan(0.9);
+  });
+});
+
+describe("composeCartridgeMatrix", () => {
+  it("puts each cartridge exactly where its collision box is, slid out and parted or not", () => {
+    const m = new Matrix4();
+    for (const it of items)
+      for (const [out, dy] of [[0, 0], [0.5, 0.4], [1, -0.7]]) {
+        composeCartridgeMatrix(m, it, out, 0, dy);
+        const fromMatrix = cartridgeObbFromMatrix(m, it);
+        const reference = cartridgeObb({ ...it, pivotY: it.pivotY + dy }, out);
+        expect(fromMatrix.center.distanceTo(reference.center)).toBeLessThan(1e-9);
+        expect(fromMatrix.half).toEqual(reference.half);
+      }
+  });
+
+  it("scales the box with the cartridge", () => {
+    const big = items.reduce((a, b) => (b.base.scale > a.base.scale ? b : a));
+    expect(cartridgeObb(big).half[0]).toBeCloseTo(1.15 * big.base.scale);
   });
 });

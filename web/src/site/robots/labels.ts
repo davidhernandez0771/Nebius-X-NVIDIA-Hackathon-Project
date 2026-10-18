@@ -1,5 +1,4 @@
-// The paper label on each cartridge (front, and a dimmer copy under the shell), drawn once into a canvas.
-import { CanvasTexture, SRGBColorSpace } from "three";
+// The paper label on each cartridge (front, and a dimmer copy under the shell), drawn into the label atlas.
 import type { Robot } from "./robots";
 import { HEAVY, MONO } from "./fonts";
 
@@ -21,15 +20,4 @@ export function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, r: 
   }
   g.font = `500 16px ${MONO}`;
   g.fillText(copyN ? "#" + String(copyN).padStart(3, "0") + " / " + total : r.status.toUpperCase(), 24, 470);
-}
-
-export function labelTexture(r: Robot, copyN: number, total: number): CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 640; c.height = 512;
-  const g = c.getContext("2d");
-  if (g) drawLabel(g, c.width, c.height, r, copyN, total);
-  const t = new CanvasTexture(c);
-  t.colorSpace = SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
 }

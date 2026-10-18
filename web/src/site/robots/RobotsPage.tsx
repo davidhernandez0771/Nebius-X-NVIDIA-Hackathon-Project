@@ -8,6 +8,8 @@ import { Hud } from "./hud";
 import { fontsReady } from "./fonts";
 import { FlatShelf } from "./FlatShelf";
 import type { ShelfView } from "./ShelfScene";
+import { PerfProbe, readPerfConfig } from "./perf";
+import { PerfOverlay } from "./PerfOverlay";
 import "./robots.css";
 
 const ShelfScene = lazy(() => import("./ShelfScene"));
@@ -21,7 +23,7 @@ export function hasWebGL(): boolean {
   }
 }
 
-const DPR_CAP = 1.75;
+const DPR_CAP = 1.5;
 
 export function RobotsPage() {
   const { reduced } = useMotion();
@@ -31,8 +33,16 @@ export function RobotsPage() {
   const stage = useRef<HTMLDivElement>(null);
   const hudCanvas = useRef<HTMLCanvasElement>(null);
   const hud = useRef<Hud | null>(null);
-  const view = useRef<ShelfView>({ selected: null, reduce: reduced, ptr: new Vector2(), scrollT: 0.5 });
+  const view = useRef<ShelfView>({ selected: null, reduce: reduced, ptr: new Vector2(), scrollT: 0.5, wheel: 0 });
+  const [active, setActive] = useState(true);
   const three = webgl && !reduced;
+  const [perfCfg] = useState(() => readPerfConfig(typeof location !== "undefined" ? location.search : ""));
+  const [probe] = useState(() => {
+    if (!perfCfg.on) return null;
+    const p = new PerfProbe();
+    if (perfCfg.sync) p.meta.sync = 1;
+    return p;
+  });
 
   // Labels and the HUD draw text into canvases, so wait for the fonts first (as the prototype did).
   useEffect(() => {
@@ -74,13 +84,14 @@ export function RobotsPage() {
   }, [three, ready]);
 
   // Scroll moves through the pile (and drops the pick); the pointer adds a little parallax; touch drags scroll.
+  // Input is only gathered here; the frame loop applies it once per frame, however many events arrive.
   useEffect(() => {
     const el = stage.current;
     if (!three || !el) return;
     let dragY: number | null = null;
     const nudge = (dy: number) => {
-      view.current.scrollT = Math.min(1, Math.max(0, view.current.scrollT + dy * 0.0006));
-      setSelected(null);
+      view.current.wheel += dy;
+      if (view.current.selected != null) setSelected(null);
     };
     const onWheel = (e: WheelEvent) => { e.preventDefault(); nudge(e.deltaY); };
     const onMove = (e: PointerEvent) => {
@@ -102,6 +113,56 @@ export function RobotsPage() {
     };
   }, [three]);
 
+  // Stop rendering while the tab is hidden or the stage is scrolled off-screen.
+  useEffect(() => {
+    const el = stage.current;
+    if (!three || !el) return;
+    let visible = true, onScreen = true;
+    const update = () => setActive(visible && onScreen);
+    const onVis = () => { visible = document.visibilityState !== "hidden"; update(); };
+    document.addEventListener("visibilitychange", onVis);
+    const io = typeof IntersectionObserver === "function" ? new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; update(); }) : null;
+    io?.observe(el);
+    onVis();
+    return () => { document.removeEventListener("visibilitychange", onVis); io?.disconnect(); };
+  }, [three]);
+
+  useEffect(() => {
+    if (!probe || typeof PerformanceObserver === "undefined") return;
+    try {
+      const po = new PerformanceObserver((list) => list.getEntries().forEach((e) => probe.longTask(e.duration)));
+      po.observe({ type: "longtask", buffered: false });
+      return () => po.disconnect();
+    } catch {
+      return; // longtask entries are Chromium-only
+    }
+  }, [probe]);
+
+  // ?perf&sweep: scroll the whole pile twice with synthetic wheel events (cold pass, then warm pass), resetting
+  // the probe at each pass and leaving both summaries on window.__perfResult.
+  useEffect(() => {
+    const el = stage.current;
+    if (!three || !ready || !probe || !perfCfg.sweep || !el) return;
+    const results: Record<string, unknown> = {};
+    (window as unknown as { __perfResult?: unknown }).__perfResult = results;
+    const STEP = 8, HZ = 60, PASS_EVENTS = Math.round(2 / (STEP * 0.0006)); // one pass ≈ the pile up and down
+    let n = 0, pass = 0, dir = 1;
+    view.current.scrollT = 0;
+    view.current.wheel = 0;
+    probe.reset();
+    const id = window.setInterval(() => {
+      if (view.current.scrollT >= 1) dir = -1;
+      else if (view.current.scrollT <= 0) dir = 1;
+      el.dispatchEvent(new WheelEvent("wheel", { deltaY: dir * STEP, bubbles: true, cancelable: true }));
+      if (++n % PASS_EVENTS === 0) {
+        results[pass === 0 ? "cold" : "warm"] = { ...probe.summary(), hitchLog: probe.hitches.slice(0, 20) };
+        probe.reset();
+        if (++pass === 2) window.clearInterval(id);
+      }
+    }, 1000 / HZ);
+    return () => window.clearInterval(id);
+  }, [three, ready, probe, perfCfg.sweep]);
+
   const onHover = useCallback((on: boolean) => { if (stage.current) stage.current.style.cursor = on ? "pointer" : ""; }, []);
   const sel = selected == null ? null : ROBOTS[selected];
 
@@ -110,10 +171,11 @@ export function RobotsPage() {
       <div className={`robots-stage${three ? "" : " robots-stage--flat"}`} ref={stage}>
         {three && ready && (
           <Suspense fallback={null}>
-            <ShelfScene view={view} hud={hud} onPick={(i) => pick(i)} onMiss={() => setSelected(null)} onHover={onHover} />
+            <ShelfScene view={view} hud={hud} onPick={(i) => pick(i)} onMiss={() => setSelected(null)} onHover={onHover} perf={probe} dpr={perfCfg.dpr} tier={perfCfg.tier} active={active} />
           </Suspense>
         )}
         {three && <canvas className="robots-hud" ref={hudCanvas} aria-hidden="true" />}
+        {three && probe && <PerfOverlay probe={probe} />}
         {!three && <FlatShelf selected={selected} onPick={pick} />}
         <div className="robots-top">
           <span className="robots-mark">SANT</span>
