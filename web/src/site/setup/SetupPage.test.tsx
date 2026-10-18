@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MotionProvider } from "../../sant/motion/MotionProvider";
 import { SetupPage } from "./SetupPage";
@@ -7,6 +7,7 @@ import { SetupPage } from "./SetupPage";
 vi.mock("./RobotPreview", () => ({ default: () => <div data-testid="preview" /> }));
 
 beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn(); // not in jsdom
   vi.stubGlobal(
     "matchMedia",
     vi.fn((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
@@ -70,6 +71,24 @@ describe("SetupPage", () => {
     expect(within(row("panda_link8")).getByText("Hand")).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(socket.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("runs the report card: roles saved, progress by stage, then the card", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      page();
+      fireEvent.click(await screen.findByRole("button", { name: "OpenArm" }));
+      await screen.findByRole("heading", { name: "openarm" });
+      fireEvent.click(screen.getAllByRole("button", { name: "Run report card" })[0]);
+      await act(() => vi.advanceTimersByTimeAsync(1200));
+      expect(screen.getAllByRole("button", { name: "Running…" })).toHaveLength(2);
+      expect(document.querySelector(".byor-progress")).toBeTruthy();
+      await act(() => vi.advanceTimersByTimeAsync(9000));
+      expect(await screen.findByRole("region", { name: "Design flaw found" })).toBeTruthy();
+      expect(screen.getAllByRole("button", { name: "Run again" })).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("explains an upload the recorded data doesn't know", async () => {

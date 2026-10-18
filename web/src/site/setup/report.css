@@ -1,0 +1,471 @@
+/* The run and the report card on /robots/setup, Volt. Tokens only (web/src/sant/tokens.css). Amber means an issue;
+   the reach map is one teal ramp, with hatching for "unreachable" so colour is never the only signal. */
+
+.byor-panel__run {
+  margin-top: var(--sant-space-5);
+}
+
+.byor-run {
+  margin-top: var(--sant-space-8);
+  scroll-margin-top: var(--sant-space-4);
+}
+
+.byor-run:focus {
+  outline: none;
+}
+
+.byor-progress {
+  display: grid;
+  gap: var(--sant-space-4);
+  max-width: 44rem;
+  margin-bottom: var(--sant-space-7);
+  padding: var(--sant-space-5);
+  border-radius: var(--sant-radius-lg);
+  background: var(--sant-surface);
+  box-shadow: inset 0 0 0 1px var(--sant-line);
+}
+
+.sant .byor-progress__note,
+.sant .byor-run__previous {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .byor-run__error {
+  max-width: 80ch;
+  margin-bottom: var(--sant-space-5);
+  color: var(--sant-danger);
+  font-size: var(--sant-fs-small);
+}
+
+/* ------------------------------------------------------- the report card */
+
+.byor-card {
+  display: grid;
+  gap: var(--sant-space-7);
+}
+
+.byor-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sant-space-3) var(--sant-space-4);
+}
+
+.sant .byor-card__title {
+  font-family: var(--sant-font-display);
+  font-weight: 400;
+  font-size: var(--sant-fs-2);
+  line-height: 1.08;
+}
+
+.sant .byor-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-4);
+  width: 100%;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+}
+
+.byor-card__grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 26rem) minmax(0, 1fr);
+  gap: var(--sant-space-8);
+  align-items: start;
+}
+
+.sant .byor-block__title {
+  margin-bottom: var(--sant-space-4);
+  font-size: var(--sant-fs-5);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.sant .byor-block__sub {
+  margin: var(--sant-space-6) 0 var(--sant-space-3);
+  font-size: var(--sant-fs-small);
+  font-weight: 600;
+}
+
+.sant .byor-block__note {
+  margin-top: var(--sant-space-3);
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+/* The design flaw: the card's one amber moment. */
+.byor-flaw {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sant-space-4);
+  max-width: 62rem;
+  padding: var(--sant-space-5) var(--sant-space-6);
+  border-radius: var(--sant-radius-lg);
+  background: var(--sant-issue-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sant-issue) 40%, transparent);
+}
+
+.byor-flaw__icon {
+  margin-top: 2px;
+  color: var(--sant-issue);
+}
+
+.sant .byor-flaw__title {
+  color: var(--sant-issue);
+  font-size: var(--sant-fs-small);
+  font-weight: 600;
+}
+
+.sant .byor-flaw__lead {
+  margin-top: var(--sant-space-2);
+  font-family: var(--sant-font-display);
+  font-size: var(--sant-fs-4);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.byor-flaw__lead code {
+  font-size: 0.8em;
+}
+
+.sant .byor-flaw__body {
+  max-width: 70ch;
+  margin-top: var(--sant-space-3);
+  text-wrap: pretty;
+}
+
+.sant .byor-flaw__rule {
+  margin-top: var(--sant-space-3);
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .byor-score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sant-space-3);
+}
+
+.byor-score__num {
+  font-size: var(--sant-fs-stat);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.byor-score__of {
+  color: var(--sant-muted);
+}
+
+.byor-score__label {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+}
+
+/* One cell per scene, in seed order. On a new card they resolve left to right: the page's one reveal. */
+.byor-strip {
+  display: grid;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  gap: 3px;
+  max-width: 26rem;
+  margin: var(--sant-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.byor-strip__cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--sant-surface-2);
+  animation: byor-resolve var(--sant-dur-4) var(--sant-ease-out) both;
+  animation-delay: calc(var(--i) * var(--sant-stagger-list));
+}
+
+.byor-strip__cell[data-ok="true"] {
+  background: var(--sant-accent-soft);
+  color: var(--sant-accent);
+}
+
+.byor-strip__cell[data-ok="false"] {
+  background: var(--sant-issue-soft);
+  color: var(--sant-issue);
+}
+
+.byor-strip--pending .byor-strip__cell {
+  animation: none;
+  transition: background-color var(--sant-dur-3) var(--sant-ease-out);
+}
+
+.byor-strip--pending .byor-strip__cell[data-done="true"] {
+  background: var(--sant-control);
+}
+
+@keyframes byor-resolve {
+  from {
+    background: var(--sant-surface-2);
+    color: transparent;
+  }
+}
+
+[data-motion="reduced"] .byor-strip__cell {
+  animation: none;
+}
+
+.byor-reasons {
+  display: grid;
+  gap: var(--sant-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.byor-reason {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
+  gap: 6px var(--sant-space-3);
+  align-items: center;
+  font-size: var(--sant-fs-small);
+}
+
+.byor-reason__label code {
+  margin-left: var(--sant-space-1);
+  color: var(--sant-muted);
+  font-size: 0.75rem;
+}
+
+.byor-reason__bar {
+  grid-column: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--sant-surface-2);
+  overflow: hidden;
+}
+
+.byor-reason__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--sant-issue);
+}
+
+.byor-reason__count {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  justify-self: end;
+}
+
+/* ------------------------------------------------------------- reach map */
+
+.byor-reach {
+  display: grid;
+  gap: var(--sant-space-4);
+  margin: 0;
+}
+
+.byor-reach__map {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.byor-reach__cell {
+  fill: var(--sant-accent);
+  transition: stroke var(--sant-dur-1) var(--sant-ease-out);
+}
+
+.byor-reach__cell:hover {
+  stroke: var(--sant-text);
+  stroke-width: 1;
+}
+
+.byor-reach__hatch {
+  stroke: color-mix(in srgb, var(--sant-issue) 55%, transparent);
+  stroke-width: 1.5;
+}
+
+.byor-reach__hit {
+  fill: transparent;
+}
+
+.byor-reach__cube {
+  stroke: var(--sant-bg);
+  stroke-width: 2;
+}
+
+.byor-reach__scene[data-ok="true"] .byor-reach__cube {
+  fill: var(--sant-text);
+}
+
+.byor-reach__scene[data-ok="false"] .byor-reach__cube {
+  fill: var(--sant-bg);
+  stroke: var(--sant-issue);
+  stroke-width: 1.75;
+}
+
+.byor-reach__scene:hover .byor-reach__cube {
+  r: 5.5;
+}
+
+.byor-reach__tick {
+  fill: var(--sant-muted);
+  font-family: var(--sant-font-data);
+  font-size: 10px;
+}
+
+.byor-reach__cap {
+  display: grid;
+  gap: var(--sant-space-2);
+  font-size: var(--sant-fs-caption);
+}
+
+.byor-reach__readout {
+  min-height: 1.4em;
+  color: var(--sant-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.byor-reach__axes {
+  color: var(--sant-muted);
+}
+
+.byor-reach__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-2) var(--sant-space-4);
+  color: var(--sant-muted);
+}
+
+.byor-reach__legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.byor-key {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.byor-key--all {
+  background: color-mix(in srgb, var(--sant-accent) 86%, transparent);
+}
+
+.byor-key--some {
+  background: color-mix(in srgb, var(--sant-accent) 40%, transparent);
+}
+
+.byor-key--none {
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--sant-issue) 55%, transparent) 0 1.5px, transparent 1.5px 4px);
+}
+
+.byor-key--ok {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sant-text);
+}
+
+.byor-key--fail {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.75px var(--sant-issue);
+}
+
+.byor-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-4);
+  margin: var(--sant-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.byor-layer {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px var(--sant-space-2);
+  font-size: 0.75rem;
+}
+
+.byor-layer__map {
+  grid-column: 1 / -1;
+  width: 78px;
+  height: auto;
+}
+
+.byor-layer__map rect {
+  fill: color-mix(in srgb, var(--sant-issue) 30%, var(--sant-surface-2));
+}
+
+.byor-layer__map rect[data-ok="true"] {
+  fill: var(--sant-accent);
+  fill-opacity: 0.75;
+}
+
+.byor-layer__name {
+  color: var(--sant-muted);
+}
+
+.byor-layer__pct {
+  justify-self: end;
+}
+
+/* ------------------------------------------------------------ the table */
+
+.byor-table {
+  width: 100%;
+  max-width: 40rem;
+  border-collapse: collapse;
+  font-size: var(--sant-fs-small);
+}
+
+.byor-table th,
+.byor-table td {
+  padding: var(--sant-space-2) var(--sant-space-3);
+  border-bottom: 1px solid var(--sant-line);
+  text-align: left;
+  font-weight: 400;
+}
+
+.byor-table thead th {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.byor-table td.sant-num,
+.byor-table thead th:nth-child(n + 3) {
+  text-align: right;
+}
+
+.byor-table tr[data-flaw] th,
+.byor-table tr[data-flaw] td {
+  background: var(--sant-issue-soft);
+}
+
+.byor-card__sources {
+  max-width: 90ch;
+}
+
+@media (max-width: 1000px) {
+  .byor-card__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sant-space-7);
+  }
+}
+
+@media (max-width: 560px) {
+  .byor-flaw {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--sant-space-4);
+  }
+
+  .byor-strip {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}

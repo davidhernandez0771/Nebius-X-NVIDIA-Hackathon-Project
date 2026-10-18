@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppShell } from "../../sant/shells/AppShell";
 import { API_BASE, fixtureClient, pickClient, RECORDED, type ByorClient, type Sample } from "./client";
@@ -9,6 +9,7 @@ import { RoleBoard } from "./RoleBoard";
 import { RunPanel } from "./RunPanel";
 import { ByorError, type Issue, type Parts, type RoleSet, type UploadResult } from "./types";
 import { UploadZone } from "./UploadZone";
+import { useRun } from "./useRun";
 import "./setup.css";
 
 // three.js and urdf-loader load only when a robot is on screen.
@@ -35,6 +36,8 @@ export function SetupPage() {
   const [busy, setBusy] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<Issue[]>([]);
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
+  const { state: runState, run } = useRun(robot, roles, mount, setServerIssues);
+  const runRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -83,6 +86,18 @@ export function SetupPage() {
   }, [robot, roles, serverIssues]);
 
   const recorded = robot?.client.mode === "fixture" || client?.mode === "fixture";
+  const running = runState.phase === "saving" || runState.phase === "running";
+  const blocked = !roles || localIssues(roles).length > 0;
+  const startRun = () => {
+    void run();
+    const reduce = document.documentElement.dataset.motion === "reduced";
+    requestAnimationFrame(() => runRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }));
+  };
+  const runButton = (
+    <button type="button" className="sant-btn sant-btn--primary sant-btn--md" disabled={blocked || running} onClick={startRun}>
+      {running ? "Running…" : runState.report ? "Run again" : "Run report card"}
+    </button>
+  );
 
   return (
     <AppShell
@@ -93,16 +108,19 @@ export function SetupPage() {
       status={client ? <span className="byor-mode" data-mode={client.mode}>{client.mode === "live" ? "Backend connected" : "Recorded data"}</span> : null}
       actions={
         robot ? (
-          <button
-            type="button"
-            className="sant-btn sant-btn--secondary sant-btn--md"
-            onClick={() => {
-              setRobot(null);
-              setRoles(null);
-            }}
-          >
-            Set up another robot
-          </button>
+          <>
+            <button
+              type="button"
+              className="sant-btn sant-btn--secondary sant-btn--md"
+              onClick={() => {
+                setRobot(null);
+                setRoles(null);
+              }}
+            >
+              Set up another robot
+            </button>
+            {runButton}
+          </>
         ) : null
       }
     >
@@ -129,6 +147,7 @@ export function SetupPage() {
               </header>
               <RoleBoard parts={robot.parts} roles={roles} onChange={(r) => (setRoles(r), setServerIssues([]))} focus={focus} onFocus={setFocus} />
               <IssueList issues={issues} />
+              <div className="byor-panel__run">{runButton}</div>
             </section>
 
             <aside className="byor-panel byor-panel--view" aria-label="3D preview and robot facts">
@@ -140,7 +159,7 @@ export function SetupPage() {
               <Facts parts={robot.parts} mount={mount} onMount={setMount} />
             </aside>
           </div>
-          <RunPanel robot={robot} roles={roles} mount={mount} issues={issues} onIssues={setServerIssues} />
+          <RunPanel ref={runRef} state={runState} parts={robot.parts} recorded={robot.client.mode === "fixture"} />
         </>
       )}
     </AppShell>
