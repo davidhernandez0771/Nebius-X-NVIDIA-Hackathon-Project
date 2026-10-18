@@ -145,3 +145,98 @@ They get the same information as the model: the same sampled frames and the same
   - Nemotron and code were both right on all 4 label clips and all 4 judge pairs.
 - **Prompt edits:** none.
 - **Frozen at `72434d4`** for the prompts, the code baselines and the runner. The test runs with that code, unchanged.
+
+## Results (test, run once at `72434d4`; 2026-10-18)
+
+- **The run:** 100 calls, every reply valid on the first attempt, est. **$0.0985**. The median latency was 1.5 s.
+- **Total spend:** **$0.1064** over 108 calls, against the $5 cap.
+- **Where the evidence is**, in `2026-10-18-nemotron-judge/`:
+  - `report.txt` holds the report;
+  - `outcomes.jsonl` holds every item's truth, the model's reply and its score, and the code's answer;
+  - `misses.png` shows the frames behind the two disagreements.
+
+### Labeler (40 clips)
+
+| Measure | Nemotron | Code | Only Nemotron right / only code right | Sign test p |
+|---|---|---|---|---|
+| **Task** (colour + destination) | **40/40** = 100% (91.2–100%) | 39/40 = 97.5% (87.1–99.6%) | 1 / 0 | 1.0 |
+| Colour | 40/40 (91.2–100%) | 40/40 (91.2–100%) | 0 / 0 | 1.0 |
+| Destination | 40/40 (91.2–100%) | 39/40 (87.1–99.6%) | 1 / 0 | 1.0 |
+| Steps (±0.5 s) | 40/40 (91.2–100%) | 40/40 (91.2–100%) | 0 / 0 | 1.0 |
+
+- **By group:** recorded demos and copies 20/20 for both; recoloured 10/10 for both; reversed: Nemotron 10/10,
+  code 9/10.
+- **The trivial constant label** ("red cube → bin") would score 20/40.
+- **The code's miss** (`home_src_3008_3181+reverse`): a few stray blue pixels at the top of the last frame stretched
+  the rule's "bin box" over the whole table, so a cube on the table counted as in the bin. That is a brittle pixel
+  rule, not a hard case.
+- **Nemotron wrote readable task sentences.** Two examples:
+  - "The robot picks up a red cube and places it inside a blue bin."
+  - For a reversed clip: "The robot picks up a red cube from a blue bin and places it on the table."
+- **Steps: Nemotron copied the summary.** In all 40 clips, its grasp and release start frames are *exactly* the
+  gripper events the summary gives it. So on steps it adds nothing over code, which is exact by construction.
+
+### Judge (60 pairs: 30 matching, 30 wrong)
+
+| Kind | Nemotron | Code |
+|---|---|---|
+| **All** | **59/60** = 98.3% (91.1–99.7%) | **60/60** = 100% (94.0–100%) |
+| Matching (says yes) | 30/30 (88.6–100%) | 30/30 |
+| Different object (says no) | 10/10 (72.2–100%) | 10/10 |
+| Different goal (says no) | 10/10 (72.2–100%) | 10/10 |
+| Failed copy labelled as passed (says no) | **9/10** (59.6–98.2%) | **10/10** |
+| Balanced accuracy | 0.983 | 1.000 |
+
+- **Head to head:** only Nemotron right 0, only code right 1; exact sign test p = 1.0.
+- **Nemotron named the right check:**
+  - all 10 object pairs had `same_object` false, and no other check false;
+  - all 10 goal pairs had `same_goal` and `same_order` false. The reversal changes both, so that is right;
+  - in 9 of the 10 failed pairs, `copy_completes` was false.
+- **Its reasons are specific and checkable.** For example: "the copy starts with the cube already in the box,
+  removes it, and leaves it on the table, reversing the goal and order."
+- **Its miss** (`failed:s1_0001_raw|s1_0001_rules_mx_101001`; physics: `not_in_bin, collision, dropped, unreachable`):
+  - In the copy's last frame the bin is empty: the cube was knocked out of view.
+  - Nemotron answered "matches: yes", saying the copy's final frame "shows the cube inside the container", with
+    **confidence 0.95**.
+  - That is a hallucinated success, trusting the "physics check: passed" label over the image. It is the
+    "leans toward success" failure that FailBench reports for VLM success detectors.
+
+### What this says, honestly
+
+- **On this set, a simple code rule did as well as Nemotron.**
+  - Neither beats the other on any sub-task: every sign test gives p = 1.0, with at most 1 discordant item.
+  - **On the judge, the code rule scored higher** (60/60 vs 59/60, and 10/10 vs 9/10 on mislabelled failures). The
+    difference is not significant, but the one wrong verdict was Nemotron's, and it was confidently wrong.
+  - On the labeler, Nemotron was the one to get every clip right (40/40 vs 39/40). That is also not significant.
+- **Both are near the ceiling because the set is easy for both:**
+  - one red cube, one blue bin, a clean background;
+  - perturbations a pixel rule can see;
+  - a gripper log that gives the steps away.
+  - The code rules were written for exactly this scene and these three wrong kinds. They would break on a real
+    webcam scene with other objects, while Nemotron's prompt names no object or colour.
+  - That transfer is the argument for the model, but **it is not measured here**. No real-person or webcam demo
+    exists yet.
+- **What Nemotron adds that code doesn't, here:**
+  - a natural-language task label and a checkable reason for each verdict;
+  - with no scene-specific rules, it still named the right failed check on 29 of 30 wrong pairs.
+- **What it does not add:**
+  - **Step timing:** it copies the gripper log.
+  - **Confidence:** 0.95–0.98 on nearly everything, including its wrong verdict, so the confidence carries no
+    signal.
+- **For the product:**
+  - **Physics stays the judge of success.** Nemotron's `copy_completes` must never override a failed physics check.
+    Its single error was exactly that kind of case, made the other way.
+  - The Review card should show the physics result and Nemotron's verdict side by side.
+  - Use Nemotron for the label and the intent match, where its reasons help a person. Do not use it as a success
+    detector.
+- **Cost:** about $0.001 per call (2.8–2.9k prompt tokens with 8 images at 256 px, about 100–180 completion
+  tokens), about 1.5 s each.
+
+### Limits
+
+- The frames are synthetic sim renders at 128 px, not webcam video.
+- The "human" demos are scripted demos with added noise.
+- The wrong cases are deliberate edits of real recordings.
+- The items are not fully independent (seeds shared across lineages).
+- n = 40 and 60, so the CIs are wide for a 1-item difference.
+- Each item was run once at temperature 0.2, so run-to-run variance is not measured.
