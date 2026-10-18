@@ -124,3 +124,13 @@ def test_assemble_writes_the_start_state_of_every_episode(multiply_eps, tmp_path
     out = assemble(Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps), tmp_path / "datasets")
     expected = [load_episode(Path(d))[1]["joint_pos"][0] for d in multiply_eps]
     np.testing.assert_allclose(load_starts(out), expected, rtol=1e-6)
+
+
+def test_a_label_names_the_cell(multiply_eps):
+    # Sprint 8: T2's 10 x 30 cell is also condition raw_multiply / n_human 10, like sprint 6's 10 x 10 cell.
+    cell = Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps, label="raw_multiply_2x2")
+    assert cell.name == "raw_multiply_2x2"
+    assert build_manifest(cell)["cell"]["name"] == "raw_multiply_2x2"
+    for bad in ("", "has space", "../up"):
+        with pytest.raises(ValidationError):
+            Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps, label=bad)

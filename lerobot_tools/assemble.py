@@ -33,10 +33,11 @@ class Cell(BaseModel):
     condition: Condition
     n_human: int = Field(gt=0)
     episode_dirs: list[Path] = Field(min_length=1)
+    label: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_\-]+$")  # overrides the derived name
 
     @property
     def name(self) -> str:
-        return f"{self.condition}_{self.n_human}"
+        return self.label or f"{self.condition}_{self.n_human}"
 
 
 def build_manifest(cell: Cell) -> dict:
