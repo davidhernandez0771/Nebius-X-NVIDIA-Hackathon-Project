@@ -20,3 +20,11 @@ The demo `/review2` shows when no backend is running (and at `/review2?id=exampl
     the repair came from; `s1_0002/diagnosis.json` is the sprint 3 Nemotron's, which found no issues), both
     passports with their physics verification, and the frame-sheet layout;
   - `raw_front.jpg`, `perfected_front.jpg`: the frame sheets.
+  - `verdict.json`: the verdict card's Nemotron lines (label and match), real model replies from the
+    pre-registered 2026-10-18 labeler/judge test (`outcomes.jsonl` on `pm/nemotron-judge` at `47cc4cd`),
+    composed into a ReviewVerdict by `scripts/export_review_verdict.py` (the command is in its docstring).
+    - The **label** is Nemotron's for `s1_0002`'s recording (eval clip `s1_0002_raw`).
+    - The **match** is for `s1_0002_rules_m102000`, a copy multiplied from `s1_0002_rules` (eval clip
+      `s1_0002_rules_mx_102000`). `s1_0002_rules` itself was not judged, so the card names the copy.
+    - The script checks that each eval clip's trajectory is the store demo's, step for step, and records
+      the outcomes file's sha256.
