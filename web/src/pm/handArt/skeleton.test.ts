@@ -71,3 +71,28 @@ describe("packSkeleton", () => {
     expect(big.boneRadius).toBeCloseTo(p.boneRadius * 2);
   });
 });
+
+describe("packSkeleton palm and fingertips", () => {
+  it("puts the palm at the mean of the wrist and the four knuckles", () => {
+    const lm = flatHand();
+    const p = packSkeleton(lm, { aspect: 1, mirrored: false })!;
+    const ids = [0, 5, 9, 13, 17];
+    const mx = ids.reduce((s, i) => s + lm[i].x, 0) / 5;
+    const my = ids.reduce((s, i) => s + (1 - lm[i].y), 0) / 5;
+    expect(p.palm[0]).toBeCloseTo(mx);
+    expect(p.palm[1]).toBeCloseTo(my);
+  });
+
+  it("gives each fingertip a unit direction pointing out of the finger", () => {
+    const lm = flatHand();
+    lm[7] = { x: 0.5, y: 0.5, z: 0 };
+    lm[8] = { x: 0.5, y: 0.4, z: 0 }; // index pointing up the image
+    const p = packSkeleton(lm, { aspect: 1, mirrored: false })!;
+    expect(p.tips).toHaveLength(5 * 4);
+    expect(p.tips[4]).toBeCloseTo(0.5); // index tip x
+    expect(p.tips[5]).toBeCloseTo(0.6); // y up
+    expect(p.tips[6]).toBeCloseTo(0);
+    expect(p.tips[7]).toBeCloseTo(1);
+    for (let f = 0; f < 5; f++) expect(Math.hypot(p.tips[f * 4 + 2], p.tips[f * 4 + 3])).toBeCloseTo(1);
+  });
+});

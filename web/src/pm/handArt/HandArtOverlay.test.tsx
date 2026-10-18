@@ -19,7 +19,8 @@ vi.mock("./renderer", () => ({
       resize: vi.fn(),
       dispose: vi.fn(),
       frame: vi.fn(() => ({
-        cycle: { a: "ascii", b: "bayer", mix: 0.5, morphing: true },
+        cycle: { a: "ink", b: "bloom", mix: 0.5, morphing: true },
+        target: "bloom",
         width: 640,
         height: 480,
         cpuMs: 0.4,
@@ -80,35 +81,35 @@ describe("HandArtOverlay", () => {
     render(<HandArtOverlay landmarks={hand} gripperClosed />);
     tick();
     const r = fake.instances[0];
-    expect(r.setHand).toHaveBeenLastCalledWith(hand, true, 0);
+    expect(r.setHand).toHaveBeenLastCalledWith({ landmarks: hand, gripperClosed: true, frozen: null, recording: false, resets: 0 });
     expect(r.setMirrored).toHaveBeenLastCalledWith(true);
     expect(r.frame).toHaveBeenCalledTimes(1);
   });
 
   it("polls `source` once per frame instead of the props", () => {
-    const source = vi.fn(() => ({ landmarks: hand, gripperClosed: false, cue: 3 }));
+    const source = vi.fn(() => ({ landmarks: hand, gripperClosed: false, frozen: true, recording: true, resets: 3 }));
     render(<HandArtOverlay landmarks={null} source={source} />);
     tick();
     tick();
     expect(source).toHaveBeenCalledTimes(2);
-    expect(fake.instances[0].setHand).toHaveBeenLastCalledWith(hand, false, 3);
+    expect(fake.instances[0].setHand).toHaveBeenLastCalledWith({ landmarks: hand, gripperClosed: false, frozen: true, recording: true, resets: 3 });
   });
 
   it("passes a picked style and reduced motion to the style cycle", () => {
-    const { rerender } = render(<HandArtOverlay landmarks={hand} style="halftone" reducedMotion={false} />);
+    const { rerender } = render(<HandArtOverlay landmarks={hand} style="ripple" reducedMotion={false} />);
     tick();
     const r = fake.instances[0];
-    expect(r.setCycleOptions).toHaveBeenLastCalledWith(expect.objectContaining({ pinned: "halftone", reducedMotion: false }));
+    expect(r.setCycleOptions).toHaveBeenLastCalledWith(expect.objectContaining({ pinned: "ripple", reducedMotion: false }));
     rerender(<HandArtOverlay landmarks={hand} style="auto" reducedMotion />);
     tick();
     expect(r.setCycleOptions).toHaveBeenLastCalledWith(expect.objectContaining({ pinned: null, reducedMotion: true }));
   });
 
-  it("passes the event trigger, cooldown and morph time to the style cycle", () => {
-    render(<HandArtOverlay landmarks={hand} trigger="events" cooldownMs={400} morphMs={400} />);
+  it("passes the cooldown and crossfade time to the style cycle", () => {
+    render(<HandArtOverlay landmarks={hand} cooldownMs={400} morphMs={400} />);
     tick();
     expect(fake.instances[0].setCycleOptions).toHaveBeenLastCalledWith(
-      expect.objectContaining({ trigger: "events", cooldownMs: 400, morphMs: 400 }),
+      expect.objectContaining({ cooldownMs: 400, morphMs: 400 }),
     );
   });
 
@@ -130,8 +131,27 @@ describe("HandArtOverlay", () => {
     render(<HandArtOverlay landmarks={hand} onStats={onStats} />);
     for (let i = 0; i < 40; i++) tick(16);
     expect(onStats).toHaveBeenCalledTimes(1);
-    expect(onStats.mock.calls[0][0]).toMatchObject({ width: 640, height: 480, styleA: "ascii", styleB: "bayer", morphing: true, gpuMeanMs: 1.5 });
+    expect(onStats.mock.calls[0][0]).toMatchObject({ width: 640, height: 480, styleA: "ink", styleB: "bloom", morphing: true, target: "bloom", gpuMeanMs: 1.5 });
     expect(onStats.mock.calls[0][0].fps).toBeCloseTo(62.5, 0);
+  });
+
+  it("restarts its statistics when statsKey changes", () => {
+    const onStats = vi.fn();
+    const r = fake.instances;
+    const { rerender } = render(<HandArtOverlay landmarks={hand} onStats={onStats} statsKey="a" />);
+    for (let i = 0; i < 32; i++) tick(16);
+    r[0].frame.mockImplementation(() => ({
+      cycle: { a: "ink", b: "ink", mix: 0, morphing: false },
+      target: "ink",
+      width: 640,
+      height: 480,
+      cpuMs: 0.4,
+      gpuMs: [9],
+      drew: true,
+    }));
+    rerender(<HandArtOverlay landmarks={hand} onStats={onStats} statsKey="b" />);
+    for (let i = 0; i < 32; i++) tick(16);
+    expect(onStats.mock.calls[onStats.mock.calls.length - 1][0].gpuMeanMs).toBe(9); // no 1.5 ms samples from before
   });
 
   it("stops and frees the GPU on unmount", () => {

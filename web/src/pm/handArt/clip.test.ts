@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { initialDirector, stepDirector } from "./artDirector";
+import { HAND_ART_STYLES } from "./styleCycle";
 import { ClipRecorder, clipDurationMs, parseClip, sampleClip, syntheticClip, type HandClip } from "./clip";
 
 const lm = (x: number) => Array.from({ length: 21 }, () => ({ x, y: 0.5, z: 0 }));
@@ -36,6 +38,16 @@ describe("parseClip", () => {
     expect(parseClip(JSON.parse(JSON.stringify(tiny)))).toEqual(tiny);
   });
 
+  it("keeps the optional Record signals", () => {
+    const withSignals = {
+      ...tiny,
+      frames: tiny.frames.map((f, i) => ({ ...f, frozen: i === 1, recording: true, resets: i })),
+    };
+    const parsed = parseClip(JSON.parse(JSON.stringify(withSignals)));
+    expect(parsed.frames[1]).toMatchObject({ frozen: true, recording: true, resets: 1 });
+    expect(sampleClip(parsed, 120)).toMatchObject({ frozen: true, recording: true, resets: 1 });
+  });
+
   it("explains what is wrong with an invalid one", () => {
     expect(() => parseClip({})).toThrow(/frames/);
     expect(() => parseClip({ version: 1, frames: [] })).toThrow(/at least 2/);
@@ -54,7 +66,9 @@ describe("syntheticClip", () => {
   it("is a valid looping clip of a hand", () => {
     expect(parseClip(JSON.parse(JSON.stringify(clip)))).toBeTruthy();
     expect(clipDurationMs(clip)).toBeGreaterThan(5000);
-    for (const f of clip.frames) {
+    const tracked = clip.frames.filter((f) => f.landmarks);
+    expect(tracked.length).toBeGreaterThan(clip.frames.length * 0.8);
+    for (const f of tracked) {
       expect(f.landmarks).toHaveLength(21);
       for (const p of f.landmarks!) {
         expect(p.x).toBeGreaterThan(0);
@@ -73,10 +87,27 @@ describe("syntheticClip", () => {
     for (let i = 1; i < clip.frames.length; i++)
       if (clip.frames[i].gripperClosed !== clip.frames[i - 1].gripperClosed) changes++;
     expect(changes).toBeGreaterThanOrEqual(4);
-    const pinched = clip.frames.find((f) => f.gripperClosed)!;
+    const pinched = clip.frames.find((f) => f.gripperClosed && f.landmarks)!;
     const [thumb, index, wrist, mid] = [4, 8, 0, 9].map((i) => pinched.landmarks![i]);
     const span = Math.hypot(wrist.x - mid.x, wrist.y - mid.y);
     expect(Math.hypot(thumb.x - index.x, thumb.y - index.y)).toBeLessThan(span * 0.6);
+  });
+
+  it("plays every Record event, so the director shows all six styles", () => {
+    let d = initialDirector();
+    const seen = new Set<string>();
+    for (let t = 0; t <= clipDurationMs(clip); t += 16) {
+      const s = sampleClip(clip, t);
+      const r = stepDirector(d, 16, {
+        hand: !!s.landmarks,
+        gripperClosed: s.gripperClosed,
+        recording: !!s.recording,
+        resets: s.resets ?? 0,
+      });
+      d = r.state;
+      seen.add(r.style);
+    }
+    expect([...seen].sort()).toEqual([...HAND_ART_STYLES].sort());
   });
 
   it("is deterministic", () => {
@@ -89,10 +120,11 @@ describe("ClipRecorder", () => {
     const r = new ClipRecorder("webcam");
     r.add(1000, lm(0), false);
     r.add(1033, null, false);
-    r.add(1066, lm(1), true);
+    r.add(1066, lm(1), true, { frozen: false, recording: true, resets: 2 });
     const clip = r.toClip();
     expect(clip.frames.map((f) => f.t)).toEqual([0, 33, 66]);
     expect(clip.source).toBe("webcam");
+    expect(clip.frames[2]).toMatchObject({ recording: true, resets: 2 });
     expect(parseClip(JSON.parse(JSON.stringify(clip)))).toEqual(clip);
   });
 

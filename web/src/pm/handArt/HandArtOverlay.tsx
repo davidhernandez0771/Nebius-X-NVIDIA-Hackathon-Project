@@ -1,7 +1,8 @@
-// A generative hand overlay: the 21 landmarks drawn as textmode marks, Bayer dither,
-// halftone, particles or glowing lines, morphing between them every few seconds and
-// whenever the gripper opens or closes, or (trigger "events") only when the caller's cue
-// changes. Transparent; sits on top of the webcam view.
+// A generative hand overlay: the 21 landmarks drawn in one of six styles, one per thing
+// that happens on Record (artDirector): ink brush strokes while idle, a radial ink bloom on
+// grab, a particle burst on release, a particle trail while recording, a rippling dot field
+// while no hand is tracked, a glitch on reset. Styles crossfade, at most once per cooldown. Transparent;
+// sits on top of the webcam view.
 //
 // Pass the hand either as props (re-render per frame) or, cheaper, as `source`, a
 // function the overlay calls once per animation frame.
@@ -16,7 +17,13 @@ import "./handArt.css";
 export interface HandArtFrame {
   landmarks: readonly HandLandmark[] | null;
   gripperClosed?: boolean;
-  /** Bumped by the caller on each event; with trigger "events", each change morphs the style. */
+  /** The sim is recording a demo. */
+  recording?: boolean;
+  /** reset_scene messages sent so far; each rise plays the reset glitch. */
+  resets?: number;
+  /** Optional: the page's hand control froze the arm (shows the ripple); null when unknown. */
+  frozen?: boolean | null;
+  /** Ignored. Accepted so pages written for the earlier event counter still compile. */
   cue?: number;
 }
 
@@ -34,28 +41,34 @@ export interface HandArtStats {
   styleA: HandArtStyle;
   styleB: HandArtStyle;
   morphing: boolean;
+  /** The style the hand's state calls for (shown once the crossfade and cooldown allow). */
+  target: HandArtStyle;
 }
 
 export interface HandArtOverlayProps {
   /** 21 raw (unmirrored) MediaPipe landmarks, or null for no hand. Ignored when `source` is set. */
   landmarks?: readonly HandLandmark[] | null;
   gripperClosed?: boolean;
-  cue?: number;
+  frozen?: boolean | null;
+  recording?: boolean;
+  resets?: number;
   /** Polled once per animation frame; return the latest hand, or null. */
   source?: () => HandArtFrame | null;
-  /** A fixed style, or "auto" to cycle. */
+  /** A fixed style, or "auto" (default) to follow the hand's state. */
   style?: HandArtStyle | "auto";
   /** Flip like a mirror, as Record's view is. Default true. */
   mirrored?: boolean;
   /** Default: the system's prefers-reduced-motion. True shows one static style. */
   reducedMotion?: boolean;
-  holdMs?: number;
+  /** Crossfade length, and the least time between two crossfades starting. */
   morphMs?: number;
-  /** "timer" (default): change style every holdMs; "events": change when the cue changes. */
-  trigger?: CycleOptions["trigger"];
   cooldownMs?: number;
+  /** Ignored: the style always follows the hand's state. Accepted for earlier pages. */
+  trigger?: "timer" | "events";
   /** About twice a second. */
   onStats?: (s: HandArtStats) => void;
+  /** Changing it restarts the frame-time statistics (e.g. per style while measuring). */
+  statsKey?: string | number;
   /** true once it draws; false without WebGL, on a lost context, and on unmount. */
   onActiveChange?: (active: boolean) => void;
   className?: string;
@@ -88,11 +101,9 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
   const reducedMotion = props.reducedMotion ?? systemReduced;
   const cycle: CycleOptions = {
     ...DEFAULT_CYCLE,
-    holdMs: props.holdMs ?? DEFAULT_CYCLE.holdMs,
     morphMs: props.morphMs ?? DEFAULT_CYCLE.morphMs,
     pinned: props.style && props.style !== "auto" ? props.style : null,
     reducedMotion,
-    trigger: props.trigger ?? DEFAULT_CYCLE.trigger,
     cooldownMs: props.cooldownMs ?? DEFAULT_CYCLE.cooldownMs,
   };
   const cycleRef = useRef(cycle);
@@ -120,18 +131,29 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
     let raf = 0;
     let last = performance.now();
     let lastStats = last;
-    const cpu = new FrameMeter();
-    const intervals = new FrameMeter();
-    const gpu = new FrameMeter();
+    let cpu = new FrameMeter();
+    let intervals = new FrameMeter();
+    let gpu = new FrameMeter();
+    let statsKey = latest.current.statsKey;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const dt = Math.min(MAX_DT_MS, Math.max(0, now - last));
       last = now;
       const p = latest.current;
-      const hand = p.source ? p.source() : { landmarks: p.landmarks ?? null, gripperClosed: p.gripperClosed, cue: p.cue };
+      if (p.statsKey !== statsKey) {
+        statsKey = p.statsKey;
+        [cpu, intervals, gpu] = [new FrameMeter(), new FrameMeter(), new FrameMeter()];
+      }
+      const hand: HandArtFrame | null = p.source ? p.source() : { ...p, landmarks: p.landmarks ?? null };
       renderer.setMirrored(p.mirrored ?? true);
       renderer.setCycleOptions(cycleRef.current);
-      renderer.setHand(hand?.landmarks ?? null, !!hand?.gripperClosed, hand?.cue ?? 0);
+      renderer.setHand({
+        landmarks: hand?.landmarks ?? null,
+        gripperClosed: !!hand?.gripperClosed,
+        frozen: hand?.frozen ?? null,
+        recording: !!hand?.recording,
+        resets: hand?.resets ?? 0,
+      });
       const info = renderer.frame(dt);
       cpu.add(info.cpuMs);
       info.gpuMs.forEach((ms) => gpu.add(ms));
@@ -152,6 +174,7 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
           styleA: info.cycle.a,
           styleB: info.cycle.b,
           morphing: info.cycle.morphing,
+          target: info.target,
         });
       }
     };

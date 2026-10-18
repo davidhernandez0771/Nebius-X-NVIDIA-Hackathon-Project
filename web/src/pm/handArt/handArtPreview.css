@@ -48,7 +48,7 @@
 
 .ha-body {
   display: grid;
-  grid-template-columns: minmax(0, calc((100vh - 15rem) * 4 / 3)) 17rem;
+  grid-template-columns: minmax(0, calc((100vh - 15rem) * 4 / 3)) 19rem;
   justify-content: start;
   gap: 2.5rem;
   align-items: start;
@@ -67,6 +67,15 @@
   background:
     radial-gradient(ellipse 70% 60% at 50% 62%, #131a22 0%, rgba(19, 26, 34, 0) 70%),
     var(--ha-bg);
+}
+
+/* A stand-in for a bright, cluttered webcam image, to check the art stays readable. */
+.ha-stage-busy {
+  background:
+    radial-gradient(ellipse 45% 40% at 30% 35%, #c9b79a 0%, rgba(201, 183, 154, 0) 70%),
+    radial-gradient(ellipse 40% 50% at 75% 60%, #8fa3b8 0%, rgba(143, 163, 184, 0) 70%),
+    repeating-linear-gradient(100deg, #5b524a 0 18px, #6f675e 18px 40px, #4a443e 40px 64px),
+    #5b524a;
 }
 
 .ha-timeline {
@@ -93,8 +102,68 @@
   bottom: 0;
 }
 
+.ha-span-recording {
+  top: -3px;
+  bottom: auto;
+  height: 2px;
+  background: var(--ha-teal);
+}
+
 .ha-span-closed {
   background: var(--ha-amber);
+}
+
+.ha-span-frozen {
+  background: var(--ha-text);
+  opacity: 0.55;
+}
+
+.ha-reset {
+  position: absolute;
+  top: -6px;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  background: var(--ha-text);
+}
+
+.ha-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ha-muted);
+  font-size: 0.8125rem;
+}
+
+.ha-legend li::before {
+  content: "";
+  display: inline-block;
+  width: 0.75rem;
+  height: 3px;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+  border-radius: 1px;
+}
+
+.ha-key-recording::before {
+  background: var(--ha-teal);
+}
+
+.ha-key-closed::before {
+  background: var(--ha-amber);
+}
+
+.ha-key-lost::before {
+  background: var(--ha-muted);
+}
+
+.ha-legend .ha-key-reset::before {
+  width: 2px;
+  height: 0.75rem;
+  background: var(--ha-text);
 }
 
 .ha-span-lost {
@@ -218,35 +287,53 @@
 }
 
 .ha-swatch-auto {
-  background: conic-gradient(var(--ha-teal) 0 25%, transparent 0 50%, var(--ha-violet) 0 75%, transparent 0);
+  background: conic-gradient(var(--ha-teal) 0 25%, transparent 0 50%, var(--ha-amber) 0 75%, transparent 0);
   opacity: 0.85;
 }
 
-.ha-swatch-ascii {
+.ha-swatch-ink {
   background:
-    linear-gradient(var(--ha-teal), var(--ha-teal)) center / 60% 2px no-repeat,
-    linear-gradient(var(--ha-teal), var(--ha-teal)) center / 2px 60% no-repeat;
+    linear-gradient(118deg, transparent 38%, var(--ha-text) 40% 58%, transparent 61%),
+    linear-gradient(118deg, transparent 48%, var(--ha-teal) 49% 50%, transparent 51%);
 }
 
-.ha-swatch-bayer {
-  background: repeating-conic-gradient(var(--ha-teal) 0 25%, transparent 0 50%) 0 0 / 4px 4px;
+.ha-swatch-bloom {
+  background: repeating-conic-gradient(var(--ha-amber) 0 7deg, transparent 7deg 30deg);
+  mask: radial-gradient(circle, #000 0 55%, transparent 70%);
 }
 
-.ha-swatch-halftone {
-  background: radial-gradient(circle, var(--ha-teal) 0 1.6px, transparent 2px) 0 0 / 6px 6px;
+.ha-swatch-burst {
+  background: repeating-conic-gradient(from 200deg at 20% 80%, var(--ha-text) 0 2deg, transparent 2deg 14deg);
+  mask: linear-gradient(45deg, transparent 15%, #000 40%);
 }
 
-.ha-swatch-particles {
+.ha-swatch-trail {
   background:
-    radial-gradient(circle at 25% 30%, var(--ha-teal) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 70% 25%, var(--ha-violet) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 55% 70%, var(--ha-teal) 0 1.4px, transparent 2px),
-    radial-gradient(circle at 20% 80%, var(--ha-teal) 0 0.8px, transparent 1.3px);
+    radial-gradient(circle at 50% 30%, var(--ha-text) 0 1.2px, transparent 1.7px),
+    radial-gradient(circle at 30% 45%, var(--ha-text) 0 1px, transparent 1.5px),
+    linear-gradient(var(--ha-teal), transparent) 50% 60% / 2px 60% no-repeat;
 }
 
-.ha-swatch-lines {
-  background: linear-gradient(135deg, transparent 44%, var(--ha-teal) 46% 54%, transparent 56%);
-  filter: drop-shadow(0 0 3px rgba(25, 245, 194, 0.7));
+.ha-swatch-ripple {
+  background: radial-gradient(circle, var(--ha-text) 0 1.1px, transparent 1.5px) 0 0 / 5px 5px;
+  opacity: 0.8;
+}
+
+.ha-swatch-glitch {
+  background:
+    linear-gradient(var(--ha-text), var(--ha-text)) 10% 25% / 60% 3px no-repeat,
+    linear-gradient(var(--ha-teal), var(--ha-teal)) 70% 50% / 45% 3px no-repeat,
+    linear-gradient(var(--ha-text), var(--ha-text)) 30% 75% / 50% 3px no-repeat;
+}
+
+.ha-style-when {
+  margin-left: auto;
+  color: var(--ha-muted);
+  font-size: 0.8125rem;
+}
+
+.ha-style[data-showing]::after {
+  margin-left: 0.5rem;
 }
 
 .ha-actions {
@@ -336,6 +423,41 @@
   font-family: var(--ha-mono);
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
+}
+
+.ha-measure {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+.ha-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.ha-table caption {
+  margin-bottom: 0.4rem;
+  color: var(--ha-muted);
+  text-align: left;
+}
+
+.ha-table th,
+.ha-table td {
+  padding: 0.3rem 0.4rem 0.3rem 0;
+  border-bottom: 1px solid var(--ha-line);
+  text-align: left;
+  font-weight: 400;
+}
+
+.ha-table thead th {
+  color: var(--ha-muted);
+}
+
+.ha-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 .ha-visually-hidden {
