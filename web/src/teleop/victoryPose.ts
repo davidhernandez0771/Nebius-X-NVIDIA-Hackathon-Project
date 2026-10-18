@@ -10,7 +10,7 @@
 import type { HandLandmark, TrackedHand } from "../hand/contracts";
 
 export interface VictoryScore {
-  score: number; // 0..1; the reset gesture counts >= 0.7
+  score: number; // 0..1; the reset gesture counts >= 0.85
   source: "3d" | "2d";
 }
 

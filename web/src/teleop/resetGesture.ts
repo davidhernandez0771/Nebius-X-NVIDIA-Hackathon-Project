@@ -5,8 +5,9 @@
 // camera or the sim; T4's Record wiring sends the existing `reset_scene` control on "fire".
 //
 // Rules (sprint 8 plan + hand-teleop research, "Reset gesture"):
-// - A frame is a HIT when the Victory score is >= minScore (0.7). Hand v3: the score comes from
-//   our own classifier over HandLandmarker landmarks (victoryPose.ts), not GestureRecognizer.
+// - A frame is a HIT when the Victory score is >= minScore (0.85; 0.7 until live test #7, where a
+//   resting hand scoring near 0.7 fired it). Hand v3: the score comes from our own classifier over
+//   HandLandmarker landmarks (victoryPose.ts), not GestureRecognizer.
 // - A hold STARTS on a hit frame with the gripper open and a known hand position.
 // - It FIRES when holdMs (1.5 s) has passed since the start, on a hit frame, provided it was
 //   never cancelled on the way. Progress is time-based: (now - start) / holdMs.
@@ -18,9 +19,10 @@
 //                  frames once the hold has minSamplesForFraction frames, so one early miss can't
 //                  cancel it and a continuous gap is reported as "dropped". The firing frame is a
 //                  hit frame, so it is always checked.
-// - After firing: a COOLDOWN of cooldownMs, and the gesture must also be released (one non-hit
-//   frame, during or after the cooldown) before a new hold can start, so a Victory that is
-//   simply kept up never resets the scene twice.
+// - After firing: a COOLDOWN of cooldownMs, and the gesture must also be released (no hit frame
+//   for releaseMs, during or after the cooldown) before a new hold can start, so a Victory that
+//   is simply kept up never resets the scene twice. Live test #7: with one non-hit frame as the
+//   release, tracking noise re-armed a kept-up V and it fired every ~3.5 s.
 
 export interface ResetGestureSample {
   /** Monotonic ms (HandFrame.timestamp). A sample that doesn't increase is ignored. */
@@ -61,17 +63,20 @@ export interface ResetGestureOptions {
   /** frameWidth / frameHeight, so drift is aspect-correct; 1 treats x and y alike. */
   aspect: number;
   cooldownMs: number;
+  /** No hit frame for this long releases the gesture after a fire. */
+  releaseMs: number;
 }
 
 export const DEFAULT_RESET_GESTURE_OPTIONS: ResetGestureOptions = {
   holdMs: 1500,
-  minScore: 0.7,
+  minScore: 0.85,
   minHitFraction: 0.8,
   minSamplesForFraction: 6, // ~0.2 s at 30 fps
   dropGraceMs: 250,
   maxDrift: 0.06,
   aspect: 1,
   cooldownMs: 2000,
+  releaseMs: 500,
 };
 
 export interface ResetGesture {
@@ -86,7 +91,8 @@ export function createResetGesture(options: Partial<ResetGestureOptions> = {}): 
   let phase: ResetGesturePhase = "idle";
   let lastTs: number | null = null;
   let last: ResetGestureStatus = { timestamp: 0, phase: "idle", progress: 0, event: null };
-  let released = true; // a non-hit frame was seen since the last fire
+  let released = true; // no hit for releaseMs since the last fire
+  let lastHitTs = -Infinity; // the latest hit frame, for the release
   let holdStart = 0;
   let anchor = { x: 0, y: 0 };
   let lastHitAt = 0;
@@ -116,15 +122,15 @@ export function createResetGesture(options: Partial<ResetGestureOptions> = {}): 
       if (lastTs !== null && !(t > lastTs)) return { ...last, event: null, cancelReason: undefined };
       lastTs = t;
       const hit = isHit(s);
+      if (hit) lastHitTs = t;
+      else if (t - lastHitTs >= o.releaseMs) released = true;
 
       if (phase === "cooldown") {
-        if (!hit) released = true;
         if (t - firedAt < o.cooldownMs) return emit({ timestamp: t, phase, progress: 0, event: null });
         phase = "idle";
       }
 
       if (phase === "idle") {
-        if (!hit) released = true;
         if (hit && released && s.gripperOpen && s.position) {
           phase = "holding";
           holdStart = t;
@@ -162,6 +168,7 @@ export function createResetGesture(options: Partial<ResetGestureOptions> = {}): 
       phase = "idle";
       lastTs = null;
       released = true;
+      lastHitTs = -Infinity;
       last = { timestamp: 0, phase: "idle", progress: 0, event: null };
     },
   };

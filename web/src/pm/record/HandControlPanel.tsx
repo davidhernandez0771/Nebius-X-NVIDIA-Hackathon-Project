@@ -47,7 +47,7 @@ type Props = {
     palmWidth: number | null;
     size3d: number | null; // the 3D reach signal (reach3d.ts), same units as palmWidth
     pinch: PinchReading | null;
-    victory: number | null; // the V sign score, 0..1 (the reset gesture needs 0.7)
+    victory: number | null; // the V sign score, 0..1 (the reset gesture needs 0.85)
     control: readonly [number, number, number] | null;
   };
   pinchCalibration: PinchCalState | null;

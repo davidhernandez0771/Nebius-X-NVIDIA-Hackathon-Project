@@ -598,6 +598,26 @@ describe("Record page: reset gesture", () => {
     expect(link.sent).not.toContain("reset_scene");
   });
 
+  it("shows a 'Reset fired' toast every time it fires, and says when the reset was not sent", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    let t = holdFor(0, 400, hand3d());
+    expect(screen.queryByText(/reset fired/i)).toBeNull();
+    t = holdFor(t, 1600, victoryHand());
+    expect(screen.getByRole("status", { name: /reset fired/i }).textContent).toMatch(/^Reset fired$/);
+    t = holdFor(t, 3000, hand3d()); // the toast goes after a few seconds; the hand drops the sign
+    expect(screen.queryByText(/reset fired/i)).toBeNull();
+    t = holdFor(t, 1600, victoryHand());
+    expect(link.sent.filter((a) => a === "reset_scene")).toHaveLength(2);
+    expect(screen.getByRole("status", { name: /reset fired/i })).toBeTruthy();
+    t = holdFor(t, 3000, hand3d());
+    act(() => link.emitSim(sim({ recording: true })));
+    holdFor(t, 1600, victoryHand());
+    expect(link.sent.filter((a) => a === "reset_scene")).toHaveLength(2);
+    expect(screen.getByRole("status", { name: /reset fired/i }).textContent).toMatch(/not sent: stop recording first/i);
+  });
+
   it("shows the V sign score live", async () => {
     await startCamera();
     holdFor(0, 200, victoryHand());

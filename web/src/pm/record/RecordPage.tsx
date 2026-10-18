@@ -50,11 +50,15 @@ const UI_INTERVAL_MS = 100; // framing text updates at ~10 Hz; the canvas draws 
 // closer together than the cooldown are dropped, and the crossfade ends before the next can start.
 const ART_MORPH_MS = 400;
 const ART_COOLDOWN_MS = 400;
+const RESET_TOAST_MS = 2500; // how long "Reset fired" stays up after each fire (frame time)
 
 // Same choice as TeleopClient: the right hand, else the first one.
 const pickHand = (hands: TrackedHand[]) => hands.find((h) => h.handedness === "Right") ?? hands[0] ?? null;
 
 type Phase = { state: "idle" } | { state: "starting" } | { state: "streaming" } | { state: "error"; message: string };
+
+/** Shown each time the reset gesture fires; `notSent` says why no reset_scene went out. */
+type ResetToast = { at: number; notSent: string | null };
 
 type TraceUi = { state: "recording"; progress: number } | { state: "done"; url: string; name: string; frames: number };
 
@@ -182,6 +186,8 @@ export default function RecordPage() {
   const [recentering, setRecentering] = useState(false);
   const [pinchCal, setPinchCal] = useState<PinchCalState | null>(null);
   const [trace, setTrace] = useState<TraceUi | null>(null);
+  const [resetToast, setResetToast] = useState<ResetToast | null>(null);
+  const resetToastAt = useRef<number | null>(null);
   const tracer = useRef<{ trace: DebugTrace; startedAt: Date } | null>(null);
   const traceUrl = useRef<string | null>(null); // the finished file's object URL, revoked when replaced
   const settingsRef = useRef(settings);
@@ -197,6 +203,7 @@ export default function RecordPage() {
   const resets = useRef(0); // Reset scene presses, for the hand-art cue
   const recordingNow = useRef(false); // the sim is recording, for the hand-art cue
   const canReset = useRef(false); // sim connected and not recording, like the Reset scene button
+  const simReadyNow = useRef(false); // sim connected, for the toast's "not sent" reason
 
   function updateSettings(next: TeleopControlSettings) {
     const switchedReach = next.reach3d !== settingsRef.current.reach3d;
@@ -261,7 +268,15 @@ export default function RecordPage() {
         gripperOpen: gripper === 0,
         position: msg.tracking_ok && hand ? palmCenter(hand.landmarks) : null,
       });
-      if (reset.event === "fire" && canReset.current) control("reset_scene");
+      if (reset.event === "fire") {
+        if (canReset.current) control("reset_scene");
+        const notSent = canReset.current ? null : simReadyNow.current ? "stop recording first" : "the sim isn't connected";
+        resetToastAt.current = frame.timestamp;
+        setResetToast({ at: frame.timestamp, notSent });
+      } else if (resetToastAt.current !== null && frame.timestamp - resetToastAt.current > RESET_TOAST_MS) {
+        resetToastAt.current = null;
+        setResetToast(null);
+      }
       // Reach is computed from the palm width, or the 3D size with 3D reach on (falling back per frame).
       const size3d = msg.tracking_ok && hand ? reachSize3d(hand, frame.frameWidth, frame.frameHeight) : null;
       const reachSize = msg.tracking_ok ? (s.reach3d && size3d) || msg.palm_width : null;
@@ -416,6 +431,8 @@ export default function RecordPage() {
     setRelay({ socketOpen: false, simConnected: false, lastError: null });
     setSim(null);
     setPose(null);
+    resetToastAt.current = null;
+    setResetToast(null);
     setPhase({ state: "idle" });
   }
 
@@ -429,6 +446,7 @@ export default function RecordPage() {
   const simReady = streaming && relay.simConnected;
   const recording = simReady && !!sim?.recording;
   canReset.current = simReady && !recording;
+  simReadyNow.current = simReady;
   recordingNow.current = recording;
 
   return (
@@ -468,6 +486,7 @@ export default function RecordPage() {
                 ))}
                 {pose?.framing.state === "ok" && !lost && <StatusPill tone="accent">In the workspace</StatusPill>}
                 <ResetGestureRing status={pose?.reset ?? null} />
+                {resetToast && <ResetFiredToast toast={resetToast} />}
               </div>
             )}
             {streaming && pose?.msg.tracking_ok && <HandFeedback msg={pose.msg} gripper={pose.gripper} />}
@@ -598,6 +617,16 @@ export default function RecordPage() {
         its episode; review it before perfecting.
       </p>
     </Zones>
+  );
+}
+
+/** "Reset fired", shown every time the reset gesture fires, so an accidental reset is visible. */
+function ResetFiredToast({ toast }: { toast: ResetToast }) {
+  const text = toast.notSent ? `Reset fired (not sent: ${toast.notSent})` : "Reset fired";
+  return (
+    <span role="status" aria-label={text}>
+      <StatusPill tone={toast.notSent ? "warm" : "accent"}>{text}</StatusPill>
+    </span>
   );
 }
 
