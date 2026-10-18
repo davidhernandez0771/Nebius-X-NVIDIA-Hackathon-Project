@@ -13,7 +13,7 @@ or rebased. Built against T2's contract `C:\dev\pm-t2\docs\design\byor-api.md`.
 | `33458af` | Run → progress → report card (x/30, reach-map heatmap, failure reasons, joint limits, "design flaw found") |
 | `d63403a` | Fixes from looking at the page in Chrome |
 
-| (next) | Fits the window: no page scroll and no scrolling panels at 1280x720, 1440x900, 1920x1080 (below) |
+| `08272a3` | Fits the window: no page scroll and no scrolling panels at 1280x720, 1440x900, 1920x1080 (below) |
 
 Tests: `npm --prefix web test` **49 files, 532 passed, 0 failed** (77 of them in `web/src/site/setup/`).
 `uv run pytest -q`: 1490 passed, 18 skipped, 0 failed (run before the fit change, which touched no Python).
