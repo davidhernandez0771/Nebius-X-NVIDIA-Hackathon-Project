@@ -16,6 +16,10 @@ TeleopDriver. It follows the hand while idle too, so the person can line up befo
   whatever the wall-clock pace. human_seconds is the wall-clock time from start to stop.
 - On stop, the Demo (source "human") and the per-step StepStates go to an injected save_fn as a
   Recording. make_store_saver() writes them into a DemoStore with episode_io.
+- The robot twin (the Record page's 3D view): twin_scene() and twin() are the relay's sim_twin_scene and
+  sim_twin messages, the robot's joints, the gripper sent and the cube's pose. relay_loop sends them at most
+  TWIN_HZ times a second, only while the relay says a page is watching, and only when they change. A driver
+  without read_twin() sends none.
 
 Pure: numpy + pydantic + demo_pipeline only (no torch, no Isaac), so it tests anywhere.
 """
@@ -40,12 +44,15 @@ from demo_pipeline.store import DemoStore
 from demo_pipeline.success import check_success
 from demo_pipeline.teleop import Calibration, GripperLatch, HandPoseMsg, to_ee_target
 
+from .robots import ROBOTS
 from .teleop_trace import LatencyTrace, coalesce_hands, now_ms, split_trace
 
 TELEOP_DT = 0.02  # s per control step; equals sim_worker.tracking.CONTROL_DT (that module imports torch)
 FPS = 50
 LOST_PAUSE_S = 0.3  # spec 8.1: tracking lost for longer than this pauses the recording
 MIN_STEPS = 2  # a Trajectory needs at least 2 steps
+TWIN_HZ = 30  # at most this many sim_twin messages a second (at 50 Hz control steps: every second step, 25 Hz)
+TWIN_DECIMALS = 4  # 0.1 mm / 0.1 mrad: below what the twin can show, and it keeps the message small
 
 State = Literal["idle", "recording", "saving"]
 ACTIONS = ("record_start", "record_stop", "reset_scene")
@@ -67,6 +74,14 @@ class StepState:
     frames: dict[str, np.ndarray] = field(default_factory=dict)  # camera -> HxWx3 uint8
 
 
+@dataclass(frozen=True)
+class TwinState:
+    """The little the robot twin needs, read cheaply (no contacts, no cameras)."""
+
+    joint_pos: np.ndarray  # [J] all robot joints, in the driver's joint_names order
+    cube_pose: np.ndarray  # [7] position (env frame) + orientation (w, x, y, z)
+
+
 class TeleopDriver(Protocol):
     def reset(self, scene: Scene) -> None:
         """Place the scene and put the robot at its start pose."""
@@ -79,6 +94,8 @@ class TeleopDriver(Protocol):
 
     # Optional: set_recording(on: bool) -> None. The session calls it when a recording starts (True) and when
     # it ends, saved or not (False), so a driver can pause work only a recording needs (camera rendering).
+    # Optional, for the robot twin: joint_names (the robot's joints, in joint_pos order) and
+    # read_twin() -> TwinState.
 
 
 @dataclass(frozen=True)
@@ -88,6 +105,10 @@ class Recording:
 
 
 SaveFn = Callable[[Recording], str]  # returns one human-readable line for the Record page
+
+
+def _rounded(values) -> list[float]:
+    return [round(float(v), TWIN_DECIMALS) + 0.0 for v in values]  # + 0.0 turns -0.0 into 0.0
 
 
 class TeleopSession:
@@ -106,6 +127,7 @@ class TeleopSession:
         self.state: State = "idle"
         self.last_result: str | None = None
         self.last_demo_id: str | None = None
+        self.twin_watchers = 0  # pages watching the twin, as the relay last said (relay_loop sends twins only then)
         self._steps = 0
         self._reset()
 
@@ -177,6 +199,38 @@ class TeleopSession:
             "paused": self.paused,
         }
 
+    @property
+    def has_twin(self) -> bool:
+        return callable(getattr(self.driver, "read_twin", None)) and getattr(self.driver, "joint_names", None) is not None
+
+    def twin_scene(self) -> dict | None:
+        """The relay's SimTwinSceneMsg: what stays put while the twin moves (None if the driver can't read twins).
+        Poses are [x, y, z, qw, qx, qy, qz] in the env frame; base is the robot's root (sim_worker.robots)."""
+        if not self.has_twin:
+            return None
+        spec = ROBOTS.get(self.scene.robot)
+        base = spec.base_pos if spec is not None else (0.0, 0.0, 0.0)
+        return {
+            "type": "sim_twin_scene",
+            "robot": self.scene.robot,
+            "joint_names": [str(n) for n in self.driver.joint_names],
+            "base": _rounded([*base, 1.0, 0.0, 0.0, 0.0]),
+            "bin": _rounded([*self.scene.bin_pose.pos, *self.scene.bin_pose.quat_wxyz]),
+        }
+
+    def twin(self) -> dict | None:
+        """The relay's SimTwinMsg: the robot's joints now (joint_names order), the gripper sent (0 open, 1 closed),
+        and the cube's pose. None if the driver can't read twins."""
+        if not self.has_twin:
+            return None
+        state = self.driver.read_twin()
+        return {
+            "type": "sim_twin",
+            "q": _rounded(state.joint_pos),
+            "gripper": int(self._gripper),
+            "cube": _rounded(state.cube_pose),
+        }
+
     # --- internals ----------------------------------------------------------------------
 
     def _reset(self) -> None:
@@ -237,6 +291,12 @@ def _dispatch_data(session: TeleopSession, data, text: str) -> str | None:
         return f"relay error: {data.get('detail')}"
     if kind == "status":
         return None
+    if kind == "twin_watchers":
+        count = data.get("count")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            return f"invalid message: twin_watchers count {count!r}"
+        session.twin_watchers = count
+        return None
     try:
         if kind == "control":
             session.on_control(str(data.get("action")))
@@ -249,7 +309,8 @@ def _dispatch_data(session: TeleopSession, data, text: str) -> str | None:
 
 def dispatch(session: TeleopSession, text: str) -> str | None:
     """Apply one relay message to the session: a control, or a HandPoseMsg (its latency "trace", if any, is
-    ignored here). The relay's own "status" chatter is ignored. Returns a line to log for an "error" from the
+    ignored here). The relay's own "status" chatter is ignored; its "twin_watchers" count is kept on the session
+    (TwinSender reads it). Returns a line to log for an "error" from the
     relay or for a message that is invalid (dropped), else None."""
     return _dispatch_data(session, _parse(text), text)
 
@@ -275,6 +336,44 @@ def apply_inbox(
     return problems, stamps
 
 
+class TwinSender:
+    """What relay_loop sends for the robot twin on each tick: the sim_twin_scene once per connection (and again if
+    it changes), then a sim_twin at most `hz` times a second (wall clock), skipped when nothing moved since the last
+    one. The relay keeps the last of each for pages that open later. Nothing is read or sent while no page watches
+    (session.twin_watchers, from the relay), so the sink pays for the twin only while someone looks at it."""
+
+    def __init__(self, session: TeleopSession, *, hz: float = TWIN_HZ, clock: Callable[[], float] = time.monotonic):
+        self.session, self.period, self.clock = session, 1.0 / hz, clock
+        self._conn = None
+        self._scene: dict | None = None
+        self._last: dict | None = None
+        self._next_at = float("-inf")
+
+    def due(self, conn) -> list[str]:
+        """The messages to send on `conn` now (JSON texts, in order)."""
+        session = self.session
+        if session.twin_watchers <= 0 or not session.has_twin:
+            return []
+        out = []
+        scene = session.twin_scene()
+        if conn is not self._conn or scene != self._scene:
+            self._conn, self._scene, self._last = conn, scene, None
+            out.append(json.dumps(scene))
+        now = self.clock()
+        if now < self._next_at:
+            return out
+        self._next_at = now + self.period
+        twin = session.twin()
+        if twin != self._last:
+            self._last = twin
+            out.append(json.dumps(twin))
+        return out
+
+    def lost(self) -> None:
+        """A send failed: start over (scene first) on the next connection."""
+        self._conn = None
+
+
 def relay_loop(
     session: TeleopSession,
     url: str,
@@ -293,7 +392,8 @@ def relay_loop(
     arrives with its arrival time. Each tick applies the queue (apply_inbox: controls in order, the
     newest hand only), then calls session.step(), at most once per `period` of wall clock. A slower
     sim just runs slower; it never tries to catch up. The status goes back to the relay whenever it
-    changes apart from the step count, and every status_every ticks. While the relay is down, the
+    changes apart from the step count, and every status_every ticks. The robot twin's messages follow it
+    (TwinSender: at most TWIN_HZ, only while a page watches). While the relay is down, the
     robot keeps holding its pose. With a trace (sim_worker.teleop_trace), each tick is timed and a
     summary is logged every trace.report_every_s."""
     from websockets.sync.client import connect  # lazy: only the live sink needs it
@@ -318,6 +418,7 @@ def relay_loop(
 
     threading.Thread(target=reader, name="teleop-relay-reader", daemon=True).start()
     next_tick, tick, last_sent = time.monotonic(), 0, None
+    twin = TwinSender(session)
     try:
         while not should_stop():
             items = []
@@ -343,6 +444,13 @@ def relay_loop(
                     last_sent = status
                 except Exception:
                     pass  # the reader thread notices the drop and reconnects
+            if conn is not None:
+                for text in twin.due(conn):
+                    try:
+                        conn.send(text)
+                    except Exception:
+                        twin.lost()
+                        break
             tick += 1
             next_tick += period
             delay = next_tick - time.monotonic()
