@@ -266,9 +266,9 @@ export default function Landing() {
       {run3d && <LeaderLayer />}
 
       <header className="glass-nav" style={rm ? undefined : { opacity: 0 }}>
-        <Link className="wordmark" to="/" aria-label="SANT">SANT</Link>
+        <Link className="wordmark" to="/legacy" aria-label="SANT">SANT</Link>
         <span className="nav-divider" />
-        <Link className="nav-cta" to="/enter">Enter app</Link>
+        <Link className="nav-cta" to="/legacy/enter">Enter app</Link>
       </header>
 
       <div className="scrub" role="navigation" aria-label="Story progress">
@@ -316,7 +316,7 @@ export default function Landing() {
                 </h1>
                 <p className="hero-sub">Know what is in every room.</p>
                 <div className="hero-actions">
-                  <Link className="btn" to="/enter">Enter SANT <span aria-hidden="true">&gt;&gt;&gt;</span></Link>
+                  <Link className="btn" to="/legacy/enter">Enter SANT <span aria-hidden="true">&gt;&gt;&gt;</span></Link>
                   <span className="scroll-hint">Scroll</span>
                 </div>
               </div>
@@ -354,8 +354,8 @@ export default function Landing() {
               <Headline text="A room that knows what is in it." />
               <Reveal text="Scan once, review in minutes, and never lose a thing again." section={section} />
               <div className="hero-actions" style={{ marginTop: "2rem", justifyContent: "center" }}>
-                <Link className="btn" to="/enter">Enter SANT <span aria-hidden="true">&gt;&gt;&gt;</span></Link>
-                <Link className="btn ghost" to="/home">Skip to app</Link>
+                <Link className="btn" to="/legacy/enter">Enter SANT <span aria-hidden="true">&gt;&gt;&gt;</span></Link>
+                <Link className="btn ghost" to="/legacy/home">Skip to app</Link>
               </div>
             </div>
           )}

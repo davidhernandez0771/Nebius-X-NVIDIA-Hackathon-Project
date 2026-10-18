@@ -333,7 +333,7 @@ export default function RecordPage() {
             <>
               <dt>Saved</dt>
               <dd>
-                <Link to={`/pm/review?id=${encodeURIComponent(sim.demoId)}`}>Review {sim.demoId}</Link>
+                <Link to={`/legacy/pm/review?id=${encodeURIComponent(sim.demoId)}`}>Review {sim.demoId}</Link>
               </dd>
             </>
           )}

@@ -71,7 +71,7 @@ function RecentDemos({ demos }: { demos: Demo[] }) {
             {demos.slice(0, 12).map((d) => (
               <tr key={d.id}>
                 <td>
-                  <Link to={`/pm/review?id=${encodeURIComponent(d.id)}`}>{d.id}</Link>
+                  <Link to={`/legacy/pm/review?id=${encodeURIComponent(d.id)}`}>{d.id}</Link>
                 </td>
                 <td>{d.source}</td>
                 <td>{d.scene.robot}</td>
@@ -113,7 +113,7 @@ export default function DatasetPage() {
             <EmptyState
               title="No demos yet"
               hint="Record one with your webcam, or load a demo set into the store."
-              to="/pm/record"
+              to="/legacy/pm/record"
               cta="Record a demo"
             />
           )}

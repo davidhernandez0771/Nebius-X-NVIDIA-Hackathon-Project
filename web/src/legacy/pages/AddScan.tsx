@@ -29,7 +29,7 @@ export default function AddScan() {
     setStatus({ tone: "neutral", text: "Uploading..." });
     try {
       await uploadFile(`/api/scans?room_id=${roomId}`, file);
-      navigate(`/room?room_id=${roomId}`);
+      navigate(`/legacy/room?room_id=${roomId}`);
     } catch (err) {
       setStatus({ tone: "danger", text: `Failed: ${errorMessage(err)}` });
     }
@@ -88,10 +88,10 @@ export default function AddScan() {
   }, [job]);
 
   useEffect(() => {
-    if (job?.status === "completed" && roomId) navigate(`/room?room_id=${roomId}`);
+    if (job?.status === "completed" && roomId) navigate(`/legacy/room?room_id=${roomId}`);
   }, [job, roomId, navigate]);
 
-  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/home" cta="Go to Home" />;
+  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/legacy/home" cta="Go to Home" />;
 
   const canSubmit = photos.length >= MIN_PHOTOS && !submitting && (!job || job.status === "failed");
 

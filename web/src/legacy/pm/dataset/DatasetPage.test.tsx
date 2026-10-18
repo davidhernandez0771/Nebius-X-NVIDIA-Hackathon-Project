@@ -14,21 +14,21 @@ afterEach(() => {
 describe("Dataset page", () => {
   it("says the backend is unreachable and offers a retry", async () => {
     stubBackend({ "GET /demos": down });
-    renderAt("/pm/dataset", <DatasetPage />, "/pm/dataset");
+    renderAt("/legacy/pm/dataset", <DatasetPage />, "/legacy/pm/dataset");
     expect(await screen.findByText(/can't reach the backend/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
   it("invites a first recording when the store is empty", async () => {
     stubBackend({ "GET /demos": { status: 200, body: [] } });
-    renderAt("/pm/dataset", <DatasetPage />, "/pm/dataset");
+    renderAt("/legacy/pm/dataset", <DatasetPage />, "/legacy/pm/dataset");
     expect(await screen.findByText("No demos yet")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Record a demo" }).getAttribute("href")).toBe("/pm/record");
+    expect(screen.getByRole("link", { name: "Record a demo" }).getAttribute("href")).toBe("/legacy/pm/record");
   });
 
   it("counts demos by source", async () => {
     stubBackend({ "GET /demos": { status: 200, body: [demo("h1", "human"), demo("h2", "human"), demo("r1", "repaired")] } });
-    renderAt("/pm/dataset", <DatasetPage />, "/pm/dataset");
+    renderAt("/legacy/pm/dataset", <DatasetPage />, "/legacy/pm/dataset");
     const human = await screen.findByTestId("count-human");
     expect(human.textContent).toBe("2");
     expect(screen.getByTestId("count-repaired").textContent).toBe("1");
@@ -37,7 +37,7 @@ describe("Dataset page", () => {
 
   it("explains a missing export route instead of failing silently", async () => {
     stubBackend({ "GET /demos": { status: 200, body: [demo("h1", "human")] } });
-    renderAt("/pm/dataset", <DatasetPage />, "/pm/dataset");
+    renderAt("/legacy/pm/dataset", <DatasetPage />, "/legacy/pm/dataset");
     fireEvent.click(await screen.findByRole("button", { name: "Export to LeRobot" }));
     expect(await screen.findByText(/export isn't on this backend yet/i)).toBeTruthy();
   });

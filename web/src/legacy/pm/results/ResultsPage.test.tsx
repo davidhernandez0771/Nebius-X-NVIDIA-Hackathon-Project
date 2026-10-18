@@ -35,7 +35,7 @@ const measured = {
 describe("Results page with measured results", () => {
   it("shows them without the sample banner or sample tags", async () => {
     stubBackend({ "GET /results": { status: 200, body: measured } });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     expect(await screen.findByText("Policy success on 50 test positions")).toBeTruthy();
     expect(screen.queryByText(BANNER)).toBeNull();
     expect(screen.queryByText(/\(sample\)/)).toBeNull();
@@ -43,7 +43,7 @@ describe("Results page with measured results", () => {
 
   it("renders null as pending, never as 0%", async () => {
     stubBackend({ "GET /results": { status: 200, body: measured } });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     await screen.findByText("Policy success on 50 test positions");
     const bars = screen.getAllByTestId("ablation-value").map((e) => e.textContent);
     expect(bars).toEqual(["pending", "pending"]);
@@ -54,13 +54,13 @@ describe("Results page with measured results", () => {
 
   it("says yield is pending when it is null", async () => {
     stubBackend({ "GET /results": { status: 200, body: { ...measured, multiply_yield: { ours: null, mimicgen: [0.38, 0.74] } } } });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     expect((await screen.findByTestId("yield-ours")).textContent).toBe("pending");
   });
 
   it("keeps the banner when the served file is itself flagged as sample", async () => {
     stubBackend({ "GET /results": { status: 200, body: { ...measured, sample: true } } });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     expect(await screen.findByText(BANNER)).toBeTruthy();
   });
 });
@@ -68,7 +68,7 @@ describe("Results page with measured results", () => {
 describe("Results page without measured results", () => {
   it("falls back to the sample file, under the banner, when there are no results yet", async () => {
     stubBackend({ "GET /results": { status: 404, body: { detail: "no results yet" } } });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     expect(await screen.findByText(BANNER)).toBeTruthy();
     expect(screen.getByText(/no measured results yet/i)).toBeTruthy();
     expect(screen.getAllByText(/\(sample\)/).length).toBeGreaterThanOrEqual(3);
@@ -76,21 +76,21 @@ describe("Results page without measured results", () => {
 
   it("falls back to the sample when the backend is down, and says so", async () => {
     stubBackend({ "GET /results": down });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     expect(await screen.findByText(BANNER)).toBeTruthy();
     expect(screen.getByText(/can't reach the backend/i)).toBeTruthy();
   });
 
   it("shows why a corrupt results file was rejected, then the sample", async () => {
     stubBackend({ "GET /results": { status: 422, body: { detail: "results.json is corrupt: JSONDecodeError" } } });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     expect(await screen.findByText(BANNER)).toBeTruthy();
     expect(screen.getByText(/results.json is corrupt/)).toBeTruthy();
   });
 
   it("refuses a served file that fails validation and shows the sample instead", async () => {
     stubBackend({ "GET /results": { status: 200, body: { ...measured, series: [{ key: "raw", label: "Raw", success: [3, null, null] }] } } });
-    renderAt("/pm/results", <ResultsPage />, "/pm/results");
+    renderAt("/legacy/pm/results", <ResultsPage />, "/legacy/pm/results");
     expect(await screen.findByText(BANNER)).toBeTruthy();
     expect(screen.getByText(/can't show the measured results/i)).toBeTruthy();
   });

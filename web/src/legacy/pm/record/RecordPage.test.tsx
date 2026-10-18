@@ -87,7 +87,7 @@ const sim = (over: Partial<SimStatus> = {}): SimStatus => ({
 
 async function startCamera() {
   tracker.start.mockResolvedValueOnce(undefined);
-  renderAt("/pm/record", <RecordPage />, "/pm/record");
+  renderAt("/legacy/pm/record", <RecordPage />, "/legacy/pm/record");
   fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
   await screen.findByRole("button", { name: "Stop camera" });
   return links.list[0];
@@ -96,7 +96,7 @@ async function startCamera() {
 describe("Record page", () => {
   it("starts idle, without touching the camera or the relay", () => {
     const calls = stubBackend({});
-    renderAt("/pm/record", <RecordPage />, "/pm/record");
+    renderAt("/legacy/pm/record", <RecordPage />, "/legacy/pm/record");
     expect(screen.getByRole("button", { name: "Start camera" })).toBeTruthy();
     expect((screen.getByRole("button", { name: "Start recording" }) as HTMLButtonElement).disabled).toBe(true);
     expect(calls).toEqual([]);
@@ -106,7 +106,7 @@ describe("Record page", () => {
 
   it("explains a blocked camera and opens no relay link", async () => {
     tracker.start.mockRejectedValueOnce(new DOMException("Permission denied", "NotAllowedError"));
-    renderAt("/pm/record", <RecordPage />, "/pm/record");
+    renderAt("/legacy/pm/record", <RecordPage />, "/legacy/pm/record");
     fireEvent.click(screen.getByRole("button", { name: "Start camera" }));
     expect(await screen.findByText(/camera is blocked/i)).toBeTruthy();
     expect(links.list).toHaveLength(0);
@@ -143,7 +143,7 @@ describe("Record page", () => {
       link.emitSim(sim({ steps: 376, demoId: "human_20261016_ab12", lastResult: "saved human_20261016_ab12: verified success" })),
     );
     const review = screen.getByRole("link", { name: "Review human_20261016_ab12" });
-    expect(review.getAttribute("href")).toBe("/pm/review?id=human_20261016_ab12");
+    expect(review.getAttribute("href")).toBe("/legacy/pm/review?id=human_20261016_ab12");
     expect(screen.getByText("saved human_20261016_ab12: verified success")).toBeTruthy();
   });
 
@@ -233,7 +233,7 @@ describe("Record page: hand control", () => {
 
   it("loads saved settings, and Reset to defaults restores them", () => {
     localStorage.setItem(TELEOP_CONTROL_STORAGE_KEY, JSON.stringify({ ...DEFAULT_TELEOP_CONTROL, depthNear: 0.2 }));
-    renderAt("/pm/record", <RecordPage />, "/pm/record");
+    renderAt("/legacy/pm/record", <RecordPage />, "/legacy/pm/record");
     expect(Number(slider(/near/i).value)).toBeCloseTo(0.2);
     fireEvent.click(screen.getByRole("button", { name: /reset to defaults/i }));
     expect(Number(slider(/near/i).value)).toBeCloseTo(DEFAULT_TELEOP_CONTROL.depthNear);
@@ -260,7 +260,7 @@ describe("Record page: hand control", () => {
   });
 
   it("calibrates by hand: comfortable movement, then near and far holds", async () => {
-    renderAt("/pm/record", <RecordPage />, "/pm/record");
+    renderAt("/legacy/pm/record", <RecordPage />, "/legacy/pm/record");
     expect((screen.getByRole("button", { name: /calibrate by hand/i }) as HTMLButtonElement).disabled).toBe(true);
     tracker.start.mockResolvedValueOnce(undefined);
     fireEvent.click(screen.getByRole("button", { name: "Start camera" }));

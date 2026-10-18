@@ -42,7 +42,7 @@ export default function Chat() {
     }
   }
 
-  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/home" cta="Go to Home" />;
+  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/legacy/home" cta="Go to Home" />;
 
   return (
     <Zones
@@ -80,7 +80,7 @@ export default function Chat() {
               </div>
               <p>{entry.reply}</p>
               {entry.action === "trash" && (
-                <Link to={`/inventory?room_id=${roomId}&trash=1`} className="pill-link">
+                <Link to={`/legacy/inventory?room_id=${roomId}&trash=1`} className="pill-link">
                   Undo in Inventory
                 </Link>
               )}

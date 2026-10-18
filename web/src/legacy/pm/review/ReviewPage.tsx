@@ -32,7 +32,7 @@ function Passport({ demo, stored }: Detail) {
     ["Source", demo.source],
     [
       "Parent",
-      demo.parent_id ? <Link to={`/pm/review?id=${encodeURIComponent(demo.parent_id)}`}>{demo.parent_id}</Link> : "none",
+      demo.parent_id ? <Link to={`/legacy/pm/review?id=${encodeURIComponent(demo.parent_id)}`}>{demo.parent_id}</Link> : "none",
     ],
     ["Robot", demo.scene.robot],
     ["Scene seed", demo.scene.seed],
@@ -63,7 +63,7 @@ function DemoList({ demos, current }: { demos: Demo[]; current: string | null })
       <ul className="pm-list">
         {demos.slice(0, 30).map((d) => (
           <li key={d.id}>
-            <Link to={`/pm/review?id=${encodeURIComponent(d.id)}`} aria-current={d.id === current ? "page" : undefined}>
+            <Link to={`/legacy/pm/review?id=${encodeURIComponent(d.id)}`} aria-current={d.id === current ? "page" : undefined}>
               {d.id}
             </Link>
             <span className="muted">{d.source}</span>
@@ -115,7 +115,7 @@ export default function ReviewPage({ pollIntervalMs = 1000 }: { pollIntervalMs?:
         <EmptyState
           title="No demos yet"
           hint="Record one with your webcam, or load a demo set into the store."
-          to="/pm/record"
+          to="/legacy/pm/record"
           cta="Record a demo"
         />
       );

@@ -109,7 +109,7 @@ export default function PerfectPanel({ demo, pollIntervalMs }: { demo: Demo; pol
           Perfecting starts from a human demo. This one is {demo.source}
           {demo.parent_id && (
             <>
-              ; its parent is <Link to={`/pm/review?id=${encodeURIComponent(demo.parent_id)}`}>{demo.parent_id}</Link>
+              ; its parent is <Link to={`/legacy/pm/review?id=${encodeURIComponent(demo.parent_id)}`}>{demo.parent_id}</Link>
             </>
           )}
           .
@@ -134,7 +134,7 @@ export default function PerfectPanel({ demo, pollIntervalMs }: { demo: Demo; pol
           {run.job?.status === "succeeded" && run.job.outcome && <p className="small">Outcome: {run.job.outcome}</p>}
           {run.job?.status === "failed" && run.job.error && <p className="small muted">{run.job.error}</p>}
           {run.job?.status === "succeeded" && run.job.demoId && (
-            <Link className="pill-link" to={`/pm/review?id=${encodeURIComponent(run.job.demoId)}`}>
+            <Link className="pill-link" to={`/legacy/pm/review?id=${encodeURIComponent(run.job.demoId)}`}>
               Open the perfected demo
             </Link>
           )}

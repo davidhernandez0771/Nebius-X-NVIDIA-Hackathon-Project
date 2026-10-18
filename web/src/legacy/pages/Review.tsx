@@ -49,7 +49,7 @@ export default function Review() {
   }
 
   if (!photoId)
-    return <EmptyState title="Nothing to review yet" hint="Upload a photo first." to="/add/photo" cta="Add a photo" />;
+    return <EmptyState title="Nothing to review yet" hint="Upload a photo first." to="/legacy/add/photo" cta="Add a photo" />;
 
   const count = (s: ItemState) => candidates.filter((c) => toState(c.status) === s).length;
   const sorted = candidates.filter((c) => c.status !== "pending").length;

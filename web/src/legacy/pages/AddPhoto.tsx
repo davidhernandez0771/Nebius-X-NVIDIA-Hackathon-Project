@@ -41,7 +41,7 @@ export default function AddPhoto() {
         tone: "accent",
         text: `Found ${result.candidates.length} candidate item(s), ~$${result.est_cost_usd.toFixed(5)}.`,
       });
-      navigate(`/review?photo_id=${photo.id}`, {
+      navigate(`/legacy/review?photo_id=${photo.id}`, {
         state: { truncated: result.truncated, warnings: result.warnings },
       });
     } catch (err) {
@@ -50,7 +50,7 @@ export default function AddPhoto() {
   }
 
   if (!locationId)
-    return <EmptyState title="Pick a location first" hint="Choose a location from Room view." to="/room" cta="Go to Room view" />;
+    return <EmptyState title="Pick a location first" hint="Choose a location from Room view." to="/legacy/room" cta="Go to Room view" />;
 
   return (
     <Zones

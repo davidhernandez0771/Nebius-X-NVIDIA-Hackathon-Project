@@ -13,17 +13,17 @@ import SpendPill from "./SpendPill";
 // photo" link) -- a top-level rail entry would just be a second, worse-placed
 // way to reach the same action.
 const links: { to: string; label: string; icon: IconName; scoped?: boolean }[] = [
-  { to: "/home", label: "Home", icon: "home" },
-  { to: "/room", label: "Room view", icon: "room", scoped: true },
-  { to: "/review", label: "Review", icon: "review" },
-  { to: "/inventory", label: "Inventory", icon: "shelf", scoped: true },
-  { to: "/organize", label: "Organize", icon: "organize", scoped: true },
-  { to: "/chat", label: "Chat", icon: "chat", scoped: true },
-  { to: "/settings", label: "Settings", icon: "settings" },
-  { to: "/pm/record", label: "Record", icon: "camera" },
-  { to: "/pm/review", label: "Review demos", icon: "scan" },
-  { to: "/pm/dataset", label: "Dataset", icon: "box" },
-  { to: "/pm/results", label: "Results", icon: "chart" },
+  { to: "/legacy/home", label: "Home", icon: "home" },
+  { to: "/legacy/room", label: "Room view", icon: "room", scoped: true },
+  { to: "/legacy/review", label: "Review", icon: "review" },
+  { to: "/legacy/inventory", label: "Inventory", icon: "shelf", scoped: true },
+  { to: "/legacy/organize", label: "Organize", icon: "organize", scoped: true },
+  { to: "/legacy/chat", label: "Chat", icon: "chat", scoped: true },
+  { to: "/legacy/settings", label: "Settings", icon: "settings" },
+  { to: "/legacy/pm/record", label: "Record", icon: "camera" },
+  { to: "/legacy/pm/review", label: "Review demos", icon: "scan" },
+  { to: "/legacy/pm/dataset", label: "Dataset", icon: "box" },
+  { to: "/legacy/pm/results", label: "Results", icon: "chart" },
 ];
 
 // Destinations that need a room selected first (via `scoped`'s room_id) --
@@ -32,7 +32,7 @@ const links: { to: string; label: string; icon: IconName; scoped?: boolean }[] =
 // which nothing tracks globally, so it's disabled from cold nav regardless of
 // room state -- reachable for real only via the link generated right after
 // analyzing a photo (same pattern as the removed Add photo/Add scan tiles).
-const NEEDS_ROOM = new Set(["/room", "/inventory", "/organize", "/chat"]);
+const NEEDS_ROOM = new Set(["/legacy/room", "/legacy/inventory", "/legacy/organize", "/legacy/chat"]);
 
 function useClock() {
   const [now, setNow] = useState(() => new Date());
@@ -67,8 +67,8 @@ export default function DashboardShell() {
       </header>
       <nav className="app-nav" aria-label="Main">
         {links.map((l) => {
-          const disabled = l.to === "/review" ? true : NEEDS_ROOM.has(l.to) && !roomId;
-          const disabledReason = l.to === "/review" ? "Analyze a photo first" : "Select a room first";
+          const disabled = l.to === "/legacy/review" ? true : NEEDS_ROOM.has(l.to) && !roomId;
+          const disabledReason = l.to === "/legacy/review" ? "Analyze a photo first" : "Select a room first";
           return (
             <IconTile
               key={l.to}

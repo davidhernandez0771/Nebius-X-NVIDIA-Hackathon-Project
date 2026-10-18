@@ -24,6 +24,7 @@ import { CalibrationPanel } from "./hand/overlay/CalibrationPanel";
 
 // Full-bleed 3D pages live outside the dashboard shell and load lazily, so the
 // three.js bundle is only fetched when one of them is visited.
+const Landing = lazy(() => import("./legacy/pages/Landing"));
 const Entry = lazy(() => import("./legacy/pages/Entry"));
 // SANT website (sprint 8): the design-system review pages, under SantRoot's providers.
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
@@ -31,7 +32,13 @@ const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) 
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
 
-// Dashboard pages share DashboardShell (top bar + icon rail).
+/** /pm/... → /legacy/pm/..., keeping the query (e.g. /pm/review?id=…) and the hash. */
+function ToLegacy() {
+  const { pathname, search, hash } = useLocation();
+  return <Navigate to={`/legacy${pathname}${search}${hash}`} replace />;
+}
+
+// The old dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
   // App-wide, opt-in hand-controlled cursor: mounted once outside <Routes>
   // so it survives navigation. See HAND_INTERACTION_PLAN.md.
@@ -51,14 +58,6 @@ export default function App() {
         {/* The SANT landing (/site) is the front door. /welcome is kept as an alias. */}
         <Route path="/" element={<Navigate to="/site" replace />} />
         <Route path="/welcome" element={<Navigate to="/site" replace />} />
-        <Route
-          path="/enter"
-          element={
-            <Suspense fallback={null}>
-              <Entry />
-            </Suspense>
-          }
-        />
         <Route element={<SantRoot />}>
           <Route path="/site" element={<Suspense fallback={null}><SiteLanding /></Suspense>} />
           <Route
@@ -79,21 +78,42 @@ export default function App() {
           />
         </Route>
         <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
-        <Route element={<DashboardShell />}>
-          <Route path="/home" element={<Home />} />
-          <Route path="/room" element={<RoomView />} />
-          <Route path="/add/scan" element={<AddScan />} />
-          <Route path="/add/photo" element={<AddPhoto />} />
-          <Route path="/review" element={<Review />} />
-          <Route path="/inventory" element={<Inventory />} />
-          <Route path="/organize" element={<Organize />} />
-          <Route path="/chat" element={<Chat />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/pm/record" element={<RecordPage />} />
-          <Route path="/pm/review" element={<ReviewPage />} />
-          <Route path="/pm/dataset" element={<DatasetPage />} />
-          <Route path="/pm/results" element={<ResultsPage />} />
+        {/* The archived old site (web/src/legacy): the 3D intro, then the dashboard and its pages. */}
+        <Route path="/legacy">
+          <Route
+            index
+            element={
+              <Suspense fallback={null}>
+                <Landing />
+              </Suspense>
+            }
+          />
+          <Route
+            path="enter"
+            element={
+              <Suspense fallback={null}>
+                <Entry />
+              </Suspense>
+            }
+          />
+          <Route element={<DashboardShell />}>
+            <Route path="home" element={<Home />} />
+            <Route path="room" element={<RoomView />} />
+            <Route path="add/scan" element={<AddScan />} />
+            <Route path="add/photo" element={<AddPhoto />} />
+            <Route path="review" element={<Review />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="organize" element={<Organize />} />
+            <Route path="chat" element={<Chat />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="pm/record" element={<RecordPage />} />
+            <Route path="pm/review" element={<ReviewPage />} />
+            <Route path="pm/dataset" element={<DatasetPage />} />
+            <Route path="pm/results" element={<ResultsPage />} />
+          </Route>
         </Route>
+        {/* Old bookmarks and the live test's /pm/record keep working. */}
+        <Route path="/pm/*" element={<ToLegacy />} />
         <Route path="*" element={<Navigate to="/site" replace />} />
       </Routes>
       {!onSite && (

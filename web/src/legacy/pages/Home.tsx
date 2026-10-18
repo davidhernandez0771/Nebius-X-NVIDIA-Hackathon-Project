@@ -56,7 +56,7 @@ export default function Home() {
       <ul className="stack">
         {rooms.map((r) => (
           <GlassCard as="li" key={r.id} className="list-card">
-            <Link to={`/room?room_id=${r.id}`} className="list-link">
+            <Link to={`/legacy/room?room_id=${r.id}`} className="list-link">
               <span className="item-card-thumb">
                 <Icon name="room" size={24} />
               </span>

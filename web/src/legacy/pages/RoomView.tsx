@@ -44,7 +44,7 @@ export default function RoomView() {
     }
   }
 
-  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/home" cta="Go to Home" />;
+  if (!roomId) return <EmptyState title="Pick a room first" hint="Choose a room from Home." to="/legacy/home" cta="Go to Home" />;
 
   return (
     <Zones
@@ -62,7 +62,7 @@ export default function RoomView() {
                   <ScanViewer url={apiUrl(`/api/scans/${scanId}/file`)} />
                 </Suspense>
               </div>
-              <Link to={`/add/scan?room_id=${roomId}`} className="pill-link">
+              <Link to={`/legacy/add/scan?room_id=${roomId}`} className="pill-link">
                 Replace room scan
               </Link>
             </>
@@ -71,7 +71,7 @@ export default function RoomView() {
               <Icon name="scan" size={40} />
               <h2>No room scan yet</h2>
               <p className="muted">Upload a .glb scan and it will appear here as an orbit-able 3D room.</p>
-              <Link to={`/add/scan?room_id=${roomId}`} className="pill-link">
+              <Link to={`/legacy/add/scan?room_id=${roomId}`} className="pill-link">
                 Upload a room scan
               </Link>
             </div>
@@ -89,7 +89,7 @@ export default function RoomView() {
               <h3>{l.name}</h3>
               <p className="muted small">Storage location</p>
             </div>
-            <Link to={`/add/photo?location_id=${l.id}`} className="pill-link">
+            <Link to={`/legacy/add/photo?location_id=${l.id}`} className="pill-link">
               Add photo
             </Link>
           </GlassCard>
