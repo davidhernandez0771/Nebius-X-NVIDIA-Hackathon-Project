@@ -733,6 +733,7 @@ def build_spec(u: Urdf, roles: Roles, robot_id: str, *, mesh_loader: MeshLoader 
         hand_in_tool_wxyz=tuple(float(v) for v in hand_in_tool), base_pos=tuple(float(v) for v in roles.mount.pos),
         urdf_path=urdf_path, ros_packages=tuple(ros_packages), passive_finger_joints=tuple(f.passive),
         arm_links=tuple(u.joints[j].child for j in roles.arm_joints) + tuple(f.links), finger_links=tuple(f.links),
+        arm_joint_names=tuple(roles.arm_joints),
     )
 
     chain = Chain(u, u.root, ik, roles.arm_joints)

@@ -173,3 +173,7 @@ def test_real_franka_urdf_with_its_meshes():
     assert r.derived["tcp"]["offset"] == pytest.approx([0.0, 0.0, 0.1034], abs=5e-4)
     assert r.spec.hand_body == "panda_link7"
     assert (r.spec.gripper_open, r.spec.gripper_closed) == (0.04, 0.0)
+
+
+def test_the_spec_lists_the_arm_joints_by_name(franka):
+    assert franka.spec.arm_joint_names == tuple(FRANKA_ARM) and franka.spec.usd_dir is None

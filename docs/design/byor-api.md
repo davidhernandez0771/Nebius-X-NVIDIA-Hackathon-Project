@@ -343,6 +343,18 @@ Always `200` for a known robot (`404` otherwise), so the UI can poll one URL:
 }
 ```
 
+**How the sim runs an uploaded robot** (`sim_worker/byor_scene.py`; the card's `provenance` repeats it):
+
+- URDF → USD with Isaac Lab's `UrdfConverter`: fixed base, fixed joints merged, convex-hull collisions, no
+  self-collision, the PhysX variant. It reconverts only when the URDF's bytes or these settings change.
+- Drives: the arm gets stiffness 400 / damping 80 (Isaac Lab's `FRANKA_PANDA_HIGH_PD_CFG`, its gains for
+  differential IK), the driven gripper joints 2000 / 100, mimic joints no drive. Effort and velocity limits come
+  from the URDF. Gravity is off on the robot, as in the `*_HIGH_PD` configs; the cube keeps its gravity.
+- Contacts: the cube's sensor is filtered against the finger links (the gripper joints' children), the table's and
+  the bin's against every arm, hand and finger body, found by name in the converted USD.
+- The scenes are the Franka's (`robot` in each `scene.json` is `franka`: whose workspace it is); the robot that
+  runs is the upload.
+
 The `reach_map` layers are the tool poses the task needs:
 - `grasp` at the cube's centre height, with the wrist turned −45°, 0° and +45° (the scripted grasp turns at most
   45°);
@@ -395,4 +407,6 @@ All of a robot's files live under `DATA_DIR/robots/<id>/`:
 | `usd/` | the URDF → USD conversion (Isaac Lab `UrdfConverter`; it reconverts only when the URDF or the settings change) |
 | `report.json` | the last finished report card |
 | `report_status.json` | status, progress and error of the current or last run |
-| `run/` | the run's episodes (`source/`, `var_0100/`, ...), the same layout as a multiply run |
+| `run/` | the run's scenes (`source/`, `var_0100/`, ...), each with `scene.json`, `trajectory.json`, `verification.json`, `signals.npz` and `steps.npz` (`joint_pos`, `joint_names`) |
+| `run.log` | the Isaac process's output; a failed run's error ends with its last lines |
+| `report_progress.json` | the running stage (§6 `progress`); removed when the run ends |

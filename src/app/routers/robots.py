@@ -32,7 +32,7 @@ router = APIRouter(prefix="/robots", tags=["robots"])
 
 ReportRunner = Callable[[Path, int, int], None]  # (robot dir, seed0, n): leaves report.json in the robot dir
 REPO = Path(__file__).resolve().parents[3]
-DEFAULT_ISAAC_PYTHON = r"C:\isaac\_isaac_sim\python.bat"
+DEFAULT_ISAAC_PYTHON = r"C:\isaac\env_isaaclab\Scripts\python.exe"
 RUNNING = ("queued", "running")
 
 
@@ -47,15 +47,25 @@ def get_store() -> RobotStore:
 
 
 def _run_isaac_report(robot_dir: Path, seed0: int, n: int) -> None:
-    """Run the report card in the Isaac python (ISAAC_PYTHON); its log goes to <robot dir>/run.log."""
+    """Run the report card in the Isaac python (ISAAC_PYTHON); its log goes to <robot dir>/run.log.
+
+    PYTHONPATH is this checkout's src/: the Isaac venv's editable demo_pipeline may point at another checkout."""
     python = os.environ.get("ISAAC_PYTHON", DEFAULT_ISAAC_PYTHON)
-    cmd = [python, str(REPO / "sim_worker" / "scripts" / "robot_report.py"), "--robot-dir", str(robot_dir),
-           "--seed0", str(seed0), "--n", str(n)]
+    cmd = [python, str(REPO / "sim_worker" / "scripts" / "robot_report.py"), "--robot-dir",
+           str(robot_dir), "--seed0", str(seed0), "--n", str(n)]
+    env = {**os.environ, "PYTHONPATH": str(REPO / "src")}
     with open(robot_dir / "run.log", "w", encoding="utf-8") as log:
-        code = subprocess.call(cmd, cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
+        code = subprocess.call(cmd, cwd=REPO, stdout=log, stderr=subprocess.STDOUT, env=env)
     if code != 0:
-        tail = (robot_dir / "run.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-5:]
-        raise RuntimeError(f"Isaac exited with code {code}: {' | '.join(tail)}")
+        raise RuntimeError(f"Isaac exited with code {code}: {_log_tail(robot_dir)}")
+
+
+def _log_tail(robot_dir: Path, n: int = 5) -> str:
+    try:
+        lines = (robot_dir / "run.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()
+    except OSError:
+        return "no run.log"
+    return " | ".join(ln.strip() for ln in lines[-n:])
 
 
 def get_report_runner() -> ReportRunner:
@@ -234,7 +244,7 @@ def evaluate(robot_id: str, body: dict | None = Body(None), store: RobotStore = 
         try:
             runner(robot_dir, params.seed0, params.n)
             if not report.is_file() or report.stat().st_mtime_ns == before:
-                raise RuntimeError("the run finished without writing report.json")
+                raise RuntimeError(f"the run finished without writing report.json: {_log_tail(robot_dir)}")
         except Exception as e:
             store.write_status(robot_id, {"status": "failed", "job_id": job_id, "error": f"{type(e).__name__}: {e}"})
             raise

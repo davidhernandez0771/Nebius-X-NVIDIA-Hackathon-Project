@@ -34,6 +34,8 @@ class RobotSpec:
     passive_finger_joints: tuple[str, ...] = ()  # mimic joints: they follow a finger joint and get no drive
     arm_links: tuple[str, ...] = ()  # every moving body (arm links, hand, fingers), for the arm contact sensors
     finger_links: tuple[str, ...] = ()  # the bodies that touch the cube, for the grasp contact sensor
+    arm_joint_names: tuple[str, ...] = ()  # the arm joints, base outwards (arm_joints is their regex)
+    usd_dir: str | None = None  # where scene_cfg converts urdf_path to USD (cached); set by the process that runs it
 
 
 ROBOTS: dict[str, RobotSpec] = {

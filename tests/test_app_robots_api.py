@@ -334,3 +334,32 @@ def test_a_stale_running_status_from_a_restarted_backend_reads_as_failed(env):
     (data / "robots" / rid / "report_status.json").write_text(json.dumps({"status": "running", "job_id": "gone"}))
     rep = api.get(f"/robots/{rid}/report").json()
     assert rep["status"] == "failed" and "restarted" in rep["error"]
+
+
+# --- the real runner (Isaac as a subprocess) ---------------------------------------------------------------------
+
+def test_the_isaac_runner_command(monkeypatch, tmp_path):
+    seen = {}
+
+    def call(cmd, cwd, stdout, stderr, env):
+        seen.update(cmd=cmd, cwd=cwd, env=env)
+        return 0
+
+    monkeypatch.setattr(robots_router.subprocess, "call", call)
+    monkeypatch.setenv("ISAAC_PYTHON", r"C:\isaac\py.exe")
+    robots_router.get_report_runner()(tmp_path, 100, 30)
+    cmd = seen["cmd"]
+    assert cmd[0] == r"C:\isaac\py.exe" and cmd[1].endswith("robot_report.py")
+    assert cmd[2:] == ["--robot-dir", str(tmp_path), "--seed0", "100", "--n", "30"]
+    assert seen["env"]["PYTHONPATH"] == str(robots_router.REPO / "src") and seen["cwd"] == robots_router.REPO
+    assert (tmp_path / "run.log").is_file()
+
+
+def test_the_isaac_runner_reports_the_log_tail_on_failure(monkeypatch, tmp_path):
+    def call(cmd, cwd, stdout, stderr, env):
+        stdout.write("starting\nTraceback\nValueError: no such body\n")
+        return 3
+
+    monkeypatch.setattr(robots_router.subprocess, "call", call)
+    with pytest.raises(RuntimeError, match=r"code 3: .*ValueError: no such body"):
+        robots_router.get_report_runner()(tmp_path, 100, 2)
