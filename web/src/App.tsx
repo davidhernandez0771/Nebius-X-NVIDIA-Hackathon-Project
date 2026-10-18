@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+﻿import { lazy, Suspense, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { DashboardShell } from "./components";
 import Icon from "./components/Icon";
@@ -16,6 +16,7 @@ import RecordPage from "./pm/record/RecordPage";
 import ReviewPage from "./pm/review/ReviewPage";
 import ResultsPage from "./pm/results/ResultsPage";
 import { HandArtPreviewRoute } from "./pm/handArt";
+import { SantRoot } from "./sant/SantRoot";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
 import { HandToggle } from "./hand/integration/HandToggle";
@@ -25,6 +26,11 @@ import { CalibrationPanel } from "./hand/overlay/CalibrationPanel";
 // three.js bundle is only fetched when one of them is visited.
 const Landing = lazy(() => import("./pages/Landing"));
 const Entry = lazy(() => import("./pages/Entry"));
+// SANT website (sprint 8): the design-system review pages, under SantRoot's providers.
+const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
+const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
+const RecordHudPreview = lazy(() => import("./site/record-hud/RecordHudPreview").then((m) => ({ default: m.RecordHudPreview })));
+const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 
 // Dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
@@ -55,6 +61,26 @@ export default function App() {
           }
         />
         <Route path="/pm/hand-art" element={<HandArtPreviewRoute />} />
+        <Route element={<SantRoot />}>
+          <Route
+            path="/design"
+            element={
+              <Suspense fallback={null}>
+                <DesignPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/design/app"
+            element={
+              <Suspense fallback={null}>
+                <DesignAppPage />
+              </Suspense>
+            }
+          />
+          <Route path="/site/record-hud" element={<Suspense fallback={null}><RecordHudPreview /></Suspense>} />
+        </Route>
+        <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
         <Route element={<DashboardShell />}>
           <Route path="/home" element={<Home />} />
           <Route path="/room" element={<RoomView />} />

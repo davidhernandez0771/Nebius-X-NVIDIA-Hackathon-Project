@@ -1,0 +1,637 @@
+/* Record HUD: the instrument rack from docs/design/prototypes/record-console.html, on Volt.
+   Tiny snake_case channel names, units top right, large light readouts, a knob, an XY pad, traces.
+   Signal orange marks needles and dots only; teal is live/ok; amber is hold/edge.
+   Every rule is ".rh .x" (0,2,0) so it beats sant.css's ".sant p" / ".sant button" (0,1,1), and the
+   button hover is (0,4,0) against ".sant button:hover:not(:disabled)" (0,3,1). */
+
+.rh {
+  --rh-rack: var(--sant-bg);
+  --rh-tile: var(--sant-surface);
+  --rh-inset: color-mix(in srgb, var(--sant-bg) 55%, var(--sant-surface));
+  --rh-grid: color-mix(in srgb, var(--sant-line) 50%, var(--sant-surface));
+  --rh-line: var(--sant-line);
+  --rh-line-hi: var(--sant-control);
+  --rh-ink: var(--sant-text);
+  --rh-ink-2: var(--sant-muted);
+  --rh-ink-3: var(--sant-control);
+  /* The one colour Volt doesn't have: the prototype's signal orange, for needles and dots. */
+  --rh-needle: #ff5a1f;
+  --rh-live: var(--sant-accent);
+  --rh-hold: var(--sant-issue);
+
+  display: grid;
+  gap: 8px;
+  color: var(--rh-ink);
+  font: 13px/1.45 var(--sant-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.rh .rh-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.rh .rh-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------------ tile */
+
+.rh .rh-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  background: var(--rh-tile);
+  border: 1px solid var(--rh-line);
+  border-radius: 4px;
+}
+
+.rh .rh-tile[data-selected] {
+  border-color: var(--rh-needle);
+}
+
+.rh .rh-tile--wide {
+  grid-column: span 2;
+}
+
+.rh .rh-tile__hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--rh-ink-2);
+}
+
+.rh .rh-tile__unit {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.rh .rh-val {
+  margin-top: 10px;
+  font-size: 40px;
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.rh .rh-val small {
+  margin-left: 6px;
+  font-size: 15px;
+  letter-spacing: 0;
+  color: var(--rh-ink-2);
+}
+
+.rh .rh-mid {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 300;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rh .rh-instrument {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+}
+
+.rh .rh-instrument svg,
+.rh .rh-knob {
+  width: 100%;
+  max-width: 190px;
+}
+
+/* ------------------------------------------------------------------ palm pad */
+
+.rh .rh-pad {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rh .rh-pad__face {
+  fill: var(--rh-inset);
+  stroke: var(--rh-line);
+}
+
+.rh .rh-pad__grid line {
+  stroke: var(--rh-grid);
+}
+
+.rh .rh-pad__cross {
+  stroke: var(--rh-line-hi);
+}
+
+.rh .rh-pad__dot {
+  fill: var(--rh-needle);
+}
+
+.rh .rh-pad__dot[data-edge] {
+  fill: var(--rh-hold);
+}
+
+/* ------------------------------------------------------------------ grip knob */
+
+.rh .rh-knob svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rh .rh-knob__scale line {
+  stroke: var(--rh-line-hi);
+  stroke-width: 1.5;
+}
+
+.rh .rh-knob__marks line {
+  stroke: var(--rh-ink-2);
+  stroke-width: 1;
+}
+
+.rh .rh-knob__bezel {
+  fill: var(--rh-inset);
+  stroke: var(--rh-line);
+  stroke-width: 2;
+}
+
+.rh .rh-knob__face {
+  fill: var(--rh-tile);
+}
+
+.rh .rh-knob__needle {
+  fill: var(--rh-needle);
+}
+
+.rh .rh-knob[data-stale] .rh-knob__needle {
+  fill: var(--rh-ink-3);
+}
+
+/* ------------------------------------------------------------------ trace */
+
+.rh .rh-trace {
+  position: relative;
+  height: 110px;
+  margin-top: 8px;
+}
+
+.rh .rh-trace svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.rh .rh-trace__grid line {
+  stroke: var(--rh-grid);
+  vector-effect: non-scaling-stroke;
+}
+
+.rh .rh-trace__mark {
+  stroke: var(--rh-line-hi);
+  stroke-dasharray: 3 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.rh .rh-trace__line {
+  fill: none;
+  stroke: var(--rh-ink);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.rh .rh-trace__line--faint {
+  stroke: var(--rh-ink-2);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.rh .rh-trace__head {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--rh-needle);
+}
+
+.rh .rh-legend {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--rh-ink-2);
+}
+
+.rh .rh-legend__key::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-top: 1.5px solid var(--rh-ink);
+}
+
+.rh .rh-legend__key--faint::before {
+  border-top: 1px solid var(--rh-ink-2);
+}
+
+.rh .rh-legend__key--mark::before {
+  border-top: 1px dashed var(--rh-line-hi);
+}
+
+/* ------------------------------------------------------------------ camera */
+
+.rh .rh-tile--cam {
+  grid-row: span 2;
+  min-height: 420px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--rh-inset);
+}
+
+.rh .rh-tile--cam .rh-tile__hd {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+}
+
+.rh .rh-cam__media,
+.rh .rh-cam__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.rh .rh-cam__media > video,
+.rh .rh-cam__media > canvas,
+.rh .rh-cam__media > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scaleX(-1);
+}
+
+/* Faint scanlines, like a sensor feed. */
+.rh .rh-cam__media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px);
+  pointer-events: none;
+}
+
+.rh .rh-cam__message {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--rh-ink-2);
+}
+
+.rh .rh-cam__foot {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--rh-ink-2);
+}
+
+.rh .rh-hand {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.rh .rh-hand__region {
+  fill: none;
+  stroke: var(--rh-line-hi);
+  stroke-dasharray: 5 5;
+}
+
+.rh .rh-hand__text {
+  fill: var(--rh-ink-2);
+  font: 10px var(--sant-font-data);
+}
+
+.rh .rh-hand__trail {
+  fill: var(--rh-ink);
+}
+
+.rh .rh-hand__bones line {
+  stroke: var(--rh-ink);
+  stroke-opacity: 0.55;
+}
+
+.rh .rh-hand__joint {
+  fill: var(--rh-ink);
+}
+
+.rh .rh-hand__joint--tip {
+  fill: var(--rh-needle);
+}
+
+.rh .rh-hand__gap {
+  stroke: var(--rh-needle);
+  stroke-opacity: 0.5;
+  stroke-dasharray: 2 3;
+}
+
+.rh .rh-hand__gap[data-closed] {
+  stroke: var(--rh-hold);
+  stroke-opacity: 1;
+}
+
+/* ------------------------------------------------------------------ bar */
+
+.rh .rh-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 2px 8px;
+}
+
+.rh .rh-bar__path {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--rh-ink-2);
+}
+
+.rh .rh-bar__path b {
+  font-weight: 500;
+  color: var(--rh-ink);
+}
+
+.rh .rh-bar__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rh .rh-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--rh-ink-2);
+  border: 1px solid var(--rh-line);
+  border-radius: 3px;
+}
+
+.rh .rh-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rh-live);
+}
+
+.rh .rh-chip[data-state="wait"] .rh-chip__dot {
+  background: var(--rh-hold);
+}
+
+.rh .rh-chip[data-state="off"] .rh-chip__dot {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--rh-ink-3);
+}
+
+.rh .rh-chip__detail {
+  color: var(--rh-ink-3);
+}
+
+.rh .rh-rec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rh .rh-rec__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font: 500 12px var(--sant-font-data);
+  color: var(--rh-ink);
+  background: var(--rh-tile);
+  border: 1px solid var(--rh-line-hi);
+  border-radius: 3px;
+}
+
+.rh .rh-rec__btn:hover:not(:disabled) {
+  background: var(--sant-surface-2);
+  border-color: var(--rh-ink-2);
+}
+
+.rh .rh-rec__btn:focus-visible {
+  outline: 1px solid var(--rh-needle);
+  outline-offset: 2px;
+}
+
+.rh .rh-rec__btn:disabled {
+  color: var(--rh-ink-2);
+  cursor: not-allowed;
+}
+
+.rh .rh-rec__btn i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rh-ink-3);
+}
+
+.rh .rh-rec__btn[data-state="recording"] i {
+  background: var(--rh-needle);
+}
+
+.rh .rh-rec__time {
+  min-width: 7ch;
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  text-align: right;
+}
+
+/* ------------------------------------------------------------------ episode state */
+
+.rh .rh-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 15px;
+}
+
+.rh .rh-state__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rh-ink-3);
+}
+
+.rh .rh-state[data-state="recording"] .rh-state__dot {
+  background: var(--rh-needle);
+}
+
+/* ------------------------------------------------------------------ loader */
+
+.rh .rh-loader {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 320px);
+  text-align: left;
+  color: var(--rh-ink-2);
+  font-size: 12px;
+}
+
+.rh .rh-loader__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--rh-ink);
+}
+
+.rh .rh-loader__time {
+  color: var(--rh-ink-2);
+}
+
+.rh .rh-loader__rule {
+  position: relative;
+  height: 1px;
+  overflow: hidden;
+  background: var(--rh-line);
+}
+
+.rh .rh-loader__rule > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--rh-ink);
+}
+
+.rh .rh-loader__rule[data-indeterminate] > span {
+  width: 18%;
+  animation: rh-drift 2.4s var(--sant-ease-move) infinite;
+}
+
+[data-motion="reduced"] .rh .rh-loader__rule[data-indeterminate] > span {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rh .rh-loader__rule[data-indeterminate] > span {
+    animation: none;
+  }
+}
+
+@keyframes rh-drift {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(560%); }
+}
+
+.rh .rh-loader__steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rh .rh-loader__steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rh .rh-loader__steps li::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--rh-ink-3);
+}
+
+.rh .rh-loader__steps li[data-state="done"]::before {
+  background: var(--rh-live);
+  border-color: var(--rh-live);
+}
+
+.rh .rh-loader__steps li[data-state="now"] {
+  color: var(--rh-ink);
+}
+
+.rh .rh-loader__steps li[data-state="now"]::before {
+  border-color: var(--rh-needle);
+}
+
+/* ------------------------------------------------------------------ narrow */
+
+@media (max-width: 900px) {
+  .rh .rh-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rh .rh-tile--cam { grid-column: span 2; grid-row: auto; min-height: 320px; }
+  .rh .rh-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .rh .rh-grid { grid-template-columns: minmax(0, 1fr); }
+  .rh .rh-tile--cam,
+  .rh .rh-tile--wide { grid-column: auto; }
+  .rh .rh-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rh .rh-val { font-size: 32px; }
+}
+
+/* ------------------------------------------------------------------ preview page (outside .rh) */
+
+.sant .rh-scenes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font: 12px var(--sant-font-data);
+}
+
+.sant .rh-scenes__btn {
+  padding: 5px 10px;
+  color: var(--sant-muted);
+  border: 1px solid var(--sant-line);
+  border-radius: 3px;
+}
+
+.sant .rh-scenes__btn:hover:not(:disabled) {
+  color: var(--sant-text);
+  border-color: var(--sant-control);
+}
+
+.sant .rh-scenes__btn[aria-pressed="true"]:not(:disabled) {
+  color: var(--sant-text);
+  background: var(--sant-surface-2);
+  border-color: var(--sant-control);
+}
+
+.sant .rh-note {
+  max-width: 120ch;
+  margin-top: 12px;
+  font: 11px/1.6 var(--sant-font-data);
+  color: var(--sant-muted);
+}
