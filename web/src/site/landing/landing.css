@@ -1,0 +1,418 @@
+/* The SANT landing (sprint 9 T5), Field Notes. Every rule is under .sl-shell (the StoryShell root),
+   so nothing leaks into other pages. Colours, type, space and motion come from sant/tokens.css. */
+
+.sl-shell {
+  /* The hero bleeds to the window's edges; clip, so the scrollbar's width never adds a side scroll. */
+  overflow-x: clip;
+  --sl-col: calc(var(--sant-measure) + 18rem + var(--sant-space-7));
+  --sl-gutter: max(var(--sant-space-4), calc((100vw - var(--sl-col)) / 2));
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.sl-shell .sl-hero {
+  position: relative;
+  margin: calc(-1 * var(--sant-space-7)) calc(50% - 50vw) 0;
+  height: clamp(620px, 92svh, 960px);
+}
+
+.sl-shell .sl-hero__stage {
+  position: absolute;
+  inset: 0;
+}
+
+.sl-shell .sl-hero__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sl-shell .sl-hero__copy {
+  position: relative;
+  /* The gutter is padding; the text column itself stays this wide. */
+  box-sizing: content-box;
+  max-width: 42rem;
+  padding: clamp(var(--sant-space-6), 7vh, var(--sant-space-9)) var(--sant-space-4) 0 var(--sl-gutter);
+  pointer-events: none;
+}
+
+.sl-shell .sl-hero__copy > * {
+  pointer-events: auto;
+}
+
+.sl-shell .sant-display.sl-hero__title {
+  max-width: 11em;
+  font-size: clamp(2.75rem, 1.3rem + 4.2vw, 5.5rem);
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.sl-shell .sl-hero__lede {
+  margin-top: var(--sant-space-5);
+  max-width: 32rem;
+  font-size: var(--sant-fs-body-paper);
+  line-height: 1.55;
+}
+
+.sl-shell .sl-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-3);
+  margin-top: var(--sant-space-6);
+}
+
+.sl-shell .sl-hero__brand {
+  margin-top: var(--sant-space-5);
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+@media (max-width: 720px) {
+  .sl-shell .sl-hero {
+    height: clamp(680px, 100svh, 820px);
+  }
+}
+
+/* ------------------------------------------------------------ the story */
+
+.sl-shell .sl-beat {
+  margin-top: clamp(var(--sant-space-8), 14vh, var(--sant-space-10));
+}
+
+.sl-shell .sl-prose {
+  max-width: var(--sant-measure);
+  margin-top: var(--sant-space-5);
+  font-size: var(--sant-fs-body-paper);
+  line-height: 1.6;
+}
+
+.sl-shell .sl-prose > * + * {
+  margin-top: var(--sant-space-4);
+}
+
+.sl-shell .sl-prose .sant-btn {
+  margin-top: var(--sant-space-5);
+}
+
+.sl-shell .sl-subhead {
+  margin-top: var(--sant-space-7);
+  font-family: var(--sant-font-display);
+  font-weight: 400;
+  font-size: var(--sant-fs-4);
+  line-height: 1.15;
+}
+
+.sl-shell .sl-source {
+  display: block;
+  margin-top: var(--sant-space-2);
+  font-size: var(--sant-fs-caption);
+  line-height: 1.45;
+  color: var(--sant-muted);
+}
+
+.sl-shell .sl-caveat {
+  margin-top: var(--sant-space-3);
+  font-size: var(--sant-fs-small);
+  color: var(--sant-muted);
+}
+
+.sl-shell .sl-caveat .sl-source {
+  display: inline;
+}
+
+/* The three labs: plain names, no logos (content spec, beat 1). */
+.sl-shell .sl-labs {
+  max-width: var(--sant-measure);
+  margin: var(--sant-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sl-shell .sl-labs li {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--sant-space-4);
+  padding: var(--sant-space-3) 0;
+  border-top: 1px solid var(--sant-line);
+}
+
+.sl-shell .sl-labs li:last-child {
+  border-bottom: 1px solid var(--sant-line);
+}
+
+.sl-shell .sl-labs strong {
+  font-weight: 600;
+}
+
+/* How it works: the steps scroll past a sticky picture of a demo becoming data. */
+.sl-shell .sl-how__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);
+  gap: var(--sant-space-7);
+  margin-top: var(--sant-space-6);
+  align-items: start;
+}
+
+.sl-shell .sl-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sl-shell .sl-step {
+  min-height: 46vh;
+  padding-top: var(--sant-space-4);
+  border-top: 1px solid var(--sant-text);
+}
+
+.sl-shell .sl-step:last-child {
+  min-height: 0;
+}
+
+.sl-shell .sl-step__n {
+  display: block;
+  font-size: var(--sant-fs-small);
+  font-weight: 600;
+  color: var(--sant-accent-ink);
+}
+
+.sl-shell .sl-step__title {
+  margin-top: var(--sant-space-2);
+  font-family: var(--sant-font-display);
+  font-weight: 400;
+  font-size: var(--sant-fs-3);
+  line-height: 1.1;
+}
+
+.sl-shell .sl-step p {
+  margin-top: var(--sant-space-3);
+  font-size: var(--sant-fs-body-paper);
+  line-height: 1.6;
+}
+
+.sl-shell .sl-step .sl-step__fact {
+  font-size: var(--sant-fs-body);
+  padding-left: var(--sant-space-3);
+  border-left: 2px solid var(--sant-accent);
+}
+
+.sl-shell .sl-how__figure {
+  position: sticky;
+  top: clamp(var(--sant-space-5), 12vh, var(--sant-space-9));
+}
+
+.sl-shell .sl-how__figure figcaption {
+  margin-top: var(--sant-space-2);
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sl-shell .sl-matrix,
+.sl-shell .sl-matrix__canvas {
+  display: block;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .sl-shell .sl-how__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* On one column the picture leads, then the steps: no sticky overlap. */
+  .sl-shell .sl-how__figure {
+    position: static;
+    order: -1;
+  }
+
+  .sl-shell .sl-step {
+    min-height: 0;
+    padding-bottom: var(--sant-space-6);
+  }
+}
+
+/* Proof */
+.sl-shell .sl-proof__body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sant-space-7);
+  align-items: start;
+  margin-top: var(--sant-space-6);
+}
+
+.sl-shell .sl-proof__bars > p {
+  margin-top: var(--sant-space-3);
+  max-width: var(--sant-measure);
+}
+
+.sl-shell .sl-limits {
+  max-width: var(--sant-measure);
+  margin-top: var(--sant-space-6);
+  padding: var(--sant-space-4) var(--sant-space-5) var(--sant-space-5);
+  background: var(--sant-surface-2);
+  border-radius: var(--sant-radius-md);
+}
+
+.sl-shell .sl-limits .sl-subhead {
+  margin-top: 0;
+}
+
+.sl-shell .sl-limits ul {
+  margin: var(--sant-space-3) 0 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: var(--sant-space-2);
+}
+
+.sl-shell .sl-limits .sant-btn {
+  margin-top: var(--sant-space-4);
+}
+
+@media (max-width: 900px) {
+  .sl-shell .sl-proof__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Bring your robot: the shelf teaser, OpenArm slid out with its sticker. */
+.sl-shell .sl-robot {
+  display: grid;
+  grid-template-columns: minmax(0, var(--sant-measure)) minmax(14rem, 18rem);
+  gap: var(--sant-space-7);
+  align-items: start;
+}
+
+.sl-shell .sl-shelf {
+  margin: var(--sant-space-5) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sant-space-2);
+}
+
+.sl-shell .sl-cart {
+  display: grid;
+  gap: 2px;
+  padding: var(--sant-space-3) var(--sant-space-4);
+  border: 1px solid var(--sant-line);
+  border-left: 6px solid var(--sant-text);
+  border-radius: var(--sant-radius-xs);
+  background: var(--sant-surface);
+}
+
+.sl-shell .sl-cart[data-out="true"] {
+  transform: translateX(calc(-1 * var(--sant-space-4)));
+  box-shadow: var(--sant-shadow-float);
+}
+
+.sl-shell .sl-cart__name {
+  font-weight: 600;
+}
+
+.sl-shell .sl-cart__note {
+  font-size: var(--sant-fs-small);
+  color: var(--sant-muted);
+}
+
+.sl-shell .sl-cart__sticker {
+  justify-self: start;
+  margin-top: var(--sant-space-1);
+  padding: 2px var(--sant-space-2);
+  border-radius: var(--sant-radius-xs);
+  font-size: var(--sant-fs-caption);
+  font-weight: 600;
+  background: var(--sant-accent-soft);
+  color: var(--sant-accent-ink);
+}
+
+.sl-shell .sl-cart__sticker[data-tone="issue"] {
+  background: var(--sant-issue-soft);
+  color: var(--sant-issue);
+}
+
+@media (max-width: 1000px) {
+  .sl-shell .sl-robot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sl-shell .sl-cart[data-out="true"] {
+    transform: none;
+  }
+}
+
+/* Nemotron: two measured findings, side by side. */
+.sl-shell .sl-findings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sant-space-6);
+  margin-top: var(--sant-space-6);
+}
+
+.sl-shell .sl-finding {
+  padding-top: var(--sant-space-4);
+  border-top: 1px solid var(--sant-text);
+}
+
+.sl-shell .sl-finding__title {
+  font-family: var(--sant-font-display);
+  font-weight: 400;
+  font-size: var(--sant-fs-4);
+  line-height: 1.15;
+}
+
+.sl-shell .sl-finding p {
+  margin-top: var(--sant-space-3);
+  font-size: var(--sant-fs-body-paper);
+  line-height: 1.6;
+}
+
+.sl-shell .sl-next {
+  margin-top: var(--sant-space-6);
+}
+
+@media (max-width: 800px) {
+  .sl-shell .sl-findings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Try it: the last line, the way in, and the pinch sheet. */
+.sl-shell .sl-closing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sant-space-7);
+  align-items: center;
+  margin-top: clamp(var(--sant-space-8), 18vh, var(--sant-space-10));
+  padding-top: var(--sant-space-7);
+  border-top: 1px solid var(--sant-text);
+}
+
+.sl-shell .sant-display.sl-closing__title {
+  font-size: clamp(2.5rem, 1.4rem + 3.4vw, 4.5rem);
+  text-wrap: balance;
+}
+
+.sl-shell .sl-closing__copy > p:first-of-type {
+  margin: var(--sant-space-4) 0 var(--sant-space-6);
+  font-size: var(--sant-fs-body-paper);
+  line-height: 1.6;
+}
+
+.sl-shell .sl-closing__copy .sl-caveat {
+  margin-top: var(--sant-space-4);
+}
+
+.sl-shell .sl-pinch figcaption {
+  margin-top: var(--sant-space-2);
+  font-size: var(--sant-fs-small);
+  color: var(--sant-muted);
+}
+
+.sl-shell .sl-pinch strong {
+  color: var(--sant-text);
+}
+
+@media (max-width: 900px) {
+  .sl-shell .sl-closing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

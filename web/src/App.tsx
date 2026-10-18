@@ -29,6 +29,7 @@ const Entry = lazy(() => import("./pages/Entry"));
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
+const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
 
 // Dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
           }
         />
         <Route element={<SantRoot />}>
+          <Route path="/site" element={<Suspense fallback={null}><SiteLanding /></Suspense>} />
           <Route
             path="/design"
             element={
