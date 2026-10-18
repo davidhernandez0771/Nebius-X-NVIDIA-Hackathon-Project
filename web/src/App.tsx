@@ -38,6 +38,8 @@ const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
 const RecordConsole = lazy(() => import("./site/record/RecordConsole"));
 const SiteResultsPage = lazy(() => import("./site/results/ResultsPage").then((m) => ({ default: m.ResultsPage })));
 const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
+// The world (sprint 9): one continuous 3D journey, from the story down to the work (docs/design/world-core.md).
+const World = lazy(() => import("./world/core/WorldRoot"));
 
 const LEGACY = /^\/legacy(\/|$)/;
 
@@ -71,6 +73,7 @@ export default function App() {
         <Route path="/pm/hand-art" element={<HandArtPreviewRoute />} />
         <Route element={<SantRoot />}>
           <Route path="/site" element={<Suspense fallback={null}><SiteLanding /></Suspense>} />
+          <Route path="/world" element={<Suspense fallback={null}><World /></Suspense>} />
           <Route
             path="/design"
             element={
