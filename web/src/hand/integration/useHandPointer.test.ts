@@ -8,7 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import type { ScanViewerHandle } from "../../three/ScanViewer";
+import type { ScanViewerHandle } from "./activeScanViewer";
 import {
   DWELL_DURATION_MS,
   DWELL_ELIGIBLE_ATTR,
