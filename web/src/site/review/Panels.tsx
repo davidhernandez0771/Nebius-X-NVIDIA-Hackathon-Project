@@ -4,7 +4,18 @@
 import type { MouseEvent } from "react";
 import type { StoredDiagnosis } from "../../pm/types";
 import { durationOf, type Subject } from "./data";
-import { activeIssues, detectionTag, fixedSummary, formatSpan, isWholeDemo, type IssueRow, type Verdict } from "./model";
+import {
+  activeIssues,
+  detectionTag,
+  fixLines,
+  fixedSummary,
+  formatSpan,
+  formatWhen,
+  isWholeDemo,
+  reasonWords,
+  type IssueRow,
+  type Verdict,
+} from "./model";
 import type { PlayState } from "./playback";
 
 const pct = (t: number, d: number) => `${d > 0 ? (Math.min(Math.max(t, 0), d) / d) * 100 : 0}%`;
@@ -140,6 +151,14 @@ export function IssueList({
   );
 }
 
+const SOURCE_WORDS: Record<string, string> = {
+  passport: "replay's passport",
+  episode_passport: "recorded episode's passport",
+  success_check: "success check on the recorded signals",
+};
+
+const NEMOTRON = "Nemotron 3.5 Super VL";
+
 function Corners() {
   return (
     <>
@@ -152,9 +171,12 @@ function Corners() {
 }
 
 export function VerdictCard({ verdict, rows, subject }: { verdict: Verdict; rows: IssueRow[]; subject: Subject }) {
-  const { physics, label } = verdict;
+  const { physics, label, nemotron, match } = verdict;
   const sum = fixedSummary(rows);
   const before = subject.raw.verification;
+  const fixes = subject.fixes;
+  const lines = fixes ? fixLines(fixes.applied) : [];
+  const shown = (subject.perfected ?? subject.raw).demo.id;
   return (
     <section className="rv2-verdict" aria-labelledby="rv2-verdict-title">
       <Corners />
@@ -172,26 +194,56 @@ export function VerdictCard({ verdict, rows, subject }: { verdict: Verdict; rows
           )}
           {physics.state === "failed" && (
             <>
-              <span className="rv2-bad">Failed ✗</span> {physics.reasons.length ? physics.reasons.join(", ") : "the cube did not end in the bin"}.
+              <span className="rv2-bad">Failed ✗</span>{" "}
+              {physics.reasons.length ? physics.reasons.map(reasonWords).join(", ") : "the cube did not end in the bin"}.
             </>
           )}
-          {physics.state === "unknown" && <span className="rv2-dim">Not served by this backend yet. Perfect runs the physics replay.</span>}
+          {physics.state === "unknown" && <span className="rv2-dim">Not checked: {physics.detail ?? "no physics verification for this demo"}.</span>}
+          {physics.state !== "unknown" && subject.physicsSource && (
+            <span className="rv2-dim"> From the {SOURCE_WORDS[subject.physicsSource] ?? subject.physicsSource}.</span>
+          )}
         </dd>
 
-        <dt>Label</dt>
+        <dt>Nemotron label</dt>
         <dd>
-          {label ? (
+          {nemotron.state === "ok" && (
             <>
-              “{label.text}”<span className="rv2-dim"> written by the {label.author}</span>
+              “{nemotron.task}”<span className="rv2-dim"> written by {NEMOTRON}</span>
             </>
-          ) : (
-            <span className="rv2-dim">None yet: the demo isn't reviewed.</span>
+          )}
+          {nemotron.state === "unavailable" && <span className="rv2-dim">Nemotron label unavailable.</span>}
+          {nemotron.state === "none" && (
+            <>
+              <span className="rv2-dim">Not labelled by Nemotron yet.</span>
+              {label && (
+                <>
+                  {" "}
+                  The diagnosis's label: “{label.text}”<span className="rv2-dim"> written by the {label.author}</span>
+                </>
+              )}
+            </>
           )}
         </dd>
 
-        <dt>Matches your request</dt>
+        <dt>Matches</dt>
         <dd>
-          <span className="rv2-dim">Not checked yet.</span> Nemotron's check of the label against what you asked for is coming next.
+          {(match.state === "yes" || match.state === "no") && (
+            <>
+              {match.state === "yes" ? <span className="rv2-ok">Yes</span> : <span className="rv2-bad">No</span>}
+              {match.failed.length > 0 && `: ${match.failed.join(", ")}`}
+              {match.reason && <>. {match.reason}</>}
+              {match.judgedOn && match.judgedOn !== shown && (
+                <span className="rv2-dim"> Judged on {match.judgedOn}, a copy multiplied from this demo.</span>
+              )}
+            </>
+          )}
+          {match.state === "not_checked" && (
+            <span className="rv2-dim">Not checked{match.reason ? `: ${match.reason}` : ": nothing to compare yet."}</span>
+          )}
+          {match.state === "unavailable" && <span className="rv2-dim">Match unavailable.</span>}
+          {match.state === "none" && <span className="rv2-dim">Not checked yet.</span>}
+          {verdict.conflict && <p className="rv2-warn rv2-conflict">{verdict.conflict}</p>}
+          {verdict.verdictSource && <span className="rv2-dim"> Source: {verdict.verdictSource}.</span>}
         </dd>
 
         <dt>Fixed</dt>
@@ -199,8 +251,36 @@ export function VerdictCard({ verdict, rows, subject }: { verdict: Verdict; rows
           {sum.issues} {sum.issues === 1 ? "issue" : "issues"}, {sum.fixes} {sum.fixes === 1 ? "fix" : "fixes"}
           {sum.gated > 0 && `, ${sum.gated} claim${sum.gated === 1 ? "" : "s"} dropped`}
           {subject.stored && <span className="rv2-dim"> · found by {subject.stored.source === "nemotron" ? subject.stored.model_id ?? "Nemotron" : "the rules detector"}</span>}
+          {lines.length > 0 && (
+            <ol className="rv2-applied" aria-label="Fixes Neaten applied">
+              {lines.map((f, k) => (
+                <li key={k}>
+                  <code>{f.op}</code> <span className="sant-num">{f.span}</span>
+                  {f.params && <span className="rv2-dim"> · {f.params}</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+          {fixes && fixes.applied.length > 0 && fixes.appliedTo && (
+            <span className="rv2-dim">
+              Applied by Neaten to {fixes.appliedTo}
+              {fixes.appliedAt && (
+                <>
+                  {" "}
+                  on <time dateTime={fixes.appliedAt}>{formatWhen(fixes.appliedAt)}</time>
+                </>
+              )}
+              .
+            </span>
+          )}
+          {fixes && fixes.applied.length === 0 && <span className="rv2-dim"> · none applied to this demo</span>}
         </dd>
       </dl>
+      {subject.warnings.map((w) => (
+        <p key={w} className="rv2-warn">
+          {w}
+        </p>
+      ))}
 
       {before && physics.state !== "unknown" && (
         <table className="rv2-delta sant-num">

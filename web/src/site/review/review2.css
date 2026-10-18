@@ -556,3 +556,19 @@
     gap: 0;
   }
 }
+
+/* ------------------------------------------------------------ verdict: fixes applied, conflict */
+
+.sant .rv2-applied {
+  margin: var(--sant-space-2) 0;
+  padding-left: 1.4em;
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .rv2-applied li + li {
+  margin-top: 2px;
+}
+
+.sant .rv2-conflict {
+  margin: var(--sant-space-2) 0 0;
+}

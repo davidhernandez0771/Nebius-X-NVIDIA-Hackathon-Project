@@ -2,7 +2,7 @@
 // detection-box tags, the verdict, and the timing of the scan and the raw -> perfected morph.
 // Every string and number comes from the demo's own diagnosis and verification; nothing is made up.
 
-import type { Issue, RepairOp, StoredDiagnosis } from "../../pm/types";
+import type { Issue, RepairOp, ReviewVerdict, StoredDiagnosis } from "../../pm/types";
 
 type When = { t?: number | null; t0?: number | null; t1?: number | null };
 
@@ -108,17 +108,68 @@ export interface VerificationLike {
 }
 
 export type Physics =
-  | { state: "unknown" }
+  | { state: "unknown"; detail: string | null }
   | { state: "verified" | "failed"; duration: number; pathLength: number; reasons: string[] };
+
+/** success.py's reason codes, in words (docs/design/nemotron-judge.md "the reasons in words"). */
+const REASONS: Record<string, string> = {
+  not_in_bin: "not in the bin",
+  gripper_closed: "the gripper didn't open",
+  not_settled: "the cube didn't settle",
+  too_slow: "too slow",
+  collision: "the arm hit the bin or table",
+  dropped: "dropped the cube",
+  high_release: "let go too high",
+  unreachable: "the arm couldn't reach",
+};
+export const reasonWords = (code: string) => REASONS[code] ?? code.replace(/_/g, " ");
+
+/** The judge's checks, in the contract's words for a failed one. */
+const CHECK_WORDS = {
+  same_object: "different object",
+  same_goal: "different goal",
+  same_order: "steps reversed",
+  copy_completes: "didn't finish",
+} as const;
+
+export type NemotronLabel = { state: "ok"; task: string } | { state: "unavailable"; error: string | null } | { state: "none" };
+
+export type MatchLine =
+  | { state: "yes" | "no"; reason: string | null; failed: string[]; judgedOn: string | null }
+  | { state: "not_checked"; reason: string | null }
+  | { state: "unavailable"; reason: string | null }
+  | { state: "none" };
+
+export interface FixLine {
+  op: string;
+  span: string;
+  /** The op's parameters other than its times, e.g. "strength med". */
+  params: string;
+}
 
 export interface Verdict {
   physics: Physics;
+  /** The diagnosis's label, shown when Nemotron hasn't labelled the demo. */
   label: { text: string; author: string } | null;
-  /** Nemotron's "is it what you meant" check isn't built yet (content spec L3), so this never says yes or no. */
-  matches: "not-checked";
+  nemotron: NemotronLabel;
+  match: MatchLine;
+  /** Nemotron and physics disagree about the outcome; physics decides. */
+  conflict: string | null;
+  /** Where the label and match came from, e.g. "review_verdict.json". */
+  verdictSource: string | null;
 }
 
-export function verdictOf({ stored, verification }: { stored: StoredDiagnosis | null; verification: VerificationLike | null }): Verdict {
+export function verdictOf({
+  stored,
+  verification,
+  card = null,
+  physicsDetail = null,
+}: {
+  stored: StoredDiagnosis | null;
+  verification: VerificationLike | null;
+  card?: { verdict: ReviewVerdict; judgedOn: string | null; source: string } | null;
+  physicsDetail?: string | null;
+}): Verdict {
   const physics: Physics = verification
     ? {
         state: verification.success ? "verified" : "failed",
@@ -126,11 +177,46 @@ export function verdictOf({ stored, verification }: { stored: StoredDiagnosis | 
         pathLength: verification.path_length,
         reasons: verification.reasons,
       }
-    : { state: "unknown" };
+    : { state: "unknown", detail: physicsDetail };
   const label = stored
     ? { text: stored.diagnosis.label, author: stored.source === "nemotron" ? stored.model_id ?? "Nemotron" : "rules template" }
     : null;
-  return { physics, label, matches: "not-checked" };
+  const v = card?.verdict;
+  // "Unavailable" is never shown as "no", and nothing stored is "not yet" (docs/design/nemotron-judge.md rule 5).
+  const nemotron: NemotronLabel = !v
+    ? { state: "none" }
+    : v.label.status === "ok" && v.label.task
+      ? { state: "ok", task: v.label.task }
+      : { state: "unavailable", error: v.label.error };
+  let match: MatchLine = { state: "none" };
+  if (v) {
+    const m = v.match;
+    if (m.status === "yes" || m.status === "no") {
+      const failed = m.checks ? (Object.keys(CHECK_WORDS) as (keyof typeof CHECK_WORDS)[]).filter((k) => !m.checks![k]).map((k) => CHECK_WORDS[k]) : [];
+      match = { state: m.status, reason: m.reason, failed, judgedOn: card!.judgedOn };
+    } else match = { state: m.status, reason: m.reason };
+  }
+  return { physics, label, nemotron, match, conflict: v?.conflict ?? null, verdictSource: card?.source ?? null };
+}
+
+/** The fixes Neaten applied, in the order it applied them (the passport's), each with its span in demo seconds. */
+export function fixLines(applied: RepairOp[]): FixLine[] {
+  return applied.map((r) => {
+    const { op, t, t0, t1, ...rest } = r;
+    return {
+      op,
+      span: formatSpan({ t, t0, t1 }),
+      params: Object.entries(rest)
+        .map(([k, val]) => `${k.replace(/_/g, " ")} ${String(val)}`)
+        .join(", "),
+    };
+  });
+}
+
+/** An ISO timestamp as "2026-10-16 20:17 UTC"; the raw string if it doesn't parse. */
+export function formatWhen(iso: string): string {
+  const d = new Date(iso.replace(/(\.\d{3})\d+/, "$1"));
+  return Number.isNaN(d.getTime()) ? iso : `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
 export function fixedSummary(rows: IssueRow[]) {

@@ -154,7 +154,13 @@ function Review({ subject }: { subject: Subject }) {
   const { reduced } = useMotion();
   const rows = useMemo(() => (subject.stored ? buildIssueRows(subject.stored) : []), [subject]);
   const verdict = useMemo(
-    () => verdictOf({ stored: subject.stored, verification: subject.perfected ? subject.perfected.verification : subject.raw.verification }),
+    () =>
+      verdictOf({
+        stored: subject.stored,
+        verification: subject.perfected ? subject.perfected.verification : subject.raw.verification,
+        card: subject.verdict,
+        physicsDetail: subject.physicsDetail,
+      }),
     [subject],
   );
   const raw = durationOf(subject.raw.demo);
@@ -230,7 +236,8 @@ export default function ReviewPage2() {
           {subject.state === "ok" && subject.subject.example && (
             <p className="rv2-note">
               <strong>Recorded example.</strong> A synthetic demo: the scripted expert with tremor, pauses and idle time added on purpose,
-              then perfected by the rules and replayed in Isaac Lab. Every value is the run's own.
+              then perfected by the rules and replayed in Isaac Lab. Every value is the run's own; Nemotron's label and match are its
+              real replies from the 2026-10-18 labeler/judge test.
               {unreachable && " The SANT backend isn't reachable, so live demos can't be listed. Start it with start.ps1 -Backend, then reload."}
             </p>
           )}

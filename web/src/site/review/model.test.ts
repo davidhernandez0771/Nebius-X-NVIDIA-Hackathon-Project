@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { Diagnosis, StoredDiagnosis } from "../../pm/types";
-import { activeIssues, buildIssueRows, detectionTag, fixedSummary, formatSpan, morphAt, scramble, verdictOf } from "./model";
+import type { Diagnosis, ReviewVerdict, StoredDiagnosis } from "../../pm/types";
+import exampleVerdict from "./example/verdict.json";
+import {
+  activeIssues,
+  buildIssueRows,
+  detectionTag,
+  fixLines,
+  fixedSummary,
+  formatSpan,
+  formatWhen,
+  morphAt,
+  reasonWords,
+  scramble,
+  verdictOf,
+} from "./model";
 
 // s1_0002's rules diagnosis, as stored (C:\dev\pm-t4\data\demos\s1_0002_rules\diagnosis.json), times rounded.
 const diagnosis: Diagnosis = {
@@ -87,19 +100,100 @@ describe("verdictOf", () => {
   it("reports physics only from a real verification", () => {
     const v = verdictOf({ stored, verification: { success: true, reasons: [], duration: 9.32, path_length: 1.0955 } });
     expect(v.physics).toEqual({ state: "verified", duration: 9.32, pathLength: 1.0955, reasons: [] });
-    expect(verdictOf({ stored, verification: null }).physics).toEqual({ state: "unknown" });
+    expect(verdictOf({ stored, verification: null }).physics).toEqual({ state: "unknown", detail: null });
     expect(
       verdictOf({ stored, verification: { success: false, reasons: ["dropped"], duration: 7, path_length: 1 } }).physics,
     ).toEqual({ state: "failed", duration: 7, pathLength: 1, reasons: ["dropped"] });
   });
 
-  it("names who wrote the label, and never claims the intent check ran", () => {
+  it("names who wrote the label, and with no Nemotron verdict never claims the intent check ran", () => {
     const rules = verdictOf({ stored, verification: null });
     expect(rules.label).toEqual({ text: "pick up the red cube and place it in the blue bin", author: "rules template" });
-    expect(rules.matches).toBe("not-checked");
+    expect(rules.nemotron).toEqual({ state: "none" });
+    expect(rules.match).toEqual({ state: "none" });
     const nem = verdictOf({ stored: { ...stored, source: "nemotron", model_id: "nvidia/Nemotron-3.5-Super-VL" }, verification: null });
     expect(nem.label?.author).toBe("nvidia/Nemotron-3.5-Super-VL");
     expect(verdictOf({ stored: null, verification: null }).label).toBeNull();
+  });
+
+  it("says why physics is unknown", () => {
+    expect(verdictOf({ stored, verification: null, physicsDetail: "no passport" }).physics).toEqual({ state: "unknown", detail: "no passport" });
+  });
+
+  it("shows the real example verdict: Nemotron's label and its match of a copy, verbatim", () => {
+    const card = { verdict: exampleVerdict.verdict as unknown as ReviewVerdict, judgedOn: exampleVerdict.copy_id, source: "test" };
+    const v = verdictOf({ stored, verification: null, card });
+    expect(v.nemotron).toEqual({ state: "ok", task: "The robot picks up a red cube and places it into a blue bin." });
+    expect(v.match).toEqual({
+      state: "yes",
+      failed: [],
+      judgedOn: "s1_0002_rules_m102000",
+      reason: exampleVerdict.verdict.match.reason,
+    });
+    expect(v.conflict).toBeNull();
+    expect(v.verdictSource).toBe("test");
+  });
+
+  // Test fixtures (not real data): the card's other states, built from the real example by changing one field.
+  const real = exampleVerdict.verdict as unknown as ReviewVerdict;
+  const fixture = (patch: Partial<ReviewVerdict>) => ({ verdict: { ...real, ...patch }, judgedOn: null, source: "fixture" });
+
+  it("names each failed check in the contract's words", () => {
+    const checks = { same_object: false, same_goal: true, same_order: false, copy_completes: true };
+    const v = verdictOf({ stored, verification: null, card: fixture({ match: { status: "no", checks, reason: "Different cube." } }) });
+    expect(v.match).toEqual({ state: "no", failed: ["different object", "steps reversed"], reason: "Different cube.", judgedOn: null });
+  });
+
+  it("shows unavailable as unavailable, never as no", () => {
+    const v = verdictOf({
+      stored,
+      verification: null,
+      card: fixture({
+        label: { status: "unavailable", task: null, object: null, destination: null, steps: [], error: "timeout" },
+        match: { status: "unavailable", checks: null, reason: "timeout" },
+      }),
+    });
+    expect(v.nemotron).toEqual({ state: "unavailable", error: "timeout" });
+    expect(v.match).toEqual({ state: "unavailable", reason: "timeout" });
+  });
+
+  it("passes not_checked and the conflict sentence through", () => {
+    const conflict = "Nemotron says the copy completes the task, but the physics check failed; physics decides.";
+    const v = verdictOf({
+      stored,
+      verification: null,
+      card: fixture({ match: { status: "not_checked", checks: null, reason: "The physics check failed, so this copy is not kept." }, conflict }),
+    });
+    expect(v.match).toEqual({ state: "not_checked", reason: "The physics check failed, so this copy is not kept." });
+    expect(v.conflict).toBe(conflict);
+  });
+});
+
+describe("reasonWords", () => {
+  it("puts success.py's codes in words", () => {
+    expect(reasonWords("dropped")).toBe("dropped the cube");
+    expect(reasonWords("not_in_bin")).toBe("not in the bin");
+    expect(reasonWords("some_new_code")).toBe("some new code");
+  });
+});
+
+describe("fixLines", () => {
+  it("lists s1_0002_rules's applied fixes in order with their spans and parameters", () => {
+    expect(fixLines(diagnosis.repairs)).toEqual([
+      { op: "trim", span: "0.82–13.76 s", params: "" },
+      { op: "remove_pause", span: "4.50–6.52 s", params: "" },
+      { op: "remove_pause", span: "8.98–10.58 s", params: "" },
+      { op: "smooth", span: "0.00–13.76 s", params: "strength med" },
+    ]);
+    expect(fixLines([{ op: "recenter_grasp", t: 2.5 }])).toEqual([{ op: "recenter_grasp", span: "at 2.50 s", params: "" }]);
+  });
+});
+
+describe("formatWhen", () => {
+  it("formats the backend's microsecond ISO times in UTC", () => {
+    expect(formatWhen("2026-10-16T20:17:57.579168Z")).toBe("2026-10-16 20:17 UTC");
+    expect(formatWhen("2026-10-16T20:17:57.579168+00:00")).toBe("2026-10-16 20:17 UTC");
+    expect(formatWhen("not a date")).toBe("not a date");
   });
 });
 

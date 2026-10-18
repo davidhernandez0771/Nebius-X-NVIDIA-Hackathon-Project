@@ -43,16 +43,33 @@ describe("ReviewPage2 with the recorded example (no backend)", () => {
     expect(within(list).getByText("smooth")).toBeTruthy();
   });
 
-  it("gives the verdict from the replay, and never claims the intent check ran", () => {
+  it("gives physics from the replay's passport", () => {
     renderAt("/review2");
     const card = screen.getByRole("region", { name: "Verdict" });
     expect(within(card).getByText("Verified ✓")).toBeTruthy();
     expect(card.textContent).toContain("Replay 9.32 s, path 1.10 m");
-    expect(card.textContent).toContain("pick up the red cube and place it in the blue bin");
-    expect(card.textContent).toContain("written by the rules template");
-    expect(card.textContent).toContain("Not checked yet.");
+    expect(card.textContent).toContain("From the replay's passport.");
     expect(card.textContent).toContain("4 issues, 4 fixes");
     expect(card.textContent).toContain("13.76 s");
+  });
+
+  it("shows Nemotron's real label and its match of a named copy, verbatim", () => {
+    renderAt("/review2");
+    const card = screen.getByRole("region", { name: "Verdict" });
+    expect(card.textContent).toContain("“The robot picks up a red cube and places it into a blue bin.” written by Nemotron 3.5 Super VL");
+    expect(within(card).getByText("Yes")).toBeTruthy();
+    expect(card.textContent).toContain("Both demos move the same red cube from the table into the blue bin");
+    expect(card.textContent).toContain("Judged on s1_0002_rules_m102000, a copy multiplied from this demo.");
+    expect(card.textContent).toContain("Source: the 2026-10-18 labeler/judge test.");
+  });
+
+  it("lists the fixes Neaten applied, with their spans and when", () => {
+    renderAt("/review2");
+    const applied = screen.getByRole("list", { name: "Fixes Neaten applied" });
+    const items = within(applied).getAllByRole("listitem").map((li) => li.textContent);
+    expect(items).toEqual(["trim 0.82–13.76 s", "remove_pause 4.50–6.52 s", "remove_pause 8.98–10.58 s", "smooth 0.00–13.76 s · strength med"]);
+    const card = screen.getByRole("region", { name: "Verdict" });
+    expect(card.textContent).toContain("Applied by Neaten to s1_0002_rules on 2026-10-16 20:17 UTC.");
   });
 
   it("shows the earlier Nemotron run's view of the same demo honestly", () => {
@@ -70,5 +87,71 @@ describe("ReviewPage2 with the recorded example (no backend)", () => {
       expect(perfected.getAttribute("aria-pressed")).toBe("true");
       expect(raw.getAttribute("aria-pressed")).toBe("false");
     });
+  });
+});
+
+// A live backend, mocked: the demo and its review come from GET /demos/{id} and /demos/{id}/review.
+// Test fixtures only (the shapes of src/app/routers/review.py), not real data.
+describe("ReviewPage2 with a live demo", () => {
+  const traj = { t: [0, 1], ee_pos: [[0, 0, 0], [0, 0, 1]], ee_quat: [[1, 0, 0, 0], [1, 0, 0, 0]], gripper: [0, 0] };
+  const scene = { cube_pose: { pos: [0, 0, 0], quat_wxyz: [1, 0, 0, 0] }, bin_pose: { pos: [0, 0, 0], quat_wxyz: [1, 0, 0, 0] }, robot: "franka", seed: 1 };
+  const demo = { id: "human_9", source: "human", parent_id: null, trajectory: traj, scene, created_at: "2026-10-18T10:00:00Z", human_seconds: 5 };
+  const review = (verdict: unknown, physics: object) => ({
+    demo_id: "human_9",
+    lineage: null,
+    physics: { status: "failed", source: "success_check", reasons: ["dropped"], duration: 1, path_length: 1, max_contact_force: 0, settle_time: 0, detail: null, ...physics },
+    fixes: { source: null, diagnosis_source: null, model_id: null, applied_to: null, applied_at: null, applied: [] },
+    verdict,
+    verdict_source: verdict ? "review_verdict.json" : null,
+    warnings: [],
+  });
+  const respond = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
+
+  function backend(r: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.endsWith("/demos")) return respond([demo]);
+        if (url.endsWith("/demos/human_9")) return respond(demo);
+        if (url.endsWith("/demos/human_9/review")) return respond(r);
+        return respond({ detail: "not found" }, 404);
+      }),
+    );
+  }
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the success check's failure in words and no verdict as not yet", async () => {
+    backend(review(null, {}));
+    renderAt("/review2?id=human_9");
+    const card = await screen.findByRole("region", { name: "Verdict" });
+    await vi.waitFor(() => expect(card.textContent).toContain("Failed ✗ dropped the cube."));
+    expect(card.textContent).toContain("From the success check on the recorded signals.");
+    expect(card.textContent).toContain("Not labelled by Nemotron yet.");
+    expect(card.textContent).toContain("Not checked yet.");
+  });
+
+  it("says why physics is unknown", async () => {
+    backend(review(null, { status: "unknown", source: null, reasons: [], duration: null, path_length: null, detail: "no passport and no recorded episode" }));
+    renderAt("/review2?id=human_9");
+    const card = await screen.findByRole("region", { name: "Verdict" });
+    await vi.waitFor(() => expect(card.textContent).toContain("Not checked: no passport and no recorded episode."));
+  });
+
+  it("shows a stored verdict's unavailable label and match as unavailable", async () => {
+    const verdict = {
+      physics: { status: "failed", reasons: ["dropped"] },
+      label: { status: "unavailable", task: null, object: null, destination: null, steps: [], error: "timeout" },
+      match: { status: "unavailable", checks: null, reason: "timeout" },
+      conflict: null,
+    };
+    backend(review(verdict, {}));
+    renderAt("/review2?id=human_9");
+    const card = await screen.findByRole("region", { name: "Verdict" });
+    await vi.waitFor(() => expect(card.textContent).toContain("Nemotron label unavailable."));
+    expect(card.textContent).toContain("Match unavailable.");
+    expect(card.textContent).toContain("Source: review_verdict.json.");
   });
 });
