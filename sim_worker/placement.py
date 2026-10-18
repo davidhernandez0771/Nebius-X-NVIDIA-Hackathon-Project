@@ -30,13 +30,20 @@ def yaw_rotate(q_wxyz, v) -> np.ndarray:
     return rot @ np.asarray(v, dtype=float)
 
 
-def place_scene(sim_scene, scene: Scene, *, aim_front_camera: bool) -> None:
-    """Robot to its default joint pose at rest, cube and the 5 bin parts at the Scene's poses (env frame),
-    then sim_scene.reset(); optionally aim the "front" camera. Does not step physics."""
+def place_scene(sim_scene, scene: Scene, *, aim_front_camera: bool, joint_pos=None) -> None:
+    """Robot to its default joint pose (or `joint_pos`, all joints, e.g. a recovery state) at rest, cube and the 5 bin
+    parts at the Scene's poses (env frame), then sim_scene.reset(); optionally aim the "front" camera. Does not step
+    physics."""
     robot = sim_scene["robot"]
     dev = sim_scene.env_origins.device
     origin = sim_scene.env_origins[0].cpu().numpy()
-    robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch.clone())
+    if joint_pos is None:
+        q = robot.data.default_joint_pos.torch.clone()
+    else:
+        q = torch.tensor(np.asarray(joint_pos, dtype=np.float32).reshape(1, -1), device=dev)
+        if q.shape != (1, robot.num_joints) or not torch.isfinite(q).all():
+            raise ValueError(f"joint_pos: expected {robot.num_joints} finite values, got {tuple(q.shape)}")
+    robot.write_joint_position_to_sim_index(position=q)
     robot.write_joint_velocity_to_sim_index(velocity=robot.data.default_joint_vel.torch.clone())
 
     def put(name: str, pos, quat_wxyz) -> None:
