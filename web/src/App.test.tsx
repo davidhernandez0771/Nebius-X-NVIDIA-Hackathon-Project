@@ -17,6 +17,8 @@ vi.mock("./legacy/pages/Landing", () => ({ default: () => <p>legacy landing</p> 
 vi.mock("./legacy/pages/Entry", () => ({ default: () => <p>legacy entry</p> }));
 vi.mock("./legacy/pages/Home", () => ({ default: () => <p>legacy home</p> }));
 vi.mock("./legacy/pm/record/RecordPage", () => ({ default: () => <p>legacy record</p> }));
+vi.mock("./legacy/pm/review/ReviewPage", () => ({ default: () => <p>legacy review</p> }));
+vi.mock("./site/record/RecordConsole", () => ({ default: () => <p>new record</p> }));
 
 function Where() {
   return <output data-testid="where">{useLocation().pathname}</output>;
@@ -64,13 +66,24 @@ describe("App routes", () => {
 
   it("redirects /pm/* to /legacy/pm/*, keeping the query and the hash", async () => {
     render(
-      <MemoryRouter initialEntries={["/pm/record?cam=1#top"]}>
+      <MemoryRouter initialEntries={["/pm/review?id=abc#top"]}>
         <App />
         <Full />
       </MemoryRouter>,
     );
-    expect(await screen.findByText("legacy record")).toBeTruthy();
-    expect(screen.getByTestId("full").textContent).toBe("/legacy/pm/record?cam=1#top");
+    expect(await screen.findByText("legacy review")).toBeTruthy();
+    expect(screen.getByTestId("full").textContent).toBe("/legacy/pm/review?id=abc#top");
+  });
+
+  it("opens the new Record for the live test's /pm/record, keeping the query and the hash", async () => {
+    render(
+      <MemoryRouter initialEntries={["/pm/record?trace#top"]}>
+        <App />
+        <Full />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("new record")).toBeTruthy();
+    expect(screen.getByTestId("full").textContent).toBe("/record?trace#top");
   });
 });
 
