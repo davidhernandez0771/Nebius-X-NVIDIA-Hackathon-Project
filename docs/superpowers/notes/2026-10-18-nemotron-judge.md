@@ -136,3 +136,12 @@ They get the same information as the model: the same sampled frames and the same
    - Every call is logged, with its item, tokens, estimated USD, latency and the running total, in
      `data/intent_eval/<phase>/calls.jsonl` and `data/intent_eval/usage_log.jsonl` (both git-ignored).
    - The key is read from `C:\dev\pm-t4\.env` and never printed.
+
+### Dev run and freeze (before the test)
+
+- **Dev:** 8 calls on the 8 dev items, **$0.0079** (2,809–2,941 prompt tokens, 94–183 completion tokens per call),
+  median latency 1.7 s.
+  - Every reply was valid on the first attempt.
+  - Nemotron and code were both right on all 4 label clips and all 4 judge pairs.
+- **Prompt edits:** none.
+- **Frozen at `72434d4`** for the prompts, the code baselines and the runner. The test runs with that code, unchanged.
