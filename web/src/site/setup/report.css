@@ -1,39 +1,37 @@
 /* The run and the report card on /robots/setup, Volt. Tokens only (web/src/sant/tokens.css). Amber means an issue;
-   the reach map is one teal ramp, with hatching for "unreachable" so colour is never the only signal. */
-
-.byor-panel__run {
-  margin-top: var(--sant-space-5);
-}
+   the reach map is one teal ramp, with hatching for "unreachable" so colour is never the only signal. The card is
+   one screen: pick and place | reach map | what limits the arm. */
 
 .byor-run {
-  margin-top: var(--sant-space-8);
-  scroll-margin-top: var(--sant-space-4);
-}
-
-.byor-run:focus {
-  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sant-space-4);
 }
 
 .byor-progress {
   display: grid;
   gap: var(--sant-space-4);
-  max-width: 44rem;
-  margin-bottom: var(--sant-space-7);
+  width: min(100%, 44rem);
   padding: var(--sant-space-5);
   border-radius: var(--sant-radius-lg);
   background: var(--sant-surface);
   box-shadow: inset 0 0 0 1px var(--sant-line);
+  box-sizing: border-box;
 }
 
 .sant .byor-progress__note,
-.sant .byor-run__previous {
+.sant .byor-run__previous,
+.sant .byor-run__empty {
   color: var(--sant-muted);
   font-size: var(--sant-fs-caption);
 }
 
+.sant .byor-run__empty {
+  font-size: var(--sant-fs-small);
+}
+
 .sant .byor-run__error {
   max-width: 80ch;
-  margin-bottom: var(--sant-space-5);
   color: var(--sant-danger);
   font-size: var(--sant-fs-small);
 }
@@ -41,86 +39,91 @@
 /* ------------------------------------------------------- the report card */
 
 .byor-card {
-  display: grid;
-  gap: var(--sant-space-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sant-space-4);
 }
 
 .byor-card__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sant-space-3) var(--sant-space-4);
+  gap: var(--sant-space-2) var(--sant-space-4);
 }
 
 .sant .byor-card__title {
   font-family: var(--sant-font-display);
   font-weight: 400;
-  font-size: var(--sant-fs-2);
-  line-height: 1.08;
+  font-size: var(--sant-fs-4);
+  line-height: 1.1;
 }
 
 .sant .byor-card__meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: var(--sant-space-4);
-  width: 100%;
+  margin-left: auto;
   color: var(--sant-muted);
-  font-size: var(--sant-fs-small);
+  font-size: var(--sant-fs-caption);
 }
 
 .byor-card__grid {
   display: grid;
-  grid-template-columns: minmax(18rem, 26rem) minmax(0, 1fr);
-  gap: var(--sant-space-8);
+  grid-template-columns: minmax(16rem, 20rem) minmax(22rem, 1fr) minmax(20rem, 28rem);
+  gap: var(--sant-space-6);
   align-items: start;
 }
 
+.byor-card__side {
+  display: grid;
+  gap: var(--sant-space-4);
+}
+
 .sant .byor-block__title {
-  margin-bottom: var(--sant-space-4);
+  margin-bottom: var(--sant-space-3);
   font-size: var(--sant-fs-5);
   font-weight: 600;
   line-height: 1.3;
 }
 
 .sant .byor-block__sub {
-  margin: var(--sant-space-6) 0 var(--sant-space-3);
+  margin: var(--sant-space-5) 0 var(--sant-space-3);
   font-size: var(--sant-fs-small);
   font-weight: 600;
 }
 
 .sant .byor-block__note {
-  margin-top: var(--sant-space-3);
+  margin-top: var(--sant-space-2);
   color: var(--sant-muted);
   font-size: var(--sant-fs-caption);
 }
 
 /* The design flaw: the card's one amber moment. */
 .byor-flaw {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--sant-space-4);
-  max-width: 62rem;
-  padding: var(--sant-space-5) var(--sant-space-6);
+  padding: var(--sant-space-3) var(--sant-space-4);
   border-radius: var(--sant-radius-lg);
   background: var(--sant-issue-soft);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sant-issue) 40%, transparent);
 }
 
-.byor-flaw__icon {
-  margin-top: 2px;
-  color: var(--sant-issue);
-}
-
 .sant .byor-flaw__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sant-space-2);
   color: var(--sant-issue);
   font-size: var(--sant-fs-small);
   font-weight: 600;
 }
 
+.byor-flaw__icon {
+  flex: none;
+}
+
 .sant .byor-flaw__lead {
   margin-top: var(--sant-space-2);
   font-family: var(--sant-font-display);
-  font-size: var(--sant-fs-4);
+  font-size: var(--sant-fs-5);
   line-height: 1.25;
   text-wrap: balance;
 }
@@ -130,15 +133,26 @@
 }
 
 .sant .byor-flaw__body {
-  max-width: 70ch;
-  margin-top: var(--sant-space-3);
+  margin-top: var(--sant-space-2);
+  font-size: var(--sant-fs-small);
   text-wrap: pretty;
 }
 
-.sant .byor-flaw__rule {
-  margin-top: var(--sant-space-3);
+.sant .byor-noflaw {
+  display: flex;
+  gap: var(--sant-space-2);
+  align-items: center;
+  color: var(--sant-accent);
+  font-size: var(--sant-fs-small);
+}
+
+.byor-table__sides {
   color: var(--sant-muted);
-  font-size: var(--sant-fs-caption);
+}
+
+.byor-table th,
+.byor-table td {
+  white-space: nowrap;
 }
 
 .sant .byor-score {
@@ -148,7 +162,7 @@
 }
 
 .byor-score__num {
-  font-size: var(--sant-fs-stat);
+  font-size: clamp(2.5rem, 1.6rem + 2vw, 3.5rem);
   font-weight: 500;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -168,8 +182,8 @@
   display: grid;
   grid-template-columns: repeat(15, minmax(0, 1fr));
   gap: 3px;
-  max-width: 26rem;
-  margin: var(--sant-space-4) 0 0;
+  max-width: 20rem;
+  margin: var(--sant-space-3) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -377,10 +391,11 @@
   box-shadow: inset 0 0 0 1.75px var(--sant-issue);
 }
 
+/* The five poses on their own, in one row under the map. */
 .byor-layers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sant-space-4);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sant-space-3);
   margin: var(--sant-space-2) 0 0;
   padding: 0;
   list-style: none;
@@ -388,14 +403,16 @@
 
 .byor-layer {
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 2px var(--sant-space-2);
-  font-size: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px var(--sant-space-1);
+  font-size: 0.6875rem;
+  white-space: nowrap;
 }
 
 .byor-layer__map {
   grid-column: 1 / -1;
-  width: 78px;
+  width: 100%;
+  max-width: 6rem;
   height: auto;
 }
 
@@ -409,11 +426,13 @@
 }
 
 .byor-layer__name {
+  overflow: hidden;
   color: var(--sant-muted);
+  text-overflow: ellipsis;
 }
 
 .byor-layer__pct {
-  justify-self: end;
+  justify-self: start;
 }
 
 /* ------------------------------------------------------------ the table */
@@ -427,7 +446,7 @@
 
 .byor-table th,
 .byor-table td {
-  padding: var(--sant-space-2) var(--sant-space-3);
+  padding: 6px var(--sant-space-2);
   border-bottom: 1px solid var(--sant-line);
   text-align: left;
   font-weight: 400;
@@ -448,11 +467,13 @@
   background: var(--sant-issue-soft);
 }
 
-.byor-card__sources {
-  max-width: 90ch;
+@media (max-width: 1199px) {
+  .byor-card__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 760px) {
   .byor-card__grid {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sant-space-7);

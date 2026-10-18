@@ -12,6 +12,7 @@ describe("jointRange", () => {
 
   it("writes prismatic ranges in millimetres", () => {
     expect(jointRange(j("prismatic", 0, 0.04))).toBe("0–40 mm");
+    expect(jointRange(j("prismatic", -0.0088, 0.0528))).toBe("−9 to 53 mm");
   });
 
   it("names the joints without a range", () => {

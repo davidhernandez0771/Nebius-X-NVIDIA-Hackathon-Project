@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { pct } from "./fmt";
-import { layerLabel, reachCells } from "./report";
+import { layerLabel, layerShort, reachCells } from "./report";
 import type { ReportCard } from "./types";
 
 const CELL = 26;
@@ -127,7 +127,9 @@ export function ReachMap({ report }: { report: ReportCard }) {
                   r.map((ok, j) => <rect key={`${i}-${j}`} x={(ny - 1 - j) * 6} y={(nx - 1 - i) * 6} width={5} height={5} rx={1} data-ok={ok} />),
                 )}
               </svg>
-              <span className="byor-layer__name">{layerLabel(l)}</span>
+              <span className="byor-layer__name" title={layerLabel(l)}>
+                {layerShort(l)}
+              </span>
               <span className="byor-layer__pct sant-num">{pct(share)}</span>
             </li>
           );

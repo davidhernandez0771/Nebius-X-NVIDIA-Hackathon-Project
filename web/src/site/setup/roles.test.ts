@@ -1,32 +1,39 @@
 import { describe, expect, it } from "vitest";
 import franka from "./fixtures/franka.parts.json";
 import openarm from "./fixtures/openarm.parts.json";
-import { accepts, assign, fromSuggested, localIssues, rolesOf, suggestedFor, toBody, treeRows, unassign } from "./roles";
+import { accepts, assign, fromSuggested, localIssues, rolesOf, rowTarget, suggestedFor, toBody, treeRows, unassign } from "./roles";
 import type { Parts } from "./types";
 
 const panda = franka as unknown as Parts;
 const oa = openarm as unknown as Parts;
 
 describe("treeRows", () => {
-  it("walks the tree from the root, links and joints interleaved; a serial chain stays at one depth", () => {
+  it("gives one row per link, with the joint that moves it; a serial chain stays at one depth", () => {
     const rows = treeRows(panda);
-    expect(rows[0]).toMatchObject({ kind: "link", name: "panda_link0", depth: 0 });
-    expect(rows[1]).toMatchObject({ kind: "joint", name: "panda_joint1", depth: 0 });
-    expect(rows[2]).toMatchObject({ kind: "link", name: "panda_link1", depth: 0 });
-    expect(rows).toHaveLength(panda.links.length + panda.joints.length);
+    expect(rows).toHaveLength(panda.links.length);
+    expect(rows[0]).toMatchObject({ link: "panda_link0", depth: 0 });
+    expect(rows[0].joint).toBeUndefined();
+    expect(rows[1]).toMatchObject({ link: "panda_link1", depth: 0, joint: { name: "panda_joint1" } });
   });
 
   it("indents where the tree branches and marks each branch's last row", () => {
     const rows = treeRows(panda);
-    const fingers = rows.filter((r) => r.name.startsWith("panda_finger_joint"));
+    const fingers = rows.filter((r) => r.joint?.name.startsWith("panda_finger_joint"));
     expect(fingers.map((r) => r.depth)).toEqual([1, 1]);
     expect(fingers.map((r) => r.branchLast)).toEqual([false, true]);
-    expect(rows[rows.length - 1]).toMatchObject({ name: "panda_rightfinger", depth: 1 });
+    expect(rows[rows.length - 1]).toMatchObject({ link: "panda_rightfinger", depth: 1 });
+  });
+
+  it("drops Base and Hand on the row's link, Arm and Gripper on its joint", () => {
+    const row = treeRows(panda)[4];
+    expect(rowTarget(row, "hand")).toBe("panda_link4");
+    expect(rowTarget(row, "arm")).toBe("panda_joint4");
+    expect(rowTarget(treeRows(panda)[0], "arm")).toBeNull();
   });
 
   it("knows which ancestor lanes continue past a row, and where each spine ends", () => {
     const rows = treeRows(panda);
-    const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+    const byName = Object.fromEntries(rows.map((r) => [r.link, r]));
     expect(byName.panda_leftfinger.guides).toEqual([true]);
     expect(byName.panda_rightfinger.guides).toEqual([false]);
     expect(byName.panda_hand.end).toBe(false); // the lane runs on to the finger elbows

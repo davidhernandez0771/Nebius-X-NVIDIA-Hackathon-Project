@@ -13,9 +13,39 @@ or rebased. Built against T2's contract `C:\dev\pm-t2\docs\design\byor-api.md`.
 | `33458af` | Run → progress → report card (x/30, reach-map heatmap, failure reasons, joint limits, "design flaw found") |
 | `d63403a` | Fixes from looking at the page in Chrome |
 
-Tests: `npm --prefix web test` **47 files, 523 passed, 0 failed** (68 of them in `web/src/site/setup/`).
-`uv run pytest -q`: 1490 passed, 18 skipped, 0 failed. `tsc` clean; `npm --prefix web run build` passes. The main bundle is unchanged (457.7 kB). The page is a lazy
-chunk (77 kB), and the 3D view another (77 kB: urdf-loader plus three's STL/DAE/OBJ loaders).
+| (next) | Fits the window: no page scroll and no scrolling panels at 1280x720, 1440x900, 1920x1080 (below) |
+
+Tests: `npm --prefix web test` **49 files, 532 passed, 0 failed** (77 of them in `web/src/site/setup/`).
+`uv run pytest -q`: 1490 passed, 18 skipped, 0 failed (run before the fit change, which touched no Python).
+`tsc` clean; `npm --prefix web run build` passes. The main bundle is unchanged (457.7 kB). The page is a lazy
+chunk, and the 3D view another (urdf-loader plus three's STL/DAE/OBJ loaders).
+
+## Fits the window (the user's rule for every app page)
+
+At 1280x720, 1440x900 and 1920x1080 the page has no page scrollbar and no scrolling panel:
+`document.scrollingElement.scrollHeight <= innerHeight` (and the same for width), and no element's content is taller
+than its box. Nothing hides overflow, so a misfit would show as a scrollbar rather than be clipped.
+
+- **One screen, two views.** The header has "Parts and roles" | "Report card", Settings, "Set up another robot" and
+  Run. Run switches to the report view: progress, then the card.
+- **The tree has one row per link, with the joint that moves it** ("openarm_joint4 0° to 140° → openarm_link4"):
+  12 rows for the OpenArm and the Franka instead of 23. Base and Hand land on the row's link, Arm and Gripper on
+  its joint. Rows size themselves to the panel (`fitRows`: 22–32 px); a robot too big for that flows into columns.
+- **The report card is three columns:** pick and place | reach map | the flaw and the joints at their limits. The
+  limits table shows 5 joints (the flaw's first); the rest are in Settings.
+- **Settings drawer** (a native modal `<dialog>`, slides over from the right): where the base sits, the robot facts
+  with their sources and what data the page is on ("Robot"), and every source on the card plus every joint limit
+  ("Report card sources"). Each tab fits a 720 px window too; the sources tab widens to 60 rem rather than scroll.
+- **Below 1000 px wide or 600 px tall** the page stacks and scrolls as before (phones).
+
+**How it was checked:** in Chrome, a same-origin iframe at each exact size (the window can't be resized), driven
+through every state: upload, the roles for the OpenArm and the Franka, both drawer tabs, the run, and the card.
+At all three sizes every state reported "fits", with rows at 31–32 px. Screenshots of the roles and report views at
+each size were taken; the 1920x1080 one is drawn at 0.85 so it fits the screen, and its layout is still 1920x1080.
+
+**For the lead (not mine to change):** the app-wide hand-control buttons (`HandToggle` and the calibration button,
+fixed at the bottom right, from `App.tsx`) sit over the bottom-right corner of every app page. On this page they
+cover the end of the joint-limits table at 1280x720. Moving them into the nav would free that corner on every page.
 
 ## How it works
 

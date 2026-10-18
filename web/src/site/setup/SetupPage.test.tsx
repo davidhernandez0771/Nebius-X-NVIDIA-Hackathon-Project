@@ -29,7 +29,8 @@ function page() {
   );
 }
 
-const row = (name: string) => document.querySelector<HTMLElement>(`[data-part="${name}"]`)!;
+/** The tree row of a link, or of the joint that moves it (one row holds both). */
+const row = (name: string) => document.querySelector<HTMLElement>(`[data-part="${name}"], [data-joint="${name}"]`)!;
 
 describe("SetupPage", () => {
   it("starts with the upload zone and says it runs on recorded data", async () => {
@@ -45,7 +46,8 @@ describe("SetupPage", () => {
     expect(within(row("openarm_link0")).getByText("Base")).toBeTruthy();
     expect(within(row("openarm_joint6")).getByText("Arm")).toBeTruthy();
     expect(within(row("openarm_joint6")).getByText("±45°")).toBeTruthy();
-    expect(within(row("openarm_finger_joint2")).getByText(/follows openarm_finger_joint1/)).toBeTruthy();
+    expect(within(row("openarm_finger_joint2")).getByText(/mimic/)).toBeTruthy();
+    expect(row("openarm_finger_joint2").title).toBe("openarm_finger_joint2 follows openarm_finger_joint1");
     expect(screen.getByText(/the start pose did not converge/)).toBeTruthy();
   });
 
@@ -66,11 +68,14 @@ describe("SetupPage", () => {
     const socket = document.querySelector<HTMLElement>('[data-socket="hand"]')!;
     fireEvent.keyDown(socket, { key: "Enter" });
     expect(socket.getAttribute("aria-pressed")).toBe("true");
-    expect(row("panda_joint1").dataset.takes).toBe("false");
-    fireEvent.click(within(row("panda_link8")).getByRole("button", { name: /add to Hand/ }));
+    fireEvent.click(within(row("panda_link8")).getByRole("button", { name: /panda_link8: add to Hand/ }));
     expect(within(row("panda_link8")).getByText("Hand")).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(socket.getAttribute("aria-pressed")).toBe("false");
+    // Arm lands on a row's joint, so the root row (no joint) can't take it
+    fireEvent.keyDown(document.querySelector<HTMLElement>('[data-socket="arm"]')!, { key: "Enter" });
+    expect(row("panda_link0").dataset.takes).toBe("false");
+    expect(row("panda_joint3").dataset.takes).toBe("true");
   });
 
   it("runs the report card: roles saved, progress by stage, then the card", async () => {
@@ -81,11 +86,14 @@ describe("SetupPage", () => {
       await screen.findByRole("heading", { name: "openarm" });
       fireEvent.click(screen.getAllByRole("button", { name: "Run report card" })[0]);
       await act(() => vi.advanceTimersByTimeAsync(1200));
-      expect(screen.getAllByRole("button", { name: "Running…" })).toHaveLength(2);
+      expect(screen.getByRole("button", { name: "Running…" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Report card" }).getAttribute("aria-pressed")).toBe("true");
       expect(document.querySelector(".byor-progress")).toBeTruthy();
       await act(() => vi.advanceTimersByTimeAsync(9000));
       expect(await screen.findByRole("region", { name: "Design flaw found" })).toBeTruthy();
-      expect(screen.getAllByRole("button", { name: "Run again" })).toHaveLength(2);
+      expect(screen.getByRole("button", { name: "Run again" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Parts and roles" }));
+      expect(row("openarm_joint6")).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }

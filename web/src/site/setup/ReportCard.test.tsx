@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import frankaParts from "./fixtures/franka.parts.json";
 import frankaReport from "./fixtures/franka.report.json";
 import openarmParts from "./fixtures/openarm.parts.json";
@@ -32,9 +32,19 @@ describe("ReportCard", () => {
     expect(screen.getByText("The tool reaches 51% of the cells in all 5 poses.")).toBeTruthy();
   });
 
-  it("says where every number comes from, including that it is recorded data", () => {
+  it("opens the sources from the card", () => {
+    const onSources = vi.fn();
+    render(<ReportCard report={openarmReport as unknown as Card} parts={openarmParts as unknown as Parts} onSources={onSources} />);
+    fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+    expect(onSources).toHaveBeenCalled();
+  });
+
+  it("shows the flaw joint first and caps the limits table, the rest in Settings", () => {
     openarm();
-    expect(screen.getByText(/T1 web fixture, not a BYOR run/)).toBeTruthy();
+    const rows = screen.getByRole("table").querySelectorAll("tbody tr");
+    expect(rows).toHaveLength(5);
+    expect(rows[0].textContent).toContain("openarm_joint6");
+    expect(screen.getByText(/1 more joint in/)).toBeTruthy();
   });
 
   it("finds no flaw on the Franka's 30/30", () => {

@@ -1,4 +1,4 @@
-import { forwardRef, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import { GlyphLoader } from "../../sant/components/GlyphLoader";
 import { overallProgress, stageLabel } from "./report";
 import { ReportCard } from "./ReportCard";
@@ -7,18 +7,14 @@ import type { RunState } from "./useRun";
 
 const N = 30;
 
-/** Progress while the sim runs (stage, scenes ticking off), then the card; a failed run says why and keeps the last card. */
-export const RunPanel = forwardRef<HTMLElement, { state: RunState; parts: Parts; recorded: boolean }>(function RunPanel({ state, parts, recorded }, ref) {
-  if (state.phase === "idle" && !state.report) return null;
+/** The report view: progress while the sim runs (stage, scenes ticking off), then the card; a failed run says why. */
+export function RunPanel({ state, parts, recorded, onSources }: { state: RunState; parts: Parts; recorded: boolean; onSources?: () => void }) {
   const running = state.phase === "saving" || state.phase === "running";
   const progress = state.phase === "running" ? state.progress : null;
   const done = progress?.stage === "pick_place" ? progress.done : 0;
 
   return (
-    <section className="byor-run" ref={ref} aria-labelledby="byor-run-title" tabIndex={-1}>
-      <h2 id="byor-run-title" className="sant-sr-only">
-        Report card run
-      </h2>
+    <section className="byor-run" aria-label="Report card run">
       {running && (
         <div className="byor-progress" aria-live="polite">
           <GlyphLoader
@@ -42,8 +38,15 @@ export const RunPanel = forwardRef<HTMLElement, { state: RunState; parts: Parts;
           The run didn't finish: {state.error}
         </p>
       )}
-      {(running || state.phase === "failed") && state.report && <p className="byor-run__previous">Below: the last finished card.</p>}
-      {state.report && <ReportCard report={state.report} parts={parts} />}
+      {state.report && !running ? (
+        <>
+          {state.phase === "failed" && <p className="byor-run__previous">Below: the last finished card.</p>}
+          <ReportCard report={state.report} parts={parts} onSources={onSources} />
+        </>
+      ) : (
+        !running &&
+        state.phase !== "failed" && <p className="byor-run__empty">Run the report card to see how this robot does on the 30 scenes.</p>
+      )}
     </section>
   );
-});
+}

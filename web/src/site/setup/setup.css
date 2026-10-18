@@ -111,7 +111,62 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--sant-space-2) var(--sant-space-5);
-  margin-bottom: var(--sant-space-5);
+  margin-bottom: var(--sant-space-4);
+}
+
+.sant .byor-recorded {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: var(--sant-radius-pill);
+  background: var(--sant-violet-soft);
+  color: var(--sant-violet);
+  font-size: var(--sant-fs-caption);
+  font-weight: 500;
+}
+
+.sant .byor-recorded:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sant-violet) 22%, var(--sant-violet-soft));
+}
+
+/* Parts and roles | Report card */
+.byor-views {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--sant-radius-md);
+  background: var(--sant-surface);
+  box-shadow: inset 0 0 0 1px var(--sant-line);
+}
+
+.sant .byor-views__btn {
+  min-height: 34px;
+  padding: 0 var(--sant-space-3);
+  border-radius: 7px;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+  font-weight: 500;
+  transition:
+    background-color var(--sant-dur-2) var(--sant-ease-out),
+    color var(--sant-dur-2) var(--sant-ease-out);
+}
+
+.sant .byor-views__btn:hover:not(:disabled) {
+  color: var(--sant-text);
+}
+
+.sant .byor-views__btn[aria-pressed="true"] {
+  background: var(--sant-surface-2);
+  color: var(--sant-text);
+}
+
+.sant .byor-views__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.sant .byor-link {
+  color: var(--sant-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .sant .byor-robot__name {
@@ -139,32 +194,10 @@
   min-width: 0;
 }
 
-.byor-panel__head {
-  margin-bottom: var(--sant-space-4);
-}
-
-.sant .byor-panel__title {
-  font-size: var(--sant-fs-5);
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.sant .byor-panel__sub {
-  color: var(--sant-muted);
-  font-size: var(--sant-fs-small);
-}
-
-.byor-panel--view {
-  position: sticky;
-  top: var(--sant-space-4);
-  display: grid;
-  gap: var(--sant-space-4);
-}
-
 .byor-view {
   position: relative;
   height: min(64vh, 600px);
-  min-height: 320px;
+  min-height: 300px;
   border-radius: var(--sant-radius-lg);
   background: radial-gradient(120% 90% at 50% 100%, var(--sant-surface-2), var(--sant-bg) 70%);
   box-shadow: inset 0 0 0 1px var(--sant-line);
@@ -180,11 +213,12 @@
   cursor: grabbing;
 }
 
+/* At the top: the app's floating hand-control buttons sit at the bottom right. */
 .sant .byor-view__caption {
   position: absolute;
   left: var(--sant-space-4);
   right: var(--sant-space-4);
-  bottom: var(--sant-space-3);
+  top: var(--sant-space-3);
   display: grid;
   gap: 2px;
   color: var(--sant-muted);
@@ -282,7 +316,10 @@
 
 .sant .byor-board__hint {
   min-height: 1.4em;
-  margin: var(--sant-space-4) 0 var(--sant-space-3);
+  overflow: hidden;
+  margin: var(--sant-space-4) 0 var(--sant-space-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--sant-muted);
   font-size: var(--sant-fs-caption);
 }
@@ -297,6 +334,11 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  column-gap: var(--sant-space-5);
+}
+
+.byor-tree > li {
+  break-inside: avoid;
 }
 
 .byor-row {
@@ -306,7 +348,7 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto 16px;
   align-items: center;
-  min-height: 34px;
+  height: var(--row-h, 32px);
   border-radius: var(--sant-radius-sm);
   transition:
     opacity var(--sant-dur-2) var(--sant-ease-out),
@@ -409,26 +451,47 @@
   align-items: center;
   gap: var(--sant-space-3);
   min-width: 0;
-  min-height: 34px;
+  height: 100%;
   padding: 0 var(--sant-space-2);
   text-align: left;
   border-radius: var(--sant-radius-xs);
 }
 
 .byor-row__name {
+  flex: none;
   overflow: hidden;
+  max-width: 62%;
   font-family: var(--sant-font-data);
   font-size: var(--sant-fs-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.byor-row[data-kind="joint"] .byor-row__name {
-  color: color-mix(in srgb, var(--sant-text) 82%, var(--sant-muted));
+/* The row's joint and the link it moves; while a role is live, the half it lands on lights up. */
+.byor-row__link {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--sant-muted);
+  font-family: var(--sant-font-data);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.byor-row__link::before {
+  content: "→ ";
+}
+
+.byor-row__name[data-active],
+.byor-row__link[data-active] {
+  color: var(--sant-accent);
 }
 
 .byor-row__meta {
-  flex: none;
+  flex: 0 1 auto;
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
   color: var(--sant-muted);
   font-family: var(--sant-font-data);
   font-size: 0.75rem;
@@ -605,65 +668,180 @@
   font-size: var(--sant-fs-small);
 }
 
-/* ------------------------------------------------------------------ facts */
+/* ------------------------------------------------------- settings drawer */
 
-.byor-facts {
-  display: grid;
-  gap: var(--sant-space-4);
-}
-
-.byor-facts__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: var(--sant-space-3) var(--sant-space-5);
-  margin: 0;
-}
-
-.byor-facts__list dt {
-  color: var(--sant-muted);
-  font-size: var(--sant-fs-caption);
-}
-
-.byor-facts__list dd {
-  margin: 0;
-  font-size: var(--sant-fs-small);
-}
-
-.byor-facts__none {
-  color: var(--sant-muted);
-  font-size: var(--sant-fs-small);
-}
-
-.byor-mount {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sant-space-2) var(--sant-space-3);
+.byor-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(36rem, 100vw);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
   margin: 0;
   padding: 0;
   border: 0;
+  background: var(--sant-surface);
+  color: var(--sant-text);
+  box-shadow: var(--sant-shadow-float);
+  font-family: var(--sant-font-ui);
+  font-variant-numeric: tabular-nums;
 }
 
-.byor-mount legend {
-  width: 100%;
+.byor-drawer[open] {
+  animation: byor-drawer-in var(--sant-dur-4) var(--sant-ease-emph);
+}
+
+.byor-drawer::backdrop {
+  background: rgba(7, 9, 12, 0.55);
+}
+
+@keyframes byor-drawer-in {
+  from {
+    translate: 24px 0;
+    opacity: 0;
+  }
+}
+
+[data-motion="reduced"] .byor-drawer[open] {
+  animation: none;
+}
+
+/* Two tabs, each sized to fit a 720 px window, so the drawer never scrolls either. */
+.byor-drawer__body {
+  display: grid;
+  gap: var(--sant-space-4);
+  padding: var(--sant-space-5) var(--sant-space-5) var(--sant-space-4);
+  box-sizing: border-box;
+  align-content: start;
+}
+
+/* (two classes, so it wins over .byor-drawer__list's grid, which comes later) */
+.byor-drawer__list.byor-drawer__list--cols {
+  display: block;
+  columns: 2;
+  column-gap: var(--sant-space-6);
+}
+
+.byor-drawer__list--cols > li {
   margin-bottom: var(--sant-space-2);
+  break-inside: avoid;
+}
+
+.byor-drawer__list.byor-drawer__list--short {
+  columns: 3;
+}
+
+/* The sources are long sentences: the drawer widens for them rather than scroll. */
+.byor-drawer[data-tab="sources"] {
+  width: min(60rem, 100vw);
+}
+
+.byor-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.byor-drawer__title {
+  margin: 0;
+  font-family: var(--sant-font-display);
+  font-size: var(--sant-fs-3);
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.byor-drawer__close {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
+  border: 0;
+  border-radius: var(--sant-radius-sm);
+  background: none;
+  color: var(--sant-muted);
+  cursor: pointer;
+}
+
+.byor-drawer__close::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.byor-drawer__close:hover {
+  background: var(--sant-surface-2);
+  color: var(--sant-text);
+}
+
+.byor-drawer :focus-visible {
+  outline: 2px solid var(--sant-accent);
+  outline-offset: 2px;
+}
+
+.byor-drawer__section {
+  display: grid;
+  gap: var(--sant-space-3);
+}
+
+.byor-drawer__sub {
+  margin: 0;
+  font-size: var(--sant-fs-small);
+  font-weight: 600;
+}
+
+.byor-drawer__note {
+  margin: 0;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+  text-wrap: pretty;
+}
+
+.byor-drawer__list {
+  display: grid;
+  gap: var(--sant-space-2);
+  margin: 0;
+  padding-left: var(--sant-space-4);
   color: var(--sant-muted);
   font-size: var(--sant-fs-caption);
 }
 
+.byor-facts {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  justify-content: start;
+  gap: var(--sant-space-5);
+  margin: 0;
+}
+
+.byor-facts dt {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.byor-facts dd {
+  margin: 0;
+  font-size: var(--sant-fs-small);
+}
+
+
+.byor-mount {
+  display: flex;
+  gap: var(--sant-space-3);
+}
+
 .byor-mount label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sant-space-2);
+  display: grid;
+  gap: var(--sant-space-1);
   color: var(--sant-muted);
   font-family: var(--sant-font-data);
   font-size: var(--sant-fs-caption);
 }
 
-.sant .byor-mount input {
-  width: 5.5rem;
-  min-height: 32px;
+.byor-mount input {
+  width: 6rem;
+  min-height: 36px;
   padding: 0 var(--sant-space-2);
   border: 1px solid var(--sant-control);
   border-radius: var(--sant-radius-sm);
@@ -673,53 +851,24 @@
   font-size: var(--sant-fs-small);
 }
 
-.sant .byor-mount__hint {
-  width: 100%;
-  color: var(--sant-muted);
-  font-size: var(--sant-fs-caption);
-}
-
-.byor-sources {
-  color: var(--sant-muted);
-  font-size: var(--sant-fs-caption);
-}
-
-.byor-sources summary {
-  cursor: pointer;
-  width: fit-content;
-}
-
-.byor-sources ul {
-  display: grid;
-  gap: var(--sant-space-2);
-  margin: var(--sant-space-2) 0 0;
-  padding-left: var(--sant-space-4);
-}
-
 /* ------------------------------------------------------------- responsive */
 
-@media (max-width: 1000px) {
+@media (max-width: 999px) {
   .byor-work {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .byor-panel--view {
-    position: static;
     order: -1;
   }
 
   .byor-view {
     height: 320px;
   }
-}
 
-@media (max-width: 720px) {
-  /* T5's app header, on this page only: the two actions wrap under the title. */
-  .sant-app:has(.byor-drop, .byor-work) .sant-app__head {
-    flex-wrap: wrap;
-  }
-
-  .sant-app:has(.byor-drop, .byor-work) .sant-app__actions {
+  /* T5's app header, on this page only: the actions wrap under the title. */
+  .sant-app:has(.byor-page) .sant-app__head,
+  .sant-app:has(.byor-page) .sant-app__actions {
     flex-wrap: wrap;
   }
 }
@@ -746,4 +895,90 @@
 
 [data-motion="reduced"] .byor-chip {
   animation: none;
+}
+
+/* ------------------------------------------------------- fit the window */
+
+/* App pages fit the window exactly on desktop (1280x720 and up): no page scroll and no scrolling panels. The page
+   is a column of fixed rows (nav, header, robot line) and one flexible row that the views share; the tree sizes its
+   rows to what is left (RoleBoard fitRows). Nothing here hides overflow, so a misfit shows up as a scrollbar. */
+@media (min-width: 1000px) and (min-height: 600px) {
+  .sant-shell:has(.byor-page) {
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .sant-app:has(.byor-page) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: var(--sant-space-4) var(--sant-space-5);
+  }
+
+  .sant-app:has(.byor-page) .sant-app__head {
+    align-items: center;
+    margin-bottom: var(--sant-space-3);
+  }
+
+  .sant .sant-app:has(.byor-page) .sant-app__title {
+    font-size: var(--sant-fs-3);
+    white-space: nowrap;
+  }
+
+  .sant-app:has(.byor-page) .sant-app__actions {
+    align-items: center;
+  }
+
+  .byor-page {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .byor-start {
+    display: grid;
+    flex: 1;
+    align-content: center;
+    justify-items: center;
+    gap: var(--sant-space-5);
+  }
+
+  .byor-start .byor-banner {
+    margin: 0;
+  }
+
+  .byor-start .byor-drop {
+    width: min(100%, 56rem);
+    box-sizing: border-box;
+  }
+
+  .byor-work {
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .byor-panel--parts {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .byor-board {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .byor-tree-fit {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .byor-view {
+    height: auto;
+    min-height: 0;
+  }
 }

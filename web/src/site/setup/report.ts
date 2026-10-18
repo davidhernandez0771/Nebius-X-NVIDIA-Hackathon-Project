@@ -39,6 +39,33 @@ export function layerLabel(l: { name: string; yaw_deg: number }): string {
   return l.name;
 }
 
+export type JointLimits = { joint: string; sides: ("lower" | "upper")[]; scenes: number; steps: number };
+
+const sceneCounts = (report: ReportCard) => {
+  const scenes = new Map<string, number>();
+  for (const r of report.scenes.rows) for (const j of new Set(r.limit_hits.map((h) => h.split(":")[0]))) scenes.set(j, (scenes.get(j) ?? 0) + 1);
+  return scenes;
+};
+
+/** One row per arm joint that reached a limit: which sides, in how many scenes (counted once), and for how many steps. */
+export function limitsByJoint(report: ReportCard): JointLimits[] {
+  const scenes = sceneCounts(report);
+  const by = new Map<string, JointLimits>();
+  for (const h of report.joint_limit_hits.value) {
+    const row = by.get(h.joint) ?? { joint: h.joint, sides: [], scenes: scenes.get(h.joint) ?? h.scenes, steps: 0 };
+    row.sides.push(h.limit);
+    row.steps += h.steps;
+    by.set(h.joint, row);
+  }
+  return [...by.values()].sort((a, b) => b.scenes - a.scenes || b.steps - a.steps);
+}
+
+/** The small-multiple caption: "Grasp −45°", "Release", "Carry". */
+export function layerShort(l: { name: string; yaw_deg: number }): string {
+  if (l.name === "grasp") return `Grasp ${l.yaw_deg > 0 ? "+" : l.yaw_deg < 0 ? "−" : ""}${Math.abs(l.yaw_deg)}°`;
+  return l.name.charAt(0).toUpperCase() + l.name.slice(1);
+}
+
 export type DesignFlaw = {
   joint: string;
   /** 1-based position in the arm, from the base. */

@@ -1,12 +1,12 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppShell } from "../../sant/shells/AppShell";
 import { API_BASE, fixtureClient, pickClient, RECORDED, type ByorClient, type Sample } from "./client";
-import { metres } from "./fmt";
-import { WarnIcon } from "./icons";
+import { SlidersIcon, WarnIcon } from "./icons";
 import { fromSuggested, localIssues } from "./roles";
 import { RoleBoard } from "./RoleBoard";
 import { RunPanel } from "./RunPanel";
+import { SettingsDrawer } from "./SettingsDrawer";
 import { ByorError, type Issue, type Parts, type RoleSet, type UploadResult } from "./types";
 import { UploadZone } from "./UploadZone";
 import { useRun } from "./useRun";
@@ -16,6 +16,7 @@ import "./setup.css";
 const RobotPreview = lazy(() => import("./RobotPreview"));
 
 export type Robot = { client: ByorClient; upload: UploadResult; parts: Parts; file: File | null };
+type View = "roles" | "report";
 
 const NAV = [
   { to: "/robots", label: "My robots" },
@@ -25,6 +26,10 @@ const NAV = [
 const asIssues = (e: unknown): Issue[] =>
   e instanceof ByorError ? e.errors : [{ code: "error", severity: "error", message: String((e as Error)?.message ?? e), where: null }];
 
+/**
+ * Robot setup, one screen with no page scroll: upload, then two views of the robot, "Parts and roles" (the tree and
+ * the 3D view) and "Report card". Rarely used settings (the mount, derived facts, every source) sit in a drawer.
+ */
 export function SetupPage() {
   const [params] = useSearchParams();
   const forceFixture = params.get("fixture") === "1";
@@ -36,8 +41,9 @@ export function SetupPage() {
   const [busy, setBusy] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<Issue[]>([]);
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
+  const [view, setView] = useState<View>("roles");
+  const [drawer, setDrawer] = useState<"robot" | "sources" | null>(null);
   const { state: runState, run } = useRun(robot, roles, mount, setServerIssues);
-  const runRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -54,6 +60,7 @@ export function SetupPage() {
     setMount((sample && RECORDED[sample].roles.roles.mount?.pos) || [0, 0, 0]);
     setServerIssues([]);
     setFocus(null);
+    setView("roles");
   };
 
   const load = async (fn: () => Promise<void>) => {
@@ -85,19 +92,10 @@ export function SetupPage() {
     return [...local, ...[...robot.parts.issues, ...serverIssues].filter((i) => !seen.has(i.code))];
   }, [robot, roles, serverIssues]);
 
-  const recorded = robot?.client.mode === "fixture" || client?.mode === "fixture";
+  const recorded = robot ? robot.client.mode === "fixture" : client?.mode === "fixture";
   const running = runState.phase === "saving" || runState.phase === "running";
   const blocked = !roles || !robot || localIssues(roles, robot.parts).length > 0;
-  const startRun = () => {
-    void run();
-    const reduce = document.documentElement.dataset.motion === "reduced";
-    requestAnimationFrame(() => runRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }));
-  };
-  const runButton = (
-    <button type="button" className="sant-btn sant-btn--primary sant-btn--md" disabled={blocked || running} onClick={startRun}>
-      {running ? "Running…" : runState.report ? "Run again" : "Run report card"}
-    </button>
-  );
+  const hasReport = running || runState.phase !== "idle" || runState.report !== null;
 
   return (
     <AppShell
@@ -109,6 +107,18 @@ export function SetupPage() {
       actions={
         robot ? (
           <>
+            <div className="byor-views" role="group" aria-label="View">
+              <button type="button" className="byor-views__btn" aria-pressed={view === "roles"} onClick={() => setView("roles")}>
+                Parts and roles
+              </button>
+              <button type="button" className="byor-views__btn" aria-pressed={view === "report"} disabled={!hasReport} onClick={() => setView("report")}>
+                Report card
+              </button>
+            </div>
+            <button type="button" className="sant-btn sant-btn--ghost sant-btn--md" onClick={() => setDrawer("robot")} aria-haspopup="dialog">
+              <SlidersIcon />
+              Settings
+            </button>
             <button
               type="button"
               className="sant-btn sant-btn--secondary sant-btn--md"
@@ -119,54 +129,68 @@ export function SetupPage() {
             >
               Set up another robot
             </button>
-            {runButton}
+            <button
+              type="button"
+              className="sant-btn sant-btn--primary sant-btn--md"
+              disabled={blocked || running}
+              onClick={() => {
+                setView("report");
+                void run();
+              }}
+            >
+              {running ? "Running…" : runState.report ? "Run again" : "Run report card"}
+            </button>
           </>
         ) : null
       }
     >
-      {recorded && (
-        <p className="byor-banner" role="note">
-          {client?.mode === "fixture"
-            ? `The backend at ${API_BASE} isn't answering, so this page runs on recorded data: T2's Franka (30/30) and OpenArm (0/30) runs. Start the backend to set up a new robot.`
-            : "Recorded robot: its parts and report card are T2's recorded run, not a new simulation."}
-        </p>
-      )}
-
-      {!robot || !roles ? (
-        <UploadZone onFile={onFile} onSample={onSample} busy={busy || !client} errors={uploadErrors} />
-      ) : (
-        <>
-          <RobotHead robot={robot} />
-          <div className="byor-work">
-            <section className="byor-panel byor-panel--parts" aria-labelledby="byor-parts-title">
-              <header className="byor-panel__head">
-                <h2 id="byor-parts-title" className="byor-panel__title">
-                  Parts and roles
-                </h2>
-                <p className="byor-panel__sub">Roles come pre-filled from the URDF. Check them, then run the report card.</p>
-              </header>
-              <RoleBoard parts={robot.parts} roles={roles} onChange={(r) => (setRoles(r), setServerIssues([]))} focus={focus} onFocus={setFocus} />
-              <IssueList issues={issues} />
-              <div className="byor-panel__run">{runButton}</div>
-            </section>
-
-            <aside className="byor-panel byor-panel--view" aria-label="3D preview and robot facts">
-              <div className="byor-view">
-                <Suspense fallback={<div className="byor-view__wait">Loading the 3D view…</div>}>
-                  <RobotPreview robot={robot} focus={focus} mount={mount} />
-                </Suspense>
-              </div>
-              <Facts parts={robot.parts} mount={mount} onMount={setMount} />
-            </aside>
+      <div className="byor-page" data-view={robot ? view : "upload"}>
+        {!robot || !roles ? (
+          <div className="byor-start">
+            {recorded && (
+              <p className="byor-banner" role="note">
+                The backend at {API_BASE} isn't answering, so this page runs on recorded data: T2's Franka (30/30) and OpenArm (0/30) runs. Start the
+                backend to set up a new robot.
+              </p>
+            )}
+            <UploadZone onFile={onFile} onSample={onSample} busy={busy || !client} errors={uploadErrors} />
           </div>
-          <RunPanel ref={runRef} state={runState} parts={robot.parts} recorded={robot.client.mode === "fixture"} />
-        </>
-      )}
+        ) : (
+          <>
+            <RobotHead robot={robot} recorded={recorded} onDetails={() => setDrawer("robot")} />
+            {view === "roles" ? (
+              <div className="byor-work">
+                <section className="byor-panel byor-panel--parts" aria-label="Parts and roles">
+                  <RoleBoard parts={robot.parts} roles={roles} onChange={(r) => (setRoles(r), setServerIssues([]))} focus={focus} onFocus={setFocus} />
+                  <IssueList issues={issues} />
+                </section>
+                <section className="byor-panel byor-panel--view byor-view" aria-label="3D preview">
+                  <Suspense fallback={<div className="byor-view__wait">Loading the 3D view…</div>}>
+                    <RobotPreview robot={robot} focus={focus} mount={mount} />
+                  </Suspense>
+                </section>
+              </div>
+            ) : (
+              <RunPanel state={runState} parts={robot.parts} recorded={recorded} onSources={() => setDrawer("sources")} />
+            )}
+            <SettingsDrawer
+              open={drawer !== null}
+              tab={drawer ?? "robot"}
+              onClose={() => setDrawer(null)}
+              robot={robot}
+              mount={mount}
+              onMount={setMount}
+              recorded={recorded}
+              report={runState.report}
+            />
+          </>
+        )}
+      </div>
     </AppShell>
   );
 }
 
-function RobotHead({ robot }: { robot: Robot }) {
+function RobotHead({ robot, recorded, onDetails }: { robot: Robot; recorded: boolean; onDetails: () => void }) {
   const { upload } = robot;
   return (
     <div className="byor-robot">
@@ -175,10 +199,12 @@ function RobotHead({ robot }: { robot: Robot }) {
         <span>{robot.file?.name ?? upload.urdf}</span>
         <span className="sant-num">{upload.n_links} links</span>
         <span className="sant-num">{upload.n_joints} joints</span>
-        <span className="sant-num" title={`SHA-256 ${upload.sha256}`}>
-          {upload.id}
-        </span>
       </p>
+      {recorded && (
+        <button type="button" className="byor-recorded" onClick={onDetails}>
+          Recorded data: T2's runs, not a new simulation
+        </button>
+      )}
     </div>
   );
 }
@@ -201,73 +227,6 @@ function IssueList({ issues }: { issues: Issue[] }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-function Facts({ parts, mount, onMount }: { parts: Parts; mount: [number, number, number]; onMount: (m: [number, number, number]) => void }) {
-  const d = parts.derived;
-  return (
-    <div className="byor-facts">
-      {d ? (
-        <dl className="byor-facts__list">
-          <div>
-            <dt>Arm joints</dt>
-            <dd className="sant-num">{d.dof}</dd>
-          </div>
-          <div>
-            <dt>Reach, estimated</dt>
-            <dd className="sant-num" title={d.reach_m.source}>
-              {metres(d.reach_m.value)}
-            </dd>
-          </div>
-          <div>
-            <dt>Tool point</dt>
-            <dd className="sant-num" title={d.tcp.source}>
-              {d.tcp.link} +{d.tcp.offset[2].toFixed(3)} m
-            </dd>
-          </div>
-          <div>
-            <dt>Gripper open</dt>
-            <dd className="sant-num" title={d.gripper.source}>
-              {(d.gripper.open * 1000).toFixed(0)} mm
-            </dd>
-          </div>
-        </dl>
-      ) : (
-        <p className="byor-facts__none">Fix the errors to see the tool point and reach.</p>
-      )}
-      <fieldset className="byor-mount">
-        <legend>Where the base sits (m)</legend>
-        {(["x", "y", "z"] as const).map((axis, i) => (
-          <label key={axis}>
-            <span>{axis}</span>
-            <input
-              type="number"
-              step={0.05}
-              inputMode="decimal"
-              className="sant-num"
-              value={mount[i]}
-              onChange={(e) => {
-                const next = [...mount] as [number, number, number];
-                next[i] = Number(e.target.value) || 0;
-                onMount(next);
-              }}
-            />
-          </label>
-        ))}
-        <p className="byor-mount__hint">The cubes sit 0.40–0.60 m in front of 0, 0, 0. A short arm may need to sit closer.</p>
-      </fieldset>
-      {d && (
-        <details className="byor-sources">
-          <summary>Where these numbers come from</summary>
-          <ul>
-            <li>Reach: {d.reach_m.source}</li>
-            <li>Tool point: {d.tcp.source}</li>
-            <li>Gripper: {d.gripper.source}</li>
-          </ul>
-        </details>
-      )}
-    </div>
   );
 }
 

@@ -3,7 +3,7 @@ import frankaParts from "./fixtures/franka.parts.json";
 import frankaReport from "./fixtures/franka.report.json";
 import openarmParts from "./fixtures/openarm.parts.json";
 import openarmReport from "./fixtures/openarm.report.json";
-import { designFlaw, overallProgress, reachCells, reasons, stageLabel, verdictLabel } from "./report";
+import { designFlaw, limitsByJoint, overallProgress, reachCells, reasons, stageLabel, verdictLabel } from "./report";
 import type { Parts, ReportCard } from "./types";
 
 const oaParts = openarmParts as unknown as Parts;
@@ -34,6 +34,22 @@ describe("reachCells", () => {
     expect(cells[0]).toHaveLength(oa.reach_map.grid.y.length);
     expect(cells[5].every((c) => c.count === 0)).toBe(true); // x = 0.65: nothing reaches
     expect(reachCells(panda).flat().every((c) => c.count === 5)).toBe(true);
+  });
+});
+
+describe("limitsByJoint", () => {
+  it("folds both limits into one row per joint, scenes counted once, most scenes first", () => {
+    const rows = limitsByJoint(oa);
+    expect(rows.map((r) => r.joint)).toEqual([
+      "openarm_joint2",
+      "openarm_joint7",
+      "openarm_joint6",
+      "openarm_joint4",
+      "openarm_joint5", // 8 scenes like joint 3, more steps
+      "openarm_joint3",
+    ]);
+    expect(rows[2]).toEqual({ joint: "openarm_joint6", sides: ["lower", "upper"], scenes: 17, steps: 149 + 1214 });
+    expect(limitsByJoint(panda)).toEqual([{ joint: "panda_joint7", sides: ["upper"], scenes: 2, steps: 161 }]);
   });
 });
 

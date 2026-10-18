@@ -215,7 +215,7 @@ export default function RobotPreview({
   return (
     <>
       <Canvas className="byor-view__canvas" frameloop="demand" dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "low-power" }}>
-        <Scene loaded={loaded} focus={lights} joint={focus && robot.parts.joints.some((j) => j.name === focus) ? focus : null} mount={mount} />
+        <Scene loaded={loaded} focus={lights} joint={robot.parts.joints.find((j) => j.name === focus || j.child === focus)?.name ?? null} mount={mount} />
       </Canvas>
       <p className="byor-view__caption">
         <span>{caption(loaded)}</span>

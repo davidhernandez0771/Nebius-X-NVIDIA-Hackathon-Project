@@ -68,6 +68,14 @@ export const WarnIcon = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const SlidersIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" />
+    <circle cx="10" cy="4.5" r="1.5" />
+    <circle cx="6" cy="11.5" r="1.5" />
+  </svg>
+);
+
 export function JointIcon({ type, ...p }: { type: string } & SVGProps<SVGSVGElement>) {
   if (type === "prismatic") return <PrismaticIcon {...p} />;
   if (type === "fixed") return <FixedIcon {...p} />;

@@ -6,11 +6,12 @@ export type Role = "base" | "arm" | "hand" | "gripper";
 export const ROLES: Role[] = ["base", "arm", "hand", "gripper"];
 export const ROLE_LABEL: Record<Role, string> = { base: "Base", arm: "Arm", hand: "Hand", gripper: "Gripper" };
 
+/** One row per link, with the joint that moves it (none for the root): half the rows of a link-and-joint list. */
 export type TreeRow = {
-  kind: "link" | "joint";
-  name: string;
+  link: string;
+  joint?: PartJoint;
   depth: number;
-  /** The first row of a branch (a joint whose parent link has more than one child joint). */
+  /** The first row of a branch (its parent link has more than one child joint). */
   branchStart: boolean;
   /** That branch is its parent's last one, so the connector stops here. */
   branchLast: boolean;
@@ -18,7 +19,6 @@ export type TreeRow = {
   guides: boolean[];
   /** The row's own spine stops here (the next row is not on it). */
   end: boolean;
-  joint?: PartJoint;
 };
 
 /** Depth grows only where a link has several child joints, so a 7-joint arm reads as one spine. */
@@ -26,26 +26,28 @@ export function treeRows(parts: Parts): TreeRow[] {
   const links = new Map(parts.links.map((l) => [l.name, l]));
   const joints = new Map(parts.joints.map((j) => [j.name, j]));
   const rows: TreeRow[] = [];
-  const walk = (link: string, depth: number, branchLast: boolean, guides: boolean[]) => {
-    rows.push({ kind: "link", name: link, depth, branchStart: false, branchLast, guides, end: false });
+  const walk = (link: string, joint: PartJoint | undefined, depth: number, branchStart: boolean, branchLast: boolean, guides: boolean[]) => {
+    rows.push({ link, joint, depth, branchStart, branchLast, guides, end: false });
     const kids = links.get(link)?.child_joints ?? [];
     const branches = kids.length > 1;
     kids.forEach((jn, i) => {
       const j = joints.get(jn);
       if (!j) return;
-      const d = branches ? depth + 1 : depth;
       const last = branches ? i === kids.length - 1 : branchLast;
-      const g = branches ? [...guides, !last] : guides;
-      rows.push({ kind: "joint", name: jn, depth: d, branchStart: branches, branchLast: last, guides: g, end: false, joint: j });
-      walk(j.child, d, last, g);
+      walk(j.child, j, branches ? depth + 1 : depth, branches, last, branches ? [...guides, !last] : guides);
     });
   };
-  walk(parts.root, 0, true, []);
+  walk(parts.root, undefined, 0, false, true, []);
   rows.forEach((r, i) => {
     const next = rows[i + 1];
     r.end = !next || next.depth < r.depth || (next.depth === r.depth && next.branchStart);
   });
   return rows;
+}
+
+/** The part a role lands on in a row: Base and Hand take the link, Arm and Gripper the joint. */
+export function rowTarget(row: TreeRow, role: Role): string | null {
+  return role === "base" || role === "hand" ? row.link : (row.joint?.name ?? null);
 }
 
 const MOVABLE = new Set(["revolute", "continuous", "prismatic"]);
@@ -61,7 +63,7 @@ export function accepts(parts: Parts, role: Role, name: string): boolean {
 /** Joint depth from the root, so the arm is always listed from the base outwards. */
 function jointDepths(parts: Parts): Map<string, number> {
   const out = new Map<string, number>();
-  treeRows(parts).forEach((r, i) => r.kind === "joint" && out.set(r.name, i));
+  treeRows(parts).forEach((r, i) => r.joint && out.set(r.joint.name, i));
   return out;
 }
 
