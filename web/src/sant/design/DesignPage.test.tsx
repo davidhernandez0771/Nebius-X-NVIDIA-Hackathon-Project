@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { DURATIONS } from "../motion/tokens";
 import { SantRoot } from "../SantRoot";
 import { DesignAppPage } from "./DesignAppPage";
 import { DesignPage } from "./DesignPage";
@@ -105,11 +106,21 @@ describe("/design", () => {
     expect(within(region).getByText("Recording would start now.")).toBeTruthy();
   });
 
-  it("goes to the app shell from the pill nav", () => {
+  it("goes to the app shell from the pill nav, through the story → app crossing", () => {
+    // jsdom has no 2D canvas; the crossing falls back to its plain cover.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    vi.useFakeTimers();
     at("/design");
     const region = screen.getByRole("region", { name: "Pill nav" });
     fireEvent.click(within(region).getByRole("link", { name: "App shell" }));
+    expect(document.querySelector(".sant-poweron")).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(DURATIONS.power + 20);
+    });
     expect(screen.getByRole("heading", { level: 1, name: /Review/ })).toBeTruthy();
+    expect(document.querySelector(".sant-poweron")).toBeNull();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("offers a visible effects switch", () => {

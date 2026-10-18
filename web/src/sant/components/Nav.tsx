@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 import { usePowerOn } from "../shells/PowerOn";
 import { Button } from "./Button";
@@ -20,9 +20,16 @@ export function StoryNav({ home = "/", links = [], cta }: { home?: string; links
       <ul className="sant-nav__links">
         {links.map((l) => (
           <li key={l.to}>
-            <NavLink to={l.to} end className="sant-nav__link">
-              {l.label}
-            </NavLink>
+            {/* A link to a section of a page (/site#how) is never "the current page". */}
+            {l.to.includes("#") ? (
+              <Link to={l.to} className="sant-nav__link">
+                {l.label}
+              </Link>
+            ) : (
+              <NavLink to={l.to} end className="sant-nav__link">
+                {l.label}
+              </NavLink>
+            )}
           </li>
         ))}
       </ul>
