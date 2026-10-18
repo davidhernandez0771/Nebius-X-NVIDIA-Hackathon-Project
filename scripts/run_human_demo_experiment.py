@@ -643,11 +643,12 @@ def make_gpu_stage(log: Callable[[str], None], *, poll_s: float = 300, max_wait_
     def stage(task: str) -> Iterator[None]:
         with GpuLock(task=task, log=log, max_wait_s=max_wait_s), KeepAwake():
             if not task.endswith(":train"):  # Isaac stages: no other Isaac python, >= 8 GB free (sim_eval's gate)
-                from sim_eval.report import isaac_gate, python_processes
+                from sim_eval.report import gpu_pids, isaac_gate, python_processes
 
                 waited = 0.0
                 while True:
-                    ok, rec = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=_free_mib())
+                    ok, rec = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=_free_mib(),
+                                         gpu_pids=gpu_pids())
                     if ok:
                         break
                     if waited >= max_wait_s:

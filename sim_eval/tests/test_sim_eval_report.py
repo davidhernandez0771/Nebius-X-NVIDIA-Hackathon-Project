@@ -106,6 +106,21 @@ def test_gate_ignores_a_lock_wrapper_that_only_names_isaac_in_its_args():
     assert ok is False and [o["pid"] for o in rec["other_isaac"]] == [42]
 
 
+def test_gate_with_gpu_pids_ignores_an_isaac_python_that_holds_no_gpu_context():
+    # T3's lock wrapper runs from Isaac's own python while it waits for gpu.lock: no GPU context yet. With the GPU
+    # process list, an Isaac python counts only if it or a process under it is on the GPU.
+    waiting = [(50, 2, f"{ISAAC_PY} gpulock_run.py -- {ISAAC_PY} home_dataset.py"),
+               (51, 50, rf"C:\isaac\python\python.exe gpulock_run.py -- {ISAAC_PY} home_dataset.py")]
+    procs = [(10, 1, f"{ISAAC_PY} run_eval.py"), *waiting]
+    ok, rec = isaac_gate(procs, own_pid=10, free_mib=12000, gpu_pids={999})
+    assert ok is True and [o["pid"] for o in rec["idle_isaac"]] == [50, 51]
+    running = procs + [(52, 51, f"{ISAAC_PY} home_dataset.py"), (53, 52, rf"C:\isaac\python\python.exe x")]
+    ok, rec = isaac_gate(running, own_pid=10, free_mib=12000, gpu_pids={53})
+    assert ok is False and sorted(o["pid"] for o in rec["other_isaac"]) == [50, 51, 52, 53]
+    ok, _ = isaac_gate(procs, own_pid=10, free_mib=12000)  # no GPU list: the old rule, every Isaac python counts
+    assert ok is False
+
+
 def test_episode_log_sits_next_to_the_results_file(tmp_path):
     assert episode_log_path(tmp_path / "evals" / "raw_5_1.json") == tmp_path / "evals" / "raw_5_1.episodes.jsonl"
 

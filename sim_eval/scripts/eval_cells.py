@@ -35,7 +35,7 @@ sys.path[:0] = [str(REPO / "src"), str(REPO)]
 from demo_pipeline.paths import data_dir  # noqa: E402
 from lerobot_tools.policy_client import PolicyClient, PolicyServerError  # noqa: E402
 from sim_eval.registry import trained_rows  # noqa: E402
-from sim_eval.report import isaac_gate, python_processes  # noqa: E402
+from sim_eval.report import gpu_pids, isaac_gate, python_processes  # noqa: E402
 
 LEROBOT_PY = Path(r"C:\venvs\lerobot\Scripts\python.exe")
 FREE_WINDOW_S = 60  # Isaac must stay free this long before we start (T2 runs jobs back to back)
@@ -56,7 +56,7 @@ def free_mib() -> int | None:
 
 
 def gate_once(gate_log: Path) -> tuple[bool, dict]:
-    ok, rec = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib())
+    ok, rec = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib(), gpu_pids=gpu_pids())
     rec = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **rec}
     with gate_log.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec) + "\n")
