@@ -4,7 +4,7 @@ import Lenis from "lenis";
 import { animate, stagger } from "animejs";
 import "../three/landing.css";
 import { ensureFonts } from "../three/fonts";
-import { prefersReducedMotion, shouldRun3D } from "../three/capability";
+import { prefersReducedMotion, shouldRun3D } from "../../three/capability";
 import { CHAPTER_COUNT, CHAPTER_NAMES, scroll, setProgress } from "../three/scrollStore";
 import { seg } from "../three/sceneMath";
 import { Headline, Reveal } from "../three/Reveal";

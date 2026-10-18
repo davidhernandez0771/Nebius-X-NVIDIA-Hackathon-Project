@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { EmptyState, GlassCard, StatusPill, Zones } from "../../components";
-import { describeError, PmApiError, pmApi } from "../api";
+import { describeError, PmApiError, pmApi } from "../../../pm/api";
 import { LoadError, Loading, PageTitle, useLoad } from "../common";
-import type { Demo } from "../types";
-import { summarizeDemos } from "./summary";
+import type { Demo } from "../../../pm/types";
+import { summarizeDemos } from "../../../pm/dataset/summary";
 import "../pm.css";
 
 const fmtRatio = (v: number | null) => (v === null ? "none yet" : v.toFixed(1));

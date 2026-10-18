@@ -1,20 +1,20 @@
 ﻿import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { DashboardShell } from "./components";
-import Icon from "./components/Icon";
-import Home from "./pages/Home";
-import RoomView from "./pages/RoomView";
-import AddScan from "./pages/AddScan";
-import AddPhoto from "./pages/AddPhoto";
-import Review from "./pages/Review";
-import Inventory from "./pages/Inventory";
-import Organize from "./pages/Organize";
-import Chat from "./pages/Chat";
-import Settings from "./pages/Settings";
-import DatasetPage from "./pm/dataset/DatasetPage";
-import RecordPage from "./pm/record/RecordPage";
-import ReviewPage from "./pm/review/ReviewPage";
-import ResultsPage from "./pm/results/ResultsPage";
+import { DashboardShell } from "./legacy/components";
+import Icon from "./legacy/components/Icon";
+import Home from "./legacy/pages/Home";
+import RoomView from "./legacy/pages/RoomView";
+import AddScan from "./legacy/pages/AddScan";
+import AddPhoto from "./legacy/pages/AddPhoto";
+import Review from "./legacy/pages/Review";
+import Inventory from "./legacy/pages/Inventory";
+import Organize from "./legacy/pages/Organize";
+import Chat from "./legacy/pages/Chat";
+import Settings from "./legacy/pages/Settings";
+import DatasetPage from "./legacy/pm/dataset/DatasetPage";
+import RecordPage from "./legacy/pm/record/RecordPage";
+import ReviewPage from "./legacy/pm/review/ReviewPage";
+import ResultsPage from "./legacy/pm/results/ResultsPage";
 import { siteModeOf } from "./sant/motion/crossing";
 import { SantRoot } from "./sant/SantRoot";
 import { useHandPointer } from "./hand/integration/useHandPointer";
@@ -24,7 +24,7 @@ import { CalibrationPanel } from "./hand/overlay/CalibrationPanel";
 
 // Full-bleed 3D pages live outside the dashboard shell and load lazily, so the
 // three.js bundle is only fetched when one of them is visited.
-const Entry = lazy(() => import("./pages/Entry"));
+const Entry = lazy(() => import("./legacy/pages/Entry"));
 // SANT website (sprint 8): the design-system review pages, under SantRoot's providers.
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));

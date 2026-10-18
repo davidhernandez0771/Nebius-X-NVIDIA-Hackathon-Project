@@ -3,7 +3,7 @@
 import { vi } from "vitest";
 import { render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import type { Demo } from "./types";
+import type { Demo } from "../../pm/types";
 
 type Reply = { status: number; body: unknown } | Error;
 

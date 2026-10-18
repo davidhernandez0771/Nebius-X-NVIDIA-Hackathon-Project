@@ -1,8 +1,8 @@
 import { GlassCard, Zones } from "../../components";
-import { describeError, PmApiError, pmFetch } from "../api";
+import { describeError, PmApiError, pmFetch } from "../../../pm/api";
 import { fmtPct, Loading, PageTitle, useLoad, type Load } from "../common";
-import sampleResults from "../mocks/results.sample.json";
-import { chartPoints, chartRuns, parseResults, type Rate, type Results } from "./results";
+import sampleResults from "../../../pm/mocks/results.sample.json";
+import { chartPoints, chartRuns, parseResults, type Rate, type Results } from "../../../pm/results/results";
 import "../pm.css";
 
 const W = 640;

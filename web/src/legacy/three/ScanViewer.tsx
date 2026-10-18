@@ -14,7 +14,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useProgress } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { registerScanViewer, type ScanViewerHandle } from "../hand/integration/activeScanViewer";
+import { registerScanViewer, type ScanViewerHandle } from "../../hand/integration/activeScanViewer";
 import "./scanviewer.css";
 
 // Loads a GLB room scan and shows it dark-tinted with orbit controls.

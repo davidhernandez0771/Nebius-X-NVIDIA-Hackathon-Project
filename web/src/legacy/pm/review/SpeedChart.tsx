@@ -2,8 +2,8 @@
 // was derived from another, its parent. The backend serves no replay frames
 // yet, so this stands in for the before/after clips.
 
-import type { Trajectory } from "../types";
-import { speedProfile, type SpeedProfile } from "./timeline";
+import type { Trajectory } from "../../../pm/types";
+import { speedProfile, type SpeedProfile } from "../../../pm/review/timeline";
 
 const W = 600;
 const H = 150;

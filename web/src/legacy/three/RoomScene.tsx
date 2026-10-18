@@ -11,7 +11,7 @@ import {
   patchSweep,
   type BuiltPart,
 } from "./roomModel";
-import { isMobile } from "./capability";
+import { isMobile } from "../../three/capability";
 
 const REVIEW_ITEMS = ["mug", "charger", "book"];
 const STATE_COLOR = {

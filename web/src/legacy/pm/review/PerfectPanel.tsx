@@ -5,9 +5,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { GlassCard, StatusPill } from "../../components";
-import { describeError, pmApi } from "../api";
-import { createMockJobs, pollJob, startPerfect, type Diagnoser, type Job } from "../jobs";
-import type { Demo } from "../types";
+import { describeError, pmApi } from "../../../pm/api";
+import { createMockJobs, pollJob, startPerfect, type Diagnoser, type Job } from "../../../pm/jobs";
+import type { Demo } from "../../../pm/types";
 
 const mockJobs = createMockJobs();
 

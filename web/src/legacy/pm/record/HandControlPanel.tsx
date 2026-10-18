@@ -3,14 +3,14 @@
 // (its calibration-field classes), but holds the teleop region, stored under pm.teleop.region.
 
 import { GlassCard } from "../../components";
-import "../../hand/overlay/calibrationPanel.css";
+import "../../../hand/overlay/calibrationPanel.css";
 import {
   DEFAULT_TELEOP_CONTROL,
   REGION_SIZE_MAX,
   clampRegion,
   type CalibrationState,
   type TeleopControlSettings,
-} from "../../teleop/controlRegion";
+} from "../../../teleop/controlRegion";
 
 const SIZE_MIN = 0.2; // SANT's slider range; calibration may go a little smaller
 const DEPTH_MIN = 0.03;

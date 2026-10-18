@@ -1,9 +1,9 @@
 import { Fragment, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { EmptyState, GlassCard, StatusPill, Zones } from "../../components";
-import { pmApi } from "../api";
+import { pmApi } from "../../../pm/api";
 import { LoadError, Loading, PageTitle, useLoad } from "../common";
-import type { Demo, StoredDiagnosis } from "../types";
+import type { Demo, StoredDiagnosis } from "../../../pm/types";
 import DemoStrip from "./DemoStrip";
 import PerfectPanel from "./PerfectPanel";
 import SpeedChart from "./SpeedChart";

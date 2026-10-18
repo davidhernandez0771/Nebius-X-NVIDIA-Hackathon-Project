@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { DWELL_ELIGIBLE_ATTR } from "../hand/contracts";
+import { DWELL_ELIGIBLE_ATTR } from "../../hand/contracts";
 
 type Props = {
   icon: ReactNode;

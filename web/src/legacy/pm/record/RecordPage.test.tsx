@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import RecordPage from "./RecordPage";
 import { renderAt, stubBackend } from "../testing";
-import type { SimStatus } from "./recordLink";
-import type { HandFrame, HandLandmark } from "../../hand/contracts";
-import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../teleop/controlRegion";
+import type { SimStatus } from "../../../pm/record/recordLink";
+import type { HandFrame, HandLandmark } from "../../../hand/contracts";
+import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../../teleop/controlRegion";
 
 const tracker = vi.hoisted(() => ({
   start: vi.fn(),
@@ -27,8 +27,8 @@ interface FakeLinkShape {
   emitSim(s: SimStatus | null): void;
 }
 
-vi.mock("../../hand/tracking", () => ({ createMediapipeTracker: () => tracker }));
-vi.mock("./recordLink", () => ({
+vi.mock("../../../hand/tracking", () => ({ createMediapipeTracker: () => tracker }));
+vi.mock("../../../pm/record/recordLink", () => ({
   RecordLink: class {
     sent: string[] = [];
     controls: unknown[] = [];

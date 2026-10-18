@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { GlassCard, StatusPill, Zones } from "../../components";
-import type { HandFrame, TrackedHand, TrackingAdapter, TrackingStatus } from "../../hand/contracts";
+import type { HandFrame, TrackedHand, TrackingAdapter, TrackingStatus } from "../../../hand/contracts";
 import {
   TeleopCalibrator,
   loadTeleopControl,
@@ -9,14 +9,14 @@ import {
   saveTeleopControl,
   type CalibrationState,
   type TeleopControlSettings,
-} from "../../teleop/controlRegion";
-import { toHandPoseMsg, type HandPoseMsg } from "../../teleop/handPoseMessage";
-import type { TeleopStatus } from "../../teleop/teleopClient";
-import { teleopSocketUrl } from "../api";
+} from "../../../teleop/controlRegion";
+import { toHandPoseMsg, type HandPoseMsg } from "../../../teleop/handPoseMessage";
+import type { TeleopStatus } from "../../../teleop/teleopClient";
+import { teleopSocketUrl } from "../../../pm/api";
 import { PageTitle } from "../common";
-import { CALIBRATION, TABLE_MARK, controlFraming, framingCheck, nextGripper, robotHeight, type Framing } from "./framing";
+import { CALIBRATION, TABLE_MARK, controlFraming, framingCheck, nextGripper, robotHeight, type Framing } from "../../../pm/record/framing";
 import { HandControlPanel } from "./HandControlPanel";
-import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
+import { RecordLink, type ControlAction, type SimStatus } from "../../../pm/record/recordLink";
 import "../pm.css";
 
 // MediaPipe hand skeleton: landmark index pairs.
@@ -149,7 +149,7 @@ export default function RecordPage() {
 
   async function start() {
     setPhase({ state: "starting" });
-    const { createMediapipeTracker } = await import("../../hand/tracking");
+    const { createMediapipeTracker } = await import("../../../hand/tracking");
     const tracker = createMediapipeTracker();
     session.current = { tracker, link: null };
     let lastUi = -Infinity;

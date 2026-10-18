@@ -3,8 +3,8 @@
 // demo's phases), and what code does about it (repairs).
 
 import { StatusPill } from "../../components";
-import type { StoredDiagnosis } from "../types";
-import { layoutTimeline, type Span } from "./timeline";
+import type { StoredDiagnosis } from "../../../pm/types";
+import { layoutTimeline, type Span } from "../../../pm/review/timeline";
 
 const at = (s: Span) => ({ left: `${s.left}%`, width: `${s.width}%` });
 

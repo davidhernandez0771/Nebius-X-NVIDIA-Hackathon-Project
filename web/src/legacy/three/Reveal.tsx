@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { animate, onScroll, stagger } from "animejs";
-import { prefersReducedMotion } from "./capability";
+import { prefersReducedMotion } from "../../three/capability";
 
 /** Big serif headline: each word rises out of a mask the first time it is seen. */
 export function Headline({ text, className = "" }: { text: string; className?: string }) {

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { animate, stagger } from "animejs";
 import "../three/landing.css";
 import { ensureFonts } from "../three/fonts";
-import { prefersReducedMotion, shouldRun3D } from "../three/capability";
+import { prefersReducedMotion, shouldRun3D } from "../../three/capability";
 import { setChapter } from "../three/scrollStore";
 import StaticRoom from "../three/StaticRoom";
 
