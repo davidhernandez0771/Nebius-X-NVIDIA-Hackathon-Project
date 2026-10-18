@@ -148,3 +148,74 @@ def test_rehome_refuses_a_first_move_with_the_gripper_closed():
     scene, traj = _src()
     with pytest.raises(ValueError):
         rehome(traj, len(traj.t) - 5)
+
+
+# --- Neaten: centered approach (grasp fix, 2026-10-18) -------------------------------------------------------------
+# Traced evals: the policy arrives above the cube ~2 cm off in a random direction and with its wrist yaw ~25 deg off,
+# and corrects neither on the way down (the demos are always perfectly aligned, so they never show a correction).
+# Off along the closing axis (> 15 mm): a finger lands on the cube top and the grasp closes 3 cm too high. Off in
+# yaw (~45 deg): the fingers close on the cube's edges and squeeze it out. Both end as a drop.
+
+@pytest.mark.parametrize("seed", [3100, 3133])
+def test_centered_approach_arrives_off_then_centers_over_the_cube_before_the_descent(seed):
+    from sim_worker.homeset import CENTER_MIN_S
+    scene, traj = _src()
+    dst = sample_scene(np.random.default_rng(seed), "franka", seed)
+    raw = transform_trajectory(traj, scene, dst)
+    k = first_move_steps(scene)
+    above = np.asarray(raw.ee_pos[k])
+    offset = np.array([0.012, -0.016])  # 2 cm
+    out = rehome(raw, k, approach_offset=offset, approach_yaw=np.radians(25))
+    pos = np.asarray(out.ee_pos)
+    tail = len(raw.t) - k
+    # the variant from above the cube on is untouched: same descent, grasp, lift, carry, release
+    assert np.allclose(pos[-tail:], np.asarray(raw.ee_pos)[k:]) and list(out.gripper[-tail:]) == list(raw.gripper[k:])
+    assert np.allclose(pos[0], HOME_TCP) and not any(out.gripper[:-tail])
+    # it passes through the off-center hover, at the above-cube height, turned 25 deg past the grasp yaw
+    i = int(np.argmin(np.linalg.norm(pos[: len(pos) - tail] - (above + [*offset, 0.0]), axis=1)))
+    assert np.linalg.norm(pos[i] - (above + [*offset, 0.0])) < 1e-9
+    turn = (_yaw(out.ee_quat[i]) - _yaw(raw.ee_quat[k]) + np.pi) % (2 * np.pi) - np.pi
+    assert np.degrees(turn) == pytest.approx(25.0, abs=1e-6)
+    assert abs(np.asarray(out.ee_quat[i])[[0, 3]]).max() < 1e-9  # still pointing straight down
+    # then centers and aligns: a horizontal move at the hover height, slow and at least CENTER_MIN_S long
+    center = pos[i: len(pos) - tail + 1]
+    assert np.allclose(center[:, 2], above[2]) and len(center) - 1 >= round(CENTER_MIN_S * 50)
+    assert np.allclose(np.diff(out.t), 0.02) and out.t[0] == 0.0
+
+
+def test_a_zero_approach_offset_is_the_plain_rehome():
+    scene, traj = _src()
+    dst = sample_scene(np.random.default_rng(3105), "franka", 3105)
+    raw = transform_trajectory(traj, scene, dst)
+    k = first_move_steps(scene)
+    a, b = rehome(raw, k), rehome(raw, k, approach_offset=(0.0, 0.0), approach_yaw=0.0)
+    assert np.allclose(a.ee_pos, b.ee_pos) and np.allclose(a.ee_quat, b.ee_quat) and a.gripper == b.gripper
+
+
+def _yaw(q):  # of a pointing-down gripper quaternion (0, cos(y/2), sin(y/2), 0)
+    return (2 * np.arctan2(q[2], q[1]) + np.pi) % (2 * np.pi) - np.pi  # q and -q are the same rotation
+
+
+def test_a_yaw_only_misalignment_turns_the_wrist_at_the_hover_without_moving_it():
+    scene, traj = _src()
+    k = first_move_steps(scene)
+    out = rehome(traj, k, approach_yaw=np.radians(-30))
+    tail = len(traj.t) - k
+    yaws = np.degrees([_yaw(q) for q in np.asarray(out.ee_quat)[: len(out.t) - tail + 1]])
+    assert yaws.min() == pytest.approx(np.degrees(_yaw(traj.ee_quat[k])) - 30, abs=1e-6)
+    assert np.allclose(np.asarray(out.ee_pos)[-tail:], np.asarray(traj.ee_pos)[k:])
+
+
+def test_approach_misalignments_are_seeded_bounded_and_horizontal():
+    from sim_worker.homeset import APPROACH_OFFSET_MAX, APPROACH_YAW_MAX, approach_misalignment
+    pairs = [approach_misalignment(s) for s in range(3000, 3400)]
+    offs, yaws = np.array([o for o, _ in pairs]), np.array([y for _, y in pairs])
+    assert offs.shape == (400, 2) and yaws.shape == (400,)
+    again = [approach_misalignment(s) for s in range(3000, 3400)]
+    assert np.allclose(offs, [o for o, _ in again]) and np.allclose(yaws, [y for _, y in again])  # seeded
+    assert np.abs(yaws).max() <= APPROACH_YAW_MAX and (yaws > 0).mean() == pytest.approx(0.5, abs=0.1)
+    r = np.linalg.norm(offs, axis=1)
+    assert r.max() <= APPROACH_OFFSET_MAX + 1e-12 and r.min() >= 0.0
+    ang = np.arctan2(offs[:, 1], offs[:, 0])
+    assert np.histogram(ang, bins=4, range=(-np.pi, np.pi))[0].min() > 70  # every direction
+    assert (r > APPROACH_OFFSET_MAX / 2).mean() > 0.6  # uniform over the disc's area: mostly large
