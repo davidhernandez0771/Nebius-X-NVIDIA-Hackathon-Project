@@ -11,7 +11,7 @@ const FRAME_MS = 1000 / 30;
 function sample(t: number, over: Partial<ResetGestureSample> = {}): ResetGestureSample {
   return {
     timestamp: t,
-    gesture: { name: "Victory", score: 0.9 },
+    victory: 0.9,
     gripperOpen: true,
     position: { x: 0.5, y: 0.5 },
     ...over,
@@ -70,15 +70,15 @@ describe("resetGesture: Victory held 1.5 s", () => {
 
   it("does not fire with too few qualifying frames: the score must reach 0.7", () => {
     const rg = createResetGesture();
-    const s = feed(rg, 0, 3000, () => ({ gesture: { name: "Victory", score: 0.69 } }));
+    const s = feed(rg, 0, 3000, () => ({ victory: 0.69 }));
     expect(events(s)).toEqual([]);
     expect(s.every((x) => x.phase === "idle" && x.progress === 0)).toBe(true);
   });
 
-  it("other gestures never start it", () => {
+  it("other hand shapes (a low Victory score) never start it", () => {
     const rg = createResetGesture();
-    for (const name of ["Open_Palm", "Closed_Fist", "Thumb_Down", "None", "ILoveYou"] as const) {
-      const s = feed(rg, 0, 2000, () => ({ gesture: { name, score: 0.99 } }));
+    for (const victory of [0, 0.2, 0.5, 0.69]) {
+      const s = feed(rg, 0, 2000, () => ({ victory }));
       expect(events(s)).toEqual([]);
     }
   });
@@ -86,14 +86,14 @@ describe("resetGesture: Victory held 1.5 s", () => {
   it("tolerates a few missed frames (>= 80% of the window's frames still qualify)", () => {
     const rg = createResetGesture();
     // every 8th frame misses: 87.5% hits, and no gap is longer than one frame
-    const s = feed(rg, 0, 1600, (_t, i) => (i % 8 === 7 ? { gesture: { name: "None", score: 0.8 } } : {}));
+    const s = feed(rg, 0, 1600, (_t, i) => (i % 8 === 7 ? { victory: 0.1 } : {}));
     expect(events(s)).toEqual(["start", "fire"]);
   });
 
   it("cancels when fewer than 80% of the window's frames qualify", () => {
     const rg = createResetGesture();
     // every 3rd frame misses: 67% hits, each gap one frame (shorter than the drop grace)
-    const s = feed(rg, 0, 1600, (_t, i) => (i % 3 === 2 ? { gesture: { name: "None", score: 0.8 } } : {}));
+    const s = feed(rg, 0, 1600, (_t, i) => (i % 3 === 2 ? { victory: 0.1 } : {}));
     expect(events(s)).not.toContain("fire");
     const cancel = s.find((x) => x.event === "cancel");
     expect(cancel?.cancelReason).toBe("low-score");
@@ -102,7 +102,7 @@ describe("resetGesture: Victory held 1.5 s", () => {
   it("cancels when the gesture drops for longer than the grace, and resets progress", () => {
     const rg = createResetGesture();
     feed(rg, 0, 900);
-    const s = feed(rg, 900 + FRAME_MS, D.dropGraceMs + 3 * FRAME_MS, () => ({ gesture: null }));
+    const s = feed(rg, 900 + FRAME_MS, D.dropGraceMs + 3 * FRAME_MS, () => ({ victory: null }));
     const cancel = s.find((x) => x.event === "cancel");
     expect(cancel?.cancelReason).toBe("dropped");
     expect(cancel?.progress).toBe(0);
@@ -112,7 +112,7 @@ describe("resetGesture: Victory held 1.5 s", () => {
   it("cancels on a missing hand for longer than the grace (no sample position, no gesture)", () => {
     const rg = createResetGesture();
     feed(rg, 0, 600);
-    const s = feed(rg, 600 + FRAME_MS, D.dropGraceMs + 3 * FRAME_MS, () => ({ gesture: undefined, position: null }));
+    const s = feed(rg, 600 + FRAME_MS, D.dropGraceMs + 3 * FRAME_MS, () => ({ victory: null, position: null }));
     expect(s.find((x) => x.event === "cancel")?.cancelReason).toBe("dropped");
   });
 
@@ -157,7 +157,7 @@ describe("resetGesture: Victory held 1.5 s", () => {
     // still holding after the cooldown: no new start until a release
     expect(s[s.length - 1].phase).toBe("idle");
 
-    const released = rg.update(sample(s[s.length - 1].timestamp + FRAME_MS, { gesture: { name: "Open_Palm", score: 0.9 } }));
+    const released = rg.update(sample(s[s.length - 1].timestamp + FRAME_MS, { victory: 0 }));
     expect(released.event).toBeNull();
     const again = feed(rg, released.timestamp + FRAME_MS, 1600);
     expect(events(again)).toEqual(["start", "fire"]);
@@ -166,7 +166,7 @@ describe("resetGesture: Victory held 1.5 s", () => {
   it("a release during the cooldown counts, so it re-arms right after the cooldown", () => {
     const rg = createResetGesture();
     expect(events(feed(rg, 0, 1600))).toEqual(["start", "fire"]);
-    rg.update(sample(1700, { gesture: null }));
+    rg.update(sample(1700, { victory: null }));
     const s = feed(rg, 1500 + D.cooldownMs + 10, 1600);
     expect(events(s)).toEqual(["start", "fire"]);
   });
@@ -175,14 +175,14 @@ describe("resetGesture: Victory held 1.5 s", () => {
     const rg = createResetGesture();
     rg.update(sample(0));
     for (let t = 100; t <= 1400; t += 100) rg.update(sample(t));
-    const miss = rg.update(sample(1510, { gesture: null }));
+    const miss = rg.update(sample(1510, { victory: null }));
     expect(miss).toMatchObject({ phase: "holding", progress: 1, event: null });
     expect(rg.update(sample(1540))).toMatchObject({ event: "fire", phase: "cooldown" });
   });
 
   it("a score of exactly 0.7 counts as a hit", () => {
     const rg = createResetGesture();
-    const s = feed(rg, 0, 1600, () => ({ gesture: { name: "Victory", score: 0.7 } }));
+    const s = feed(rg, 0, 1600, () => ({ victory: 0.7 }));
     expect(events(s)).toEqual(["start", "fire"]);
   });
 

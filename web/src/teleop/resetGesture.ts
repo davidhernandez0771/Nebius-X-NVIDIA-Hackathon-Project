@@ -5,7 +5,8 @@
 // camera or the sim; T4's Record wiring sends the existing `reset_scene` control on "fire".
 //
 // Rules (sprint 8 plan + hand-teleop research, "Reset gesture"):
-// - A frame is a HIT when the top gesture is Victory with score >= minScore (0.7).
+// - A frame is a HIT when the Victory score is >= minScore (0.7). Hand v3: the score comes from
+//   our own classifier over HandLandmarker landmarks (victoryPose.ts), not GestureRecognizer.
 // - A hold STARTS on a hit frame with the gripper open and a known hand position.
 // - It FIRES when holdMs (1.5 s) has passed since the start, on a hit frame, provided it was
 //   never cancelled on the way. Progress is time-based: (now - start) / holdMs.
@@ -21,13 +22,11 @@
 //   frame, during or after the cooldown) before a new hold can start, so a Victory that is
 //   simply kept up never resets the scene twice.
 
-import type { HandGesture } from "../hand/contracts";
-
 export interface ResetGestureSample {
   /** Monotonic ms (HandFrame.timestamp). A sample that doesn't increase is ignored. */
   timestamp: number;
-  /** The primary hand's top gesture; null/undefined when there is none (or no hand). */
-  gesture: HandGesture | null | undefined;
+  /** The primary hand's Victory score, 0..1 (victoryPose.ts); null/undefined with no hand. */
+  victory: number | null | undefined;
   /** The grasp state the arm is using: true = open. */
   gripperOpen: boolean;
   /**
@@ -95,8 +94,7 @@ export function createResetGesture(options: Partial<ResetGestureOptions> = {}): 
   let total = 0;
   let firedAt = 0;
 
-  const isHit = (s: ResetGestureSample): boolean =>
-    s.gesture?.name === "Victory" && s.gesture.score >= o.minScore;
+  const isHit = (s: ResetGestureSample): boolean => typeof s.victory === "number" && s.victory >= o.minScore;
 
   function emit(status: ResetGestureStatus): ResetGestureStatus {
     last = status;

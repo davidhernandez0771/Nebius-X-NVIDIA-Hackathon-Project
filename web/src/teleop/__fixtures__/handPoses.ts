@@ -17,6 +17,8 @@ export interface V3 {
 export interface HandPoseOptions {
   /** Flexion per joint (MCP, PIP, DIP) in radians, toward the palm side; 0 = straight. */
   flex?: [number, number, number];
+  /** Per finger (index, middle, ring, pinky), overriding `flex`. */
+  fingerFlex?: [number, number, number][];
   /** Thumb tip, canonical coordinates; default: thumb out to the side, open. */
   thumbTip?: V3;
   /** Rotation: about x (pitch), then y (turn), then z (roll in the image plane), radians. */
@@ -70,14 +72,14 @@ function rotate(p: V3, r: { x?: number; y?: number; z?: number }): V3 {
 }
 
 /** Canonical 21 points (anatomical right, palm to camera), before rotation. */
-export function canonicalHand(opts: Pick<HandPoseOptions, "flex" | "thumbTip"> = {}): V3[] {
+export function canonicalHand(opts: Pick<HandPoseOptions, "flex" | "fingerFlex" | "thumbTip"> = {}): V3[] {
   const flex = opts.flex ?? OPEN_FLEX;
   const tip = opts.thumbTip ?? OPEN_THUMB_TIP;
   const wrist = { x: 0, y: 0.045, z: 0 };
   const cmc = { x: 0.024, y: 0.033, z: -0.006 };
   const lerp = (a: V3, b: V3, k: number): V3 => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k });
   const pts: V3[] = [wrist, cmc, lerp(cmc, tip, 0.4), lerp(cmc, tip, 0.72), tip];
-  for (const f of FINGERS) pts.push(...fingerChain(f.mcp, f.len, f.splay, flex));
+  FINGERS.forEach((f, i) => pts.push(...fingerChain(f.mcp, f.len, f.splay, opts.fingerFlex?.[i] ?? flex)));
   return pts;
 }
 
@@ -113,3 +115,7 @@ export function pinchThumbTip(flex: [number, number, number] = OPEN_FLEX): V3 {
   const idx = canonicalHand({ flex })[8];
   return { x: idx.x - 0.006, y: idx.y, z: idx.z - 0.004 };
 }
+
+/** The V sign: index and middle straight, ring and pinky curled, the thumb over them. */
+export const VICTORY_FLEX: [number, number, number][] = [OPEN_FLEX, OPEN_FLEX, FIST_FLEX, FIST_FLEX];
+export const VICTORY_THUMB: V3 = { x: -0.005, y: -0.01, z: -0.04 };

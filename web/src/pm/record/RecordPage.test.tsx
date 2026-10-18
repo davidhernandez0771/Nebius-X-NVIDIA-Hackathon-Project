@@ -8,7 +8,7 @@ import { renderAt, stubBackend } from "../testing";
 import type { SimStatus } from "./recordLink";
 import type { HandFrame, HandLandmark, TrackedHand } from "../../hand/contracts";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../teleop/controlRegion";
-import { canonicalHand, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../teleop/__fixtures__/handPoses";
+import { FIST_FLEX, VICTORY_FLEX, VICTORY_THUMB, canonicalHand, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../teleop/__fixtures__/handPoses";
 
 const tracker = vi.hoisted(() => ({
   start: vi.fn(),
@@ -558,5 +558,49 @@ describe("Record page: hand art (display only)", () => {
     const off = await session(false);
     expect(on.grips).toContain(1);
     expect(on).toEqual(off);
+  });
+});
+
+// --- Reset gesture: the V sign from HandLandmarker landmarks, held 1.5 s ------------------------
+
+const victoryHand = () => hand3d({ fingerFlex: VICTORY_FLEX, thumbTip: VICTORY_THUMB });
+
+describe("Record page: reset gesture", () => {
+  it("holding the V sign for 1.5 s sends reset_scene once, and the ring fills", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    holdFor(0, 800, victoryHand());
+    const ring = screen.getByRole("progressbar", { name: /reset/i });
+    expect(Number(ring.getAttribute("aria-valuenow"))).toBeGreaterThan(30);
+    expect(link.sent).not.toContain("reset_scene");
+    holdFor(833, 1500, victoryHand());
+    expect(link.sent.filter((a) => a === "reset_scene")).toHaveLength(1);
+  });
+
+  it("does not reset while recording, or with the sim not connected", async () => {
+    const link = await startCamera();
+    holdFor(0, 1700, victoryHand()); // no sim
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ recording: true })));
+    holdFor(2000, 1700, hand3d());
+    holdFor(4000, 1700, victoryHand());
+    expect(link.sent).not.toContain("reset_scene");
+  });
+
+  it("an open hand, a fist or a pinch never resets", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    let t = holdFor(0, 1700, hand3d());
+    t = holdFor(t, 1700, hand3d({ flex: FIST_FLEX }));
+    holdFor(t, 1700, hand3d({ thumbTip: pinchThumbTip() }));
+    expect(link.sent).not.toContain("reset_scene");
+  });
+
+  it("shows the V sign score live", async () => {
+    await startCamera();
+    holdFor(0, 200, victoryHand());
+    expect(Number(screen.getByTestId("victory-now").textContent)).toBeGreaterThan(0.9);
   });
 });

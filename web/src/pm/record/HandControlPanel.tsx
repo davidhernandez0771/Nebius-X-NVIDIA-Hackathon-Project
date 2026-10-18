@@ -43,7 +43,12 @@ type Props = {
   onCancelCalibration: () => void;
   recentering: boolean;
   onRecenter: () => void;
-  readout: { palmWidth: number | null; pinch: PinchReading | null; control: readonly [number, number, number] | null };
+  readout: {
+    palmWidth: number | null;
+    pinch: PinchReading | null;
+    victory: number | null; // the V sign score, 0..1 (the reset gesture needs 0.7)
+    control: readonly [number, number, number] | null;
+  };
   pinchCalibration: PinchCalState | null;
   onCalibratePinch: () => void;
   onCancelPinchCalibration: () => void;
@@ -256,6 +261,8 @@ export function HandControlPanel({
         <dd data-testid="pinch-now">
           {readout.pinch ? `${readout.pinch.value.toFixed(2)} (${readout.pinch.source.toUpperCase()})` : "–"}
         </dd>
+        <dt>V sign</dt>
+        <dd data-testid="victory-now">{readout.victory !== null ? readout.victory.toFixed(2) : "–"}</dd>
       </dl>
       <p className="muted small">
         u is side, v is height (1 = table), depth is reach (0.5 = the cube's row). A 0 or 1 means your hand is past

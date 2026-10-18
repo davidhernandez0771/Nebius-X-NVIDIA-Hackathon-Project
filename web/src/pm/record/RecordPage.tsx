@@ -14,6 +14,8 @@ import {
 import { toHandPoseMsg, type HandPoseMsg } from "../../teleop/handPoseMessage";
 import { PinchLatch, pinchThresholds, readPinch, type PinchReading } from "../../teleop/pinch";
 import { PinchCalibrator, type PinchCalState } from "../../teleop/pinchCalibration";
+import { createResetGesture, type ResetGestureStatus } from "../../teleop/resetGesture";
+import { victoryScore } from "../../teleop/victoryPose";
 import type { TeleopStatus } from "../../teleop/teleopClient";
 import { teleopSocketUrl } from "../api";
 import { PageTitle } from "../common";
@@ -31,6 +33,7 @@ import {
 import { LazyHandArtOverlay, type HandArtFrame } from "../handArt";
 import { ArtCue } from "./artCue";
 import { HandControlPanel } from "./HandControlPanel";
+import ResetGestureRing from "./ResetGestureRing";
 import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
 import "../pm.css";
 
@@ -160,7 +163,14 @@ export default function RecordPage() {
   const [track, setTrack] = useState<TrackingStatus>("idle");
   const [relay, setRelay] = useState<TeleopStatus>({ socketOpen: false, simConnected: false, lastError: null });
   const [sim, setSim] = useState<SimStatus | null>(null);
-  const [pose, setPose] = useState<{ msg: HandPoseMsg; framing: Framing; gripper: 0 | 1; pinch: PinchReading | null } | null>(null);
+  const [pose, setPose] = useState<{
+    msg: HandPoseMsg;
+    framing: Framing;
+    gripper: 0 | 1;
+    pinch: PinchReading | null;
+    victory: number | null;
+    reset: ResetGestureStatus;
+  } | null>(null);
   const [settings, setSettings] = useState<TeleopControlSettings>(loadTeleopControl);
   const [calibration, setCalibration] = useState<CalibrationState | null>(null);
   const [recentering, setRecentering] = useState(false);
@@ -177,6 +187,7 @@ export default function RecordPage() {
   const artActive = useRef(false); // the overlay is drawing (WebGL up)
   const resets = useRef(0); // Reset scene presses, for the hand-art cue
   const recordingNow = useRef(false); // the sim is recording, for the hand-art cue
+  const canReset = useRef(false); // sim connected and not recording, like the Reset scene button
 
   function updateSettings(next: TeleopControlSettings) {
     settingsRef.current = next;
@@ -205,6 +216,7 @@ export default function RecordPage() {
     let last: HandPoseMsg | undefined;
     const latch = new PinchLatch(); // the gripper: 3D pinch, hysteresis, 2 frames to change
     const cue = new ArtCue();
+    let resetGesture: ReturnType<typeof createResetGesture> | null = null; // made on the first frame (aspect)
     // Auto-centered reach: unless the depth range was calibrated or set by hand, center it on the
     // hand's natural distance once tracking starts (ReachCenterer: ~1 s of palm widths).
     centerer.current = settingsRef.current.depthAuto ? new ReachCenterer() : null;
@@ -220,6 +232,16 @@ export default function RecordPage() {
       const pinch = msg.tracking_ok && hand ? readPinch(hand, msg.pinch_ratio) : null;
       const gripper = latch.update(pinch, pinchThresholds(s.indexPinchCal));
       session.current?.link?.push(frame, gripper);
+      // Reset gesture: the V sign held 1.5 s, gripper open, hand still -> the Reset scene control.
+      const victory = msg.tracking_ok && hand ? victoryScore(hand, frame.frameWidth, frame.frameHeight).score : null;
+      resetGesture ??= createResetGesture({ aspect: frame.frameWidth / frame.frameHeight });
+      const reset = resetGesture.update({
+        timestamp: frame.timestamp,
+        victory,
+        gripperOpen: gripper === 0,
+        position: msg.tracking_ok && hand ? palmCenter(hand.landmarks) : null,
+      });
+      if (reset.event === "fire" && canReset.current) control("reset_scene");
       if (centerer.current) recenter(centerer.current, frame.timestamp, msg);
       const tracked = msg.tracking_ok && hand ? { center: palmCenter(hand.landmarks), palmWidth: msg.palm_width } : null;
       const framing = s.enabled ? controlFraming(tracked, s) : framingCheck(msg);
@@ -234,9 +256,9 @@ export default function RecordPage() {
       if (calibrator.current) calibrate(calibrator.current, frame.timestamp, tracked, uiTick);
       if (pinchCalibrator.current)
         calibratePinch(pinchCalibrator.current, frame.timestamp, pinch?.source === "3d" ? pinch.value : null, uiTick);
-      if (uiTick) {
+      if (uiTick || reset.event) {
         lastUi = frame.timestamp;
-        setPose({ msg, framing, gripper, pinch });
+        setPose({ msg, framing, gripper, pinch, victory, reset });
       }
     });
     try {
@@ -343,6 +365,7 @@ export default function RecordPage() {
   const lost = streaming && (track === "no-hand" || track === "error");
   const simReady = streaming && relay.simConnected;
   const recording = simReady && !!sim?.recording;
+  canReset.current = simReady && !recording;
   recordingNow.current = recording;
 
   return (
@@ -381,6 +404,7 @@ export default function RecordPage() {
                   </StatusPill>
                 ))}
                 {pose?.framing.state === "ok" && !lost && <StatusPill tone="accent">In the workspace</StatusPill>}
+                <ResetGestureRing status={pose?.reset ?? null} />
               </div>
             )}
             {streaming && pose?.msg.tracking_ok && <HandFeedback msg={pose.msg} gripper={pose.gripper} />}
@@ -479,6 +503,7 @@ export default function RecordPage() {
         readout={{
           palmWidth: pose?.msg.tracking_ok ? pose.msg.palm_width : null,
           pinch: pose?.msg.tracking_ok ? pose.pinch : null,
+          victory: pose?.victory ?? null,
           control: pose?.msg.tracking_ok ? pose.msg.control ?? null : null,
         }}
         pinchCalibration={pinchCal}
