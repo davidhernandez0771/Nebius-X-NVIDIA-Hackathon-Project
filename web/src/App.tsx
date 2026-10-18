@@ -15,6 +15,7 @@ import DatasetPage from "./legacy/pm/dataset/DatasetPage";
 import RecordPage from "./legacy/pm/record/RecordPage";
 import ReviewPage from "./legacy/pm/review/ReviewPage";
 import ResultsPage from "./legacy/pm/results/ResultsPage";
+import { HandArtPreviewRoute } from "./record/handArt";
 import { SantRoot } from "./sant/SantRoot";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
@@ -28,8 +29,11 @@ const Entry = lazy(() => import("./legacy/pages/Entry"));
 // SANT website (sprint 8): the design-system review pages, under SantRoot's providers.
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
+const RecordHudPreview = lazy(() => import("./site/record-hud/RecordHudPreview").then((m) => ({ default: m.RecordHudPreview })));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
+// The new Record (Volt). The old one stays at /legacy/pm/record until the user approves this one.
+const RecordConsole = lazy(() => import("./site/record/RecordConsole"));
 
 const LEGACY = /^\/legacy(\/|$)/;
 
@@ -59,6 +63,8 @@ export default function App() {
         {/* The SANT landing (/site) is the front door. /welcome is kept as an alias. */}
         <Route path="/" element={<Navigate to="/site" replace />} />
         <Route path="/welcome" element={<Navigate to="/site" replace />} />
+        {/* Hand v4's hand-art preview (live tooling, not archived): this exact path wins over the /pm/* redirect. */}
+        <Route path="/pm/hand-art" element={<HandArtPreviewRoute />} />
         <Route element={<SantRoot />}>
           <Route path="/site" element={<Suspense fallback={null}><SiteLanding /></Suspense>} />
           <Route
@@ -77,6 +83,8 @@ export default function App() {
               </Suspense>
             }
           />
+          <Route path="/site/record-hud" element={<Suspense fallback={null}><RecordHudPreview /></Suspense>} />
+          <Route path="/record" element={<Suspense fallback={null}><RecordConsole /></Suspense>} />
         </Route>
         <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
         {/* The archived old site (web/src/legacy): the 3D intro, then the dashboard and its pages. */}

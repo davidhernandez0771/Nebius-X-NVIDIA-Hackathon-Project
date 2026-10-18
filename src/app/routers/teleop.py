@@ -19,12 +19,17 @@ defaults filled in) and remembered, so a browser that connects later gets it rig
 "status" message; the memory is cleared when the sim disconnects. An invalid one gets
 {"type": "error", ...} back to the sim.
 
+Latency trace (off unless the browser opts in; sim_worker/teleop_trace.py): a hand message may carry a
+"trace" object beside its HandPoseMsg fields. The relay validates the message without it, adds its own
+"relay_in" / "relay_out" stamps (epoch ms) to it and forwards the result. Untraced messages are forwarded verbatim.
+
 At most one connection per role: a second one is closed with code 4409; an unknown
 role is closed with 4400. State is module-level: this is a single-user local app.
 """
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -38,6 +43,7 @@ router = APIRouter(tags=["teleop"])
 CLOSE_ROLE_TAKEN = 4409
 CLOSE_BAD_ROLE = 4400
 ROLES = ("browser", "sim")
+TRACE_KEY = "trace"
 
 
 class _Msg(BaseModel):
@@ -62,13 +68,20 @@ class SimStatusMsg(_Msg):
     paused: bool = False  # recording, but held because hand tracking was lost
 
 
-def _is_typed(text: str) -> bool:
-    """A JSON object with a "type" key: a control message rather than a HandPoseMsg."""
+def _parse(text: str):
     try:
-        data = json.loads(text)
+        return json.loads(text)
     except ValueError:
-        return False
+        return None
+
+
+def _is_typed(data) -> bool:
+    """A JSON object with a "type" key: a control message rather than a HandPoseMsg."""
     return isinstance(data, dict) and "type" in data
+
+
+def _now_ms() -> float:
+    return time.time() * 1000.0
 
 
 @dataclass
@@ -118,17 +131,23 @@ async def _run_browser(ws: WebSocket) -> None:
         await ws.send_json(_relay.last_sim_status)
     while True:
         text = await ws.receive_text()
-        if _is_typed(text):
+        relay_in = _now_ms()
+        data = _parse(text)
+        if _is_typed(data):
             await _forward_control(ws, text)
             continue
+        trace = data.pop(TRACE_KEY) if isinstance(data, dict) and TRACE_KEY in data else None
         try:
-            HandPoseMsg.model_validate_json(text)
+            HandPoseMsg.model_validate_json(text if trace is None else json.dumps(data))
         except ValidationError as e:
             await ws.send_json({"type": "error", "detail": str(e)})
             continue
         sim = _relay.sim
         if sim is None:
             continue
+        if trace is not None:
+            stamps = trace if isinstance(trace, dict) else {}
+            text = json.dumps({**data, TRACE_KEY: {**stamps, "relay_in": relay_in, "relay_out": _now_ms()}})
         try:
             await sim.send_text(text)
             _relay.messages_forwarded += 1

@@ -18,6 +18,10 @@ describe("siteModeOf", () => {
   it("leaves every other route alone", () => {
     expect(["/", "/pm/record", "/home", "/sitemap", "/robotsx"].map(siteModeOf)).toEqual([null, null, null, null, null]);
   });
+
+  it("puts the new Record (/record) in the app, and leaves the old one (/pm/record) alone", () => {
+    expect(["/record", "/record/", "/recorder", "/pm/record"].map(siteModeOf)).toEqual(["volt", "volt", null, null]);
+  });
 });
 
 describe("crossingTarget", () => {
