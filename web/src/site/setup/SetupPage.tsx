@@ -134,7 +134,7 @@ export function SetupPage() {
             <aside className="byor-panel byor-panel--view" aria-label="3D preview and robot facts">
               <div className="byor-view">
                 <Suspense fallback={<div className="byor-view__wait">Loading the 3D view…</div>}>
-                  <RobotPreview robot={robot} roles={roles} focus={focus} />
+                  <RobotPreview robot={robot} focus={focus} mount={mount} />
                 </Suspense>
               </div>
               <Facts parts={robot.parts} mount={mount} onMount={setMount} />

@@ -171,6 +171,32 @@
   overflow: hidden;
 }
 
+.byor-view__canvas {
+  touch-action: none;
+  cursor: grab;
+}
+
+.byor-view__canvas:active {
+  cursor: grabbing;
+}
+
+.sant .byor-view__caption {
+  position: absolute;
+  left: var(--sant-space-4);
+  right: var(--sant-space-4);
+  bottom: var(--sant-space-3);
+  display: grid;
+  gap: 2px;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+  pointer-events: none;
+  text-wrap: pretty;
+}
+
+.byor-view__caption span:first-child {
+  color: var(--sant-text);
+}
+
 .byor-view__wait {
   display: grid;
   place-items: center;

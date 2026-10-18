@@ -125,7 +125,12 @@ export function RoleBoard({
       setDrag(null);
       if (d && ev.type === "pointerup") {
         if (isClick(d.down, { x: ev.clientX, y: ev.clientY })) setArmed((a) => (a === role ? null : role));
-        else if (d.target) onChange(assign(parts, roles, role, d.target));
+        else if (d.target) {
+          onChange(assign(parts, roles, role, d.target));
+          // the part just wired stays lit in the 3D view
+          setSelected(d.target);
+          return onFocus(d.target);
+        }
       }
       onFocus(selected);
     };
