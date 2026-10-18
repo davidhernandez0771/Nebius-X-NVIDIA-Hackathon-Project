@@ -461,6 +461,46 @@ def test_store_saver_writes_camera_frames(tmp_path):
     assert all(p.is_file() for p in images["front"])
 
 
+def _with_frames(rec: Recording) -> Recording:
+    return Recording(demo=rec.demo, states=[
+        StepState(**{**s.__dict__, "frames": {"front": np.full((8, 8, 3), k, np.uint8)}})
+        for k, s in enumerate(rec.states)
+    ])
+
+
+def test_store_saver_writes_camera_frames_concurrently(tmp_path, monkeypatch):
+    """PNG encoding is the whole save (~1 s for a 7.5 s demo, the sim loop blocked); it runs on a thread pool."""
+    pil = pytest.importorskip("PIL.Image")
+    import threading
+
+    meet, calls, original = threading.Barrier(2, timeout=5), [], pil.Image.save
+
+    def save(self, *args, **kwargs):
+        calls.append(None)
+        if len(calls) <= 2:
+            meet.wait()  # the first two writes must be in flight at once
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(pil.Image, "save", save)
+    rec = _with_frames(_recording(4))
+    store = DemoStore(tmp_path)
+    make_store_saver(store)(rec)
+    _, _, images = load_episode(store.episode_dir(rec.demo.id))
+    assert len(images["front"]) == 4
+    assert [int(np.asarray(pil.open(p))[0, 0, 0]) for p in images["front"]] == [0, 1, 2, 3]
+
+
+def test_a_failing_frame_write_fails_the_save(tmp_path, monkeypatch):
+    pil = pytest.importorskip("PIL.Image")
+
+    def save(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pil.Image, "save", save)
+    with pytest.raises(OSError, match="disk full"):
+        make_store_saver(DemoStore(tmp_path))(_with_frames(_recording(3)))
+
+
 # --- the scripted fake hand (Task 3 smoke input) --------------------------------------------
 
 from demo_pipeline.teleop import GripperLatch  # noqa: E402

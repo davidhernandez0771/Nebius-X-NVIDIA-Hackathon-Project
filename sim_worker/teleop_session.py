@@ -26,6 +26,7 @@ import json
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Literal, Protocol
@@ -46,6 +47,7 @@ TELEOP_DT = 0.02  # s per control step; equals sim_worker.tracking.CONTROL_DT (t
 FPS = 50
 LOST_PAUSE_S = 0.3  # spec 8.1: tracking lost for longer than this pauses the recording
 MIN_STEPS = 2  # a Trajectory needs at least 2 steps
+PNG_WRITERS = 8  # threads writing an episode's camera frames (16 measured no faster)
 
 State = Literal["idle", "recording", "saving"]
 ACTIONS = ("record_start", "record_stop", "reset_scene")
@@ -456,8 +458,13 @@ def make_store_saver(
 
 
 def _write_frames(ep_dir: Path, states: list[StepState], cameras: list[str]) -> None:
+    """PNG encoding was the whole save (0.93 s for 752 frames, with the sim loop blocked); zlib releases the GIL,
+    so a thread pool writes the same bytes in 0.14 s."""
     from PIL import Image  # only needed with cameras; Isaac's venv has it
 
-    for cam in cameras:
-        for k, s in enumerate(states):
-            Image.fromarray(s.frames[cam]).save(image_path(ep_dir, cam, k))
+    def write(job: tuple[str, int]) -> None:
+        cam, k = job
+        Image.fromarray(states[k].frames[cam]).save(image_path(ep_dir, cam, k))
+
+    with ThreadPoolExecutor(PNG_WRITERS) as pool:
+        list(pool.map(write, [(cam, k) for cam in cameras for k in range(len(states))]))  # re-raises a failed write
