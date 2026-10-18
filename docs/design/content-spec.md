@@ -9,6 +9,12 @@
     - Story pages (Home, Results, About) are **Field Notes** (paper).
     - App pages (Record, Review, Dataset) are **Volt** (dark).
     - Crossing from story to app "powers on".
+- **Updated 2026-10-17** with the lead's visual references (`refs`, below):
+  - the new UI pieces are in [§11](#11-new-ui-pieces-from-the-visual-references);
+  - the six hand-art states are in [§12](#12-hand-art-six-states);
+  - what everything looks like with motion off is in [§13](#13-motion-off-everything-in-one-table).
+  - The logo is now a **symbol**, not letters (`logo-brief.md`).
+  - The references add **no measurements**. Every number below still comes from the fact registry.
 
 ## 0. How to read this spec
 
@@ -29,6 +35,7 @@ stay valid; re-check them with `git blame` if a note is ever edited.
 | `audit` | `docs/superpowers/notes/2026-10-17-claims-audit.md` |
 | `spec` | `docs/superpowers/specs/2026-10-15-perfect-then-multiply-design.md` |
 | `plan8` | the lead's sprint 8 plan (`sprint8-plan.md`, not in the repo; design decisions only, no measurements) |
+| `refs` | the lead's visual references, 2026-10-17 (`visual-references-2026-10-17.md`, not in the repo; inspiration only, no measurements) |
 
 **Wording rules** (these apply on every page):
 1. **Quote the confirmatory result:** 3/40 vs 17/40 on the 40 fresh scenes (R1–R3).
@@ -159,8 +166,8 @@ pages live at `/pm/record`, `/pm/review`, `/pm/dataset` and `/pm/results` (`web/
 | Dataset | volt | `/app/dataset` (today `/pm/dataset`) | See what you have collected and export it |
 
 **Navigation:**
-- **Story nav (paper):** wordmark · How it works · Results · **Try it →**. "Try it" is the power-on crossing.
-- **App nav (volt):** wordmark · Record · Review · Dataset · "← The story", which crosses back to paper.
+- **Story nav (paper):** symbol + wordmark · How it works · Results · **Try it →**. "Try it" is the power-on crossing.
+- **App nav (volt):** the glass pill nav (§11.8): symbol · Record · Review · Dataset · "← The story", which crosses back to paper.
 
 The old room-organizer routes stay until the page round (plan8, T5 task 5).
 
@@ -186,10 +193,12 @@ the visitor sees with **motion off**: `prefers-reduced-motion`, or the "Effects 
   - Buttons: **Try it** (primary; crosses to Record) · See the result (scrolls to Beat 3).
 - **Numbers:** none.
 - **What animates:**
-  - the S·A·N·T mark lights unit by unit (the logo placeholder until the user's logo exists; see
-    `logo-brief.md`);
+  - the SANT symbol builds in (`logo-brief.md` §3 gives each direction's build). Until the user's symbol
+    exists, T5's text placeholder "S·A·N·T" lights unit by unit;
   - the headline fades in line by line.
-- **Motion off:** the mark is fully lit and the text is static.
+- **Motion off:** the symbol (or placeholder) is shown in its finished state, and the text is static.
+- **Not adopted from `refs`:** Active Theory's black-void hero with dust. The landing stays paper; the dust
+  appears only at the crossing (Beat 6).
 - **Media:**
   - **missing:** a looping, muted clip of a real hand driving the arm (needs A2; see §9). Until then, no
     hand video.
@@ -252,7 +261,8 @@ Each step is a text step beside one sticky picture of the arm, the demo and the 
   - Link: **See every run and how we tested →** (Results).
 - **Numbers:** R1, R2, R3, R5, R7; C1–C4. R6 (49 vs 4.5 epochs) goes on Results.
 - **What animates:**
-  - the two numbers count from 0 to 7.5 and to 42.5. The k/n labels are shown from the start, never
+  - the two numbers count from 0 to 7.5 and to 42.5, as count-up tiles
+    ([§11.4](#114-count-up-tiles-results-and-home-beat-3)). The k/n labels are shown from the start, never
     animated;
   - the bars grow;
   - the CI whiskers draw last.
@@ -305,12 +315,19 @@ Each step is a text step beside one sticky picture of the arm, the demo and the 
   - H2: **Your hand. A webcam. A robot that follows.**
   - Body: Record a demo in your browser. Nothing is sent anywhere until you press Start; the camera asks for
     permission only then.
+  - **Pinch-sheet teaser** above the button: a small sheet the visitor pinches and drags with the
+    mouse, finger or trackpad ([§11.6](#116-pinch-sheet-teaser-home-beat-6)).
+    - Label: **Try a pinch.** Hint under it: "Grab the sheet and drag it. On the next page your hand does
+      this to a robot gripper."
   - Button: **Power on →**. This is the story → app crossing: the page "powers on" into Volt (plan8).
   - Small print: Needs the local SANT backend and an Isaac Lab sim worker; see the RUNBOOK.
 - **Numbers:** none.
-- **What animates:** the PowerOn transition (T5): paper dims, the mark's four units light, and the volt
-  shell resolves.
-- **Motion off:** an instant cut to the Record page, with no transition.
+- **What animates:** the **dust power-on** ([§11.7](#117-dust-power-on-home-beat-6--record)):
+  - paper dims to black;
+  - drifting dust gathers into the SANT symbol;
+  - the symbol lights, and the Volt Record page resolves around it.
+- **Motion off:** an instant cut to the Record page, with no transition. The teaser becomes a static
+  picture (§11.6).
 - **Camera rule:** the camera prompt never fires on page load. Only the Record page's own "Start camera"
   triggers it (moodboard, landing story; web:31, where the socket opens only after the camera starts).
 
@@ -332,6 +349,8 @@ source.
 
 1. **Headline:** H1 **Multiplying 10 demos made the robot better.** Then a sub with R14, verbatim.
    - Numbers: R1, R2, R3, R7.
+   - Under the sub, three **count-up tiles** ([§11.4](#114-count-up-tiles-results-and-home-beat-3)):
+     **3/40 · 7.5%** (R1), **17/40 · 42.5%** (R2), **p = 0.0005** (R3, static).
 2. **The chart:** two bars with CI whiskers and k/n, 40-scene confirmatory (R1/R2), redrawn in the paper
    style.
    - Below it, a toggle **"All 60 scenes"** shows R4, with its caveat as the toggle's label text.
@@ -420,7 +439,10 @@ Nemotron fits, what we build on, and who we are.
 6. **Team and history:**
    - README.md:152 (team);
    - README.md:155-156: SANT began as a room organizer and became this tool on 2026-10-15.
-7. **Credits:** NVIDIA and Nebius in plain text (`logo-brief.md` §5).
+7. **Credits:**
+   - NVIDIA and Nebius in plain text (`logo-brief.md` §5);
+   - the visual inspiration: Zach Lieberman and the other `refs` studies, and Active Theory. Inspiration
+     only; no code or assets were copied.
 
 **Media:**
 - **exists:** `s1_0002_raw_vs_perfected.gif` (V1), `s1_0003_raw_vs_perfected.gif` (V2),
@@ -435,18 +457,24 @@ Nemotron fits, what we build on, and who we are.
 
 **Sections, in order** (this keeps today's flow; web:372-385):
 
+0. **App nav:** the glass pill nav ([§11.8](#118-pill-nav-app-pages)).
 1. **Header:** H1 **Record a demo**. Sub: "Move your hand; the arm follows. Pinch to close the gripper."
 2. **Camera and link:**
-   - the camera view with the hand overlay (T7's hand-art, behind its toggle; plan8);
+   - the camera view with the hand overlay (T7's hand-art, behind its toggle; plan8). The overlay changes
+     style with each action ([§12](#12-hand-art-six-states));
+   - the **tracking HUD** over the camera view ([§11.1](#111-tracking-hud-record));
+   - the **glyph loader** while hand tracking and the sim start ([§11.5](#115-glyph-loader-record-and-the-crossing));
    - status pills (in teal, for live state): Camera · Relay · Sim.
    - Primary button: **Start camera** until the camera is on.
 3. **Controls:**
-   - **Start recording**, which becomes **Stop and save**;
+   - **Start recording**, which runs the **3-2-1 countdown** ([§11.2](#112-3-2-1-countdown-record)) and
+     then becomes **Stop and save**;
    - **Reset scene**: a button, plus the reset gesture.
      - Gesture: hold ✌ (Victory) for 1.5 s, and T6's ring fills (plan8, T6 task 2).
      - Label: "Hold ✌ to reset the scene".
 4. **Live readouts** (Geist Mono; T4's panel): confidence, palm angle, grasp mode (pinch / fist), clutch.
    - Show a **"Frozen"** pill (amber) when the hand is edge-on or tracking is unsure.
+   - Optional: the **dial HUD** for the gripper, reach and joint angles ([§11.9](#119-dial-hud-record-optional)).
 5. **Result:** the sim's last result line, the recorded length (sim seconds and steps), and **Review this
    demo →**.
 
@@ -473,7 +501,10 @@ Nemotron fits, what we build on, and who we are.
 
 **Sections, in order** (from web:34-40):
 
-1. **Header:** the demo id, its length and its verification status (a teal pill if verified, amber if not).
+1. **Header:** the demo id, its length and its pipeline **status glyph**
+   ([§11.3](#113-pipeline-status-glyphs-review-and-dataset)), replacing the teal / amber pill.
+   - The Perfect panel's steps (today Queued · Perfecting · Done, `web/src/pm/review/PerfectPanel.tsx:20-24`)
+     use the same glyph set.
 2. **The demo strip,** in three lanes:
    - **Frames** (today "what the model saw"; renamed, because code is the judge, N1; open decision **O5**);
    - **Phases**: approach, carry, retreat;
@@ -507,7 +538,8 @@ Nemotron fits, what we build on, and who we are.
 
 1. **Counts:** per source (human / perfected / multiplied), human minutes, perfected-per-human,
    variants-per-perfected.
-2. **Latest demos:** with their verification status.
+2. **Latest demos:** each row starts with its **status glyph**
+   ([§11.3](#113-pipeline-status-glyphs-review-and-dataset)), followed by the status word.
 3. **Export:** "Export verified demos as a LeRobot dataset". It is disabled until there is at least one
    verified demo.
 
@@ -547,8 +579,9 @@ These charts are the current style. The page round can redraw them in the paper 
 | Results | perfected + multiply vs raw + multiply | not run (C5) |
 | Home Beat 3 | sim clips of a success and of a drop by the multiplied policy | no eval video exists (t3:919) |
 | Home Beat 4 | a 300/300 yield chart | a T1 refresh pointed at `home_v2` (Y2) |
-| Every page | the SANT logo | the user (`logo-brief.md`) |
-| Record | a capture of T7's hand-art overlay | T7 (plan8) |
+| Every page, the crossing | the SANT symbol (now a symbol, not letters) | the user (`logo-brief.md`) |
+| Record | a capture of T7's hand-art overlay, one clip per state (§12) | T7 (plan8) |
+| Home Beat 6 | a still of the pinch sheet, for motion off (§11.6) | page round |
 | Social / OG | a share image | page round |
 
 ## 10. Open decisions for the user
@@ -561,3 +594,269 @@ These charts are the current style. The page round can redraw them in the paper 
 | O4 | Claim sentence wording (spec §5) | audit:115's proposed wording |
 | O5 | Rename the Review lane "what the model saw" to "Frames"? | Yes |
 | O6 | Beat 3 headline: the 5.7× ratio, or the raw counts only? | Counts only, if in doubt. A ratio of two small rates invites over-reading |
+| O7 | Dust colours at the crossing: `refs` has teal/gold, then orange/red | Teal and violet only. Gold reads as amber (issues, gripper closed), and orange/red as errors (§11.7) |
+| O8 | Ship the optional pieces: depth contours, the swarm intro, the dial HUD, an audio toggle? | Dial HUD only if the sim streams the values (§11.9). The others after the core states work |
+| O9 | Show "cube" and "bin" boxes in the HUD? | Not on the webcam: the cube and bin aren't in the camera image (§11.1) |
+
+## 11. New UI pieces (from the visual references)
+
+`refs` is inspiration only. We build our own versions and copy no one's code, assets or exact
+compositions. Credit the inspiration on About, under Credits, where it fits.
+
+**Rules for every piece:**
+- **Volt colours** (plan8):
+  - teal `#19F5C2` means live or OK;
+  - violet `#A78BFA` is secondary;
+  - amber `#FFB000` means issues, repairs and "gripper closed" (`refs`).
+- **Never colour alone:** each state also has a word or a shape.
+- **Live values are live:** a piece shows what the app measures at that moment, never a sample value.
+  The `refs` example "hand 0.97" is an illustration, not a number for the site.
+- **Timing comes from T5's motion tokens** (`docs/design/motion.md`); this spec sets none.
+- Motion off is in each piece and in [§13](#13-motion-off-everything-in-one-table).
+
+| # | Piece | Page | Reference (`refs`) |
+|---|---|---|---|
+| 11.1 | Tracking HUD | Record | *Object Detector Shader*, *Micrographics System* |
+| 11.2 | 3-2-1 countdown | Record | *Dotted Countdown* |
+| 11.3 | Pipeline status glyphs | Review, Dataset | *Status Icon System* |
+| 11.4 | Count-up tiles | Results, Home Beat 3 | *CSS Count Up Animations* |
+| 11.5 | Glyph loader | Record, the crossing | Active Theory's loader |
+| 11.6 | Pinch-sheet teaser | Home Beat 6 | *Pinchable Fabric Sheet* |
+| 11.7 | Dust power-on | Home Beat 6 → Record | Active Theory's hero dust |
+| 11.8 | Pill nav | app pages | Active Theory's nav |
+| 11.9 | Dial HUD (optional) | Record | *Rolling Dial Shader* |
+
+### 11.1 Tracking HUD (Record)
+
+- **Where:** over the camera view, on the same canvas as the hand overlay. Today that canvas shows "your
+  hand, mirrored, with the workspace box" (`web/src/pm/record/RecordPage.tsx:243`).
+- **Look:** thin strokes, corner brackets rather than full boxes, and small Geist Mono labels.
+- **Labels:**
+
+| Box | Label | Value |
+|---|---|---|
+| around the tracked hand | `hand 0.00` | the tracker's live confidence, two decimals; the same value as the "confidence" readout |
+| the control region | `workspace` | none. Its bottom edge is table height (RecordPage.tsx:65) |
+| the hand, when frozen | `hand · frozen` | in amber, matching the "Frozen" pill |
+| no hand found | no box | the "Hand lost" copy (§6) shows instead |
+
+- **No "cube" or "bin" boxes on the webcam.** The cube and the bin are in the sim, not in the camera
+  image. The sim draws in its own Kit window (`--viz kit`, RecordPage.tsx:118), not in the browser.
+  - If a sim view is ever streamed into the page, label its cube and bin there, from the sim's own poses.
+  - Open decision **O9**.
+- **Motion off:** the brackets and labels are static (no scan lines, no flicker). The confidence number
+  still updates, because it is live data.
+
+### 11.2 3-2-1 countdown (Record)
+
+- **Where:** centred over the camera view, after **Start recording** is pressed and before the sim starts
+  recording.
+- **What it says:**
+  - a dotted **3**, then **2**, then **1**. Under the numeral: "Recording starts in…";
+  - then the pill **● Recording** (teal), and the button becomes **Stop and save**.
+- **Cancel:** pressing the button during the countdown (it reads **Cancel** then), or Esc, stops it. No
+  demo is started.
+- **If tracking is lost or frozen during the countdown:** stop the countdown, show the "Hand lost" or
+  "Frozen" copy from §6, and return the button to **Start recording**. A recording never starts on a hand
+  it can't see.
+- **Screen readers:** announce "3", "2", "1", "Recording" once each (a polite live region).
+- **Motion off:** the countdown still runs, because it gives the user time to get their hand in place.
+  The numerals change in place as plain text, with no dot animation, scaling or fading.
+
+### 11.3 Pipeline status glyphs (Review and Dataset)
+
+- **Where:**
+  - in the Review header (§7.1) and the Perfect panel's steps;
+  - in front of each row in Dataset's "Latest demos" (§8.2).
+- **Look:** rounded-square icons, one per state. **The status word always sits next to the glyph.**
+
+| State | Glyph (a proposal; T5 draws them) | Colour | Word | Comes from (today's web code) |
+|---|---|---|---|---|
+| recorded | an outlined square with a dot | text `#E6EDF3` | Recorded | a demo with source `human` (`web/src/pm/types.ts:6`) |
+| diagnosed | a square with a scan line | violet | Diagnosed | a stored diagnosis exists for the demo (`types.ts:70`) |
+| repaired | a square with a stitch | amber | Repaired | source `repaired` (`types.ts:6`) |
+| verified | a square with a check | teal | Verified | the backend's physics-replay result (see below) |
+| failed | a square with a cross through it | amber, with the word | Failed | a job with status `failed`, or outcome `discarded` (`web/src/pm/jobs.ts:21`) |
+| blocked | a square with a bar | muted, with the word | Blocked | the step can't run: the sim worker or backend is down (the §7 copy says which) |
+
+- **"Verified" needs a real field.** The web types have no per-demo "verified" field today.
+  - The nearest is the job outcome `perfected` (jobs.ts:21).
+  - Confirm with T2 that "perfected" means the replay put the cube in the bin before using it as
+    "verified". Until then, show no "verified" glyph rather than guess one.
+- **Running states:**
+  - while a job runs, its glyph shows a slow sweep (motion on);
+  - the word reads **Diagnosing…**, **Repairing…** or **Verifying…**;
+  - this replaces today's "Queued / Perfecting / Done" steps (PerfectPanel.tsx:20-24).
+- **Variants:** a source `variant` demo shows the verified glyph plus a small "×" badge, word
+  **Variant**. The badge is never a close button (`logo-brief.md` §7).
+- **Motion off:** each glyph is static; a running state shows its word with "…" and no sweep.
+
+### 11.4 Count-up tiles (Results and Home Beat 3)
+
+- **Where:** Results §1 (three tiles), and Home Beat 3 (the two bar values).
+- **What they say:**
+
+| Tile | Big number | Small line (static from the start) | Fact |
+|---|---|---|---|
+| 1 | **7.5%** | 3/40 · the 10 demos alone · 95% CI 3–20% | R1 |
+| 2 | **42.5%** | 17/40 · + 100 multiplied, verified variants · 95% CI 28–58% | R2 |
+| 3 | **p = 0.0005** | Fisher exact, two-sided | R3 |
+
+- **Motion:**
+  - tiles 1 and 2 count up from 0 when they enter the viewport, once;
+  - they land on exactly 7.5 and 42.5, and never overshoot (Beat 3 rule);
+  - tile 3 does not count. A p-value counting up would read as a score.
+- **Screen readers:** the final value is in the text from the start; the counting digits are
+  `aria-hidden`.
+- **Motion off:** the final values, static.
+
+### 11.5 Glyph loader (Record and the crossing)
+
+- **Where:**
+  - on Record, while the hand tracker loads (after **Start camera**) and while the relay and sim connect;
+  - during the crossing, if Record's code is still loading.
+- **Look:** rows of glyph characters (like `////2///`) that resolve, left to right, into the words of the
+  current step.
+- **What it says** (one line per real step, in order):
+  1. "Loading hand tracking"
+  2. "Connecting to the relay"
+  3. "Waiting for the sim worker"
+  - Each line resolves into its words when that step really completes, then the status pill turns teal.
+- **No progress numbers.** No percentages and no fake bars: the steps don't report progress, so the
+  loader shows only which step it is on.
+- **If a step fails:** the line resolves into the matching §6 error copy (e.g. "The sim isn't connected…")
+  in amber, and the loader stops.
+- **Motion off:** the step words as plain text, each followed by "…" until done, then "done".
+
+### 11.6 Pinch-sheet teaser (Home Beat 6)
+
+- **Where:** Home Beat 6, above **Power on →**, in a small framed panel.
+- **What it is:** a small sheet (cloth-like) that the visitor pinches and drags with the mouse, finger or
+  trackpad. It springs back when let go.
+- **What it says:**
+  - Label: **Try a pinch.**
+  - Hint: "Grab the sheet and drag it. On the next page your hand does this to a robot gripper."
+  - While held, the grab point turns amber: the same "gripper closed" colour as the app.
+- **Camera rule:** the teaser never uses the camera. The camera asks for permission only on Record, after
+  **Start camera** (Beat 6 camera rule).
+- **Accessibility:** decorative (`aria-hidden`). The keyboard path is the **Power on →** button; the teaser
+  is not a required step.
+- **Motion off:** a still picture of the sheet, mid-pinch, with the same label. It does not move or
+  respond (the still is listed as missing in §9).
+
+### 11.7 Dust power-on (Home Beat 6 → Record)
+
+- **Where:** the story → app crossing, started by **Power on →** (Beat 6) or **Try it →** in the story nav.
+- **What happens:**
+  1. the paper page dims to Volt black `#07090C`;
+  2. drifting dust gathers into the SANT symbol (`logo-brief.md`);
+  3. the symbol lights, showing a glass look with a teal / violet rim;
+  4. the Record page resolves around it, and the symbol settles into the nav.
+- **What it says:** nothing but the symbol. If Record's code is still loading, the glyph loader (§11.5)
+  takes the line under the symbol.
+- **Colours:** teal and violet dust only (proposal; **O7**). `refs` has teal/gold then orange/red, but here:
+  - gold sits too close to amber, which means issues and "gripper closed";
+  - orange and red read as errors.
+- **Way back:** "← The story" reverses it (dust scatters, paper returns), or a plain fade.
+- **Motion off:** an instant cut to Record. The symbol is already in the nav; there is no dust.
+
+### 11.8 Pill nav (app pages)
+
+- **Where:** the top of Record, Review and Dataset, replacing the plain app nav of §2.
+- **What it says:** symbol · **Record** —— **Review** —— **Dataset** · "← The story".
+  - The links are joined by a thin line; the current page is lit teal.
+- **Look:** a glass pill on Volt.
+  - The text keeps its contrast (`#E6EDF3` on the pill's dark fill); never put text on bare blur.
+- **Not adopted:** the audio toggle (`refs` mentions it; the app has no sound). Open decision **O8**.
+- **Motion off:** the same pill, with no blur animation or hover glow.
+
+### 11.9 Dial HUD (Record, optional)
+
+- **Where:** next to the live readouts (§6.4).
+- **What it says:** one small rolling dial per value, with its word:
+  - **Gripper** (open / closed: the gripper state the page already sends);
+  - **Reach**;
+  - **Joints**.
+- **Only real values.** Show a dial only for a value the page actually has.
+  - The gripper state is on the page today (RecordPage.tsx:55, `gripper: 0 | 1`).
+  - Reach and joint angles need the sim to stream them to the browser. If it doesn't, leave those dials
+    out; never draw a needle that isn't wired to data.
+- **Motion off:** each dial is a static readout: the word and the value, in Geist Mono.
+
+## 12. Hand-art: six states
+
+The hand overlay on Record (T7; plan8) changes style with each action. These are the six core states
+from `refs`; depth and the landing swarm are optional ([§12.2](#122-optional-states)).
+
+**Rules for every state:**
+- **Colours on Volt:** strokes are light `#E6EDF3` or teal `#19F5C2` on black. **Amber `#FFB000` means
+  the gripper is closed** (`refs`). No other state turns the hand amber.
+- **Readable over the webcam:** put a slightly darkened backdrop, or a blend mode, between the video and
+  the strokes (`refs`). T7 sets the amount; the HUD labels over it must still meet 4.5:1.
+- **The state is never in the art alone.** The live readouts and pills (§6) carry it in words: grasp
+  mode, "Frozen", "● Recording", "Hold ✌ to reset the scene".
+- **Precedence**, if two apply at once: reset > paused/frozen > grab / release (short bursts) > recording
+  > idle.
+- **The overlay's toggle** (plan8) turns all of this off and leaves the plain landmarks.
+
+### 12.1 The six states
+
+| State | When (the app's own signal) | Style | What the user sees | Label / words next to it | Reference (`refs`) |
+|---|---|---|---|---|---|
+| **Idle / hovering** | a hand is tracked, not recording, gripper open | **Ink along the bones:** brush strokes painted along the finger edges, thick at the joints, dry-brush at the tips | a calm inked hand that follows theirs | the live readouts only | Zach Lieberman, *Wireframe Ink* (the user's own pick) |
+| **Grab (close)** | the gripper command goes to closed (pinch or fist) | **Radial bloom:** ink strokes burst out of the palm, sparse to dense | a short burst at the palm, then the hand holds amber | grasp mode reads **pinch** or **fist**; Gripper: **closed** | Zach Lieberman, *Radial Brushstroke* |
+| **Release (open)** | the gripper command goes to open | **Particle burst:** streaks shoot out from the fingertips | a short burst at the fingertips, then back to idle or recording | Gripper: **open** | *Particle Burst* |
+| **Recording / moving** | the sim is recording (after the countdown, §11.2) | **Particle silhouette with a luminous trail** | the hand as particles, leaving a fading trail of its path | **● Recording** pill | *Particle Figure*, *Particle Face Illustration* |
+| **Paused / frozen** | palm turned away or edge-on, or low confidence: today's "Frozen" | **Rippling dot field:** calm, low energy | the hand settles into a quiet dot field; the arm holds still | amber **Frozen** pill, with "Holding still: turn your palm toward the camera to take control again." | *Dot Field Motion* |
+| **Reset (✌)** | ✌ held until T6's ring fills (1.5 s, plan8) | **Glitch brush:** black brush forms plus pixel fragments, then a snap back | the ring fills while held; on completion a glitch, then the clean idle hand | "Hold ✌ to reset the scene", then "Scene reset" | *Glitch Brush Study* |
+
+**While recording,** the grab and release bursts play on top of the particle silhouette, and the hand
+stays amber while the gripper is closed.
+
+**Frozen uses amber for its pill, not for the hand.** The hand's amber means only "gripper closed"; the
+Frozen state is carried by the dot field and the pill's word.
+
+### 12.2 Optional states
+
+These ship only if the six core states work first (open decision **O8**).
+- **Depth hint:** topographic contour lines around the hand. More lines as it gets closer. No number is
+  shown. (*Topographic Lines*.)
+- **Landing intro:** a swarm swirling into a hand, then into the arm (*Cyanotype Fish Vortex*). It would
+  sit at Beat 0 or Beat 2 step 1, on **paper**, so it uses ink and deep teal `#0B7A63`, never `#19F5C2`
+  (`logo-brief.md` §2).
+
+### 12.3 Motion off
+
+**One static style for every state** (`refs`):
+- the ink-along-the-bones hand, drawn without brush animation or particles;
+- the hand turns amber while the gripper is closed. That is a colour change, not motion;
+- no bursts, trail, ripple or glitch.
+
+The words next to the art (the table's "Label" column) carry every state, so nothing is lost.
+
+## 13. Motion off: everything in one table
+
+"Motion off" means `prefers-reduced-motion`, or the "Effects off" toggle (plan8). The global rule in §3
+still applies: end states, no scroll-jacking, every number in full with its denominator.
+
+| Piece | Motion on | Motion off |
+|---|---|---|
+| Hero symbol (Beat 0) | builds in (`logo-brief.md` §3) | finished symbol, static |
+| Beats 1–5 | per beat (§3) | each beat's end state (§3) |
+| Count-up tiles (§11.4) | 0 → 7.5 / 42.5, once | final values; k/n and CIs always static |
+| Pinch-sheet teaser (§11.6) | draggable sheet, springs back | a still, mid-pinch, with the label |
+| Dust power-on (§11.7) | dust gathers into the symbol, the app resolves | instant cut to Record |
+| Pill nav (§11.8) | glass blur, hover glow | same pill, static |
+| Glyph loader (§11.5) | glyph rows resolve into words | plain step words, "…" then "done" |
+| Tracking HUD (§11.1) | brackets with scan detail | static brackets and labels; the confidence still updates (live data) |
+| 3-2-1 countdown (§11.2) | dotted numerals animate | **still runs**, as plain numerals changing in place |
+| Hand-art (§12) | six styles, one per action | one static style; amber while closed; words carry the state |
+| Status glyphs (§11.3) | sweep while running | static glyph + word, "…" while running |
+| Dial HUD (§11.9) | rolling dials | word + value, static |
+| Results chart, Beat 3 bars | bars grow, whiskers draw | full bars, whiskers, k/n |
+
+**What never changes with motion off:**
+- the copy;
+- the numbers;
+- the caveats (C1–C4);
+- the live values on app pages.

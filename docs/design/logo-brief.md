@@ -2,7 +2,12 @@
 
 - **For:** the user, who designs the logo (sprint 8 plan, "Decisions already made").
 - **Owner of this brief:** T1. Written 2026-10-17, at `8572b6e`.
-- **Until the logo exists:** the site uses T5's text placeholder: "S·A·N·T" lighting up in sequence, in
+- **Updated 2026-10-17:** the logo is now a **symbol, not letters**. Think of how Claude's star works: one
+  simple shape that stands for the product on its own (the user's analogy). The letters "SANT" live only
+  in the wordmark, next to the symbol.
+  - The first version's letter-based directions are replaced by four symbol directions
+    ([§3](#3-four-symbol-directions)).
+- **Until the symbol exists:** the site uses T5's text placeholder: "S·A·N·T" lighting up in sequence, in
   `web/src/sant/`.
 - **The swap:** the page round replaces the placeholder with the SVG files in [§6](#6-deliverables).
 
@@ -10,6 +15,8 @@
 - the sprint 8 plan's decisions ("plan8");
 - the moodboard (https://claude.ai/artifact/PHknUKVS8W9E5f9VvPtuNP, the owner's private link): its
   "Logo" panel and direction F, "Volt";
+- the lead's visual references, 2026-10-17 ("refs"): the dust power-on, where dust gathers into the
+  symbol, and the glass emblem with a chromatic rim;
 - the contrast ratios in §2, which T1 computed with the WCAG 2.x relative-luminance formula.
 
 ## 1. What is fixed
@@ -18,17 +25,22 @@
 |---|---|---|
 | Name | **SANT**, standing for **Simulate · Augment · Neaten · Train** | plan8 |
 | Tagline | **"Perfect, then multiply"** | plan8 |
-| Structure | **Four units, S·A·N·T,** on a strict grid, one per letter, so the mark can **light up in sequence**. The intro animation is built into the mark, not added on top | plan8; moodboard "Logo" |
+| A symbol | **No letterforms in the symbol.** It must stand alone at favicon size, the way a star or a mark does. "SANT" appears only in the wordmark beside it | the user (this update) |
+| A build | The symbol has a **build animation that ends in its finished shape**: the hero, the loader, and the dust power-on, where dust gathers into it (refs). Where a direction has four parts, the build lights them **in sequence, S → A → N → T**, which keeps plan8's "lights up in sequence" | plan8; refs |
 | Two modes | It must work on **Paper** (story pages) and **Volt** (app pages), and in the "power on" crossing between them | plan8 |
+| A glass version | On Volt, at the crossing and in the hero, it can render as **glass with a chromatic rim** (refs). It is an effect on the flat shape, never a different shape | refs |
 | Small size | Readable at **16 px** (favicon) | moodboard "Logo" |
-| Effects off | A **solid version**: all four units lit, no glow, no motion. It is the reduced-motion and "Effects off" state, and the print / README version | plan8 (accessibility); moodboard "Logo" |
-| Type | If the mark uses letterforms, they sit with Instrument Serif (display), Geist (UI) and Geist Mono (data) without clashing. Outline the letters in the SVG; don't depend on a webfont | plan8 |
+| Effects off | A **solid, flat version**: finished shape, one colour, no glow, glass or motion. It is the reduced-motion and "Effects off" state, and the print / README version | plan8 (accessibility); moodboard "Logo" |
+| Wordmark type | The wordmark sits with Instrument Serif (display), Geist (UI) and Geist Mono (data) without clashing. Outline it in the SVG; don't depend on a webfont | plan8 |
 
 **Never:**
 - NVIDIA's green **#76B900**, its **eye or swirl** motif, or **"NV" letterforms** (plan8);
 - the **circle-and-gradient swirl** many AI companies share (moodboard "Logo");
+- **a copy of Claude's star**, or any evenly spaced radial starburst / sparkle / asterisk. The analogy is
+  "one simple symbol", not "a star". A burst of identical spokes from a centre reads as Anthropic's mark or
+  as the generic AI sparkle;
 - **cream + serif + terracotta/vermilion together**. It reads as a generic AI-generated look; the paper mode
-  carries teal instead (plan8). On paper, the mark is ink or deep teal, never terracotta.
+  carries teal instead (plan8). On paper, the symbol is ink or deep teal, never terracotta.
 
 ## 2. Colours
 
@@ -37,91 +49,122 @@ These come from the plan's palettes. The ratios were computed for this brief (WC
 
 | Use | Colour | On | Ratio | OK for |
 |---|---|---|---|---|
-| Volt, lit unit / accent | `#19F5C2` (teal) | `#07090C` | 14.13:1 | text and graphics |
-| Volt, mark in text colour | `#E6EDF3` | `#07090C` | 16.87:1 | text and graphics |
-| Volt, secondary | `#A78BFA` (violet) | `#07090C` | 7.33:1 | text and graphics |
-| Paper, mark in ink | `#111111` | `#F4F1EA` | 16.74:1 | text and graphics |
+| Volt, lit symbol / accent | `#19F5C2` (teal) | `#07090C` | 14.13:1 | text and graphics |
+| Volt, symbol in text colour | `#E6EDF3` | `#07090C` | 16.87:1 | text and graphics |
+| Volt, secondary (glass rim) | `#A78BFA` (violet) | `#07090C` | 7.33:1 | text and graphics |
+| Paper, symbol in ink | `#111111` | `#F4F1EA` | 16.74:1 | text and graphics |
 | Paper, accent | `#0B7A63` (deep teal) | `#F4F1EA` | 4.68:1 | text (just) and graphics |
 | **Volt teal on paper** | `#19F5C2` | `#F4F1EA` | **1.25:1** | **nothing: never put the bright teal on paper** |
-| **Unlit unit** (the moodboard's placeholder) | `#2B3138` | `#07090C` | **1.52:1** | **decoration only** |
+| **Unlit part** (the moodboard's placeholder) | `#2B3138` | `#07090C` | **1.52:1** | **decoration only** |
 
-**What this means for the mark:**
-- **The mark must never *rest* unlit.**
-  - An unlit unit is only 1.52:1, below the 3:1 graphics minimum. Unlit is a moment in the animation,
-    not a state.
-  - Every sequence ends with all four units lit, and the static version is fully lit.
+**What this means for the symbol:**
+- **It must never *rest* unlit or half-built.**
+  - An unlit part is only 1.52:1, below the 3:1 graphics minimum. Unlit is a moment in the build, not a
+    state.
+  - Every build ends with the whole symbol lit, and the static version is fully lit.
 - **On paper, "lit" is deep teal `#0B7A63` (or ink), not `#19F5C2`.** The two modes share the shape. They
   do not share the lit colour.
-- **Amber** (`#FFB000` on Volt) means issues and repairs in the product (plan8). Keep it out of the logo, so
-  the mark never reads as a warning.
+- **The glass rim** uses teal and violet only. Its lit fill must still meet 3:1 against the background,
+  so the shape survives without the effect.
+- **Amber** (`#FFB000` on Volt) means issues, repairs and "gripper closed" in the product (plan8; refs).
+  Keep it out of the symbol, so it never reads as a warning.
 
-## 3. Three concept directions
+## 3. Four symbol directions
 
-All three come from the moodboard's "Logo" ideas. Each is a direction to sketch, not a finished design.
+The user named these four. Each is a direction to sketch, not a finished design. Each lists its idea,
+its build, how it survives at 16 px, what it says about SANT, and its risks.
 
-### Direction 1: four cells (letters as indicator lights)
+### Direction A: one point bursting into copies
 
-- **Idea:** four square cells side by side, each holding one letter. A cell is both a letter and an
-  indicator light, like a status panel.
-- **Lighting in sequence:** cells switch on S → A → N → T. On Volt, a lit cell fills teal with dark
-  letters, or shows teal letters on a dark cell. On paper, a lit cell takes ink or deep teal.
-- **At 16 px:** drop the letters and keep **four cells in a row**. The favicon is just the four lit squares,
-  which stay recognisable as "the four stages".
-- **Strengths:**
-  - the closest to the plan's "4-unit mark that lights up in sequence";
-  - the easiest to animate, and the clearest at small sizes;
-  - it echoes the S·A·N·T step rail on the landing page.
+- **Idea:** a single solid point (a dot or a small rounded square) with copies of itself breaking away from
+  it. The original is the perfected demo; the copies are the multiplied ones. It is the tagline as a shape.
+- **Build:** the point appears alone, holds, then the copies spring out of it and settle. For the dust
+  power-on, the dust gathers into the point first, then the copies split off.
+- **At 16 px:** the point plus a few copies, all solid. Fewer copies than the large version, if they would
+  merge.
+- **Says:** "Perfect, then multiply" directly.
+- **Keep it ours:**
+  - **The copies go in one direction or onto a grid**, offset or stepped, like the landing page's grid of
+    variants. They do **not** radiate evenly around the point. An even radial burst is Claude's star, or the
+    generic AI sparkle (§1, "Never").
+  - The point stays visibly different from its copies (larger, or the one that is lit first), so it reads as
+    "one, then many" and not as a pattern.
 - **Risks:**
-  - the moodboard's direction E ("Instrument", four modules with LEDs) was marked "derivative of TE"
-    (teenage.engineering). Avoid the hardware look: no screws, LED dots or module numbers ("01 S").
-  - Keep it flat and typographic.
+  - drifting toward a sparkle or starburst (above);
+  - the number of copies is decorative. It must not look like a claim: don't use 10, 100 or 300 copies to
+    "mean" a result;
+  - dots in a grid can read as a loading indicator or a dice face.
 
-### Direction 2: the hand path (an S that becomes a joint chain)
+### Direction B: four strokes forming one shape
 
-- **Idea:** the S is drawn as a single smooth stroke, like a hand's path through the air. The stroke is
-  broken into segments, which read as an arm's joint chain. A, N and T continue as linked segments, so the
-  mark is one gesture.
-- **Lighting in sequence:** current runs along the chain, S → A → N → T, one segment group per letter.
-  This is the moodboard's Volt "current" line, applied to the mark itself.
-- **At 16 px:** just the S-stroke, or the S-chain with its joints, in one solid colour.
-- **Strengths:**
-  - it tells the product story: a hand becomes a robot motion;
-  - it is distinctive, and it links to T7's morphing hand overlay.
+- **Idea:** four strokes, one per stage (S, A, N, T), that together close into a single shape, such as a
+  rounded square, a diamond or a closed loop. The four stages make one product.
+- **Build:** the strokes draw on one at a time, S → A → N → T, and the shape closes on the last. This is the
+  direction that keeps plan8's four-part sequence most directly.
+- **At 16 px:** the closed shape. The gaps between strokes can close up; the shape must still read.
+- **Says:** four stages, one pipeline.
+- **Keep it ours:**
+  - give the strokes **different lengths or weights**, so the shape is not four identical pieces turning
+    around a centre;
+  - **avoid a four-fold pinwheel with hooked ends.** It reads as a swastika-like rotational symbol;
+  - avoid four squares in a 2 × 2 grid (Microsoft's logo) and a plain plus or cross (medical, "add").
 - **Risks:**
-  - it is the hardest to keep readable as "SANT";
-  - a chain of four can read as a generic "connected nodes" icon;
-  - the S-curve must not drift toward a swirl (§1, "Never").
+  - the hardest to make distinctive: a closed shape of four strokes can be generic;
+  - a looping shape must not drift toward a swirl (§1, "Never").
 
-### Direction 3: the hidden multiply (× inside the A or N)
+### Direction C: an abstract pinch
 
-- **Idea:** a typographic wordmark in four equal cells. The **A's crossbar or the N's diagonal** forms a
-  **×**, the multiply in "Perfect, then multiply".
-- **Lighting in sequence:** as directions 1 and 2. The × cell can light a beat later, or brighter, as the
-  payoff of the sequence.
-- **At 16 px:** the × alone, in a square: a strong favicon on its own.
-- **Strengths:**
-  - it carries the tagline;
-  - the × favicon is simple and ownable.
+- **Idea:** two curved strokes, a thumb and a finger, closing on a single point between them. The point is
+  the thing being grasped. It is the one gesture the whole app is built on: "pinch to close the gripper".
+- **Build:** the two strokes swing in and meet the point; the point lights as they close. This mirrors the
+  app's hand-art "grab" state and the landing page's "Try a pinch" sheet.
+- **At 16 px:** two strokes and a dot.
+- **Says:** your hand is the controller.
+- **Keep it ours:**
+  - abstract, not a drawn hand or a hand emoji;
+  - the two strokes are unequal (a thumb and a finger), so it doesn't read as parentheses `( · )` or a
+    letter C.
 - **Risks:**
-  - a lone × also means "close" or "delete" in UI. Never use it as a button icon, and never put it next
-    to a close button;
-  - the joke must survive without an explanation.
+  - it can read as the "pinch to zoom" gesture icon, or as a bird's beak;
+  - it says the most about the input and the least about "multiply". The wordmark and tagline carry that.
 
-**A suggestion, not a decision:** directions 1 and 3 combine well. Use four cells, and draw the A or N
-cell's crossing as a ×.
+### Direction D: a simplified joint chain
+
+- **Idea:** a few straight segments joined by round joints: an arm, reduced to a line drawing. It can end
+  in a small open gripper or a single point.
+- **Build:** "current" runs along the chain from the base, joint by joint, and lights each segment. This is
+  the moodboard's Volt "current" line applied to the symbol. With four segments, the order is S → A → N → T.
+- **At 16 px:** the segments and joint dots in one solid colour. Drop the gripper detail if it blurs.
+- **Says:** a robot arm, the output of the whole pipeline.
+- **Keep it ours:**
+  - **not a literal robot-arm clip-art**. Keep it to segments and joints;
+  - the chain must not spell a letter: no **"N"** (it would echo "NV", §1, "Never"), and no "Z" or "S"
+    that reads as a letter.
+- **Risks:**
+  - a chain of dots and lines is close to the generic "connected nodes", "share" and "network" icons;
+  - an arm is common in robotics branding.
+
+### Combinations (suggestions, not decisions)
+
+- **B + D:** four strokes that are the four segments of the joint chain. The build lights them S → A → N →
+  T, and the closed shape is the arm folded in on itself.
+- **C + A:** the pinch closes on a point, and the point then bursts into copies: "grasp it, perfect it,
+  multiply it" in one build. The static symbol is the pinch with its copies.
+
+The user's pick wins. These only show which directions share a build.
 
 ## 4. Sizes and lockups
 
 | Lockup | Contents | Where | Minimum |
 |---|---|---|---|
-| **Mark** | the four units only | favicon, app icon, the PowerOn transition, loading | 16 px tall |
-| **Horizontal** | mark + "SANT" wordmark | story nav (paper), app nav (volt) | 20 px tall mark |
-| **Horizontal + tagline** | mark + SANT + "Perfect, then multiply" | landing hero, README header, video title card | 32 px tall mark |
-| **Stacked** | mark above SANT, with "Simulate · Augment · Neaten · Train" under it | About page, social image, end card | 48 px tall mark |
-| **Wordmark only** | "SANT" with the · separators lit in sequence | wherever a mark doesn't fit | Geist 600 at body size or larger |
+| **Symbol** | the symbol only | favicon, app icon, the dust power-on, the glyph loader, the pill nav | 16 px tall |
+| **Horizontal** | symbol + "SANT" wordmark | story nav (paper), app pill nav (volt) | 20 px tall symbol |
+| **Horizontal + tagline** | symbol + SANT + "Perfect, then multiply" | landing hero, README header, video title card | 32 px tall symbol |
+| **Stacked** | symbol above SANT, with "Simulate · Augment · Neaten · Train" under it | About page, social image, end card | 48 px tall symbol |
+| **Wordmark only** | "SANT", with the · separators lit in sequence | wherever the symbol doesn't fit | Geist 600 at body size or larger |
 
 **Every lockup comes in four colour versions:**
-1. Volt, lit (teal on `#07090C`);
+1. Volt, lit (teal on `#07090C`), with the optional glass rim;
 2. Paper, lit (ink or deep teal on `#F4F1EA`);
 3. one-colour black;
 4. one-colour white.
@@ -134,7 +177,8 @@ Versions 3 and 4 are the effects-off, print and README versions.
 - PWA icons: 192 and 512 px;
 - social image: 1200 × 630 px, which uses the stacked lockup.
 
-**Clear space:** at least one unit's width on every side. Nothing (NVIDIA credit, nav links) enters it.
+**Clear space:** at least half the symbol's height on every side. Nothing (NVIDIA credit, nav links)
+enters it. (This replaces "one unit's width", which assumed four letter units.)
 
 **The tagline is set in Instrument Serif,** with the comma, as the user wrote it: "Perfect, then multiply".
 
@@ -153,50 +197,63 @@ moodboard) before submitting.
   - Sources: the content spec's facts A4 and N8; `docs/superpowers/notes/2026-10-15-t2-status.md:4`;
     `docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md:8`.
 - **Name the event as written:** "Nebius x NVIDIA Global AI Hackathon, Physical AI track" (README.md:10-11).
-- Keep the SANT mark visibly **ours**: our colours, our grid, our name first.
+- Keep the SANT symbol visibly **ours**: our colours, our shape, our name first.
 
 **Don't:**
-- **Don't use NVIDIA's or Nebius's logos** anywhere in the mark, the nav or a lockup, unless the
+- **Don't use NVIDIA's or Nebius's logos** anywhere in the symbol, the nav or a lockup, unless the
   hackathon rules explicitly allow a sponsor-logo strip (unverified: check the rules).
 - **Don't use NVIDIA's look:**
   - **#76B900**, and greens near its hue;
   - the **eye** or **swirl** shapes;
-  - **"NV"** letterforms.
+  - **"NV"** letterforms, including an N hidden in a joint chain (direction D).
   - The Volt teal was chosen to sit away from NVIDIA's green (moodboard header note).
+- **Don't borrow other AI marks:** no starburst like Claude's, no sparkle, no circle-and-gradient swirl
+  (§1).
 - **Don't imply endorsement, partnership or certification:** no "NVIDIA SANT", "powered by NVIDIA" badges
   styled like NVIDIA's, "official", or "certified".
-- **Don't combine marks:** no "SANT × NVIDIA" lockup, and no SANT mark inside an NVIDIA shape.
+- **Don't combine marks:** no "SANT × NVIDIA" lockup, and no SANT symbol inside an NVIDIA shape.
 - **Don't use a product name as a design element:** "Isaac", "Nemotron" or "RTX" are not part of the logo
   or the tagline.
 
 ## 6. Deliverables
 
 So that the swap is mechanical:
-1. **`sant-mark.svg`:**
+1. **`sant-symbol.svg`:**
    - a square `viewBox`;
-   - **one `<g>` per unit, with `id="unit-s"`, `"unit-a"`, `"unit-n"` and `"unit-t"`**, so T5's
-     component can light each one;
+   - **one `<g>` per part of the build**, so T5's component can light them in order:
+     - a four-part direction (B, D, or B + D): `id="unit-s"`, `"unit-a"`, `"unit-n"` and `"unit-t"`, in
+       build order. T5's sequence code already uses these;
+     - any other direction: `id="part-1"`, `"part-2"`, … in build order (for A, `part-1` is the point);
    - fills in `currentColor`, or as CSS custom properties, not hard-coded colours, so the mode tokens
-     colour it.
+     colour it;
+   - no glass, glow or gradient in the file. T5 adds the glass rim as an effect (§1).
 2. **`sant-lockup-horizontal.svg`** and **`sant-lockup-stacked.svg`:**
-   - the same unit ids;
+   - the same part ids;
    - the wordmark and tagline **outlined**, with no `<text>` elements.
 3. **`favicon.svg`**, plus 16 / 32 / 180 / 192 / 512 px PNGs.
 4. **`og-image.png`**, 1200 × 630 px, in both modes. Pick one for the meta tag.
-5. A short note with the chosen direction, and the lit / unlit colour for each mode (from §2).
+5. **A point set for the dust**: the symbol's outline as an SVG path the dust can gather onto (a single
+   outlined path, or the symbol's own paths, is enough).
+6. A short note with the chosen direction, its build order, and the lit / unlit colour for each mode
+   (from §2).
 
 **Animation, for T5:**
-- **Order:** S → A → N → T.
-- **End state:** all four lit.
-- **Reduced motion and "Effects off":** the end state only.
+- **Order:** the build order above (S → A → N → T for four parts).
+- **End state:** the whole symbol lit.
+- **Reduced motion and "Effects off":** the end state only, flat.
 - **Timing:** from T5's motion tokens (`docs/design/motion.md`), not set here.
 
 ## 7. Review checklist
 
-- [ ] Reads as "SANT" in the horizontal lockup at 20 px.
-- [ ] The mark alone is recognisable at 16 px.
-- [ ] Every resting state is fully lit, and every lit colour meets §2's contrast on its mode's background.
-- [ ] The one-colour black and white versions work, with no glow.
-- [ ] No NVIDIA green, eye, swirl or "NV". No AI swirl. No cream + serif + terracotta.
-- [ ] The SVG has unit ids `unit-s` … `unit-t`, `currentColor` fills, and outlined text.
-- [ ] A × (direction 3), if used, is never also used as a close icon.
+- [ ] The symbol contains no letters, and reads as one shape.
+- [ ] The symbol alone is recognisable at 16 px.
+- [ ] The horizontal lockup reads as "SANT" at a 20 px symbol height.
+- [ ] Every resting state is fully built and lit, and every lit colour meets §2's contrast on its mode's
+      background, without the glass effect.
+- [ ] The one-colour black and white versions work, with no glow or glass.
+- [ ] Not a starburst, sparkle or asterisk; not Claude's star; no AI swirl.
+- [ ] No NVIDIA green, eye, swirl, "NV" or hidden N. No cream + serif + terracotta.
+- [ ] No pinwheel with hooked ends, no 2 × 2 squares, no plain plus or cross.
+- [ ] The SVG has build-ordered part ids (`unit-s` … `unit-t`, or `part-1` …), `currentColor` fills, and
+      outlined text.
+- [ ] A ×, if any shape reads as one, is never also used as a close icon.
