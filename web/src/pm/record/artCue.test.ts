@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ArtCue, type ArtCueInput } from "./artCue";
 
-const base: ArtCueInput = { gripper: 0, recording: false, resets: 0 };
+const base: ArtCueInput = { gripper: 0, recording: false, resets: 0, breakthrough: 0 };
 
 describe("ArtCue: one count per thing that happens, for the hand-art style changes", () => {
   it("the first frame is not an event, and nothing changing is none", () => {
@@ -26,5 +26,13 @@ describe("ArtCue: one count per thing that happens, for the hand-art style chang
     const c = new ArtCue();
     c.update(base);
     expect(c.update({ ...base, gripper: 1, recording: true })).toBe(1);
+  });
+
+  it("counts a break-through (reach crossing the cube's row) like any other event", () => {
+    const c = new ArtCue();
+    c.update(base);
+    expect(c.update({ ...base, breakthrough: 1 })).toBe(1);
+    expect(c.update({ ...base, breakthrough: 1 })).toBe(1);
+    expect(c.update({ ...base, breakthrough: 2 })).toBe(2);
   });
 });

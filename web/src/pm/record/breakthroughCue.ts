@@ -1,4 +1,5 @@
-// The hand art's "break-through" cue: reach crossing the workspace plane in depth. The plane is
+// The hand art's "break-through" cue: reach crossing the workspace plane in depth. Each crossing
+// is one ArtCue event, the same style-switch morph as a grab or a reset. The plane is
 // the middle of reach, control depth 0.5: the auto-centered natural distance, the cube's row.
 // A crossing counts once the depth is past the plane by more than the band, on the other side
 // from the last side it was on; so it doesn't flicker around 0.5, and reaching the min or max of
@@ -9,7 +10,7 @@ export const BREAKTHROUGH_PLANE = 0.5;
 export const BREAKTHROUGH_BAND = 0.04; // half-width of the hysteresis band around the plane
 
 export interface BreakthroughState {
-  count: number; // +1 on each crossing (HandArt's `breakthrough` prop)
+  count: number; // +1 on each crossing (ArtCue's `breakthrough`)
   dir: 1 | -1; // the last crossing: 1 moving closer (depth up), -1 moving away
 }
 

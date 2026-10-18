@@ -638,6 +638,37 @@ describe("Record page: 3D reach", () => {
   });
 });
 
+// --- Break-through: reach crossing the cube's row in depth switches the hand-art style ------------
+
+describe("Record page: break-through switches the hand-art style", () => {
+  type ArtFrame = { cue?: number } | null;
+  const cue = () => (art.props!.source as () => ArtFrame)()!.cue!;
+  const at = (distance: number, x = 0.5) => hand3d({ distance, center: { x, y: 0.45 } });
+
+  it("crossing the cube's row in depth, either way, is one style switch each", async () => {
+    await startCamera();
+    let t = holdFor(0, 1500, at(0.5)); // auto-centering: this distance becomes depth 0.5
+    t = holdFor(t, 600, at(0.62)); // back: depth below the band
+    const c0 = cue();
+    t = holdFor(t, 600, at(0.4)); // through the cube's row, toward the camera
+    expect(cue()).toBe(c0 + 1);
+    holdFor(t, 600, at(0.62)); // back out
+    expect(cue()).toBe(c0 + 2);
+  });
+
+  it("nothing at the reach limits or the box's edges", async () => {
+    await startCamera();
+    let t = holdFor(0, 1500, at(0.5));
+    t = holdFor(t, 600, at(0.4));
+    const c0 = cue();
+    t = holdFor(t, 600, at(0.25)); // all the way forward: depth clamps at 1
+    t = holdFor(t, 600, at(0.4, 0.95)); // the palm leaves the square sideways
+    t = holdFor(t, 600, at(0.4, 0.05));
+    holdFor(t, 600, at(0.4, 0.5));
+    expect(cue()).toBe(c0);
+  });
+});
+
 describe("Record page: debug trace", () => {
   it("records 10 s of frames with both reach signals, then offers the JSON file to download", async () => {
     const blobs: Blob[] = [];

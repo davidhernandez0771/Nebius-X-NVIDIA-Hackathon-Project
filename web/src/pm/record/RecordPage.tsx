@@ -283,7 +283,7 @@ export default function RecordPage() {
       artHand.current = {
         landmarks: hand?.landmarks ?? null,
         gripperClosed: gripper === 1,
-        cue: cue.update({ gripper, recording: recordingNow.current, resets: resets.current }),
+        cue: cue.update({ gripper, recording: recordingNow.current, resets: resets.current, breakthrough: crossing.count }),
       };
       if (canvas.current) draw(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current);
       const uiTick = frame.timestamp - lastUi >= UI_INTERVAL_MS;
