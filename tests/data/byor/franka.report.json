@@ -1,0 +1,1296 @@
+{
+ "schema": "sant.robot_report/1",
+ "robot": {
+  "id": "byor_3292d47ab6",
+  "name": "panda",
+  "urdf_sha256": "3292d47ab633d276d63f9c1a96115f9b2437962e46fef0c00f474a44055dac1a",
+  "dof": 7
+ },
+ "roles": {
+  "base": "panda_link0",
+  "arm_joints": [
+   "panda_joint1",
+   "panda_joint2",
+   "panda_joint3",
+   "panda_joint4",
+   "panda_joint5",
+   "panda_joint6",
+   "panda_joint7"
+  ],
+  "hand": "panda_hand",
+  "gripper_joints": [
+   "panda_finger_joint1",
+   "panda_finger_joint2"
+  ],
+  "tcp_offset": null,
+  "gripper_open": null,
+  "gripper_closed": null,
+  "mount": {
+   "pos": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "start_joint_pos": null
+ },
+ "spec": {
+  "name": "byor_3292d47ab6",
+  "ik_link": "panda_link7",
+  "arm_joints": [
+   "panda_joint1",
+   "panda_joint2",
+   "panda_joint3",
+   "panda_joint4",
+   "panda_joint5",
+   "panda_joint6",
+   "panda_joint7"
+  ],
+  "finger_joints": [
+   "panda_finger_joint1"
+  ],
+  "passive_finger_joints": [
+   "panda_finger_joint2"
+  ],
+  "gripper_open": 0.04,
+  "gripper_closed": 0.0,
+  "tcp_offset": [
+   0.0,
+   -0.0,
+   0.210279
+  ],
+  "hand_in_tool_wxyz": [
+   0.92388,
+   0.0,
+   0.0,
+   0.382683
+  ],
+  "base_pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "start_joint_pos": {
+   "panda_joint1": 0.025706,
+   "panda_joint2": -0.311026,
+   "panda_joint3": -0.02388,
+   "panda_joint4": -2.347666,
+   "panda_joint5": -0.008179,
+   "panda_joint6": 2.036711,
+   "panda_joint7": 0.792045,
+   "panda_finger_joint1": 0.04,
+   "panda_finger_joint2": 0.04
+  },
+  "sources": {
+   "ik_link": "panda_hand is joined to panda_link7 by fixed joints, which the URDF importer merges (merge_fixed_joints); IK drives panda_link7",
+   "tcp_offset": "finger geometry: the fingertips are 0.1123 m along the hand's +z; the grasp point sits 0.009 m above them (Franka's documented TCP is 0.0089 m above its fingertips)",
+   "gripper": "the limit with the fingers farther apart is open (panda_finger_joint1 0.04); the other limit is closed",
+   "start_joint_pos": "IK for the tool at (0.45, 0, 0.35) pointing down, from the middle of each joint's range: residual 0.0 mm, 0.000 rad"
+  }
+ },
+ "task": {
+  "name": "pick-place",
+  "text": "pick up the red cube and place it in the blue bin",
+  "workspace": {
+   "cube_x": [
+    0.4,
+    0.6
+   ],
+   "cube_y": [
+    -0.2,
+    0.2
+   ],
+   "cube_yaw": [
+    -1.5707963267948966,
+    1.5707963267948966
+   ],
+   "bin_x": [
+    0.4,
+    0.65
+   ],
+   "bin_y": [
+    -0.3,
+    0.3
+   ]
+  },
+  "seeds": [
+   100,
+   129
+  ],
+  "source": "demo_pipeline.multiply.SCENE_RANGES['franka'] (spec 8.6); scenes from demo_pipeline.multiply.sample_scene"
+ },
+ "verdict": {
+  "value": "ready",
+  "source": "rule: ready if pick-place succeeds in >= 24 of 30 scenes (80%), partial if >= 6 (20%), else not_ready"
+ },
+ "pick_place": {
+  "successes": {
+   "value": 30,
+   "of": 30,
+   "source": "scripted expert (sim_worker.scripted) on the base scene, moved into each scene by demo_pipeline.multiply.transform_trajectory, replayed by sim_worker.replay (differential IK, Isaac Lab 3.0 PhysX), judged by demo_pipeline.success.check_success"
+  },
+  "failure_reasons": {
+   "value": {},
+   "source": "demo_pipeline.success.check_success reason codes over the failed scenes; one scene can have several"
+  },
+  "tracking_mean_mm": {
+   "value": 3.75,
+   "source": "sim_worker.tracking.tracking_stats: commanded vs reached tool point, mean over every step of every scene"
+  }
+ },
+ "reach_map": {
+  "fraction": {
+   "value": 1.0,
+   "source": "share of grid cells reachable in every layer"
+  },
+  "grid": {
+   "x": [
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65
+   ],
+   "y": [
+    -0.3,
+    -0.25,
+    -0.2,
+    -0.15,
+    -0.1,
+    -0.05,
+    0.0,
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3
+   ]
+  },
+  "layers": [
+   {
+    "name": "grasp",
+    "z": 0.025,
+    "yaw_deg": 0,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ]
+    ],
+    "fraction": 1.0
+   },
+   {
+    "name": "grasp",
+    "z": 0.025,
+    "yaw_deg": 45,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ]
+    ],
+    "fraction": 1.0
+   },
+   {
+    "name": "grasp",
+    "z": 0.025,
+    "yaw_deg": -45,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ]
+    ],
+    "fraction": 1.0
+   },
+   {
+    "name": "release",
+    "z": 0.1,
+    "yaw_deg": 0,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ]
+    ],
+    "fraction": 1.0
+   },
+   {
+    "name": "carry",
+    "z": 0.25,
+    "yaw_deg": 0,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ]
+    ],
+    "fraction": 1.0
+   }
+  ],
+  "source": "sim_worker.urdf_kin.solve_best on the URDF chain panda_link0 -> panda_link7 (the one Isaac imports), mount at [0.0, 0.0, 0.0]: tool pointing down at each cell, joint limits enforced, from 4 start poses (the start pose, the previous cell's solution, the middle of each range, one random); reachable = within 5 mm and 0.05 rad"
+ },
+ "joint_limit_hits": {
+  "value": [
+   {
+    "joint": "panda_joint7",
+    "limit": "upper",
+    "value": 2.8973,
+    "scenes": 1,
+    "steps": 46
+   }
+  ],
+  "source": "recorded joint positions (run/var_*/steps.npz joint_pos) within 0.01 rad (prismatic: 0.5 mm) of a URDF limit, over all scenes; arm joints only"
+ },
+ "scenes": {
+  "source": "one row per seed: success and reasons from check_success, positions from sample_scene, tracking from tracking_stats, limit hits as above",
+  "rows": [
+   {
+    "seed": 100,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.78,
+    "tracking_max_mm": 7.72,
+    "n_steps": 376,
+    "wall_s": 7.09,
+    "cube": [
+     0.5193,
+     0.1161
+    ],
+    "cube_yaw": 1.2891,
+    "bin": [
+     0.572,
+     -0.186
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 101,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.59,
+    "tracking_max_mm": 8.81,
+    "n_steps": 376,
+    "wall_s": 7.05,
+    "cube": [
+     0.5845,
+     0.1477
+    ],
+    "cube_yaw": -0.4268,
+    "bin": [
+     0.6433,
+     -0.1653
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 102,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.31,
+    "tracking_max_mm": 8.22,
+    "n_steps": 376,
+    "wall_s": 7.45,
+    "cube": [
+     0.4928,
+     0.1565
+    ],
+    "cube_yaw": 0.2038,
+    "bin": [
+     0.6483,
+     -0.1545
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 103,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.26,
+    "tracking_max_mm": 9.31,
+    "n_steps": 376,
+    "wall_s": 7.76,
+    "cube": [
+     0.4625,
+     -0.1103
+    ],
+    "cube_yaw": -0.999,
+    "bin": [
+     0.615,
+     0.2145
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 104,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.51,
+    "tracking_max_mm": 8.55,
+    "n_steps": 376,
+    "wall_s": 7.84,
+    "cube": [
+     0.5124,
+     -0.0936
+    ],
+    "cube_yaw": 0.6219,
+    "bin": [
+     0.4151,
+     0.283
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 105,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.41,
+    "tracking_max_mm": 9.0,
+    "n_steps": 376,
+    "wall_s": 7.64,
+    "cube": [
+     0.5113,
+     -0.1334
+    ],
+    "cube_yaw": 0.2944,
+    "bin": [
+     0.6149,
+     0.2125
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 106,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 5.12,
+    "tracking_max_mm": 10.68,
+    "n_steps": 376,
+    "wall_s": 7.53,
+    "cube": [
+     0.5965,
+     -0.1838
+    ],
+    "cube_yaw": -1.1851,
+    "bin": [
+     0.5161,
+     0.2787
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 107,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.21,
+    "tracking_max_mm": 8.83,
+    "n_steps": 376,
+    "wall_s": 7.79,
+    "cube": [
+     0.5955,
+     -0.088
+    ],
+    "cube_yaw": -0.5817,
+    "bin": [
+     0.4252,
+     0.2522
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 108,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.63,
+    "tracking_max_mm": 8.34,
+    "n_steps": 376,
+    "wall_s": 7.79,
+    "cube": [
+     0.4716,
+     0.1734
+    ],
+    "cube_yaw": 1.3697,
+    "bin": [
+     0.4896,
+     -0.2328
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 109,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.19,
+    "tracking_max_mm": 9.48,
+    "n_steps": 376,
+    "wall_s": 7.92,
+    "cube": [
+     0.4389,
+     -0.1394
+    ],
+    "cube_yaw": 0.0122,
+    "bin": [
+     0.5357,
+     0.2996
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 110,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.14,
+    "tracking_max_mm": 6.61,
+    "n_steps": 376,
+    "wall_s": 7.53,
+    "cube": [
+     0.5439,
+     0.1796
+    ],
+    "cube_yaw": 1.3038,
+    "bin": [
+     0.4457,
+     -0.1205
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 111,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 2.72,
+    "tracking_max_mm": 7.69,
+    "n_steps": 376,
+    "wall_s": 7.35,
+    "cube": [
+     0.4307,
+     -0.1323
+    ],
+    "cube_yaw": 0.0187,
+    "bin": [
+     0.5645,
+     0.1605
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 112,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 2.84,
+    "tracking_max_mm": 6.17,
+    "n_steps": 376,
+    "wall_s": 7.25,
+    "cube": [
+     0.4233,
+     0.1377
+    ],
+    "cube_yaw": 0.9383,
+    "bin": [
+     0.4043,
+     -0.2538
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 113,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.79,
+    "tracking_max_mm": 9.49,
+    "n_steps": 376,
+    "wall_s": 7.31,
+    "cube": [
+     0.5309,
+     -0.1294
+    ],
+    "cube_yaw": -1.1762,
+    "bin": [
+     0.5049,
+     0.2667
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 114,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.42,
+    "tracking_max_mm": 7.02,
+    "n_steps": 376,
+    "wall_s": 7.15,
+    "cube": [
+     0.4998,
+     0.1374
+    ],
+    "cube_yaw": -0.2097,
+    "bin": [
+     0.4344,
+     -0.1679
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 115,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.15,
+    "tracking_max_mm": 8.07,
+    "n_steps": 376,
+    "wall_s": 7.13,
+    "cube": [
+     0.5405,
+     0.0415
+    ],
+    "cube_yaw": 0.1388,
+    "bin": [
+     0.6053,
+     -0.2995
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 116,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 2.94,
+    "tracking_max_mm": 8.68,
+    "n_steps": 376,
+    "wall_s": 7.41,
+    "cube": [
+     0.4553,
+     0.1791
+    ],
+    "cube_yaw": 0.4348,
+    "bin": [
+     0.5523,
+     -0.2236
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 117,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 5.16,
+    "tracking_max_mm": 10.24,
+    "n_steps": 376,
+    "wall_s": 7.29,
+    "cube": [
+     0.5724,
+     -0.0739
+    ],
+    "cube_yaw": -1.5637,
+    "bin": [
+     0.6201,
+     0.24
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 118,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.56,
+    "tracking_max_mm": 8.34,
+    "n_steps": 376,
+    "wall_s": 6.95,
+    "cube": [
+     0.4288,
+     -0.1689
+    ],
+    "cube_yaw": 1.5632,
+    "bin": [
+     0.4882,
+     0.2533
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 119,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.35,
+    "tracking_max_mm": 8.73,
+    "n_steps": 376,
+    "wall_s": 7.22,
+    "cube": [
+     0.4723,
+     -0.1491
+    ],
+    "cube_yaw": -1.006,
+    "bin": [
+     0.4596,
+     0.2768
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 120,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 2.89,
+    "tracking_max_mm": 8.07,
+    "n_steps": 376,
+    "wall_s": 6.96,
+    "cube": [
+     0.4277,
+     -0.132
+    ],
+    "cube_yaw": -0.2726,
+    "bin": [
+     0.4545,
+     0.2363
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 121,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.59,
+    "tracking_max_mm": 8.95,
+    "n_steps": 376,
+    "wall_s": 6.93,
+    "cube": [
+     0.5196,
+     0.0874
+    ],
+    "cube_yaw": -0.7747,
+    "bin": [
+     0.5529,
+     -0.2838
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 122,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.43,
+    "tracking_max_mm": 7.46,
+    "n_steps": 376,
+    "wall_s": 7.13,
+    "cube": [
+     0.5651,
+     -0.1298
+    ],
+    "cube_yaw": -0.3846,
+    "bin": [
+     0.4523,
+     0.1935
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 123,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 2.73,
+    "tracking_max_mm": 7.6,
+    "n_steps": 376,
+    "wall_s": 6.83,
+    "cube": [
+     0.5624,
+     0.1195
+    ],
+    "cube_yaw": 0.4878,
+    "bin": [
+     0.4572,
+     -0.2174
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 124,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 2.7,
+    "tracking_max_mm": 6.62,
+    "n_steps": 376,
+    "wall_s": 7.02,
+    "cube": [
+     0.5012,
+     0.0656
+    ],
+    "cube_yaw": 0.6357,
+    "bin": [
+     0.413,
+     -0.2639
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 125,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.51,
+    "tracking_max_mm": 8.13,
+    "n_steps": 376,
+    "wall_s": 7.39,
+    "cube": [
+     0.556,
+     0.1145
+    ],
+    "cube_yaw": 1.1658,
+    "bin": [
+     0.4805,
+     -0.2287
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 126,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.99,
+    "tracking_max_mm": 9.63,
+    "n_steps": 376,
+    "wall_s": 6.85,
+    "cube": [
+     0.4012,
+     0.1767
+    ],
+    "cube_yaw": -1.363,
+    "bin": [
+     0.6448,
+     -0.2262
+    ],
+    "limit_hits": [
+     "panda_joint7:upper"
+    ]
+   },
+   {
+    "seed": 127,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 3.21,
+    "tracking_max_mm": 9.24,
+    "n_steps": 376,
+    "wall_s": 7.23,
+    "cube": [
+     0.5171,
+     0.1839
+    ],
+    "cube_yaw": 0.9872,
+    "bin": [
+     0.467,
+     -0.2714
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 128,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.91,
+    "tracking_max_mm": 9.11,
+    "n_steps": 376,
+    "wall_s": 7.5,
+    "cube": [
+     0.4502,
+     0.1913
+    ],
+    "cube_yaw": -1.424,
+    "bin": [
+     0.4779,
+     -0.2855
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 129,
+    "success": true,
+    "reasons": [],
+    "tracking_mean_mm": 4.36,
+    "tracking_max_mm": 8.91,
+    "n_steps": 376,
+    "wall_s": 7.63,
+    "cube": [
+     0.573,
+     0.129
+    ],
+    "cube_yaw": 1.5081,
+    "bin": [
+     0.6434,
+     -0.2444
+    ],
+    "limit_hits": []
+   }
+  ]
+ },
+ "provenance": {
+  "git_commit": "41d1268+dirty",
+  "created_at": "2026-10-18T21:15:06Z",
+  "wall_s": 241.0,
+  "stage_s": {
+   "convert": 0.0,
+   "reach_map": 0.8,
+   "pick_place": 239.2
+  },
+  "sim": {
+   "physics_dt": 0.01,
+   "decimation": 2,
+   "isaac_lab": "3.0",
+   "physics": "PhysX"
+  },
+  "usd": {
+   "path": "usd\\panda_arm_hand\\panda_arm_hand.usda",
+   "reused_cache": true,
+   "converter": "isaaclab.sim.converters.UrdfConverter (fix_base, merge_fixed_joints, convex hull collisions, no self-collision, PhysX variant)"
+  },
+  "drives": "arm: stiffness 400, damping 80 (Isaac Lab FRANKA_PANDA_HIGH_PD_CFG); driven gripper joints: 2000 / 100 (its hand); mimic joints: no drive; effort and velocity limits from the URDF; gravity off on the robot, as in the *_HIGH_PD configs",
+  "expert": {
+   "lift_z": 0.25,
+   "hold_s": 0.5,
+   "tracking": {
+    "lookahead": 0,
+    "ik_iters": 1,
+    "gate_tol": null,
+    "gate_max_s": 0.5,
+    "vel_ff": true
+   }
+  },
+  "source_demo": {
+   "success": true,
+   "reasons": [],
+   "note": "the scripted expert on the base scene (cube (0.5, 0), bin (0.5, 0.3)); every scene replays this demo moved into it"
+  },
+  "baseline": {
+   "franka_builtin": "27/30, unreachable 3 (data/multiply_franka/yield.json, 2026-10-16)",
+   "openarm_builtin": "0/30, unreachable 30 (data/multiply_openarm/yield.json, 2026-10-16)"
+  }
+ }
+}

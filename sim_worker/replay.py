@@ -25,7 +25,7 @@ from demo_pipeline.success import check_success
 
 from .placement import place_scene, xyzw
 from .scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, make_scene_cfg
-from .robots import RobotSpec, hand_from_tool, robot_spec, tool_from_hand
+from .robots import RobotSpec, finger_targets, hand_from_tool, robot_spec, tool_from_hand
 from .tracking import CONTROL_DT, TrackingOptions, dls_iterate, gate_hold, lookahead_index, tracking_stats
 
 TASK_TEXT = "pick up the red cube and place it in the blue bin"
@@ -145,9 +145,7 @@ def _physics_step(
         else:
             task_jacobian, task_error = s.ik._compute_pose_task(ee_pos_b, ee_quat_b, jacobian)
             arm_target = joint_pos + dls_iterate(task_jacobian, task_error, IK_LAMBDA, ik_iters)
-        finger = torch.full(
-            (1, len(s.finger_ids)), s.spec.gripper_closed if gripper else s.spec.gripper_open, device=s.sim.device
-        )
+        finger = torch.tensor([finger_targets(s.spec, bool(gripper))], dtype=torch.float32, device=s.sim.device)
         robot.set_joint_position_target_index(target=arm_target, joint_ids=s.arm.joint_ids)
         robot.set_joint_velocity_target_index(target=vel, joint_ids=s.arm.joint_ids)
         robot.set_joint_position_target_index(target=finger, joint_ids=s.finger_ids)
@@ -182,12 +180,15 @@ def replay(
     record_cameras: bool,
     tracking: TrackingOptions | None = None,
     stats: dict | None = None,
+    robot: str | None = None,
 ) -> tuple[VerificationResult, SimSignals]:
     """Replay and verify. If `stats` is given it is filled with tracking errors (mm), the gate's hold
-    steps, and "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
-    change). SimSignals and the episode follow the executed trajectory."""
+    steps, "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
+    change), and the recorded "joint_pos" [steps, joints] with their "joint_names". SimSignals and the
+    episode follow the executed trajectory. `robot` runs another robot than scene.robot in the scene
+    (an uploaded one: the scene then only says whose workspace it is)."""
     opts = tracking or TrackingOptions()
-    s = _session(record_cameras, scene.robot)
+    s = _session(record_cameras, robot or scene.robot)
     _place_scene(s, scene)
     arr = traj.to_arrays()
     n = len(arr["t"])
@@ -269,7 +270,8 @@ def replay(
     reach = np.asarray(ik_residual) if opts.residual_is_reach_signal else None
     result = check_success(executed, signals, scene.bin_pose, bin_inner=BIN_INNER, tcp_error=reach)
     if stats is not None:
-        stats.update(track, hold_steps=hold_steps, preroll_mm=preroll_err * 1000, trajectory=executed)
+        stats.update(track, hold_steps=hold_steps, preroll_mm=preroll_err * 1000, trajectory=executed,
+                     joint_pos=np.asarray(rec["joint_pos"]), joint_names=list(s.scene["robot"].joint_names))
 
     if ep_dir is not None:
         ep_dir = Path(ep_dir)
