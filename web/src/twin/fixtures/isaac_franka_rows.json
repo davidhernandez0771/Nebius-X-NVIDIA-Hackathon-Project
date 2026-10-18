@@ -1,0 +1,10 @@
+{
+  "source": "Four rows of a real recorded episode: C:\\dev\\pm-t4\\data\\demos\\s1_0000_m100002\\episode\\steps.npz (a verified Franka copy; passport success, seed 100002). joint_pos is Isaac's articulation order; ee_pos is the tool point the sim measured (sim_worker/teleop_isaac.py _tcp_pose). Rounded to 6 decimals.",
+  "joint_names": ["panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4", "panda_joint5", "panda_joint6", "panda_joint7", "panda_finger_joint1", "panda_finger_joint2"],
+  "rows": [
+    {"step": 0, "joint_pos": [-0.962209, 0.117343, 0.837334, -2.395867, -0.158985, 2.475626, 2.453595, 0.04, 0.039999], "ee_pos": [0.494654, -0.060159, 0.180759], "gripper": 0},
+    {"step": 150, "joint_pos": [-0.826501, 0.733158, 0.962636, -1.535789, -0.627644, 1.934806, 1.033604, 0.024956, 0.025015], "ee_pos": [0.685075, -0.068419, 0.251472], "gripper": 1},
+    {"step": 300, "joint_pos": [-0.469556, 0.620443, 1.011011, -1.997958, -0.676735, 2.236195, 1.694471, 0.024956, 0.025015], "ee_pos": [0.532746, 0.269266, 0.167364], "gripper": 1},
+    {"step": 457, "joint_pos": [-0.572869, 0.503974, 1.156907, -1.953667, -0.538374, 2.102335, 1.611872, 0.04, 0.04], "ee_pos": [0.532491, 0.271158, 0.249473], "gripper": 0}
+  ]
+}

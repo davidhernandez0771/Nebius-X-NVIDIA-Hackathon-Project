@@ -19,6 +19,7 @@ Licenses were read from the installed package metadata or the committed license 
 | Anthropic `frontend-design` skill (https://github.com/anthropics/claude-plugins-official) | `.claude/skills/frontend-design/` | Apache-2.0 | The full license is kept in `LICENSE.txt` in that folder. |
 | NVIDIA Isaac-GR00T sample `demo_data/cube_to_bowl_5/meta/modality.json` (https://github.com/NVIDIA/Isaac-GR00T, commit `dac54b3`) | `lerobot_tools/tests/data/gr00t_cube_to_bowl_5_modality.json` | Apache-2.0, Copyright NVIDIA Corporation | Verbatim test fixture. Provenance is recorded in `lerobot_tools/tests/data/README.md`. |
 | Camera parameters from Isaac Lab 3.0's Franka stack visuomotor config (https://github.com/isaac-sim/IsaacLab) | `sim_worker/scene_cfg.py` (wrist camera, marked in a comment) | BSD-3-Clause, Copyright (c) 2022-2026 The Isaac Lab Project Developers | A few numeric config values. |
+| Franka Panda URDF and collision meshes: `franka_description` 0.7.1 from franka_ros (https://github.com/frankaemika/franka_ros), by Franka Emika GmbH | `web/public/robots/franka_description/` | Apache-2.0 | The full license is kept in `LICENSE.txt` in that folder; `README.md` there says where the files came from. Unchanged files; the visual meshes are left out. Drawn by the robot twin. |
 
 ## Installed or downloaded (not redistributed)
 
@@ -68,6 +69,7 @@ Transitive dependencies are pinned in `uv.lock`.
 | react-router-dom | 6.30.6 | MIT |
 | three | 0.169.0 | MIT |
 | @react-three/fiber / @react-three/drei | 8.18.0 / 9.122.0 | MIT |
+| urdf-loader (gkjohnson, https://github.com/gkjohnson/urdf-loaders) | 0.13.1 | Apache-2.0. Loaded lazily, only where a 3D robot is drawn: the robot twin (`web/src/twin`) and, from `pm/web-setup`, `/robots/setup`. |
 | animejs | 4.5.0 | MIT |
 | lenis | 1.3.26 | MIT |
 | Dev: vite, vitest, @vitejs/plugin-react, jsdom, @testing-library/react, @testing-library/jest-dom, @types/* | see `web/package-lock.json` | MIT |
