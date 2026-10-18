@@ -1,17 +1,20 @@
 // The story → app "power on" (docs/design/motion.md §4): a Volt cover grows from the clicked
-// button, specks of dust drift in the dark and gather into the S·A·N·T mark one unit at a time,
+// button, specks of dust drift in the dark and gather into the logo symbol one part at a time,
 // each unit lights as its dust lands, the route changes while the page is covered, and the cover
 // fades to reveal the app. Reduced motion or Effects off: an instant route change.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { dustPoint, makeDust, sampleMask, type DustTiming, type Pt } from "../motion/dust";
+import { LOGO_SYMBOL } from "../components/logoSymbol";
 import { useMotion } from "../motion/MotionProvider";
 import { powerOnPlan, type PowerOnStep } from "../motion/powerOn";
 
 type Run = { id: number; x: number; y: number; phase: "start" | "cover" | "reveal"; lit: number; dust: "on" | "off" };
 
-const UNITS = ["S", "A", "N", "T"] as const;
+/** The plan lights four steps (S → A → N → T); a symbol with another number of parts spreads over them. */
+const STEPS = 4;
+const stepOf = (part: number) => Math.floor((part * STEPS) / LOGO_SYMBOL.units.length);
 const DUST_FADE = 200;
 const MAX_SPECKS = 900;
 
@@ -24,23 +27,25 @@ function focusPageHeading() {
   h.focus();
 }
 
-/** The points of one letter, drawn off-screen in the unit's own font at the unit's own place. */
-function letterPoints(el: HTMLElement): Pt[] {
-  const rect = el.getBoundingClientRect();
+/** The points of one symbol part, drawn off-screen at the size and place the symbol has on screen. */
+function partPoints(svg: SVGSVGElement, d: string): Pt[] {
+  const rect = svg.getBoundingClientRect();
   const w = Math.ceil(rect.width);
   const h = Math.ceil(rect.height);
-  if (w === 0 || h === 0) return [];
+  if (w === 0 || h === 0 || typeof Path2D !== "function") return [];
+  const [vx, vy, vw, vh] = LOGO_SYMBOL.viewBox.split(/[\s,]+/).map(Number);
+  // preserveAspectRatio's default: scale to fit, centred.
+  const k = Math.min(w / vw, h / vh);
+  const ox = (w - vw * k) / 2 - vx * k;
+  const oy = (h - vh * k) / 2 - vy * k;
   const off = document.createElement("canvas");
   off.width = w;
   off.height = h;
   const ctx = off.getContext("2d");
   if (!ctx) return [];
-  const style = getComputedStyle(el);
-  ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(el.textContent ?? "", w / 2, h / 2);
-  const step = Math.max(2, Math.round(parseFloat(style.fontSize) / 24));
+  ctx.setTransform(k, 0, 0, k, ox, oy);
+  ctx.fill(new Path2D(d));
+  const step = Math.max(2, Math.round(w / 64));
   return sampleMask(ctx.getImageData(0, 0, w, h), step).map((p) => ({ x: rect.left + p.x, y: rect.top + p.y }));
 }
 
@@ -55,7 +60,11 @@ function playDust(canvas: HTMLCanvasElement, overlay: HTMLElement, startedAt: nu
   canvas.height = Math.round(height * dpr);
   ctx.scale(dpr, dpr);
 
-  let targets = Array.from(overlay.querySelectorAll<HTMLElement>(".sant-poweron__unit")).map(letterPoints);
+  const svg = overlay.querySelector<SVGSVGElement>(".sant-poweron__mark");
+  if (!svg) return null;
+  // One target list per lighting step, so each step's dust lands as that step lights.
+  let targets: Pt[][] = Array.from({ length: STEPS }, () => []);
+  LOGO_SYMBOL.units.forEach((d, i) => targets[stepOf(i)].push(...partPoints(svg, d)));
   const total = targets.reduce((n, t) => n + t.length, 0);
   if (total > MAX_SPECKS) {
     const keep = MAX_SPECKS / total;
@@ -196,13 +205,11 @@ export function PowerOnProvider({ children }: { children: ReactNode }) {
             style={{ "--x": `${run.x}px`, "--y": `${run.y}px` } as CSSProperties}
           >
             <canvas ref={canvas} className="sant-poweron__dust" />
-            <span className="sant-poweron__mark">
-              {UNITS.map((u, i) => (
-                <span key={u} className="sant-poweron__unit" data-lit={i < run.lit}>
-                  {u}
-                </span>
+            <svg className="sant-poweron__mark" viewBox={LOGO_SYMBOL.viewBox} focusable="false">
+              {LOGO_SYMBOL.units.map((d, i) => (
+                <path key={i} className="sant-poweron__unit" d={d} data-part={i === 0 ? "original" : "copy"} data-lit={stepOf(i) < run.lit} />
               ))}
-            </span>
+            </svg>
           </div>,
           document.body,
         )}

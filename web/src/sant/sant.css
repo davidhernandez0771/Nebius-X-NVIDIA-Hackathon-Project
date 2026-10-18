@@ -393,7 +393,8 @@
 
 .sant-logo {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 0.42em;
   font-family: var(--sant-font-ui);
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -405,23 +406,46 @@
 .sant-logo--md { font-size: 1.5rem; }
 .sant-logo--lg { font-size: clamp(3rem, 2rem + 4vw, 5rem); }
 
-.sant-logo__unit + .sant-logo__unit::before {
-  content: "·";
-  margin: 0 0.16em;
-  color: var(--sant-muted);
+/* The symbol: placeholder paths from logoSymbol.ts. The original rests in the accent, the copies in ink. */
+.sant-logo__symbol {
+  display: block;
+  width: 1.3em;
+  height: 1.3em;
+  overflow: visible;
 }
 
-.sant-logo[data-lit="none"] .sant-logo__unit { color: var(--sant-muted); }
+.sant-logo__unit {
+  fill: var(--sant-text);
+}
+
+.sant-logo__unit[data-part="original"] {
+  fill: var(--sant-accent);
+}
+
+.sant-logo[data-lit="none"] .sant-logo__unit { fill: var(--sant-muted); }
 
 .sant-logo[data-lit="sequence"] .sant-logo__unit {
   animation: sant-lit var(--sant-dur-story) var(--sant-ease-move) both;
   animation-delay: calc(var(--i) * var(--sant-stagger-sant));
 }
 
+.sant-logo[data-lit="sequence"] .sant-logo__unit[data-part="original"] {
+  animation-name: sant-lit-original;
+}
+
 @keyframes sant-lit {
-  0% { color: var(--sant-line); }
-  55% { color: var(--sant-accent); }
-  100% { color: var(--sant-text); }
+  0% { fill: var(--sant-line); }
+  55% { fill: var(--sant-accent); }
+  100% { fill: var(--sant-text); }
+}
+
+@keyframes sant-lit-original {
+  0% { fill: var(--sant-line); }
+  100% { fill: var(--sant-accent); }
+}
+
+.sant-logo__word {
+  font-size: 0.86em;
 }
 
 .sant-logo-img.sant-logo--sm { height: 1.25rem; }
@@ -756,6 +780,39 @@
   border-top: 1px solid var(--sant-line);
   color: var(--sant-muted);
   font-size: var(--sant-fs-caption);
+}
+
+.sant-footer__grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--sant-space-5);
+}
+
+.sant-footer p + p,
+.sant-footer .sant-logo + p {
+  margin-top: var(--sant-space-2);
+}
+
+.sant-footer .sant-logo + p {
+  margin-top: var(--sant-space-3);
+}
+
+.sant-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant .sant-footer__links a {
+  color: var(--sant-text);
+}
+
+.sant-footer .sant-footer__credits {
+  margin-top: var(--sant-space-5);
 }
 
 .sant-app {
@@ -1396,27 +1453,30 @@
   opacity: 0;
 }
 
+/* The symbol the dust gathers into (logoSymbol.ts), drawn large. */
 .sant-poweron__mark {
-  display: flex;
-  gap: 0.35em;
-  font-family: var(--sant-font-ui);
-  font-weight: 600;
-  font-size: clamp(2.5rem, 1.5rem + 4vw, 4.5rem);
-  letter-spacing: 0.04em;
+  display: block;
+  width: clamp(5.5rem, 3rem + 8vw, 9rem);
+  height: clamp(5.5rem, 3rem + 8vw, 9rem);
+  overflow: visible;
 }
 
 .sant-poweron__unit {
-  color: var(--sant-line);
-  transition: color var(--sant-dur-4) var(--sant-ease-move);
+  fill: var(--sant-line);
+  transition: fill var(--sant-dur-4) var(--sant-ease-move);
 }
 
 .sant-poweron__unit[data-lit="true"] {
-  color: var(--sant-accent);
+  fill: var(--sant-text);
+}
+
+.sant-poweron__unit[data-lit="true"][data-part="original"] {
+  fill: var(--sant-accent);
 }
 
 /* With dust, a unit is invisible until its dust lands, then lights in its place. */
 .sant-poweron[data-dust="on"] .sant-poweron__unit:not([data-lit="true"]) {
-  color: transparent;
+  fill: transparent;
 }
 
 .sant-poweron__dust {

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { MotionProvider } from "../motion/MotionProvider";
 import { EFFECTS_KEY } from "../motion/effects";
 import { Badge, Button, Card, ChartFrame, EffectsToggle, Logo, ResultBars, SectionHeader, Stat, StepRail, ToastProvider, useToast } from ".";
+import { LOGO_SYMBOL } from "./logoSymbol";
 
 function stubReducedMotion(reduce: boolean) {
   vi.stubGlobal(
@@ -182,6 +183,20 @@ describe("Logo", () => {
   it("is named SANT", () => {
     wrap(<Logo />);
     expect(screen.getByRole("img", { name: "SANT" })).toBeTruthy();
+  });
+
+  it("is a symbol, not letters: one path per part of the swappable symbol", () => {
+    const { container } = wrap(<Logo wordmark={false} />);
+    const parts = container.querySelectorAll(".sant-logo__symbol .sant-logo__unit");
+    expect(parts).toHaveLength(LOGO_SYMBOL.units.length);
+    parts.forEach((p, i) => expect(p.getAttribute("d")).toBe(LOGO_SYMBOL.units[i]));
+    expect(container.textContent).toBe("");
+  });
+
+  it("sets the wordmark beside the symbol by default", () => {
+    const { container } = wrap(<Logo />);
+    expect(container.querySelector(".sant-logo__symbol")).toBeTruthy();
+    expect(container.querySelector(".sant-logo__word")?.textContent).toBe("SANT");
   });
 
   it("uses the user's SVG when given one", () => {

@@ -78,7 +78,8 @@ describe("StoryShell", () => {
     const { container } = app("/story");
     expect(container.querySelector('[data-mode="paper"]')).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Story" })).toBeTruthy();
-    expect(screen.getByRole("contentinfo").textContent).toMatch(/NVIDIA Isaac Sim/);
+    // Content spec §3, "Footer (story pages)".
+    expect(screen.getByRole("contentinfo").textContent).toMatch(/Built with NVIDIA Isaac Lab, NVIDIA Nemotron and Nebius Token Factory/);
   });
 
   it("creates Lenis smooth scroll with full motion, and destroys it on leaving", () => {
