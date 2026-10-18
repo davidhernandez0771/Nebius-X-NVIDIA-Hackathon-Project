@@ -361,7 +361,7 @@ def main() -> None:
     if args.cmd == "build":
         sets = build_sets(Path(args.episodes))
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.out).write_text(json.dumps(sets, indent=1) + "\n", encoding="utf-8")
+        Path(args.out).write_text(json.dumps(sets, indent=1) + "\n", encoding="utf-8", newline="\n")  # LF, so the hash holds
         for phase in ("dev", "test"):
             j = sets[phase]["judge"]
             kinds = {k: sum(x["kind"] == k for x in j) for k in ("match", "object", "goal", "failed")}

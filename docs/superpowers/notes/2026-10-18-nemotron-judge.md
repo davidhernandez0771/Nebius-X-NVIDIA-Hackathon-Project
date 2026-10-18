@@ -15,7 +15,7 @@
 
 Everything below was fixed at the commit that adds this section. The item lists are
 `docs/superpowers/notes/2026-10-18-nemotron-judge/sets.json`, sha256
-`17b1a4f82ce23fbd7c16efe2fc5d8586580dff4ca3e7ef38c08d406302248c61`, built by `intent_eval.py build` from T2's
+`78ead6a213c4d01c438bddb9b73320d2490576dfc15387ef42d0bc9a3a065366`, built by `intent_eval.py build` from T2's
 episode store (`C:\dev\pm-t2\data\episodes`, read only).
 
 ### The recordings, and what they are
