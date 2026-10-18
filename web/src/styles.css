@@ -655,7 +655,6 @@ button:disabled {
 }
 
 .topbar-time {
-  grid-column: 3;
   justify-self: end;
   font-size: var(--fs-md);
   font-weight: var(--fw-light);
