@@ -44,14 +44,43 @@ def _ancestors(processes: list[tuple[int, int, str]], pid: int) -> set[int]:
     return chain
 
 
+def _executable(cmd: str) -> str:
+    """The program a command line runs: its first token, quoted or not."""
+    cmd = (cmd or "").strip()
+    if cmd.startswith('"'):
+        return cmd[1:].split('"', 1)[0]
+    return cmd.split(" ", 1)[0]
+
+
+def _subtree(processes: list[tuple[int, int, str]], pid: int) -> set[int]:
+    children: dict[int, list[int]] = {}
+    for p, pp, _ in processes:
+        children.setdefault(pp, []).append(p)
+    seen, todo = set(), [pid]
+    while todo:
+        p = todo.pop()
+        if p not in seen:
+            seen.add(p)
+            todo += children.get(p, [])
+    return seen
+
+
 def isaac_gate(processes: list[tuple[int, int, str]], *, own_pid: int, free_mib: int | None,
-               min_free_mib: int = MIN_FREE_MIB) -> tuple[bool, dict]:
-    """May this eval run? Only if no *other* python process runs from Isaac (command line contains 'isaac') and
-    nvidia-smi reports enough free memory. `processes` is [(pid, parent pid, command line)] of python.exe
-    processes; this process and its ancestors (venv launchers, the eval_cells driver) don't count as other."""
+               min_free_mib: int = MIN_FREE_MIB, gpu_pids: set[int] | None = None) -> tuple[bool, dict]:
+    """May this eval run? Only if no *other* python process runs from Isaac (its executable's path contains
+    'isaac') and nvidia-smi reports enough free memory. `processes` is [(pid, parent pid, command line)] of
+    python.exe processes; this process and its ancestors (venv launchers, the eval_cells driver) don't count as
+    other. Only the executable counts: a C:\dev\gpu.lock wrapper from another venv that waits with an Isaac
+    command in its arguments is not Isaac (counting it deadlocked the lock holder, 2026-10-18); its Isaac child is.
+    gpu_pids (nvidia-smi's process list, gpu_pids()): an Isaac python then counts only if it or a process under it
+    holds a GPU context, so a lock wrapper run from Isaac's own python that is still waiting for the lock is
+    listed as idle_isaac, not as a reason to wait. None keeps the plain rule."""
     mine = _ancestors(processes, own_pid)
-    others = [{"pid": pid, "cmd": cmd[:200]} for pid, _, cmd in processes
-              if pid not in mine and "isaac" in (cmd or "").lower()]
+    isaac = [(pid, cmd) for pid, _, cmd in processes if pid not in mine and "isaac" in _executable(cmd).lower()]
+    idle = []
+    if gpu_pids is not None:
+        idle = [(pid, cmd) for pid, cmd in isaac if not _subtree(processes, pid) & set(gpu_pids)]
+    others = [{"pid": pid, "cmd": cmd[:200]} for pid, cmd in isaac if (pid, cmd) not in idle]
     reasons = []
     if others:
         reasons.append("another Isaac process is running: " + "; ".join(f"{o['pid']} {o['cmd']}" for o in others))
@@ -59,8 +88,22 @@ def isaac_gate(processes: list[tuple[int, int, str]], *, own_pid: int, free_mib:
         reasons.append("nvidia-smi gave no free-memory reading")
     elif free_mib < min_free_mib:
         reasons.append(f"GPU has {free_mib} MiB free, need >= {min_free_mib}")
-    return not reasons, {"other_isaac": others, "free_mib": free_mib, "min_free_mib": min_free_mib,
-                         "ok": not reasons, "reason": " | ".join(reasons) or None}
+    return not reasons, {"other_isaac": others, "idle_isaac": [{"pid": pid, "cmd": cmd[:200]} for pid, cmd in idle],
+                         "free_mib": free_mib, "min_free_mib": min_free_mib, "ok": not reasons,
+                         "reason": " | ".join(reasons) or None}
+
+
+def gpu_pids() -> set[int] | None:
+    """PIDs with a GPU context (nvidia-smi --query-compute-apps; on Windows that includes graphics contexts), or
+    None when nvidia-smi gives no answer."""
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-compute-apps=pid", "--format=csv,noheader"],
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return {int(t) for t in out.stdout.split() if t.strip().isdigit()}
 
 
 def python_processes() -> list[tuple[int, int, str]]:

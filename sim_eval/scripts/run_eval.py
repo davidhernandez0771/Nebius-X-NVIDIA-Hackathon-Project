@@ -70,6 +70,7 @@ from sim_eval.report import (  # noqa: E402
     default_results_path,
     episode_log_path,
     group_summaries,
+    gpu_pids,
     isaac_gate,
     preflight,
     python_processes,
@@ -142,7 +143,7 @@ def main() -> None:
     else:
         print(f"[eval] start pose: default (start-state check unavailable: {start_check['reason']})", flush=True)
     free_mib = VramPoller.read_free_mib()
-    gate_ok, gate = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib)
+    gate_ok, gate = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib, gpu_pids=gpu_pids())
     print(f"[eval] Isaac gate: {'ok' if gate_ok else 'REFUSED'}; other Isaac processes {gate['other_isaac']}; "
           f"GPU free {free_mib} MiB (need >= {gate['min_free_mib']})", flush=True)
     if not gate_ok:
