@@ -133,7 +133,7 @@ def test_dry_run_writes_nothing_and_reports_invalid_cells(grid_file, tmp_path, c
 
 def test_budget_is_enforced_before_any_work(grid_file):
     with pytest.raises(SystemExit):
-        main(["--grid", str(grid_file), "--steps", "30001", "--dry-run"])
+        main(["--grid", str(grid_file), "--steps", "60001", "--dry-run"])
     with pytest.raises(SystemExit):
         main(["--grid", str(grid_file), "--steps", "1000", "--save-freq", "0", "--dry-run"])
 
@@ -175,3 +175,8 @@ def test_real_two_cell_grid_200_steps(tmp_path):
         assert Path(r["checkpoint"]).joinpath("model.safetensors").is_file()
         assert math.isfinite(r["final_loss"]) and r["train_time_s"] > 0 and r["eval_success"] is None
     print("\nT3 tiny grid:", json.dumps([{k: r[k] for k in ("cell", "train_time_s", "final_loss")} for r in rows]))
+
+
+def test_grasp_fix_run2_budget_allows_60k_steps(grid_file, capsys):
+    assert main(["--grid", str(grid_file), "--steps", "60000", "--save-freq", "5000", "--dry-run"]) == 0
+    assert json.loads(capsys.readouterr().out)["steps"] == 60000

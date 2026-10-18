@@ -113,10 +113,12 @@ def stop_server(proc: subprocess.Popen) -> None:
 
 
 def run_eval_command(*, python: str, port: int, n: int, seed0: int, cell: str, out: Path, registry: Path | None,
-                     start_state: Path | None = None, start_pose: str | None = None) -> list[str]:
+                     start_state: Path | None = None, start_pose: str | None = None, trace: bool = False
+                     ) -> list[str]:
     """The run_eval.py command line for one cell. Isaac Lab 3.0 runs headless by default (no --headless flag).
     registry None: --no-registry (a checkpoint with no row of its own must not overwrite another row's result).
-    start_state / start_pose: one shared start for every cell (default: each cell's own registry dataset, auto)."""
+    start_state / start_pose: one shared start for every cell (default: each cell's own registry dataset, auto).
+    trace: keep per-step traces of every episode (run_eval --trace)."""
     cmd = [python, str(REPO / "sim_eval/scripts/run_eval.py"), "--checkpoint-url", f"http://127.0.0.1:{port}",
            "--n", str(n), "--seed0", str(seed0), "--cell", cell, "--cameras", "--out", str(out), "--resume"]
     cmd += ["--no-registry"] if registry is None else ["--registry", str(registry)]
@@ -124,6 +126,8 @@ def run_eval_command(*, python: str, port: int, n: int, seed0: int, cell: str, o
         cmd += ["--start-state", str(start_state)]
     if start_pose is not None:
         cmd += ["--start-pose", start_pose]
+    if trace:
+        cmd += ["--trace"]
     return cmd
 
 
@@ -170,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="one start_state.json / dataset root for every cell (default: each cell's own dataset)")
     p.add_argument("--start-pose", choices=("auto", "default", "dataset"), default=None)
     p.add_argument("--cells", nargs="*", default=None, help="only these cells of the run")
+    p.add_argument("--trace", action="store_true", help="keep per-step traces (run_eval --trace)")
     p.add_argument("--checkpoint", action="append", default=[], metavar="CELL=PATH",
                    help="evaluate this checkpoint as CELL instead of the run's registry rows (registry untouched); "
                         "results go to DATA_DIR/evals/<run_id>/<CELL>.json; repeatable")
@@ -202,7 +207,8 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 cmd = run_eval_command(python=sys.executable, port=args.port, n=args.n, seed0=args.seed0,
                                        cell=cell, out=out, registry=registry if write_registry else None,
-                                       start_state=args.start_state, start_pose=args.start_pose)
+                                       start_state=args.start_state, start_pose=args.start_pose,
+                                       trace=args.trace)
                 log(f"{cell}: {' '.join(cmd)}")
                 with (out_dir / f"{cell}.eval.log").open("a", encoding="utf-8") as f:
                     rc = subprocess.run(cmd, cwd=REPO, stdout=f, stderr=subprocess.STDOUT).returncode

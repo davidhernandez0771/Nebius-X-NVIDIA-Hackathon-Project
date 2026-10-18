@@ -95,9 +95,12 @@ def _session(record_cameras: bool, robot_name: str = "franka") -> _Session:
     return _SESSION
 
 
-def _place_scene(s: _Session, scene_spec: Scene) -> None:
-    place_scene(s.scene, scene_spec, aim_front_camera=s.cameras)
+def _place_scene(s: _Session, scene_spec: Scene, joint_pos=None) -> None:
+    place_scene(s.scene, scene_spec, aim_front_camera=s.cameras, joint_pos=joint_pos)
     s.ik.reset()
+    if joint_pos is not None:  # hold the restored pose until the pre-roll commands its own targets
+        q = torch.tensor(np.asarray(joint_pos, dtype=np.float32).reshape(1, -1), device=s.sim.device)
+        s.scene["robot"].set_joint_position_target_index(target=q)
 
 
 def _hand_target(s: _Session, tcp_pos: np.ndarray, quat_wxyz) -> torch.Tensor:
@@ -181,15 +184,18 @@ def replay(
     tracking: TrackingOptions | None = None,
     stats: dict | None = None,
     robot: str | None = None,
+    start_joint_pos=None,
 ) -> tuple[VerificationResult, SimSignals]:
     """Replay and verify. If `stats` is given it is filled with tracking errors (mm), the gate's hold
     steps, "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
     change), and the recorded "joint_pos" [steps, joints] with their "joint_names". SimSignals and the
     episode follow the executed trajectory. `robot` runs another robot than scene.robot in the scene
-    (an uploaded one: the scene then only says whose workspace it is)."""
+    (an uploaded one: the scene then only says whose workspace it is).
+    start_joint_pos: all joints to start from instead of the default pose (a recovery state, sim_worker.recovery);
+    the pre-roll then only settles onto traj's first pose, which should be the TCP pose of those joints."""
     opts = tracking or TrackingOptions()
     s = _session(record_cameras, robot or scene.robot)
-    _place_scene(s, scene)
+    _place_scene(s, scene, start_joint_pos)
     arr = traj.to_arrays()
     n = len(arr["t"])
 
