@@ -19,6 +19,7 @@ import {
   type ReportCard,
   type ReportResponse,
   type RolesBody,
+  type RobotSummary,
   type RolesResult,
   type UploadResult,
 } from "./types";
@@ -29,6 +30,10 @@ export type Sample = "franka" | "openarm";
 
 export type ByorClient = {
   mode: "live" | "fixture";
+  /** The robots the backend already has (live) or the two samples (fixtures), newest first. */
+  list(): Promise<RobotSummary[]>;
+  /** The roles the robot was last evaluated with (from its card), or null. */
+  savedRoles(id: string): Promise<RolesBody | null>;
   upload(file: File): Promise<UploadResult>;
   parts(id: string): Promise<Parts>;
   putRoles(id: string, body: RolesBody): Promise<RolesResult>;
@@ -72,6 +77,8 @@ export function liveClient(base: string = API_BASE): ByorClient {
   });
   return {
     mode: "live",
+    list: () => call<RobotSummary[]>("/robots", undefined, 1),
+    savedRoles: async (id) => (await call<ReportResponse>(`/robots/${id}/report`, undefined, 1)).report?.roles ?? null,
     upload(file) {
       const form = new FormData();
       form.append("file", file);
@@ -84,19 +91,37 @@ export function liveClient(base: string = API_BASE): ByorClient {
   };
 }
 
-/** Live if GET /robots answers within the timeout, else the fixtures. `?fixture=1` forces the fixtures. */
-export async function pickClient(base: string = API_BASE, timeoutMs = 1500): Promise<ByorClient> {
+/** Does T2's backend answer GET /robots within the timeout? */
+export async function backendUp(base: string = API_BASE, timeoutMs = 1500): Promise<boolean> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${base}/robots`, { signal: ctrl.signal });
-    if (res.ok) return liveClient(base);
+    return (await fetch(`${base}/robots`, { signal: ctrl.signal })).ok;
   } catch {
-    /* fall through */
+    return false;
   } finally {
     clearTimeout(timer);
   }
-  return fixtureClient();
+}
+
+/** T2's backend when it answers; the sample data only when it doesn't. `?fixture=1` forces the samples. */
+export async function pickClient(base: string = API_BASE, timeoutMs = 1500): Promise<ByorClient> {
+  return (await backendUp(base, timeoutMs)) ? liveClient(base) : fixtureClient();
+}
+
+/** A robot opened from the list has no upload response: rebuild the fields the page shows from its summary and parts. */
+export function asUpload(summary: Pick<RobotSummary, "id" | "name">, parts: Pick<Parts, "links" | "joints">): UploadResult {
+  return {
+    id: summary.id,
+    name: summary.name,
+    created: false,
+    urdf: "",
+    sha256: "",
+    n_links: parts.links.length,
+    n_joints: parts.joints.length,
+    issues: [],
+    parts: `/robots/${summary.id}/parts`,
+  };
 }
 
 // --- fixtures --------------------------------------------------------------------------------------------------
@@ -138,6 +163,23 @@ export function fixtureClient({ now = () => Date.now(), runMs = 9000 }: { now?: 
 
   const client = {
     mode: "fixture" as const,
+    async list(): Promise<RobotSummary[]> {
+      return (["openarm", "franka"] as Sample[]).map((k) => {
+        const { upload, report } = RECORDED[k];
+        const pp = report.pick_place.successes;
+        return {
+          id: upload.id,
+          name: upload.name,
+          uploaded_at: "2026-10-18",
+          roles_set: true,
+          report_status: "none",
+          headline: { pick_place: `${pp.value}/${pp.of}`, reach: report.reach_map.fraction.value },
+        };
+      });
+    },
+    async savedRoles(id: string): Promise<RolesBody | null> {
+      return byId(id).roles.roles;
+    },
     async sample(key: Sample): Promise<UploadResult> {
       return { ...RECORDED[key].upload, created: false };
     },
@@ -148,7 +190,7 @@ export function fixtureClient({ now = () => Date.now(), runMs = 9000 }: { now?: 
         throw new ByorError(503, [
           issue(
             "fixture_unknown",
-            `The backend isn't running, and the recorded robots are the Franka and the OpenArm only (this URDF is "${name || "unnamed"}"). Start the backend to set up this robot.`,
+            `The backend isn't running, and the sample data has the Franka and the OpenArm only (this URDF is "${name || "unnamed"}"). Start the backend to set up this robot.`,
             "file",
           ),
         ]);
@@ -167,7 +209,7 @@ export function fixtureClient({ now = () => Date.now(), runMs = 9000 }: { now?: 
       const note: Issue = {
         code: "fixture_roles",
         severity: "warning",
-        message: "Recorded data: the report card is the run with the suggested roles, not these.",
+        message: "Sample data: the report card is the recorded run with the suggested roles, not these.",
         where: null,
       };
       return { ...rec.roles, roles: { ...rec.roles.roles, ...body }, issues: [...rec.roles.issues, note] };

@@ -33,15 +33,23 @@ function page() {
 const row = (name: string) => document.querySelector<HTMLElement>(`[data-part="${name}"], [data-joint="${name}"]`)!;
 
 describe("SetupPage", () => {
-  it("starts with the upload zone and says it runs on recorded data", async () => {
+  it("starts with the upload zone and, without the backend, the samples under a Sample data tag", async () => {
     page();
     expect(await screen.findByText("Drop your robot's URDF here")).toBeTruthy();
-    expect(await screen.findByText(/isn't answering, so this page runs on recorded data/)).toBeTruthy();
+    expect(await screen.findByText(/isn't running, so this page shows T2's recorded runs/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sample robots" })).toBeTruthy();
+    expect(screen.getAllByText("Sample data").length).toBeGreaterThanOrEqual(3); // nav, banner, list
+  });
+
+  it("tags an open sample robot and its card as sample data", async () => {
+    page();
+    fireEvent.click(await screen.findByRole("button", { name: /^openarm/ }));
+    expect(await screen.findByRole("button", { name: /Sample data: T2's recorded run, not your robot/ })).toBeTruthy();
   });
 
   it("opens a recorded robot with the suggested roles pre-filled", async () => {
     page();
-    fireEvent.click(await screen.findByRole("button", { name: "OpenArm" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^openarm/ }));
     expect(await screen.findByRole("heading", { name: "openarm" })).toBeTruthy();
     expect(within(row("openarm_link0")).getByText("Base")).toBeTruthy();
     expect(within(row("openarm_joint6")).getByText("Arm")).toBeTruthy();
@@ -53,7 +61,7 @@ describe("SetupPage", () => {
 
   it("removes a role from a part and shows the backend's code for the problem", async () => {
     page();
-    fireEvent.click(await screen.findByRole("button", { name: "Franka" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^panda/ }));
     await screen.findByRole("heading", { name: "panda" });
     for (const j of ["panda_joint5", "panda_joint6", "panda_joint7"])
       fireEvent.click(screen.getByRole("button", { name: `Remove ${j} from Arm` }));
@@ -62,7 +70,7 @@ describe("SetupPage", () => {
 
   it("wires a role from the keyboard: arm the socket, pick parts, Escape", async () => {
     page();
-    fireEvent.click(await screen.findByRole("button", { name: "Franka" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^panda/ }));
     await screen.findByRole("heading", { name: "panda" });
     fireEvent.click(screen.getByRole("button", { name: "Remove panda_hand from Hand" }));
     const socket = document.querySelector<HTMLElement>('[data-socket="hand"]')!;
@@ -82,7 +90,7 @@ describe("SetupPage", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       page();
-      fireEvent.click(await screen.findByRole("button", { name: "OpenArm" }));
+      fireEvent.click(await screen.findByRole("button", { name: /^openarm/ }));
       await screen.findByRole("heading", { name: "openarm" });
       fireEvent.click(screen.getAllByRole("button", { name: "Run report card" })[0]);
       await act(() => vi.advanceTimersByTimeAsync(1200));

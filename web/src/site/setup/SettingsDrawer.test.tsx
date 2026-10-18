@@ -12,7 +12,7 @@ describe("SettingsDrawer", () => {
     render(<SettingsDrawer open={false} onClose={() => {}} robot={robot} mount={[0.2, 0, 0.25]} onMount={() => {}} recorded report={null} />);
     expect((screen.getByLabelText("z (m)") as HTMLInputElement).value).toBe("0.25");
     expect(screen.getByText(/link openarm_ee_tcp: a fixed child of the hand/)).toBeTruthy();
-    expect(screen.getByText(/^Recorded data: the backend/)).toBeTruthy();
+    expect(screen.getByText(/^Sample data: the backend/)).toBeTruthy();
   });
 
   it("lists every source on the card, including that it is recorded data", () => {

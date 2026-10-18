@@ -15,7 +15,7 @@ or rebased. Built against T2's contract `C:\dev\pm-t2\docs\design\byor-api.md`.
 
 | `08272a3` | Fits the window: no page scroll and no scrolling panels at 1280x720, 1440x900, 1920x1080 (below) |
 
-Tests: `npm --prefix web test` **49 files, 532 passed, 0 failed** (77 of them in `web/src/site/setup/`).
+Tests: `npm --prefix web test` **50 files, 541 passed, 0 failed** (86 of them in `web/src/site/setup/`).
 `uv run pytest -q`: 1490 passed, 18 skipped, 0 failed (run before the fit change, which touched no Python).
 `tsc` clean; `npm --prefix web run build` passes. The main bundle is unchanged (457.7 kB). The page is a lazy
 chunk, and the 3D view another (urdf-loader plus three's STL/DAE/OBJ loaders).
@@ -47,11 +47,39 @@ each size were taken; the 1920x1080 one is drawn at 0.85 so it fits the screen, 
 fixed at the bottom right, from `App.tsx`) sit over the bottom-right corner of every app page. On this page they
 cover the end of the joint-limits table at 1280x720. Moving them into the nav would free that corner on every page.
 
+## On T2's real backend (the default; fixtures only as a fallback)
+
+- **The page runs on T2's backend** (`http://localhost:8000`, `VITE_API_BASE_URL`). On load it tries `GET /robots`
+  (1.5 s). The upload screen lists the robots the backend already has (newest first, up to 5, the rest counted), so
+  one can be opened without re-uploading. A stored robot opens with the roles and mount of its last card; the
+  contract has no `GET` for roles, so a robot that was never evaluated opens with the suggested roles.
+- **Sample data only when the backend isn't running.** Then the list holds the two recorded samples, and a violet
+  "Sample data" tag shows in the nav, the banner, the list, the robot line and the report card. The page looks for
+  the backend every 10 s and switches to it while no robot is open. `?fixture=1` forces the samples.
+- **A quick-check card** (n < 30, like T2's 2/2 Franka smoke card) says "the headline is only comparable at 30".
+- **Run blocked:** a 409 from `POST /evaluate` leads with plain words (`sim_busy`: "The simulator is busy with
+  another run…"), with T2's message under it.
+- **Checked against T2's unmodified app** (uvicorn on :8000; `DATA_DIR` = a throwaway copy of their stored Franka
+  robot; `ISAAC_PYTHON` pointed at a path that doesn't exist, so nothing could start Isaac; my dev server on 5173,
+  the origin their CORS allows):
+  - the list showed their robot (panda, 2/2, card ready); opening it showed their real 2/2 card with the
+    quick-check note;
+  - uploading T2's OpenArm zip went through for real: `POST /robots` 201 → parts → `PUT /roles` 200 →
+    `POST /evaluate` **409 `sim_busy`**, because T4's sim worker was running and holds `C:\dev\gpu.lock`. That's
+    the backend's own guard working; no Isaac run was started;
+  - with the backend stopped, the page fell back to Sample data; started again, it switched to "Backend
+    connected" by itself about 8 s later;
+  - fit-the-window at 1280x720, 1440x900 and 1920x1080 in every live state (list, roles, the blocked run, the
+    card, both drawer tabs) and in the sample states: all fit, no Sample tag in any live state.
+- **Still not run:** a full 30-scene BYOR evaluate on the page. It needs the GPU (T4, then T3 held the lock all day)
+  and T2's first full runs. `RESULTS_PLACEHOLDER` in T2's note is still empty.
+- **Requests for T2:** a `GET /robots/{id}/roles` (or roles in `GET /robots/{id}`) would let a robot that was never
+  evaluated reopen with its saved roles. Meshes served for the browser (e.g. `GET /robots/{id}/files/...`) would let
+  a stored robot show solid in 3D; today it is a stick figure unless the zip is dropped again.
+
 ## How it works
 
-- **Backend or fixtures.** On load the page tries `GET /robots` (1.5 s). If that answers, it is "Backend connected".
-  If not, it runs on recorded data and says so in a banner. `?fixture=1` forces the fixtures. The OpenArm and
-  Franka buttons always open the recorded robots.
+- **Backend or sample data:** see above.
 - **Upload:** drop or pick a `.urdf` or `.zip`. The zip is also read in the browser (`zip.ts`, the platform's
   `DecompressionStream`, no dependency) so the 3D view can load its meshes. `package://` and relative paths use the
   backend's rules (`urdfFiles.ts`).

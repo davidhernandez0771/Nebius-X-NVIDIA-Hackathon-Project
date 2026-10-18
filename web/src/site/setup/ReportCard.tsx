@@ -27,6 +27,9 @@ export function ReportCard({ report, parts, onSources }: { report: Card; parts: 
   const limits = limitsByJoint(report);
   const shown = [...limits.filter((l) => l.joint === flaw?.joint), ...limits.filter((l) => l.joint !== flaw?.joint)].slice(0, LIMIT_ROWS);
   const range = (joint: string) => parts.joints.find((j) => j.name === joint)?.limits;
+  const sample = typeof report.provenance.fixture === "string";
+  // the contract: n may be 1-30 for a quick check, and the headline is only comparable at 30
+  const quick = n < 30;
 
   return (
     <article className="byor-card" aria-labelledby="byor-card-title">
@@ -35,6 +38,7 @@ export function ReportCard({ report, parts, onSources }: { report: Card; parts: 
           Report card
         </h2>
         <Badge tone={verdict === "ready" ? "live" : "issue"}>{verdictLabel(verdict)}</Badge>
+        {sample && <span className="byor-sample">Sample data</span>}
         <p className="byor-card__meta">
           <span>{report.task.text}</span>
           <span className="sant-num">
@@ -61,6 +65,7 @@ export function ReportCard({ report, parts, onSources }: { report: Card; parts: 
             </span>
             <span className="byor-score__label">scenes done</span>
           </p>
+          {quick && <p className="byor-block__note byor-quick">A quick check of {n} scenes. The headline is only comparable at 30.</p>}
           <ol className="byor-strip" aria-label={`${ok} of ${n} scenes done`}>
             {report.scenes.rows.map((s, i) => (
               <li

@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { GlyphLoader } from "../../sant/components/GlyphLoader";
-import { overallProgress, stageLabel } from "./report";
+import { overallProgress, runBlocked, stageLabel } from "./report";
 import { ReportCard } from "./ReportCard";
 import type { Parts } from "./types";
 import type { RunState } from "./useRun";
@@ -28,14 +28,14 @@ export function RunPanel({ state, parts, recorded, onSources }: { state: RunStat
           </ol>
           <p className="byor-progress__note">
             {recorded
-              ? "Replaying the recorded run. A real run of 30 scenes takes about 7 minutes for the Franka."
+              ? "Sample data: replaying T2's recorded run. A real run of 30 scenes takes about 7 minutes for the Franka."
               : "30 scenes in Isaac Sim, one at a time: about 7 minutes for the Franka. You can leave this page; the run keeps going."}
           </p>
         </div>
       )}
       {state.phase === "failed" && (
         <p className="byor-run__error" role="alert">
-          The run didn't finish: {state.error}
+          {runBlocked(state.note) ?? "The run didn't finish."} <span className="byor-run__detail">{state.error}</span>
         </p>
       )}
       {state.report && !running ? (

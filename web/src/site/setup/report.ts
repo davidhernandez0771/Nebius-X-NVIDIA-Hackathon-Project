@@ -1,6 +1,6 @@
 // Reading the report card (byor-api.md §6): failure reasons, the reach map, the run's progress, and the one rule
 // this page adds on top of the card, "design flaw found".
-import type { Parts, ReportCard, ReportResponse } from "./types";
+import type { Issue, Parts, ReportCard, ReportResponse } from "./types";
 
 const REASON_LABEL: Record<string, string> = {
   unreachable: "Couldn't follow the path",
@@ -116,6 +116,18 @@ export function designFlaw(report: ReportCard, parts: Parts): DesignFlaw | null 
 
 export function verdictLabel(v: ReportCard["verdict"]["value"]): string {
   return v === "ready" ? "Ready" : v === "partial" ? "Partly works" : "Not ready";
+}
+
+const BLOCKED: Record<string, string> = {
+  sim_busy: "The simulator is busy with another run: only one Isaac process runs at a time. Try again when it finishes.",
+  roles_missing: "Save the roles first.",
+  roles_invalid: "The saved roles no longer check out. Fix the problems on the roles and run again.",
+};
+
+/** The 409s from POST /evaluate (byor-api.md §5), in plain words; null for anything else. */
+export function runBlocked(errors: Issue[]): string | null {
+  for (const e of errors) if (BLOCKED[e.code]) return BLOCKED[e.code];
+  return null;
 }
 
 type Progress = ReportResponse["progress"];

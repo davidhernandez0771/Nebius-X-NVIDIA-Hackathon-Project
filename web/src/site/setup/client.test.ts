@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fixtureClient, liveClient, pickClient } from "./client";
+import { asUpload, fixtureClient, liveClient, pickClient } from "./client";
 import { fromSuggested } from "./roles";
 import { ByorError } from "./types";
 
@@ -33,6 +33,37 @@ describe("liveClient", () => {
   });
 });
 
+describe("liveClient, the robots already on the backend", () => {
+  const summary = {
+    id: "byor_3292d47ab6",
+    name: "panda",
+    uploaded_at: "2026-10-18T17:33:00Z",
+    roles_set: true,
+    report_status: "done",
+    headline: { pick_place: "2/2", reach: 1 },
+  };
+
+  it("lists them with GET /robots", async () => {
+    const fetch = vi.fn(async () => json(200, [summary]));
+    vi.stubGlobal("fetch", fetch);
+    expect(await liveClient("http://x").list()).toEqual([summary]);
+    expect(fetch).toHaveBeenCalledWith("http://x/robots", undefined);
+  });
+
+  it("reads the saved roles from the last card, or none", async () => {
+    const roles = { base: "panda_link0", arm_joints: ["j1"], hand: "panda_hand", gripper_joints: ["f1"], mount: { pos: [0, 0, 0] } };
+    vi.stubGlobal("fetch", vi.fn(async () => json(200, { status: "done", progress: null, report: { roles }, error: null })));
+    expect(await liveClient("http://x").savedRoles("byor_1")).toEqual(roles);
+    vi.stubGlobal("fetch", vi.fn(async () => json(200, { status: "none", progress: null, report: null, error: null })));
+    expect(await liveClient("http://x").savedRoles("byor_1")).toBeNull();
+  });
+
+  it("turns a listed robot and its parts into what the page opens", () => {
+    const parts = { links: [{}, {}, {}], joints: [{}, {}] } as never;
+    expect(asUpload(summary, parts)).toMatchObject({ id: "byor_3292d47ab6", name: "panda", created: false, n_links: 3, n_joints: 2, urdf: "" });
+  });
+});
+
 describe("pickClient", () => {
   it("uses the live backend when GET /robots answers", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json(200, [])));
@@ -46,6 +77,16 @@ describe("pickClient", () => {
 });
 
 describe("fixtureClient", () => {
+  it("lists the two samples with their recorded headlines, and their saved roles", async () => {
+    const c = fixtureClient();
+    const list = await c.list();
+    expect(list.map((r) => [r.name, r.headline?.pick_place])).toEqual([
+      ["openarm", "0/30"],
+      ["panda", "30/30"],
+    ]);
+    expect((await c.savedRoles("byor_790916a678"))?.mount).toEqual({ pos: [0.2, 0, 0.25] });
+  });
+
   it("recognizes the recorded robots by the URDF's robot name", async () => {
     const c = fixtureClient();
     const file = new File(['<robot name="openarm"><link name="a"/></robot>'], "openarm.urdf");

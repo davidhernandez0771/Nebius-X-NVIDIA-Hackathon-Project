@@ -31,9 +31,17 @@
 }
 
 .sant .byor-run__error {
+  display: grid;
+  gap: var(--sant-space-1);
   max-width: 80ch;
-  color: var(--sant-danger);
+  color: var(--sant-issue);
   font-size: var(--sant-fs-small);
+}
+
+/* the backend's own words, under the plain ones */
+.byor-run__detail {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
 }
 
 /* ------------------------------------------------------- the report card */

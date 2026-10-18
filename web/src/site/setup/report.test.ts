@@ -3,7 +3,7 @@ import frankaParts from "./fixtures/franka.parts.json";
 import frankaReport from "./fixtures/franka.report.json";
 import openarmParts from "./fixtures/openarm.parts.json";
 import openarmReport from "./fixtures/openarm.report.json";
-import { designFlaw, limitsByJoint, overallProgress, reachCells, reasons, stageLabel, verdictLabel } from "./report";
+import { designFlaw, limitsByJoint, overallProgress, reachCells, reasons, runBlocked, stageLabel, verdictLabel } from "./report";
 import type { Parts, ReportCard } from "./types";
 
 const oaParts = openarmParts as unknown as Parts;
@@ -70,6 +70,16 @@ describe("designFlaw", () => {
 
   it("finds none for a robot that is ready", () => {
     expect(designFlaw(panda, frankaParts as unknown as Parts)).toBeNull();
+  });
+});
+
+describe("runBlocked", () => {
+  it("says in plain words why the backend wouldn't start a run", () => {
+    expect(runBlocked([{ code: "sim_busy", severity: "error", message: "another Isaac process is running", where: null }])).toBe(
+      "The simulator is busy with another run: only one Isaac process runs at a time. Try again when it finishes.",
+    );
+    expect(runBlocked([{ code: "roles_missing", severity: "error", message: "", where: null }])).toBe("Save the roles first.");
+    expect(runBlocked([{ code: "http", severity: "error", message: "", where: null }])).toBeNull();
   });
 });
 

@@ -1,23 +1,20 @@
 import { useRef, useState, type DragEvent } from "react";
-import type { Sample } from "./client";
 import { UploadIcon } from "./icons";
 import type { Issue } from "./types";
 
 const ACCEPT = ".urdf,.zip";
 
 /**
- * The empty state: drop a URDF or a zip with its meshes, pick one, or open a recorded robot. The whole zone is the
- * drop target; the button is the keyboard and touch path.
+ * The empty state's upload: drop a URDF or a zip with its meshes, or pick one. The whole zone is the drop target; the
+ * button is the keyboard and touch path. (Robots to open without uploading are in RobotList, beside it.)
  */
 export function UploadZone({
   onFile,
-  onSample,
   busy,
   errors,
   compact = false,
 }: {
   onFile: (file: File) => void;
-  onSample: (s: Sample) => void;
   busy: boolean;
   errors: Issue[];
   compact?: boolean;
@@ -60,13 +57,6 @@ export function UploadZone({
       <div className="byor-drop__actions">
         <button type="button" className="sant-btn sant-btn--primary sant-btn--md" disabled={busy} onClick={() => input.current?.click()}>
           Choose a file
-        </button>
-        <span className="byor-drop__or">or open a recorded robot</span>
-        <button type="button" className="sant-btn sant-btn--secondary sant-btn--md" disabled={busy} onClick={() => onSample("openarm")}>
-          OpenArm
-        </button>
-        <button type="button" className="sant-btn sant-btn--secondary sant-btn--md" disabled={busy} onClick={() => onSample("franka")}>
-          Franka
         </button>
       </div>
       <input

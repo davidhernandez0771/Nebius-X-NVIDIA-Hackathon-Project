@@ -1,13 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppShell } from "../../sant/shells/AppShell";
-import { API_BASE, fixtureClient, pickClient, RECORDED, type ByorClient, type Sample } from "./client";
+import { API_BASE, asUpload, backendUp, fixtureClient, liveClient, pickClient, RECORDED, type ByorClient } from "./client";
 import { SlidersIcon, WarnIcon } from "./icons";
 import { fromSuggested, localIssues } from "./roles";
+import { RobotList } from "./RobotList";
 import { RoleBoard } from "./RoleBoard";
 import { RunPanel } from "./RunPanel";
 import { SettingsDrawer } from "./SettingsDrawer";
-import { ByorError, type Issue, type Parts, type RoleSet, type UploadResult } from "./types";
+import { ByorError, type Issue, type Parts, type RobotSummary, type RoleSet, type RolesBody, type UploadResult } from "./types";
 import { UploadZone } from "./UploadZone";
 import { useRun } from "./useRun";
 import "./setup.css";
@@ -23,12 +24,18 @@ const NAV = [
   { to: "/robots/setup", label: "Robot setup" },
 ];
 
+/** How often the page looks for T2's backend while it shows sample data. */
+const REPROBE_MS = 10_000;
+
+const savedSet = (r: RolesBody): RoleSet => ({ base: r.base, arm_joints: r.arm_joints, hand: r.hand, gripper_joints: r.gripper_joints });
+
 const asIssues = (e: unknown): Issue[] =>
   e instanceof ByorError ? e.errors : [{ code: "error", severity: "error", message: String((e as Error)?.message ?? e), where: null }];
 
 /**
- * Robot setup, one screen with no page scroll: upload, then two views of the robot, "Parts and roles" (the tree and
- * the 3D view) and "Report card". Rarely used settings (the mount, derived facts, every source) sit in a drawer.
+ * Robot setup, one screen with no page scroll: upload (or open a robot T2's backend already has), then two views of
+ * the robot, "Parts and roles" (the tree and the 3D view) and "Report card". Rarely used settings (the mount, derived
+ * facts, every source) sit in a drawer. Runs on T2's backend; the sample data is only for when it isn't running.
  */
 export function SetupPage() {
   const [params] = useSearchParams();
@@ -43,6 +50,7 @@ export function SetupPage() {
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
   const [view, setView] = useState<View>("roles");
   const [drawer, setDrawer] = useState<"robot" | "sources" | null>(null);
+  const [robots, setRobots] = useState<RobotSummary[] | null>(null);
   const { state: runState, run } = useRun(robot, roles, mount, setServerIssues);
 
   useEffect(() => {
@@ -53,11 +61,35 @@ export function SetupPage() {
     };
   }, [forceFixture]);
 
-  const open = async (c: ByorClient, upload: UploadResult, file: File | null, sample?: Sample) => {
-    const parts = await c.parts(upload.id);
-    setRobot({ client: c, upload, parts, file });
-    setRoles(fromSuggested(parts));
-    setMount((sample && RECORDED[sample].roles.roles.mount?.pos) || [0, 0, 0]);
+  // The robots to open without uploading, fetched whenever the upload screen shows.
+  useEffect(() => {
+    if (!client || robot) return;
+    let live = true;
+    setRobots(null);
+    client.list().then(
+      (r) => live && setRobots(r),
+      () => live && setRobots([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [client, robot]);
+
+  // On sample data, keep looking for T2's backend, and switch to it while no robot is open.
+  useEffect(() => {
+    if (forceFixture || client?.mode !== "fixture" || robot) return;
+    const id = window.setInterval(async () => {
+      if (await backendUp()) setClient(liveClient());
+    }, REPROBE_MS);
+    return () => window.clearInterval(id);
+  }, [client, robot, forceFixture]);
+
+  /** Open a robot: its parts, and the roles and mount it was last evaluated with (a re-upload keeps them), else the suggestion. */
+  const open = async (c: ByorClient, id: string, toUpload: (parts: Parts) => UploadResult, file: File | null) => {
+    const [parts, saved] = await Promise.all([c.parts(id), c.savedRoles(id).catch(() => null)]);
+    setRobot({ client: c, upload: toUpload(parts), parts, file });
+    setRoles(saved ? savedSet(saved) : fromSuggested(parts));
+    setMount(saved?.mount?.pos ?? [0, 0, 0]);
     setServerIssues([]);
     setFocus(null);
     setView("roles");
@@ -77,12 +109,14 @@ export function SetupPage() {
 
   const onFile = (file: File) => load(async () => {
     if (!client) return;
-    await open(client, await client.upload(file), file);
+    const up = await client.upload(file);
+    await open(client, up.id, () => up, file);
   });
 
-  const onSample = (s: Sample) => load(async () => {
-    const c = fixtureClient();
-    await open(c, await c.sample(s), null, s);
+  const onOpen = (r: RobotSummary) => load(async () => {
+    if (!client) return;
+    const recorded = Object.values(RECORDED).find((x) => x.upload.id === r.id)?.upload;
+    await open(client, r.id, (parts) => (client.mode === "fixture" && recorded ? recorded : asUpload(r, parts)), null);
   });
 
   const issues = useMemo(() => {
@@ -92,7 +126,7 @@ export function SetupPage() {
     return [...local, ...[...robot.parts.issues, ...serverIssues].filter((i) => !seen.has(i.code))];
   }, [robot, roles, serverIssues]);
 
-  const recorded = robot ? robot.client.mode === "fixture" : client?.mode === "fixture";
+  const sample = robot ? robot.client.mode === "fixture" : client?.mode === "fixture";
   const running = runState.phase === "saving" || runState.phase === "running";
   const blocked = !roles || !robot || localIssues(roles, robot.parts).length > 0;
   const hasReport = running || runState.phase !== "idle" || runState.report !== null;
@@ -103,7 +137,7 @@ export function SetupPage() {
       active={null}
       home="/"
       links={NAV}
-      status={client ? <span className="byor-mode" data-mode={client.mode}>{client.mode === "live" ? "Backend connected" : "Recorded data"}</span> : null}
+      status={client ? <span className="byor-mode" data-mode={client.mode}>{client.mode === "live" ? "Backend connected" : "Sample data"}</span> : null}
       actions={
         robot ? (
           <>
@@ -147,17 +181,20 @@ export function SetupPage() {
       <div className="byor-page" data-view={robot ? view : "upload"}>
         {!robot || !roles ? (
           <div className="byor-start">
-            {recorded && (
+            {sample && (
               <p className="byor-banner" role="note">
-                The backend at {API_BASE} isn't answering, so this page runs on recorded data: T2's Franka (30/30) and OpenArm (0/30) runs. Start the
-                backend to set up a new robot.
+                <span className="byor-sample">Sample data</span> The backend at {API_BASE} isn't running, so this page shows T2's recorded runs. It
+                looks for the backend again every 10 seconds.
               </p>
             )}
-            <UploadZone onFile={onFile} onSample={onSample} busy={busy || !client} errors={uploadErrors} />
+            <div className="byor-start__row">
+              <UploadZone onFile={onFile} busy={busy || !client} errors={uploadErrors} />
+              <RobotList robots={client ? robots : null} sample={sample} busy={busy} onOpen={onOpen} />
+            </div>
           </div>
         ) : (
           <>
-            <RobotHead robot={robot} recorded={recorded} onDetails={() => setDrawer("robot")} />
+            <RobotHead robot={robot} sample={sample} onDetails={() => setDrawer("robot")} />
             {view === "roles" ? (
               <div className="byor-work">
                 <section className="byor-panel byor-panel--parts" aria-label="Parts and roles">
@@ -171,7 +208,7 @@ export function SetupPage() {
                 </section>
               </div>
             ) : (
-              <RunPanel state={runState} parts={robot.parts} recorded={recorded} onSources={() => setDrawer("sources")} />
+              <RunPanel state={runState} parts={robot.parts} recorded={sample} onSources={() => setDrawer("sources")} />
             )}
             <SettingsDrawer
               open={drawer !== null}
@@ -180,7 +217,7 @@ export function SetupPage() {
               robot={robot}
               mount={mount}
               onMount={setMount}
-              recorded={recorded}
+              recorded={sample}
               report={runState.report}
             />
           </>
@@ -190,19 +227,19 @@ export function SetupPage() {
   );
 }
 
-function RobotHead({ robot, recorded, onDetails }: { robot: Robot; recorded: boolean; onDetails: () => void }) {
+function RobotHead({ robot, sample, onDetails }: { robot: Robot; sample: boolean; onDetails: () => void }) {
   const { upload } = robot;
   return (
     <div className="byor-robot">
       <h2 className="byor-robot__name">{upload.name}</h2>
       <p className="byor-robot__meta">
-        <span>{robot.file?.name ?? upload.urdf}</span>
+        <span>{robot.file?.name ?? (upload.urdf || "stored on the backend")}</span>
         <span className="sant-num">{upload.n_links} links</span>
         <span className="sant-num">{upload.n_joints} joints</span>
       </p>
-      {recorded && (
-        <button type="button" className="byor-recorded" onClick={onDetails}>
-          Recorded data: T2's runs, not a new simulation
+      {sample && (
+        <button type="button" className="byor-sample byor-sample--button" onClick={onDetails}>
+          Sample data: T2's recorded run, not your robot
         </button>
       )}
     </div>

@@ -148,7 +148,7 @@ export function SettingsDrawer({
               </h3>
               <p className="byor-drawer__note">
                 {recorded
-                  ? `Recorded data: the backend at ${API_BASE} isn't answering, or you opened a recorded robot. Parts and roles are T2's real /robots responses; the report cards are T2's recorded Franka (30/30) and OpenArm (0/30) runs.`
+                  ? `Sample data: the backend at ${API_BASE} isn't running. Parts and roles are T2's real /robots responses; the report cards are T2's recorded Franka (30/30) and OpenArm (0/30) runs.`
                   : `Connected to the backend at ${API_BASE}.`}
               </p>
               <p className="byor-drawer__note sant-num">

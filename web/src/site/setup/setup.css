@@ -114,18 +114,129 @@
   margin-bottom: var(--sant-space-4);
 }
 
-.sant .byor-recorded {
-  margin-left: auto;
+/* "Sample data": wherever the page shows T2's recorded runs instead of the backend. Violet is the info tone. */
+.byor-sample {
+  display: inline-flex;
+  align-items: center;
   padding: 3px 10px;
   border-radius: var(--sant-radius-pill);
   background: var(--sant-violet-soft);
   color: var(--sant-violet);
   font-size: var(--sant-fs-caption);
   font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
-.sant .byor-recorded:hover:not(:disabled) {
+.sant .byor-sample--button {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: var(--sant-radius-pill);
+  background: var(--sant-violet-soft);
+  color: var(--sant-violet);
+}
+
+.sant .byor-sample--button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--sant-violet) 22%, var(--sant-violet-soft));
+}
+
+/* on the violet banner, the tag sits on the page ground so it still reads as a tag */
+.byor-banner .byor-sample {
+  margin-right: var(--sant-space-2);
+  background: var(--sant-bg);
+}
+
+/* ---------------------------------------------------- the upload screen */
+
+.byor-start__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+  gap: var(--sant-space-5);
+  align-items: start;
+  width: min(100%, 76rem);
+}
+
+.byor-list {
+  display: grid;
+  gap: var(--sant-space-3);
+}
+
+.byor-list__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sant-space-3);
+}
+
+.sant .byor-list__title {
+  font-size: var(--sant-fs-5);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.byor-list__rows {
+  display: grid;
+  gap: var(--sant-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant .byor-list__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--sant-space-3);
+  width: 100%;
+  padding: var(--sant-space-3) var(--sant-space-4);
+  border-radius: var(--sant-radius-md);
+  background: var(--sant-surface);
+  box-shadow: inset 0 0 0 1px var(--sant-line);
+  text-align: left;
+  transition:
+    background-color var(--sant-dur-2) var(--sant-ease-out),
+    box-shadow var(--sant-dur-2) var(--sant-ease-out);
+}
+
+.sant .byor-list__row:hover:not(:disabled) {
+  background: var(--sant-surface-2);
+  box-shadow: inset 0 0 0 1px var(--sant-control);
+}
+
+.sant .byor-list__row:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.byor-list__name {
+  font-family: var(--sant-font-data);
+  font-size: var(--sant-fs-small);
+  font-weight: 500;
+}
+
+.byor-list__score {
+  justify-self: end;
+  font-size: var(--sant-fs-small);
+}
+
+.byor-list__meta,
+.byor-list__status {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.byor-list__status {
+  justify-self: end;
+}
+
+.sant .byor-list__note {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+  text-wrap: pretty;
+}
+
+@media (max-width: 999px) {
+  .byor-start__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Parts and roles | Report card */
@@ -949,7 +1060,6 @@
   }
 
   .byor-start .byor-drop {
-    width: min(100%, 56rem);
     box-sizing: border-box;
   }
 

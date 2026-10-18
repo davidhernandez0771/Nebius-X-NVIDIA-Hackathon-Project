@@ -16,6 +16,16 @@ export type UploadResult = {
   parts: string;
 };
 
+/** `GET /robots` (newest first) and `GET /robots/{id}`: byor-api.md §2. */
+export type RobotSummary = {
+  id: string;
+  name: string;
+  uploaded_at: string;
+  roles_set: boolean;
+  report_status: "none" | "queued" | "running" | "done" | "failed";
+  headline: { pick_place: string; reach: number | null } | null;
+};
+
 export type JointType = "revolute" | "continuous" | "prismatic" | "fixed" | "floating" | "planar";
 
 export type PartLink = {

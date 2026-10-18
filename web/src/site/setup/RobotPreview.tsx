@@ -226,7 +226,7 @@ export default function RobotPreview({
 }
 
 function caption({ meshes, stick, from }: Loaded): string {
-  if (from === "parts") return "Stick figure: recorded robots come without meshes. Drop the robot's zip to see it solid.";
+  if (from === "parts") return "Stick figure, drawn from the parts: the backend keeps no meshes for the browser. Drop the robot's zip to see it solid.";
   if (stick && meshes.failed.length) return `Stick figure: ${meshes.failed.length} mesh files didn't load (first: ${meshes.failed[0]}).`;
   if (stick) return "Stick figure: this URDF has no geometry.";
   if (meshes.failed.length) return `${meshes.ok} meshes loaded, ${meshes.failed.length} didn't (first: ${meshes.failed[0]}).`;
