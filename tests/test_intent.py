@@ -192,3 +192,42 @@ def test_score_label_checks_colour_destination_and_both_boundaries():
     late = {**GOOD_LABEL, "steps": [*GOOD_LABEL["steps"][:3], {"name": "release", "frames": [180, 199]}]}
     s = score_label(parse_label(json.dumps(late), n_frames=200), color="green", destination="bin", events=(60, 150), fps=FPS)
     assert s == {"color": False, "destination": True, "task": False, "steps": False}  # 30 frames = 0.6 s off
+
+
+# --- the Review verdict card -----------------------------------------------------------------------
+
+from demo_pipeline.intent import review_verdict  # noqa: E402
+from demo_pipeline.schemas import VerificationResult  # noqa: E402
+
+PASSED = VerificationResult(success=True, reasons=[], duration=4.0, path_length=1.2, max_contact_force=0.0)
+FAILED = VerificationResult(success=False, reasons=["not_in_bin", "dropped"], duration=4.0, path_length=1.2, max_contact_force=0.0)
+
+
+def test_card_for_a_verified_copy_that_matches():
+    card = review_verdict(PASSED, label=parse_label(json.dumps(GOOD_LABEL), 200), verdict=parse_verdict(json.dumps(GOOD_VERDICT)))
+    assert card.physics.status == "verified" and card.physics.reasons == []
+    assert card.label.status == "ok" and card.label.task.startswith("pick up the red cube")
+    assert (card.match.status, card.match.reason) == ("yes", GOOD_VERDICT["reason"])
+    assert card.conflict is None
+
+
+def test_physics_decides_success_and_a_disagreement_is_flagged():
+    card = review_verdict(FAILED, label=None, verdict=parse_verdict(json.dumps(GOOD_VERDICT)))
+    assert card.physics.status == "failed" and card.physics.reasons == ["not_in_bin", "dropped"]
+    assert card.match.status == "not_checked"  # a failed copy is not kept, whatever the model says
+    assert "physics decides" in card.conflict
+    no = parse_verdict(json.dumps({**GOOD_VERDICT, "copy_completes": False, "matches": "no"}))
+    assert "physics decides" in review_verdict(PASSED, label=None, verdict=no).conflict
+
+
+def test_a_missing_reply_is_unavailable_not_a_no():
+    card = review_verdict(PASSED, label=None, verdict=None, label_error="no valid labeler reply", verdict_error="timeout")
+    assert (card.label.status, card.match.status) == ("unavailable", "unavailable")
+    assert card.match.reason == "timeout"
+    human = review_verdict(PASSED, label=parse_label(json.dumps(GOOD_LABEL), 200), verdict=None)
+    assert human.match.status == "not_checked"  # the human demo itself: nothing to compare with
+
+
+def test_the_card_never_carries_the_model_confidence():
+    card = review_verdict(PASSED, label=parse_label(json.dumps(GOOD_LABEL), 200), verdict=parse_verdict(json.dumps(GOOD_VERDICT)))
+    assert "confidence" not in json.dumps(card.model_dump())

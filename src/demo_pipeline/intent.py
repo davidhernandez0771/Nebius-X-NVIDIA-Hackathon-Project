@@ -24,7 +24,7 @@ from typing import Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from demo_pipeline.schemas import Trajectory
+from demo_pipeline.schemas import Trajectory, VerificationResult
 
 StepName = Literal["reach", "grasp", "carry", "release"]
 STEP_ORDER: tuple[str, ...] = ("reach", "grasp", "carry", "release")
@@ -359,3 +359,70 @@ def score_label(lab: Label, *, color: str, destination: str, events: tuple[int, 
         and abs(by_name["release"].frames[0] - events[1]) <= tol
     )
     return {"color": color_ok, "destination": dest_ok, "task": color_ok and dest_ok, "steps": steps_ok}
+
+
+# --- the Review verdict card (docs/design/nemotron-judge.md) ------------------------------------------
+
+
+class CardPhysics(_Model):
+    status: Literal["verified", "failed"]
+    reasons: list[str]  # the physics check's failure reasons; empty when verified
+
+
+class CardLabel(_Model):
+    status: Literal["ok", "unavailable"]
+    task: str | None = None
+    object: ObjectRef | None = None
+    destination: Destination | None = None
+    steps: list[Step] = Field(default_factory=list)
+    error: str | None = None
+
+
+class CardMatch(_Model):
+    status: Literal["yes", "no", "not_checked", "unavailable"]
+    checks: dict[str, bool] | None = None  # same_object, same_goal, same_order, copy_completes
+    reason: str | None = None
+
+
+class ReviewVerdict(_Model):
+    """The Review card: "Physics: verified / failed", "Nemotron label", "Matches". Physics decides success;
+    Nemotron's match is shown only for a copy that passed physics. The model's confidence is left out on
+    purpose: it was 0.95-0.98 on nearly every reply, wrong ones included (the 2026-10-18 test)."""
+
+    physics: CardPhysics
+    label: CardLabel
+    match: CardMatch
+    conflict: str | None = None  # set when Nemotron and physics disagree about the outcome
+
+
+def review_verdict(
+    physics: VerificationResult,
+    *,
+    label: Label | None,
+    verdict: Verdict | None,
+    label_error: str | None = None,
+    verdict_error: str | None = None,
+) -> ReviewVerdict:
+    """Compose the card. verdict is None for the human demo itself (nothing to compare: not_checked) or when
+    the call failed (pass verdict_error: unavailable)."""
+    card_physics = CardPhysics(status="verified" if physics.success else "failed", reasons=list(physics.reasons))
+    if label is not None:
+        card_label = CardLabel(status="ok", task=label.task, object=label.object, destination=label.destination, steps=label.steps)
+    else:
+        card_label = CardLabel(status="unavailable", error=label_error or "no label")
+
+    conflict = None
+    if verdict is not None and verdict.copy_completes != physics.success:
+        conflict = (
+            f"Nemotron says the copy {'completes' if verdict.copy_completes else 'does not complete'} the task, "
+            f"but the physics check {'passed' if physics.success else 'failed'}; physics decides."
+        )
+    if verdict is None:
+        status = "unavailable" if verdict_error else "not_checked"
+        card_match = CardMatch(status=status, reason=verdict_error)
+    elif not physics.success:
+        card_match = CardMatch(status="not_checked", reason="The physics check failed, so this copy is not kept.")
+    else:
+        checks = {k: getattr(verdict, k) for k in ("same_object", "same_goal", "same_order", "copy_completes")}
+        card_match = CardMatch(status=verdict.matches, checks=checks, reason=verdict.reason)
+    return ReviewVerdict(physics=card_physics, label=card_label, match=card_match, conflict=conflict)
