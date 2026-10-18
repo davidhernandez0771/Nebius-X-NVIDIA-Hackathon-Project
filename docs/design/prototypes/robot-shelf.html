@@ -1,0 +1,285 @@
+<title>SANT Robot Shelf</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter+Tight:wght@500;700;900&family=Inter:wght@400;600&display=swap">
+<style>
+/* Layout: a loose spiral of retro robot cartridges, close-up, glossy and grayscale (after the Bizarro cassette
+   portfolio). Picking a robot darkens the scene and a HUD locks on: tilted orbits with travelling dots, a title block,
+   crosshair boxes, coordinates and mosaic tiles in that robot's own colour. Single dark look by choice. */
+:root{
+  --void:#000; --ink:#ededea; --ink-2:#a2a29e; --ink-3:#5a5a57; --needle:#ff5a1f;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace; --sans:"Inter",system-ui,sans-serif; --heavy:"Inter Tight",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--void);color:var(--ink);font:11px/1.45 var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;display:flex}
+.stage{position:relative;flex:1;min-height:540px;overflow:hidden;background:#000}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#hud{pointer-events:none;z-index:2}
+.top{position:absolute;left:18px;right:18px;top:14px;display:flex;justify-content:space-between;color:var(--ink-2);z-index:3;pointer-events:none}
+.mark{font:900 13px var(--heavy);letter-spacing:.06em;color:var(--ink)}
+.list{position:absolute;left:18px;top:50%;transform:translateY(-50%);z-index:3;display:grid;gap:2px}
+.list button{all:unset;cursor:pointer;color:var(--ink-3);white-space:nowrap}
+.list button em{font-style:normal;color:#3e3e3c;margin-left:6px}
+.list button:hover{color:var(--ink-2)}
+.list button[aria-current="true"]{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.list button:focus-visible{outline:1px solid var(--needle);outline-offset:2px}
+.blurb{position:absolute;left:18px;bottom:14px;z-index:3;color:var(--ink-2);max-width:46ch}
+.hint{position:absolute;right:18px;bottom:14px;z-index:3;color:var(--ink-3)}
+@media (max-width:640px){.list{top:auto;bottom:58px;transform:none;grid-template-columns:1fr 1fr;column-gap:16px}.blurb{display:none}}
+</style>
+
+<div class="stage" id="stage">
+  <canvas id="c" aria-label="A loose spiral of robot cartridges. Pick one from the list or click it."></canvas>
+  <canvas id="hud" aria-hidden="true"></canvas>
+  <div class="top"><span class="mark">SANT</span><span>robots@sant · copies 100/100 verified</span></div>
+  <nav class="list" id="list" aria-label="Robots"></nav>
+  <div class="blurb">SANT turns one webcam demo into physics-verified robot data.<br>Every cartridge here is a robot or one of its verified copies.</div>
+  <div class="hint">scroll · click · esc</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script>
+(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function(){
+  // Each robot gets its own preview palette and tile effect, like each project in the reference.
+  var ROBOTS = [
+    {name:'Franka Panda', code:'FRANKA', sub:'7-DOF · PARALLEL GRIPPER', status:'Tested', year:'2026', note:'30/30 copies · 3/40 → 17/40', pal:['#0b3b46','#19f5c2','#e8fffa','#0f6e6a'], fx:'scan'},
+    {name:'OpenArm', code:'OPENARM', sub:'7-DOF · OPEN SOURCE', status:'Design flaw', year:'2026', note:'0/30 · wrist range', pal:['#3a1406','#ff5a1f','#ffd2a8','#a3300b'], fx:'glitch'},
+    {name:'Flexiv Rizon 4s', code:'RIZON', sub:'7-DOF · FORCE CONTROL', status:'Tested', year:'2026', note:'9/30 · gripper drag', pal:['#0d2a10','#5fd36a','#e4ffe2','#1f6b28'], fx:'blocks'},
+    {name:'SO-101', code:'SO-101', sub:'5-DOF + JAW · ~$150', status:'Next', year:'2026', note:'URDF · Apache-2.0', pal:['#3b2f00','#f0c419','#fff7cf','#8a6b00'], fx:'dots'},
+    {name:'AgileX PiPER', code:'PIPER', sub:'6-DOF · LOW COST', status:'Next', year:'2026', note:'URDF · MIT', pal:['#14104a','#6e5bff','#e1dcff','#3a2fb0'], fx:'blocks'},
+    {name:'Your robot', code:'+ ADD', sub:'UPLOAD A URDF', status:'Preview', year:'2026', note:'base · hand · gripper', pal:['#3d0a2c','#ff4fb3','#ffe0f2','#9b1c6a'], fx:'dots'}
+  ];
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var stage = document.getElementById('stage'), canvas = document.getElementById('c'), hudC = document.getElementById('hud'), hx = hudC.getContext('2d');
+  var DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+  var renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true});
+  renderer.setPixelRatio(DPR); renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.25; renderer.physicallyCorrectLights = true;
+  var scene = new THREE.Scene(); scene.background = new THREE.Color('#000'); scene.fog = new THREE.FogExp2('#000', .085);
+  var camera = new THREE.PerspectiveCamera(36, 1, .1, 60);
+  if (THREE.RoomEnvironment){ var pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), .04).texture; }
+  scene.add(new THREE.AmbientLight('#ffffff', .08));
+  var key = new THREE.SpotLight('#ffffff', 140, 18, .62, .7, 1.4); scene.add(key); scene.add(key.target);
+  var rim = new THREE.DirectionalLight('#ffffff', 3); rim.position.set(-6, 5, -6); scene.add(rim);
+  var glint = new THREE.PointLight('#ffffff', 40, 5, 2); scene.add(glint);
+  var glint2 = new THREE.PointLight('#ffffff', 24, 4, 2); scene.add(glint2);
+
+  function tex(w, h, draw){ var c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); var t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; }
+  function labelTex(r, copyN){
+    return tex(640, 512, function(g, w, h){
+      g.fillStyle = copyN ? '#d4d4cf' : '#f4f4f0'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#111'; g.fillRect(0, 0, w, 58);
+      g.fillStyle = '#f4f4f0'; g.font = '900 30px "Inter Tight", sans-serif'; g.fillText('SANT', 22, 40);
+      g.font = '500 15px "IBM Plex Mono", monospace'; g.fillText(copyN ? 'VERIFIED COPY' : 'ROBOT DATA CARTRIDGE', w - 250, 37);
+      g.fillStyle = '#111'; g.font = '900 ' + (r.code.length > 6 ? 88 : 106) + 'px "Inter Tight", sans-serif'; g.fillText(r.code, 22, 175);
+      g.font = '500 18px "IBM Plex Mono", monospace'; g.fillText(r.sub, 24, 214);
+      for (var i = 0; i < 10; i++) g.fillRect(24 + i * 22, 244, 12, i % 3 ? 6 : 12);
+      g.lineWidth = 7; g.strokeStyle = '#111'; g.beginPath(); g.arc(470, 400, 58, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.arc(470, 400, 18, 0, Math.PI * 2); g.stroke();
+      for (var k = 0; k < 6; k++){ var a = k * Math.PI / 3; g.beginPath(); g.moveTo(470 + Math.cos(a) * 24, 400 + Math.sin(a) * 24); g.lineTo(470 + Math.cos(a) * 50, 400 + Math.sin(a) * 50); g.stroke(); }
+      g.font = '500 16px "IBM Plex Mono", monospace'; g.fillText(copyN ? ('#' + String(copyN).padStart(3, '0') + ' / 100') : r.status.toUpperCase(), 24, 470);
+    });
+  }
+  var plastic = new THREE.MeshPhysicalMaterial({color:'#1c1c1c', roughness:.3, metalness:0, clearcoat:1, clearcoatRoughness:.05, envMapIntensity:1.2});
+  var clear = new THREE.MeshPhysicalMaterial({color:'#9a9a9a', roughness:.05, metalness:0, clearcoat:1, clearcoatRoughness:.02, transparent:true, opacity:.28, envMapIntensity:1.6});
+  var ridgeGeo = new THREE.BoxGeometry(2.0, .045, .09);
+  function cartridge(r, copyN){
+    var g = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.5, .34), plastic); g.add(body);
+    var step = new THREE.Mesh(new THREE.BoxGeometry(2.3, .55, .26), plastic); step.position.set(0, 1.5, -.04); g.add(step);
+    for (var i = 0; i < 6; i++){ var rib = new THREE.Mesh(ridgeGeo, plastic); rib.position.set(0, 1.32 + i * .07, .1); g.add(rib); }
+    var win = new THREE.Mesh(new THREE.BoxGeometry(1.5, .28, .36), clear); win.position.set(0, -1.02, 0); g.add(win);
+    var map = labelTex(r, copyN);
+    var lab = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 1.49), new THREE.MeshPhysicalMaterial({map:map, roughness:.4, clearcoat:.7, clearcoatRoughness:.15, envMapIntensity:.7}));
+    lab.position.set(0, -.12, .171); g.add(lab);
+    var under = new THREE.Mesh(new THREE.PlaneGeometry(1.5, .9), new THREE.MeshPhysicalMaterial({map:map, roughness:.5, color:'#8a8a86'}));
+    under.rotation.y = Math.PI; under.position.set(0, -.2, -.171); g.add(under);
+    g.userData.hit = body;
+    return g;
+  }
+
+  // A loose spiral: a helix underneath, but every cartridge gets its own tilt, reach and spacing ("messy but controlled").
+  function rnd(seed){ var x = Math.sin(seed * 127.1) * 43758.5453; return x - Math.floor(x); }
+  function jit(seed, a){ return (rnd(seed) * 2 - 1) * a; }
+  var STEP_A = .42, RADIUS = 1.25, spiral = new THREE.Group(); scene.add(spiral);
+  var items = [], N = 30, mains = {}, slots = [3, 8, 13, 17, 21, 25], y = 0;
+  for (var k = 0; k < N; k++){
+    var ri = slots.indexOf(k), r = ri >= 0 ? ROBOTS[ri] : ROBOTS[k % 3];
+    var pivot = new THREE.Group(); y += .42 + jit(k + .3, .14);
+    pivot.position.y = y; pivot.rotation.y = k * STEP_A + jit(k + .7, .22);
+    var g = cartridge(r, ri >= 0 ? 0 : 1 + ((k * 37) % 99));
+    var base = {x:-Math.PI / 2 + .2 + jit(k + 1.1, .34), z:Math.PI / 2 + jit(k + 1.9, .28), y:jit(k + 2.3, .3), rad:RADIUS + jit(k + 2.9, .4)};
+    g.rotation.set(base.x, base.y, base.z); g.position.set(base.rad, 0, 0);
+    pivot.add(g); spiral.add(pivot);
+    var it = {g:g, r:r, ri:ri, k:k, base:base, phase:rnd(k + 4) * 6, out:0};
+    items.push(it); if (ri >= 0) mains[ri] = it;
+  }
+  var pileTop = y;
+
+  var composer = null, grade = null;
+  try {
+    composer = new THREE.EffectComposer(renderer);
+    composer.addPass(new THREE.RenderPass(scene, camera));
+    composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(512, 512), 1.0, .5, .78));
+    grade = new THREE.ShaderPass({
+      uniforms:{tDiffuse:{value:null}, time:{value:0}, dim:{value:1}},
+      vertexShader:'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader:[
+        'uniform sampler2D tDiffuse; uniform float time; uniform float dim; varying vec2 vUv;',
+        'float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
+        'void main(){',
+        '  vec3 c = texture2D(tDiffuse, vUv).rgb;',
+        '  float l = dot(c, vec3(.299, .587, .114));',
+        '  l = pow(smoothstep(.015, 1.0, l), .92);',
+        '  float v = smoothstep(1.15, .35, length(vUv - .5) * 1.3);',
+        '  l *= mix(.55, 1.0, v) * dim;',
+        '  l += (hash(vUv * 1000.0 + time) - .5) * .035;',
+        '  gl_FragColor = vec4(vec3(l), 1.0);',
+        '}'].join('\n')
+    });
+    composer.addPass(grade);
+  } catch (e) { composer = null; grade = null; }
+
+  function resize(){
+    var w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); if (composer) composer.setSize(w, h);
+    hudC.width = w * DPR; hudC.height = h * DPR; camera.aspect = w / h; camera.fov = w < 640 ? 54 : 36; camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize); resize();
+
+  var list = document.getElementById('list');
+  ROBOTS.forEach(function(r, i){ var b = document.createElement('button'); b.type = 'button'; b.id = 'robot-' + i; b.innerHTML = r.name + '<em>' + r.status + ', ' + r.year + '</em>'; b.addEventListener('click', function(){ select(selected === i ? null : i); }); list.appendChild(b); });
+
+  var selected = null, ray = new THREE.Raycaster(), ptr = new THREE.Vector2(), ptrT = new THREE.Vector2(), scrollT = .5, scroll = .5;
+  stage.addEventListener('wheel', function(e){ e.preventDefault(); scrollT = Math.min(1, Math.max(0, scrollT + e.deltaY * .0006)); if (selected != null) select(null); }, {passive:false});
+  function hitTest(ev){ var rect = canvas.getBoundingClientRect(); var m = new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1); ray.setFromCamera(m, camera); var ms = Object.keys(mains).map(function(k){ return mains[k]; }); var hits = ray.intersectObjects(ms.map(function(it){ return it.g.userData.hit; })); if (!hits.length) return null; var h = ms.find(function(it){ return it.g.userData.hit === hits[0].object; }); return h ? h.ri : null; }
+  stage.addEventListener('pointermove', function(ev){ var rect = stage.getBoundingClientRect(); ptrT.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, ((ev.clientY - rect.top) / rect.height) * 2 - 1); canvas.style.cursor = hitTest(ev) != null ? 'pointer' : 'default'; });
+  canvas.addEventListener('click', function(ev){ var i = hitTest(ev); select(i == null ? null : (selected === i ? null : i)); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') select(null); });
+
+  // ---------- HUD ----------
+  var art = document.createElement('canvas'); art.width = 240; art.height = 150; var ax = art.getContext('2d');
+  var tiles = [], born = 0, orbits = [];
+  function paintArt(r){
+    var p = r.pal, gr = ax.createLinearGradient(0, 0, 240, 150);
+    gr.addColorStop(0, p[0]); gr.addColorStop(.55, p[3]); gr.addColorStop(1, p[1]);
+    ax.fillStyle = gr; ax.fillRect(0, 0, 240, 150);
+    ax.fillStyle = 'rgba(255,255,255,.08)'; for (var i = 0; i < 240; i += 6) ax.fillRect(i, 0, 1, 150);
+    ax.strokeStyle = p[2]; ax.lineWidth = 7; ax.lineCap = 'round'; ax.lineJoin = 'round';
+    ax.beginPath(); ax.moveTo(70, 140); ax.lineTo(70, 98); ax.lineTo(92, 60); ax.lineTo(140, 42); ax.lineTo(176, 62); ax.lineTo(184, 88); ax.stroke();
+    ax.fillStyle = p[1]; ax.fillRect(176, 88, 18, 10); ax.beginPath(); ax.arc(196, 112, 9, 0, 7); ax.fill();
+    ax.fillStyle = 'rgba(0,0,0,.35)'; ax.fillRect(0, 118, 240, 32);
+    ax.fillStyle = p[2]; ax.font = '700 16px "Inter Tight", sans-serif'; ax.fillText(r.code, 10, 140);
+  }
+  function makeTiles(r, seed){
+    tiles = []; var n = 16;
+    for (var i = 0; i < n; i++){
+      var s = seed * 31 + i * 7.3, kind = rnd(s) < .2 ? 'cross' : (rnd(s + 1) < .25 && r.fx !== 'scan' ? 'dots' : 'img');
+      if (r.fx === 'dots' && rnd(s + 9) < .35) kind = 'dots';
+      tiles.push({u:rnd(s + 2) * .9 - .05, v:rnd(s + 3) * .85 - .02, w:.08 + rnd(s + 4) * .32, h:.07 + rnd(s + 5) * .26, kind:kind, delay:rnd(s + 6) * .7, sx:rnd(s + 7), sy:rnd(s + 8)});
+    }
+  }
+  function select(i){
+    selected = i; born = performance.now();
+    Array.prototype.forEach.call(list.children, function(b, k){ b.setAttribute('aria-current', k === i ? 'true' : 'false'); });
+    if (i == null) return;
+    paintArt(ROBOTS[i]); makeTiles(ROBOTS[i], i + 1);
+    orbits = [{rx:1.05, ry:.42, rot:-.32, dash:[2, 5], sp:.35}, {rx:.62, ry:1.08, rot:.18, dash:[], sp:-.25}, {rx:1.22, ry:.7, rot:.9, dash:[1, 7], sp:.18}];
+  }
+  function scramble(s, p){ var ch = '░▒/<>_-=01'; return s.split('').map(function(c, k){ return c === ' ' || k / s.length < p ? c : ch[(Math.random() * ch.length) | 0]; }).join(''); }
+  function drawHud(cx, cy, t){
+    var W = hudC.width, H = hudC.height; hx.clearRect(0, 0, W, H);
+    if (selected == null) return;
+    var r = ROBOTS[selected], age = Math.min(1, (performance.now() - born) / 1100), d = DPR;
+    cx *= d; cy *= d; var R = Math.min(W, H) * .3, fw = R * 1.5, fh = R * .95, fx = cx - fw * .5, fy = cy - fh * .55;
+    hx.lineWidth = 1 * d;
+    // orbits with travelling dots
+    orbits.forEach(function(o, j){
+      hx.save(); hx.translate(cx, cy); hx.rotate(o.rot + (reduce ? 0 : t * .03 * (j % 2 ? -1 : 1)));
+      hx.setLineDash(o.dash.map(function(x){ return x * d; })); hx.strokeStyle = 'rgba(237,237,234,' + (.35 * age) + ')';
+      hx.beginPath(); hx.ellipse(0, 0, R * o.rx * age, R * o.ry * age, 0, 0, Math.PI * 2); hx.stroke(); hx.setLineDash([]);
+      for (var s = 0; s < 2; s++){ var a = (reduce ? s * 3 : t * o.sp + s * 3.1 + j); hx.fillStyle = '#ededea'; hx.beginPath(); hx.arc(Math.cos(a) * R * o.rx * age, Math.sin(a) * R * o.ry * age, 2.2 * d, 0, 7); hx.fill(); }
+      hx.restore();
+    });
+    // light streaks
+    hx.strokeStyle = 'rgba(255,255,255,' + (.55 * age) + ')'; hx.lineWidth = 2 * d;
+    hx.beginPath(); hx.moveTo(fx + fw * .12, fy + fh * .95); hx.lineTo(fx + fw * .34, fy + fh * .25); hx.stroke();
+    hx.beginPath(); hx.moveTo(fx + fw * .22, fy + fh * 1.02); hx.lineTo(fx + fw * .4, fy + fh * .45); hx.stroke(); hx.lineWidth = 1 * d;
+    // main frame
+    hx.strokeStyle = 'rgba(237,237,234,.6)'; hx.strokeRect(fx, fy, fw * age, fh);
+    // tiles
+    tiles.forEach(function(tl, n){
+      var a = Math.max(0, Math.min(1, (age - tl.delay * .6) / .4)); if (a <= 0) return;
+      var x = fx + tl.u * fw, y2 = fy + tl.v * fh, w = tl.w * fw, h = tl.h * fh;
+      var flick = reduce ? 1 : (Math.sin(t * 9 + n * 2.3) > .92 ? .35 : 1);
+      hx.globalAlpha = a * flick;
+      if (tl.kind === 'img'){
+        var block = Math.max(1, Math.round((r.fx === 'blocks' ? 18 : 12) * Math.pow(1 - a, 1.5) + (r.fx === 'blocks' ? 6 : 2)));
+        var sw = Math.max(1, Math.round(w / (block * d))), sh = Math.max(1, Math.round(h / (block * d)));
+        hx.imageSmoothingEnabled = false;
+        hx.drawImage(art, tl.sx * 160, tl.sy * 90, 80, 60, x, y2, w, h);
+        if (block > 1){ var tmp = hx.getImageData(Math.max(0, x | 0), Math.max(0, y2 | 0), Math.max(1, w | 0), Math.max(1, h | 0)); for (var by = 0; by < tmp.height; by += block * d) for (var bx = 0; bx < tmp.width; bx += block * d){ var ix = ((by | 0) * tmp.width + (bx | 0)) * 4; hx.fillStyle = 'rgb(' + tmp.data[ix] + ',' + tmp.data[ix + 1] + ',' + tmp.data[ix + 2] + ')'; hx.fillRect(x + bx, y2 + by, block * d, block * d); } }
+        if (r.fx === 'scan'){ hx.fillStyle = 'rgba(0,0,0,.35)'; for (var sy = 0; sy < h; sy += 3 * d) hx.fillRect(x, y2 + sy, w, d); }
+        if (r.fx === 'glitch' && !reduce && Math.sin(t * 13 + n) > .6){ hx.drawImage(hudC, x, y2 + h * .3, w, h * .2, x + 8 * d, y2 + h * .3, w, h * .2); }
+        hx.strokeStyle = 'rgba(237,237,234,.45)'; hx.strokeRect(x, y2, w, h);
+      } else if (tl.kind === 'dots'){
+        hx.fillStyle = r.pal[2]; for (var dy = 2 * d; dy < h; dy += 4 * d) for (var dx = 2 * d; dx < w; dx += 4 * d){ if (rnd(dx * .1 + dy * .37 + n) > .35) { hx.fillRect(x + dx, y2 + dy, 1.6 * d, 1.6 * d); } }
+      } else {
+        hx.strokeStyle = 'rgba(237,237,234,.7)'; hx.strokeRect(x, y2, Math.min(w, 34 * d), Math.min(h, 26 * d));
+        hx.font = (10 * d) + 'px "IBM Plex Mono", monospace'; hx.fillStyle = '#ededea'; hx.fillText('×', x + Math.min(w, 34 * d) / 2 - 3 * d, y2 + Math.min(h, 26 * d) / 2 + 3 * d);
+      }
+      hx.globalAlpha = 1;
+      if (n % 3 === 0){ hx.font = (9 * d) + 'px "Inter", sans-serif'; hx.fillStyle = 'rgba(237,237,234,.9)'; hx.fillText('x: ' + Math.round(1200 + tl.u * 1400) + '  y: ' + Math.round(700 + tl.v * 800), x, y2 - 3 * d); }
+    });
+    // title block
+    hx.fillStyle = '#ededea'; hx.font = '600 ' + (11 * d) + 'px "Inter", sans-serif'; hx.fillText(scramble(r.name.toUpperCase(), age * 1.6), fx, fy - 30 * d);
+    hx.font = (9.5 * d) + 'px "Inter", sans-serif'; hx.fillStyle = '#c9c9c5';
+    hx.fillText(scramble(r.status + '  ·  ' + r.year + '  ·  ' + r.note, age * 1.6), fx, fy - 17 * d);
+    hx.fillText('w: ' + Math.round(fw / d) + '  h: ' + Math.round(fh / d), fx, fy - 5 * d);
+    hx.fillStyle = '#ff5a1f'; hx.beginPath(); hx.arc(fx + fw * age, fy, 2.5 * d, 0, 7); hx.fill();
+  }
+
+  var clock = new THREE.Clock(), spin = 0, FACE = -Math.atan2(4.4, 5.6) + .3, dimV = 1;
+  function tick(){
+    var dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime, k = reduce ? 1 : 1 - Math.pow(.003, dt);
+    ptr.lerp(ptrT, reduce ? 1 : .04);
+    if (selected == null){ if (!reduce) spin += dt * .06; }
+    else {
+      var sel = mains[selected], target = FACE - (sel.k * STEP_A);
+      spin += Math.atan2(Math.sin(target - spin), Math.cos(target - spin)) * k;
+      scrollT = Math.min(1, Math.max(0, (sel.g.parent.position.y - 2) / (pileTop - 4)));
+    }
+    scroll += (scrollT - scroll) * (reduce ? 1 : .06);
+    spiral.rotation.y = spin;
+    var midY = 2 + scroll * (pileTop - 4);
+    camera.position.set(5.6 + ptr.x * .6, midY + 2.6 - ptr.y * .4, 4.4);
+    camera.lookAt(0, midY - .1, 0);
+    key.position.set(2.4, midY + 6.5, 3.4); key.target.position.set(.4, midY, 0);
+    glint.position.set(2.8, midY + .5 + Math.sin(t * .6) * 1.8, 2.2);
+    glint2.position.set(-2.2 + Math.sin(t * .45) * .8, midY + 1 + Math.cos(t * .4) * 1.4, 2.6);
+    items.forEach(function(it){
+      var isSel = it.ri >= 0 && it.ri === selected; it.out += ((isSel ? 1 : 0) - it.out) * k;
+      var b = it.base, bob = reduce ? 0 : Math.sin(t * .55 + it.phase) * .025;
+      it.g.position.set(b.rad + it.out * 1.9, bob + it.out * .3, 0);
+      it.g.rotation.set(b.x * (1 - it.out) + (-Math.PI / 2 + .62) * it.out, b.y * (1 - it.out), b.z * (1 - it.out) + (Math.PI / 2) * it.out);
+    });
+    dimV += ((selected == null ? 1 : .5) - dimV) * k;
+    if (grade){ grade.uniforms.time.value = t; grade.uniforms.dim.value = dimV; }
+    if (composer) composer.render(); else renderer.render(scene, camera);
+    if (selected != null){ var p = new THREE.Vector3(); mains[selected].g.getWorldPosition(p); p.project(camera); drawHud((p.x * .5 + .5) * stage.clientWidth, (-p.y * .5 + .5) * stage.clientHeight, t); }
+    else hx.clearRect(0, 0, hudC.width, hudC.height);
+    requestAnimationFrame(tick);
+  }
+  tick();
+  if (location.hash === '#franka') select(0);
+});
+</script>
