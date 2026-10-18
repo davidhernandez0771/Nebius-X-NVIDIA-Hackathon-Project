@@ -1,7 +1,8 @@
 # The new Record page (`/record`), Volt look, fits the window
 
-Branch `pm/web-record`, from `pm/hand-v4` (ef539f7), with `pm/web-record-hud` (T7) and `pm/web-landing`
-(T5) merged in locally. Nothing pushed, merged on GitHub or rebased.
+Branch `pm/web-record`, from `pm/hand-v4` (ef539f7), with `pm/web-record-hud` (T7), `pm/web-landing`
+(T5) and `pm/remove-room-organizer` (T7's `/legacy` archive) merged in locally. Nothing pushed, merged
+on GitHub or rebased.
 
 ## How the live test opens `/record`
 
@@ -18,10 +19,10 @@ Open **http://localhost:5173/record** and click **Start camera** (title row, or 
 tile). The chips turn teal as each part connects: `hand_track`, `relay`, `sim_link`. **Record** starts
 and stops a demo. Its timer is the sim's recorded time (steps × 20 ms), and the saved demo links to
 Review in the `episode` tile. **Settings** opens the drawer. `?trace` (latency trace) works here as it
-does on `/pm/record`.
+does on the old page.
 
-The old page is still at **http://localhost:5173/pm/record** and is unchanged. Keep it until the
-user approves `/record`. T7 is moving it to `/legacy/pm/record`.
+The old page is archived at **http://localhost:5173/legacy/pm/record**. `/pm/record` still works,
+because T7's `/pm/*` redirect sends it there. Keep the old page until the user approves `/record`.
 
 Live test #8's checklist (`2026-10-15-t4-status.md`, "What to try in live test #8") applies to `/record`
 as is. Both pages run the same session code.
@@ -34,6 +35,9 @@ as is. Both pages run the same session code.
   v4) and `SantRoot` with `/site`, `/design`, `/site/record-hud` (T5, T7).
 
 ## What was built
+
+The table names paths from before the merge with T7's archive. Today's paths are listed under
+"Merge with T7's archive" below.
 
 | Commit | What |
 |---|---|
@@ -116,3 +120,55 @@ Below 960 px wide the rack stacks and the page scrolls. That size was not part o
   - T5: one route regex in `crossing.ts`.
 - **The page switch is the user's call.** Retire `/pm/record` and point the old nav at `/record` only
   after the user approves it.
+
+## Merge with T7's archive (`a32d5c3`)
+
+`git merge pm/remove-room-organizer`. T7 had moved the old pages into `web/src/legacy/`, including
+`pm/record/RecordPage` and `HandControlPanel`, which `/record` shares code with. T7's branch starts from
+`pm/web-landing`, so its copy of those files was the version from before hand v4.
+
+**One copy of the live code, in `web/src/record/`.** Both `/record` and `/legacy/pm/record` import from it:
+
+| Now | Was |
+|---|---|
+| `record/useRecordSession.ts`, `stageDraw.ts`, `framing.ts`, `recordLink.ts`, `artCue.ts`, `breakthroughCue.ts`, `ResetGestureRing.tsx` (+ tests) | `pm/record/` |
+| `record/handArt/` (overlay, preview page, renderer, tests) | `pm/handArt/` |
+| `record/teleop/` (pinch, reset gesture, V sign, control region, reach3d, debug trace, message, client, fixtures) | `web/src/teleop/` |
+| `record/controlSettings.ts` (slider ranges, Calibrate-by-hand prompts) | constants in `HandControlPanel.tsx` |
+
+- **Moves:** all are `git mv` renames, and import paths were rewritten by a script that resolves each
+  import from the file's old place. The hand-art files are byte-identical (same folder depth).
+- **The archived files:** `legacy/pm/record/{RecordPage,RecordPage.test,HandControlPanel}` are hand v4's
+  versions from this branch. They carry T7's `/legacy` prefixes: `renderAt("/legacy/pm/record", …)`,
+  and the Review link plus its expected `href`. Everything else changed is an import path; the diff
+  was checked against this branch's versions.
+- **`App.tsx`:**
+  - T7's `/legacy` routes, the `/pm/*` → `/legacy/pm/*` redirect, and the hand controls shown only on
+    `/legacy`;
+  - plus `/record`, `/site/record-hud`, and hand v4's `/pm/hand-art` preview. That preview is an exact
+    route, so React Router picks it ahead of the `/pm/*` redirect.
+- **`/record`'s links:** Review and Dataset now go straight to `/legacy/pm/...`.
+- **Python:** `tests/test_dp_teleop.py` reads the `HandPoseMsg` fixture from
+  `web/src/record/teleop/__fixtures__/`, and the test passes. Path comments were updated in `teleop.py`,
+  the record-hud fixture script and its `about` string.
+
+**Checks after the merge:**
+- `npm --prefix web test`: **738 passed, 0 failed** (60 files; T7's 18 route tests included).
+- `npm --prefix web run build`: OK.
+- `uv run pytest -q`: **1534 passed, 18 skipped, 0 failed**.
+- In Chrome (dev server):
+  - `/record` loads and still fits at 1280×720, 1440×900 and 1920×1080 (scrollHeight = innerHeight,
+    0 panels overflowing).
+  - `/legacy/pm/record` loads the old page, with its Hand control.
+  - `/pm/record` and `/pm/review?id=abc` redirect to `/legacy/...`, keeping the query.
+  - `/site/record-hud` and `/pm/hand-art` load.
+
+**For the lead (merging other branches):**
+- **Paths that no longer exist:** branches that import `pm/record/framing`, `pm/record/recordLink`,
+  `pm/handArt` or `web/src/teleop/...` need the new `record/...` paths. T7's note expected the sprint 9
+  pages' `pm/record/framing` import to keep working; it moved here. `pm/live-8` (T4) edits
+  `web/src/teleop/` and `pm/record/`, and those edits now belong in `web/src/record/`.
+- **Left behind on disk:** an empty `web/src/teleop/__fixtures__/` folder (git ignores it). A dev server
+  I started held it open. I wasn't allowed to stop those processes, and stopping their shells didn't
+  end them. Leftover node/esbuild processes from this worktree: Vite on port 5180 (PIDs 51148, 44864,
+  51704) and on 5181 (PIDs 12308, 44340, 49336). Stop them, then delete the folder.
