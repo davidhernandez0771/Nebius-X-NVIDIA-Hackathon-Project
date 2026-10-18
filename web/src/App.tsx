@@ -15,7 +15,6 @@ import DatasetPage from "./legacy/pm/dataset/DatasetPage";
 import RecordPage from "./legacy/pm/record/RecordPage";
 import ReviewPage from "./legacy/pm/review/ReviewPage";
 import ResultsPage from "./legacy/pm/results/ResultsPage";
-import { siteModeOf } from "./sant/motion/crossing";
 import { SantRoot } from "./sant/SantRoot";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
@@ -32,6 +31,8 @@ const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) 
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
 
+const LEGACY = /^\/legacy(\/|$)/;
+
 /** /pm/... → /legacy/pm/..., keeping the query (e.g. /pm/review?id=…) and the hash. */
 function ToLegacy() {
   const { pathname, search, hash } = useLocation();
@@ -40,17 +41,17 @@ function ToLegacy() {
 
 // The old dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
-  // App-wide, opt-in hand-controlled cursor: mounted once outside <Routes>
+  // Opt-in hand-controlled cursor for the /legacy pages: mounted once outside <Routes>
   // so it survives navigation. See HAND_INTERACTION_PLAN.md.
   const hand = useHandPointer();
   const [calibrationOpen, setCalibrationOpen] = useState(false);
-  // The new SANT site (/site, /robots, …) has no hand cursor: hide its controls there, and turn the
-  // camera off if it was left on, since there is no switch on those pages to turn it off.
-  const onSite = siteModeOf(useLocation().pathname) !== null;
+  // Only the archived old site (/legacy/...) has the hand cursor: its controls show there alone, and
+  // the camera turns off if it was left on, since no other page has a switch to turn it off.
+  const onLegacy = LEGACY.test(useLocation().pathname);
   const { enabled: handOn, disable: handOff } = hand;
   useEffect(() => {
-    if (onSite && handOn) handOff();
-  }, [onSite, handOn, handOff]);
+    if (!onLegacy && handOn) handOff();
+  }, [onLegacy, handOn, handOff]);
 
   return (
     <>
@@ -116,7 +117,7 @@ export default function App() {
         <Route path="/pm/*" element={<ToLegacy />} />
         <Route path="*" element={<Navigate to="/site" replace />} />
       </Routes>
-      {!onSite && (
+      {onLegacy && (
         <>
           <button
             type="button"

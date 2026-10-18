@@ -6,12 +6,13 @@ import App from "./App";
 // Only the routing is under test: the heavy pages, the providers and the hand cursor are stubbed.
 vi.mock("./site/landing/LandingPage", () => ({ default: () => <p>site landing</p> }));
 vi.mock("./sant/SantRoot", () => ({ SantRoot: () => <Outlet /> }));
+const hand = vi.hoisted(() => ({ enabled: false, disable: (() => {}) as () => void }));
 vi.mock("./hand/integration/useHandPointer", () => ({
-  useHandPointer: () => ({ enabled: false, status: "off", enable: () => {}, disable: () => {} }),
+  useHandPointer: () => ({ enabled: hand.enabled, status: "off", enable: () => {}, disable: hand.disable }),
 }));
-vi.mock("./hand/overlay/HandCursorOverlay", () => ({ HandCursorOverlay: () => null }));
+vi.mock("./hand/overlay/HandCursorOverlay", () => ({ HandCursorOverlay: () => <div data-testid="hand-overlay" /> }));
 vi.mock("./hand/overlay/CalibrationPanel", () => ({ CalibrationPanel: () => null }));
-vi.mock("./hand/integration/HandToggle", () => ({ HandToggle: () => null }));
+vi.mock("./hand/integration/HandToggle", () => ({ HandToggle: () => <button type="button">Hand control</button> }));
 vi.mock("./legacy/pages/Landing", () => ({ default: () => <p>legacy landing</p> }));
 vi.mock("./legacy/pages/Entry", () => ({ default: () => <p>legacy entry</p> }));
 vi.mock("./legacy/pages/Home", () => ({ default: () => <p>legacy home</p> }));
@@ -30,7 +31,11 @@ function at(path: string) {
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  hand.enabled = false;
+  hand.disable = () => {};
+});
 
 describe("App routes", () => {
   // /home and /enter are the old site's unprefixed URLs: only /pm/* is redirected into /legacy.
@@ -73,3 +78,33 @@ function Full() {
   const { pathname, search, hash } = useLocation();
   return <output data-testid="full">{pathname + search + hash}</output>;
 }
+
+describe("hand control", () => {
+  const controls = () => ({
+    toggle: screen.queryByRole("button", { name: "Hand control" }),
+    gear: screen.queryByRole("button", { name: "Hand-control calibration" }),
+    overlay: screen.queryByTestId("hand-overlay"),
+  });
+
+  it.each(["/legacy", "/legacy/home", "/legacy/pm/record"])("shows the toggle, the gear and the cursor on %s", async (path) => {
+    at(path);
+    await screen.findByText(/^legacy (landing|home|record)$/);
+    const c = controls();
+    expect(c.toggle && c.gear && c.overlay).toBeTruthy();
+  });
+
+  it.each(["/site", "/design", "/landing/pinch-sheet"])("hides all three on %s", (path) => {
+    at(path);
+    expect(controls()).toEqual({ toggle: null, gear: null, overlay: null });
+  });
+
+  it("turns a camera left on off when leaving /legacy, and leaves it on inside", () => {
+    hand.enabled = true;
+    hand.disable = vi.fn();
+    at("/legacy/home");
+    expect(hand.disable).not.toHaveBeenCalled();
+    cleanup();
+    at("/site");
+    expect(hand.disable).toHaveBeenCalled();
+  });
+});
