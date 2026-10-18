@@ -672,3 +672,47 @@ describe("Record page: break-through cue for the hand art", () => {
     expect(bt()).toMatchObject({ recording: true, resets: 0 });
   });
 });
+
+describe("Record page: debug trace", () => {
+  it("records 10 s of frames with both reach signals, then offers the JSON file to download", async () => {
+    const blobs: Blob[] = [];
+    const urls = Object.getOwnPropertyDescriptors(URL);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn((b: Blob) => (blobs.push(b), `blob:trace-${blobs.length}`)),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+    try {
+      await startCamera();
+      fireEvent.click(screen.getByRole("button", { name: /record debug trace/i }));
+      sendHand(0, hand3d({ rot: { y: rad(50) } }));
+      expect(screen.getByText(/recording a debug trace/i)).toBeTruthy();
+      for (let t = 100; t <= 10_100; t += 100) sendHand(t, hand3d({ rot: { y: rad(50) } }));
+      const link = screen.getByRole("link", { name: /download debug trace/i });
+      expect(link.getAttribute("download")).toMatch(/^pm-hand-trace-[\d-]+\.json$/);
+      const file = JSON.parse(await blobs[0].text());
+      expect(file.kind).toBe("pm-hand-trace");
+      expect(file.frames.length).toBeGreaterThanOrEqual(100);
+      const f = file.frames[5];
+      expect(f.world).toHaveLength(21);
+      expect(f.reach.palmWidth).toBeGreaterThan(0);
+      expect(f.reach.size3d).toBeGreaterThan(f.reach.palmWidth); // turned: both are there to compare
+      expect(f.reach.used).toBe(f.reach.palmWidth); // 3D reach off by default
+      expect(f.pinch.source).toBe("3d");
+      expect(f.breakthrough).toMatchObject({ count: 0 });
+      expect(f.sent.control).toHaveLength(3);
+      fireEvent.click(screen.getByRole("button", { name: /record debug trace/i }));
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:trace-1");
+    } finally {
+      if (urls.createObjectURL) Object.defineProperty(URL, "createObjectURL", urls.createObjectURL);
+      else delete (URL as { createObjectURL?: unknown }).createObjectURL;
+      if (urls.revokeObjectURL) Object.defineProperty(URL, "revokeObjectURL", urls.revokeObjectURL);
+      else delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL;
+    }
+  });
+
+  it("can't start without the camera", () => {
+    renderAt("/pm/record", <RecordPage />, "/pm/record");
+    expect((screen.getByRole("button", { name: /record debug trace/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});

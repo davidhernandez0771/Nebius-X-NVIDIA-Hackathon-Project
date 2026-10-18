@@ -17,6 +17,7 @@ import { PinchCalibrator, type PinchCalState } from "../../teleop/pinchCalibrati
 import { createResetGesture, type ResetGestureStatus } from "../../teleop/resetGesture";
 import { victoryScore } from "../../teleop/victoryPose";
 import { reachSize3d } from "../../teleop/reach3d";
+import { DebugTrace, TRACE_SECONDS, traceFileName, traceFrame, type TraceSignals } from "../../teleop/debugTrace";
 import type { TeleopStatus } from "../../teleop/teleopClient";
 import { teleopSocketUrl } from "../api";
 import { PageTitle } from "../common";
@@ -54,6 +55,8 @@ const ART_COOLDOWN_MS = 400;
 const pickHand = (hands: TrackedHand[]) => hands.find((h) => h.handedness === "Right") ?? hands[0] ?? null;
 
 type Phase = { state: "idle" } | { state: "starting" } | { state: "streaming" } | { state: "error"; message: string };
+
+type TraceUi = { state: "recording"; progress: number } | { state: "done"; url: string; name: string; frames: number };
 
 function cameraMessage(err: unknown): string {
   const name = err instanceof DOMException ? err.name : "";
@@ -178,6 +181,9 @@ export default function RecordPage() {
   const [calibration, setCalibration] = useState<CalibrationState | null>(null);
   const [recentering, setRecentering] = useState(false);
   const [pinchCal, setPinchCal] = useState<PinchCalState | null>(null);
+  const [trace, setTrace] = useState<TraceUi | null>(null);
+  const tracer = useRef<{ trace: DebugTrace; startedAt: Date } | null>(null);
+  const traceUrl = useRef<string | null>(null); // the finished file's object URL, revoked when replaced
   const settingsRef = useRef(settings);
   const calibrator = useRef<TeleopCalibrator | null>(null);
   const centerer = useRef<ReachCenterer | null>(null);
@@ -203,6 +209,7 @@ export default function RecordPage() {
   }
 
   function teardown() {
+    tracer.current = null;
     artHand.current = null;
     calibrator.current = null;
     pinchCalibrator.current = null;
@@ -212,6 +219,12 @@ export default function RecordPage() {
     session.current = null;
   }
   useEffect(() => teardown, []);
+  useEffect(
+    () => () => {
+      if (traceUrl.current) URL.revokeObjectURL(traceUrl.current);
+    },
+    [],
+  );
 
   async function start() {
     setPhase({ state: "starting" });
@@ -271,6 +284,19 @@ export default function RecordPage() {
       if (calibrator.current) calibrate(calibrator.current, frame.timestamp, tracked, uiTick);
       if (pinchCalibrator.current)
         calibratePinch(pinchCalibrator.current, frame.timestamp, pinch?.source === "3d" ? pinch.value : null, uiTick);
+      if (tracer.current) {
+        const signals: TraceSignals = {
+          pinch,
+          gripper,
+          victory,
+          size3d,
+          reachSize,
+          reach3d: s.reach3d,
+          breakthrough: crossing.count,
+          breakthroughDir: crossing.dir,
+        };
+        traceStep(tracer.current, traceFrame(frame, hand, msg, signals), uiTick);
+      }
       if (uiTick || reset.event) {
         lastUi = frame.timestamp;
         setPose({ msg, framing, gripper, pinch, victory, reset, size3d });
@@ -336,6 +362,27 @@ export default function RecordPage() {
     setCalibration(null);
   }
 
+  /** One frame of Record debug trace; when it is full, the JSON file is offered for download. */
+  function traceStep(rec: { trace: DebugTrace; startedAt: Date }, entry: ReturnType<typeof traceFrame>, uiTick: boolean) {
+    const state = rec.trace.push(entry);
+    if (!state.done) {
+      if (uiTick) setTrace({ state: "recording", progress: state.progress });
+      return;
+    }
+    tracer.current = null;
+    const file = rec.trace.toJSON({ settings: settingsRef.current, startedAt: rec.startedAt.toISOString() });
+    const url = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: "application/json" }));
+    traceUrl.current = url;
+    setTrace({ state: "done", url, name: traceFileName(rec.startedAt), frames: state.frames });
+  }
+
+  function startTrace() {
+    if (traceUrl.current) URL.revokeObjectURL(traceUrl.current);
+    traceUrl.current = null;
+    tracer.current = { trace: new DebugTrace(), startedAt: new Date() };
+    setTrace({ state: "recording", progress: 0 });
+  }
+
   /** One frame of Calibrate pinch; the result is applied (and saved) at once. */
   function calibratePinch(cal: PinchCalibrator, t: number, value: number | null, uiTick: boolean) {
     const state = cal.push({ t, value });
@@ -363,6 +410,7 @@ export default function RecordPage() {
     teardown();
     setCalibration(null);
     setPinchCal(null);
+    setTrace((t) => (t?.state === "recording" ? null : t)); // a finished file stays downloadable
     setRecentering(false);
     setTrack("idle");
     setRelay({ socketOpen: false, simConnected: false, lastError: null });
@@ -464,6 +512,24 @@ export default function RecordPage() {
         {relay.lastError && (
           <p className="small" role="alert">
             The relay rejected a message: {relay.lastError}
+          </p>
+        )}
+        {trace?.state === "recording" ? (
+          <div className="stack" role="status">
+            <p className="small">Recording a debug trace: move, pinch and reach as you normally would.</p>
+            <progress max={1} value={trace.progress} aria-label="Debug trace progress" />
+          </div>
+        ) : (
+          <button type="button" className="ghost-button" onClick={startTrace} disabled={!streaming}>
+            Record debug trace ({TRACE_SECONDS} s)
+          </button>
+        )}
+        {trace?.state === "done" && (
+          <p className="small" role="status">
+            <a href={trace.url} download={trace.name}>
+              Download debug trace
+            </a>{" "}
+            ({trace.frames} frames). It saves to your Downloads folder as {trace.name}; send that file to the lead.
           </p>
         )}
       </GlassCard>
