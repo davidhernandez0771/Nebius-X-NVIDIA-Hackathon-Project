@@ -23,6 +23,17 @@ describe("treeRows", () => {
     expect(fingers.map((r) => r.branchLast)).toEqual([false, true]);
     expect(rows[rows.length - 1]).toMatchObject({ name: "panda_rightfinger", depth: 1 });
   });
+
+  it("knows which ancestor lanes continue past a row, and where each spine ends", () => {
+    const rows = treeRows(panda);
+    const byName = Object.fromEntries(rows.map((r) => [r.name, r]));
+    expect(byName.panda_leftfinger.guides).toEqual([true]);
+    expect(byName.panda_rightfinger.guides).toEqual([false]);
+    expect(byName.panda_hand.end).toBe(false); // the lane runs on to the finger elbows
+    expect(byName.panda_rightfinger.end).toBe(true);
+    expect(byName.panda_link3.end).toBe(false);
+    expect(byName.panda_leftfinger.end).toBe(true);
+  });
 });
 
 describe("accepts", () => {

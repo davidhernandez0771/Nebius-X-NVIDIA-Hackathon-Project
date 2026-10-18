@@ -14,6 +14,10 @@ export type TreeRow = {
   branchStart: boolean;
   /** That branch is its parent's last one, so the connector stops here. */
   branchLast: boolean;
+  /** One per ancestor lane (length = depth): does that lane's line continue past this row? */
+  guides: boolean[];
+  /** The row's own spine stops here (the next row is not on it). */
+  end: boolean;
   joint?: PartJoint;
 };
 
@@ -22,8 +26,8 @@ export function treeRows(parts: Parts): TreeRow[] {
   const links = new Map(parts.links.map((l) => [l.name, l]));
   const joints = new Map(parts.joints.map((j) => [j.name, j]));
   const rows: TreeRow[] = [];
-  const walk = (link: string, depth: number, branchLast: boolean) => {
-    rows.push({ kind: "link", name: link, depth, branchStart: false, branchLast });
+  const walk = (link: string, depth: number, branchLast: boolean, guides: boolean[]) => {
+    rows.push({ kind: "link", name: link, depth, branchStart: false, branchLast, guides, end: false });
     const kids = links.get(link)?.child_joints ?? [];
     const branches = kids.length > 1;
     kids.forEach((jn, i) => {
@@ -31,11 +35,16 @@ export function treeRows(parts: Parts): TreeRow[] {
       if (!j) return;
       const d = branches ? depth + 1 : depth;
       const last = branches ? i === kids.length - 1 : branchLast;
-      rows.push({ kind: "joint", name: jn, depth: d, branchStart: branches, branchLast: last, joint: j });
-      walk(j.child, d, last);
+      const g = branches ? [...guides, !last] : guides;
+      rows.push({ kind: "joint", name: jn, depth: d, branchStart: branches, branchLast: last, guides: g, end: false, joint: j });
+      walk(j.child, d, last, g);
     });
   };
-  walk(parts.root, 0, true);
+  walk(parts.root, 0, true, []);
+  rows.forEach((r, i) => {
+    const next = rows[i + 1];
+    r.end = !next || next.depth < r.depth || (next.depth === r.depth && next.branchStart);
+  });
   return rows;
 }
 

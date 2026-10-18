@@ -28,6 +28,7 @@ const Entry = lazy(() => import("./pages/Entry"));
 // SANT website (sprint 8): the design-system review pages, under SantRoot's providers.
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
+const SetupPage = lazy(() => import("./site/setup/SetupPage"));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 
 // Dashboard pages share DashboardShell (top bar + icon rail).
@@ -75,6 +76,7 @@ export default function App() {
               </Suspense>
             }
           />
+          <Route path="/robots/setup" element={<Suspense fallback={null}><SetupPage /></Suspense>} />
         </Route>
         <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
         <Route element={<DashboardShell />}>
