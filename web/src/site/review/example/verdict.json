@@ -1,0 +1,83 @@
+{
+ "about": "Real Nemotron 3.5 Super VL replies from the pre-registered 2026-10-18 labeler/judge test, composed into a ReviewVerdict. Not a fixture. The label is of the human demo; the match is for copy_id, a copy multiplied from the perfected demo.",
+ "copy_id": "s1_0002_rules_m102000",
+ "verdict": {
+  "physics": {
+   "status": "verified",
+   "reasons": []
+  },
+  "label": {
+   "status": "ok",
+   "task": "The robot picks up a red cube and places it into a blue bin.",
+   "object": {
+    "name": "cube",
+    "color": "red"
+   },
+   "destination": "bin",
+   "steps": [
+    {
+     "name": "reach",
+     "frames": [
+      0,
+      100
+     ]
+    },
+    {
+     "name": "grasp",
+     "frames": [
+      100,
+      100
+     ]
+    },
+    {
+     "name": "carry",
+     "frames": [
+      100,
+      584
+     ]
+    },
+    {
+     "name": "release",
+     "frames": [
+      584,
+      584
+     ]
+    }
+   ],
+   "error": null
+  },
+  "match": {
+   "status": "yes",
+   "checks": {
+    "same_object": true,
+    "same_goal": true,
+    "same_order": true,
+    "copy_completes": true
+   },
+   "reason": "Both demos move the same red cube from the table into the blue bin, with the gripper closing at the cube and opening only after it is inside the bin. The copy's final image shows the red cube resting in the blue bin, so the physics-check label is consistent with the images."
+  },
+  "conflict": null
+ },
+ "provenance": {
+  "outcomes": "pm/nemotron-judge@47cc4cd:docs/superpowers/notes/2026-10-18-nemotron-judge/outcomes.jsonl",
+  "outcomes_sha256": "06b31be89a61828ce47ee8d520798e834f14602de90afdd983dc066299671fb3",
+  "label_item": "s1_0002_raw",
+  "judge_item": "match:s1_0002_raw|s1_0002_rules_mx_102000",
+  "model_error": {
+   "label": null,
+   "judge": null
+  },
+  "human_demo": "s1_0002",
+  "copy_demo": "s1_0002_rules_m102000",
+  "copy_lineage": [
+   "s1_0002",
+   "s1_0002_rules",
+   "s1_0002_rules_m102000"
+  ],
+  "physics": "s1_0002_rules_m102000/passport.json verification",
+  "trajectories_match": {
+   "s1_0002_raw=s1_0002": true,
+   "s1_0002_rules_mx_102000=s1_0002_rules_m102000": true
+  }
+ }
+}

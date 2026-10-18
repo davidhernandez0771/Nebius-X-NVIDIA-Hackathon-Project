@@ -30,6 +30,7 @@ const Entry = lazy(() => import("./legacy/pages/Entry"));
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
 const RecordHudPreview = lazy(() => import("./site/record-hud/RecordHudPreview").then((m) => ({ default: m.RecordHudPreview })));
+const ReviewPage2 = lazy(() => import("./site/review/ReviewPage2"));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
 // The new Record (Volt). The old one stays at /legacy/pm/record until the user approves this one.
@@ -85,6 +86,7 @@ export default function App() {
           />
           <Route path="/site/record-hud" element={<Suspense fallback={null}><RecordHudPreview /></Suspense>} />
           <Route path="/record" element={<Suspense fallback={null}><RecordConsole /></Suspense>} />
+          <Route path="/review2" element={<Suspense fallback={null}><ReviewPage2 /></Suspense>} />
         </Route>
         <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
         {/* The archived old site (web/src/legacy): the 3D intro, then the dashboard and its pages. */}

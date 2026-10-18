@@ -4,7 +4,7 @@
 // route isn't on this backend yet (FastAPI's bare 404 "Not Found", or 405).
 
 import { apiUrl } from "../api/client";
-import type { Demo, StoredDiagnosis } from "./types";
+import type { Demo, DemoReview, StoredDiagnosis } from "./types";
 
 export type ErrorKind =
   | "unreachable"
@@ -97,6 +97,15 @@ export const pmApi = {
   getDiagnosis: async (id: string): Promise<StoredDiagnosis | null> => {
     try {
       return await pmFetch<StoredDiagnosis>(`/demos/${encodeURIComponent(id)}/diagnosis`);
+    } catch (e) {
+      if (e instanceof PmApiError && e.kind === "not_found") return null;
+      throw e;
+    }
+  },
+  /** Physics, the stored Nemotron verdict and the fixes applied; null on a backend without the route. */
+  getReview: async (id: string): Promise<DemoReview | null> => {
+    try {
+      return await pmFetch<DemoReview>(`/demos/${encodeURIComponent(id)}/review`);
     } catch (e) {
       if (e instanceof PmApiError && e.kind === "not_found") return null;
       throw e;
