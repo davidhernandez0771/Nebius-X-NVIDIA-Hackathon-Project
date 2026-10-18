@@ -179,7 +179,14 @@ def test_full_smoke_run_on_fakes(hx, tmp_path):
     head = res["experiment"]["headline"]
     assert head["raw"]["successes"] == 1 and head["multiplied"]["successes"] == 3 and head["raw"]["n"] == 5
     assert head["fisher_p"] == pytest.approx(0.5238095, abs=1e-6)
+    # the eval details survive next to the stats: which seeds, what is missing, which file
+    assert head["raw"]["successful_seeds"] == [5021] and head["multiplied"]["successful_seeds"] == [5020, 5022, 5023]
+    assert head["raw"]["missing_seeds"] == [] and head["raw"]["ci"] and head["multiplied"]["file"].endswith(".json")
     assert res["comparisons"][0]["arms"][0]["cell"] == "raw_3"
+    # the repair here is rules only (Nemotron labels and judges): no bar may say "Nemotron repair"
+    assert res["ablation"] == {"demos": 3, "bars": [{"key": "rules", "label": "Rules repair + multiply (this run)",
+                                                     "success": 0.6}]}
+    assert not any("Nemotron" in b["label"] for b in res["ablation"]["bars"])
     # the train and eval commands carry the frozen settings
     train_cmd, eval_cmd = exp.deps.run.cmds
     assert train_cmd[train_cmd.index("--steps") + 1] == "2000"

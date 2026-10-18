@@ -507,6 +507,12 @@ class Experiment:
         yields = [(str(self.marker("sim")), y)] if y.get("attempts") else []
         out = build_results(registry, evals, yields, [], demos=[self.config["n_human"]], robot=ROBOT,
                             comparisons=[(raw_cell, mult_cell)])
+        # build_results' ablation compares rules-only with rules + Nemotron *repair*; here the repair is the rules
+        # alone and Nemotron only labels and judges, so the one honest bar is this run's multiplied cell
+        mult = next(s["success"][0] for s in out["series"] if s["key"] == "ours")
+        out["ablation"] = {"demos": self.config["n_human"],
+                           "bars": [{"key": "rules", "label": "Rules repair + multiply (this run)", "success": mult}]}
+        out["pending"] = [k for k in out["pending"] if not k.startswith("ablation.")]
         smoke = self.config["smoke"]
         out["sample"] = smoke  # a smoke run measures nothing: the page shows it under "SAMPLE DATA"
         out["note"] = (("SMOKE TEST: proves every stage runs; not a result. " if smoke else "")
@@ -514,7 +520,8 @@ class Experiment:
                        f"{ev['seed0']}-{ev['seed0'] + ev['n'] - 1}. " + out["note"])
         out["experiment"] = {
             "name": self.name, "smoke": smoke, "config": self.config, "run_id": train["run_id"],
-            "headline": {"raw": ev["cells"][raw_cell], "multiplied": ev["cells"][mult_cell], **cmp},
+            "headline": {**cmp, "raw": {**ev["cells"][raw_cell], **cmp["raw"]},
+                         "multiplied": {**ev["cells"][mult_cell], **cmp["multiplied"]}},
             "data": {k: sim.get(k) for k in ("physics_verified", "repair", "multiply")},
             "grid": _read_json(self.marker("grid")),
             "nemotron": _read_json(self.marker("nemotron")),
