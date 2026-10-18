@@ -1,0 +1,255 @@
+<title>SANT Record Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap">
+<style>
+/* Layout: an instrument rack. A grid of dark tiles like lab equipment (after the Pressure Monitor reference):
+   tiny snake_case channel labels, units top-right, large light monospace readouts, a knob, an XY pad, live traces.
+   Signal orange marks needles and dots; teal marks live/ok state only. Single dark look by choice. */
+:root{
+  --rack:#0c0c0d; --tile:#161617; --tile-hi:#1c1c1e; --line:#2a2a2d; --line-hi:#3a3a3e;
+  --ink:#e9e9e6; --ink-2:#9a9a96; --ink-3:#5f5f5c;
+  --needle:#ff5a1f; --live:#19f5c2; --hold:#ffb000;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--rack);color:var(--ink);font:13px/1.45 var(--mono);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 24px;
+  font-variant-numeric:tabular-nums}
+.rack{max-width:1240px;margin:0 auto;display:grid;gap:8px}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 2px 8px}
+.brand{font-size:12px;color:var(--ink-2);letter-spacing:.04em}
+.brand b{color:var(--ink);font-weight:500}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:11px;color:var(--ink-2);border:1px solid var(--line);border-radius:3px;padding:3px 8px;display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--live)}
+.rec{display:flex;align-items:center;gap:10px}
+.recbtn{font:500 12px var(--mono);color:var(--ink);background:var(--tile);border:1px solid var(--line-hi);border-radius:3px;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.recbtn:focus-visible{outline:1px solid var(--needle);outline-offset:2px}
+.recbtn i{width:8px;height:8px;border-radius:50%;background:var(--needle);display:inline-block}
+.recbtn[aria-pressed="false"] i{background:var(--ink-3)}
+.time{font-size:20px;font-weight:300;letter-spacing:-.01em;min-width:7ch;text-align:right}
+
+.grid{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1fr) minmax(0,1fr);gap:8px}
+.tile{background:var(--tile);border:1px solid var(--line);border-radius:4px;padding:10px 12px 12px;display:flex;flex-direction:column;min-width:0;position:relative}
+.tile.sel{border-color:var(--needle)}
+.hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:11px;color:var(--ink-2)}
+.hd span:last-child{color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+.val{font-weight:300;font-size:40px;line-height:1.05;letter-spacing:-.02em;margin-top:10px}
+.val small{font-size:15px;color:var(--ink-2);margin-left:6px;letter-spacing:0}
+.mid{font-weight:300;font-size:22px;margin-top:8px}
+.cam{grid-row:span 2;padding:0;overflow:hidden;min-height:420px}
+.cam .hd{position:absolute;top:10px;left:12px;right:12px;z-index:2}
+.cam canvas{width:100%;height:100%;display:block}
+.camfoot{position:absolute;left:12px;right:12px;bottom:10px;display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);gap:8px;flex-wrap:wrap}
+.pad,.knob{flex:1;display:grid;place-items:center;min-height:150px}
+.pad svg,.knob svg{width:100%;max-width:190px;height:auto}
+.wide{grid-column:span 2}
+.trace{height:110px;margin-top:8px}
+.trace canvas{width:100%;height:100%;display:block}
+.row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.state{font-size:15px;margin-top:8px;display:flex;align-items:center;gap:8px}
+.foot{font-size:11px;color:var(--ink-3);padding:6px 2px 0}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.cam{grid-column:span 2;grid-row:auto;min-height:320px}.wide{grid-column:span 2}.row{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:520px){.grid{grid-template-columns:minmax(0,1fr)}.cam,.wide{grid-column:auto}.row{grid-template-columns:repeat(2,minmax(0,1fr))}.val{font-size:32px}}
+</style>
+
+<div class="rack">
+  <div class="bar">
+    <div class="brand"><b>SANT</b> / record / franka_panda</div>
+    <div class="chips">
+      <span class="chip"><span class="dot"></span>sim_link</span>
+      <span class="chip"><span class="dot"></span>hand_track</span>
+      <span class="chip">isaac_lab 3.0</span>
+    </div>
+    <div class="rec">
+      <button class="recbtn" id="recbtn" type="button" aria-pressed="true"><i></i><span id="reclbl">recording</span></button>
+      <span class="time" id="time">00:00.0</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="tile cam" id="camtile">
+      <div class="hd"><span>webcam_0 · hand_overlay</span><span>640×480</span></div>
+      <canvas id="cam" aria-label="Webcam view with the tracked hand drawn as points and lines inside the dashed workspace box"></canvas>
+      <div class="camfoot"><span>pinch = grip · ✌ hold 1.5 s = reset_scene</span><span id="phase">approach</span></div>
+    </div>
+
+    <div class="tile" id="padtile">
+      <div class="hd"><span>palm_xy</span><span>workspace</span></div>
+      <div class="pad">
+        <svg viewBox="0 0 200 160" role="img" aria-label="Palm position inside the workspace">
+          <rect x="1" y="1" width="198" height="158" rx="2" fill="#121213" stroke="#2a2a2d"/>
+          <g stroke="#232326"><line x1="50" y1="1" x2="50" y2="159"/><line x1="100" y1="1" x2="100" y2="159"/><line x1="150" y1="1" x2="150" y2="159"/><line x1="1" y1="40" x2="199" y2="40"/><line x1="1" y1="80" x2="199" y2="80"/><line x1="1" y1="120" x2="199" y2="120"/></g>
+          <line id="padh" x1="1" y1="80" x2="199" y2="80" stroke="#3a3a3e"/>
+          <line id="padv" x1="100" y1="1" x2="100" y2="159" stroke="#3a3a3e"/>
+          <circle id="paddot" cx="100" cy="80" r="4.5" fill="#ff5a1f"/>
+        </svg>
+      </div>
+      <div class="mid" id="padval">0.50, 0.50</div>
+    </div>
+
+    <div class="tile" id="griptile">
+      <div class="hd"><span>gripper_cmd</span><span>pinch</span></div>
+      <div class="knob">
+        <svg viewBox="0 0 160 160" role="img" aria-label="Grip knob">
+          <g stroke="#3a3a3e" stroke-width="1.5">
+            <line x1="80" y1="14" x2="80" y2="22" transform="rotate(-135 80 80)"/><line x1="80" y1="14" x2="80" y2="22" transform="rotate(-67 80 80)"/><line x1="80" y1="14" x2="80" y2="22"/><line x1="80" y1="14" x2="80" y2="22" transform="rotate(67 80 80)"/><line x1="80" y1="14" x2="80" y2="22" transform="rotate(135 80 80)"/>
+          </g>
+          <circle cx="80" cy="80" r="46" fill="#0b0b0c" stroke="#2f2f33" stroke-width="2"/>
+          <circle cx="80" cy="80" r="38" fill="#141416"/>
+          <g id="knobneedle" transform="rotate(-135 80 80)"><rect x="78" y="44" width="4" height="16" rx="2" fill="#ff5a1f"/></g>
+        </svg>
+      </div>
+      <div class="mid" id="gripval">0.00 open</div>
+    </div>
+
+    <div class="tile wide" id="ztile">
+      <div class="hd"><span>ee_target_z · height</span><span>m</span></div>
+      <div class="val" id="zval">0.180<small>m</small></div>
+      <div class="trace"><canvas id="trace" aria-label="Height and reach over the last few seconds"></canvas></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="tile"><div class="hd"><span>ee_target_x</span><span>m</span></div><div class="mid" id="x">0.500</div></div>
+    <div class="tile"><div class="hd"><span>pinch_ratio</span><span>—</span></div><div class="mid" id="pr">0.62</div></div>
+    <div class="tile"><div class="hd"><span>hand_conf</span><span>score</span></div><div class="mid" id="hc">0.97</div></div>
+    <div class="tile"><div class="hd"><span>link_latency</span><span>ms</span></div><div class="mid" id="lat">46</div></div>
+    <div class="tile"><div class="hd"><span>sim_rate</span><span>hz</span></div><div class="mid" id="hz">32</div></div>
+    <div class="tile"><div class="hd"><span>episode</span><span>state</span></div><div class="state" id="ep"><span class="dot" style="background:var(--needle)"></span>rec</div></div>
+  </div>
+  <div class="foot">Prototype with a simulated hand path, for layout and motion review. Values are illustrative, not measurements.</div>
+</div>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var cam = document.getElementById('cam'), cx = cam.getContext('2d');
+  var tr = document.getElementById('trace'), tx = tr.getContext('2d');
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function fit(c){ var r = c.getBoundingClientRect(); c.width = Math.max(1, r.width * dpr); c.height = Math.max(1, r.height * dpr); }
+  function resize(){ fit(cam); fit(tr); }
+  window.addEventListener('resize', resize); resize();
+
+  // 21 MediaPipe-style landmarks for an open right hand, in hand units (wrist at origin, up is -y).
+  var BASE = [[0,0],[-.25,-.15],[-.42,-.32],[-.55,-.5],[-.65,-.66],[-.18,-.62],[-.2,-.88],[-.21,-1.05],[-.22,-1.2],
+    [0,-.65],[0,-.95],[0,-1.13],[0,-1.3],[.17,-.6],[.19,-.86],[.2,-1.02],[.21,-1.15],[.32,-.52],[.37,-.72],[.4,-.85],[.42,-.97]];
+  var BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+  function lerp(a,b,t){ return a + (b - a) * t; }
+  function ease(t){ return t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2; }
+
+  // One 10 s pick-and-place loop: [time, palm u, palm v, pinch]
+  var KEYS = [[0,.30,.42,0],[2.4,.44,.40,0],[3.4,.44,.70,0],[4.3,.44,.70,1],[5.4,.44,.38,1],[7.0,.74,.40,1],[7.8,.74,.56,1],[8.4,.74,.56,0],[10,.30,.42,0]];
+  var PHASES = [[0,'approach'],[2.4,'descend'],[3.4,'grip'],[4.3,'lift'],[5.4,'carry'],[7.0,'lower'],[7.8,'release'],[8.4,'return']];
+  function sample(t){
+    t = t % 10;
+    for (var i = 0; i < KEYS.length - 1; i++){
+      var a = KEYS[i], b = KEYS[i+1];
+      if (t >= a[0] && t <= b[0]){ var k = ease((t - a[0]) / (b[0] - a[0])); return {u: lerp(a[1],b[1],k), v: lerp(a[2],b[2],k), p: lerp(a[3],b[3],k)}; }
+    }
+    return {u:.3, v:.42, p:0};
+  }
+  function phaseAt(t){ t = t % 10; var name = PHASES[0][1]; for (var i = 0; i < PHASES.length; i++) if (t >= PHASES[i][0]) name = PHASES[i][1]; return name; }
+
+  var box = {u0:.22, v0:.22, u1:.82, v1:.78};
+  var zHist = [], xHist = [], trail = [];
+  var start = performance.now(), last = 0, recording = true;
+
+  function landmarks(s, W, H){
+    var scale = Math.min(W, H) * .17, ox = s.u * W, oy = s.v * H + scale * .55, out = [];
+    for (var i = 0; i < 21; i++){
+      var x = BASE[i][0], y = BASE[i][1];
+      if (i >= 1 && i <= 4){ var f = (i - 1) / 3; x = lerp(x, lerp(-.3,-.22,f), s.p * .75 * f); y = lerp(y, lerp(-.6,-1.0,f), s.p * .75 * f); }
+      if (i >= 6 && i <= 8){ var g = (i - 5) / 3; x = lerp(x, -.34, s.p * .45 * g); y = lerp(y, -.86, s.p * .5 * g); }
+      out.push([ox + x * scale, oy + y * scale]);
+    }
+    return out;
+  }
+
+  function drawCam(s, t){
+    var W = cam.width, H = cam.height;
+    cx.fillStyle = '#0f0f10'; cx.fillRect(0, 0, W, H);
+    // faint scanlines, like a sensor feed
+    cx.fillStyle = 'rgba(255,255,255,0.018)';
+    for (var y = 0; y < H; y += 3 * dpr) cx.fillRect(0, y, W, dpr);
+    // workspace box
+    cx.setLineDash([5*dpr, 5*dpr]); cx.strokeStyle = '#3a3a3e'; cx.lineWidth = dpr;
+    cx.strokeRect(box.u0*W, box.v0*H, (box.u1-box.u0)*W, (box.v1-box.v0)*H); cx.setLineDash([]);
+    cx.fillStyle = '#5f5f5c'; cx.font = (10*dpr) + 'px IBM Plex Mono, monospace';
+    cx.fillText('table_z', box.u0*W + 6*dpr, box.v1*H - 6*dpr);
+    var L = landmarks(s, W, H);
+    trail.push([L[9][0], L[9][1]]); if (trail.length > 70) trail.shift();
+    for (var k = 0; k < trail.length; k++){ cx.fillStyle = 'rgba(233,233,230,' + (k / trail.length * .35) + ')'; cx.fillRect(trail[k][0], trail[k][1], 1.5*dpr, 1.5*dpr); }
+    cx.strokeStyle = 'rgba(233,233,230,0.55)'; cx.lineWidth = 1*dpr;
+    for (var b = 0; b < BONES.length; b++){ var p = L[BONES[b][0]], q = L[BONES[b][1]]; cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke(); }
+    for (var i = 0; i < 21; i++){ cx.fillStyle = (i === 4 || i === 8) ? '#ff5a1f' : '#e9e9e6'; cx.beginPath(); cx.arc(L[i][0], L[i][1], (i === 0 ? 3.2 : 2.2)*dpr, 0, Math.PI*2); cx.fill(); }
+    // pinch gap readout between thumb and index tips
+    var a = L[4], c = L[8];
+    cx.strokeStyle = s.p > .6 ? '#ffb000' : 'rgba(255,90,31,0.5)'; cx.setLineDash([2*dpr, 3*dpr]);
+    cx.beginPath(); cx.moveTo(a[0], a[1]); cx.lineTo(c[0], c[1]); cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle = '#9a9a96'; cx.fillText('pinch ' + (1 - s.p * .8).toFixed(2), Math.max(a[0], c[0]) + 8*dpr, (a[1] + c[1]) / 2);
+  }
+
+  function drawTrace(){
+    var W = tr.width, H = tr.height;
+    tx.clearRect(0, 0, W, H);
+    tx.strokeStyle = '#232326'; tx.lineWidth = dpr;
+    for (var g = 1; g < 4; g++){ tx.beginPath(); tx.moveTo(0, H*g/4); tx.lineTo(W, H*g/4); tx.stroke(); }
+    function line(arr, lo, hi, color, width){
+      if (arr.length < 2) return; tx.strokeStyle = color; tx.lineWidth = width * dpr; tx.beginPath();
+      for (var i = 0; i < arr.length; i++){ var x = W * i / 239, y = H - (arr[i] - lo) / (hi - lo) * (H - 6*dpr) - 3*dpr; if (i) tx.lineTo(x, y); else tx.moveTo(x, y); }
+      tx.stroke();
+    }
+    line(xHist, .30, .75, 'rgba(154,154,150,0.55)', 1);
+    line(zHist, 0, .25, '#e9e9e6', 1.4);
+    var n = zHist.length; if (n){ var ex = W * (n - 1) / 239, ey = H - zHist[n-1] / .25 * (H - 6*dpr) - 3*dpr; tx.fillStyle = '#ff5a1f'; tx.beginPath(); tx.arc(ex, ey, 3*dpr, 0, Math.PI*2); tx.fill(); }
+  }
+
+  var el = {pad: document.getElementById('paddot'), ph: document.getElementById('padh'), pv: document.getElementById('padv'), padval: document.getElementById('padval'),
+    needle: document.getElementById('knobneedle'), grip: document.getElementById('gripval'), z: document.getElementById('zval'), x: document.getElementById('x'),
+    pr: document.getElementById('pr'), hc: document.getElementById('hc'), lat: document.getElementById('lat'), hz: document.getElementById('hz'),
+    time: document.getElementById('time'), phase: document.getElementById('phase'), gt: document.getElementById('griptile')};
+
+  function frame(now){
+    var t = reduce ? 4.8 : (now - start) / 1000;
+    var s = sample(t);
+    var wu = Math.min(1, Math.max(0, (s.u - box.u0) / (box.u1 - box.u0))), wv = Math.min(1, Math.max(0, (s.v - box.v0) / (box.v1 - box.v0)));
+    var z = (1 - wv) * .24 + .02, x = .5 + Math.sin(t * .9) * .015;
+    drawCam(s, t);
+    if (!reduce || zHist.length === 0){ zHist.push(z); xHist.push(x); if (zHist.length > 240){ zHist.shift(); xHist.shift(); } }
+    drawTrace();
+    if (now - last > 66 || reduce){
+      last = now;
+      var px = 1 + wu * 198, py = 1 + wv * 158;
+      el.pad.setAttribute('cx', px.toFixed(1)); el.pad.setAttribute('cy', py.toFixed(1));
+      el.ph.setAttribute('y1', py.toFixed(1)); el.ph.setAttribute('y2', py.toFixed(1)); el.pv.setAttribute('x1', px.toFixed(1)); el.pv.setAttribute('x2', px.toFixed(1));
+      el.padval.textContent = wu.toFixed(2) + ', ' + wv.toFixed(2);
+      el.needle.setAttribute('transform', 'rotate(' + (-135 + s.p * 270).toFixed(1) + ' 80 80)');
+      el.grip.textContent = s.p.toFixed(2) + (s.p > .6 ? ' closed' : ' open');
+      el.gt.classList.toggle('sel', s.p > .6);
+      el.z.innerHTML = z.toFixed(3) + '<small>m</small>';
+      el.x.textContent = x.toFixed(3);
+      el.pr.textContent = (1 - s.p * .8).toFixed(2);
+      el.hc.textContent = (.95 + Math.sin(t * 3.1) * .02).toFixed(2);
+      el.lat.textContent = Math.round(46 + Math.sin(t * 2.3) * 4);
+      el.hz.textContent = Math.round(32 + Math.sin(t * 1.7) * 1);
+      el.phase.textContent = phaseAt(t);
+      if (recording){ var secs = t % 60; el.time.textContent = '00:' + (secs < 10 ? '0' : '') + secs.toFixed(1); }
+    }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  var btn = document.getElementById('recbtn'), lbl = document.getElementById('reclbl'), ep = document.getElementById('ep');
+  btn.addEventListener('click', function(){
+    recording = !recording;
+    btn.setAttribute('aria-pressed', recording ? 'true' : 'false');
+    lbl.textContent = recording ? 'recording' : 'paused';
+    ep.innerHTML = recording ? '<span class="dot" style="background:var(--needle)"></span>rec' : '<span class="dot" style="background:var(--ink-3)"></span>idle';
+  });
+})();
+</script>
