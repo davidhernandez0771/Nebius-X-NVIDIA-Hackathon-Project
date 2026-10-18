@@ -30,6 +30,14 @@ interface FakeLinkShape {
 }
 
 vi.mock("../../hand/tracking", () => ({ createMediapipeTracker: () => tracker }));
+// The hand-art overlay is WebGL (three.js); here only its mounting and props matter.
+const art = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+vi.mock("../handArt", () => ({
+  LazyHandArtOverlay: (props: Record<string, unknown>) => {
+    art.props = props;
+    return <div data-testid="hand-art-overlay" />;
+  },
+}));
 vi.mock("./recordLink", () => ({
   RecordLink: class {
     sent: string[] = [];
@@ -482,5 +490,73 @@ describe("Record page: Calibrate pinch", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel pinch calibration" }));
     expect(screen.getByRole("button", { name: "Calibrate pinch" })).toBeTruthy();
     expect(stored()?.indexPinchCal ?? null).toBeNull();
+  });
+});
+
+describe("Record page: hand art (display only)", () => {
+  type ArtFrame = { landmarks: unknown; gripperClosed?: boolean; cue?: number } | null;
+  const artFrame = () => (art.props!.source as () => ArtFrame)();
+
+  it("is on by default, and its toggle turns it off", async () => {
+    await startCamera();
+    expect(screen.getByTestId("hand-art-overlay")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: /hand art/i }));
+    expect(stored().showHandArt).toBe(false);
+    expect(screen.queryByTestId("hand-art-overlay")).toBeNull();
+  });
+
+  it("changes style on grab, release and Reset scene, not on a timer", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    expect(art.props).toMatchObject({ trigger: "events" });
+    let t = holdFor(0, 200, hand3d());
+    const c0 = artFrame()!.cue!;
+    t = holdFor(t, 200, hand3d({ thumbTip: pinchThumbTip() }));
+    expect(artFrame()!.gripperClosed).toBe(true);
+    expect(artFrame()!.cue).toBe(c0 + 1);
+    t = holdFor(t, 200, hand3d());
+    expect(artFrame()!.cue).toBe(c0 + 2);
+    t = holdFor(t, 3000, hand3d()); // seconds of nothing happening: no change
+    expect(artFrame()!.cue).toBe(c0 + 2);
+    fireEvent.click(screen.getByRole("button", { name: "Reset scene" }));
+    sendHand(t, hand3d());
+    expect(artFrame()!.cue).toBe(c0 + 3);
+  });
+
+  it("changes style when recording starts and stops", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    sendHand(0, hand3d());
+    const c0 = artFrame()!.cue!;
+    act(() => link.emitSim(sim({ recording: true })));
+    sendHand(33, hand3d());
+    expect(artFrame()!.cue).toBe(c0 + 1);
+    act(() => link.emitSim(sim({ recording: false })));
+    sendHand(66, hand3d());
+    expect(artFrame()!.cue).toBe(c0 + 2);
+  });
+
+  it("does not change what is sent: same grips and control with it on or off", async () => {
+    const session = async (showHandArt: boolean) => {
+      localStorage.setItem(TELEOP_CONTROL_STORAGE_KEY, JSON.stringify({ ...DEFAULT_TELEOP_CONTROL, showHandArt }));
+      const link = await startCamera();
+      const controls: (string | null)[] = [];
+      for (let i = 0; i < 30; i++) {
+        const pinched = i % 10 > 5;
+        sendHand(i * 100, hand3d({ center: { x: 0.4 + i * 0.005, y: 0.45 }, ...(pinched ? { thumbTip: pinchThumbTip() } : {}) }));
+        controls.push(screen.getByTestId("control-now").textContent);
+      }
+      const out = { grips: [...link.grips], controls };
+      cleanup();
+      links.list = [];
+      localStorage.clear();
+      return out;
+    };
+    const on = await session(true);
+    const off = await session(false);
+    expect(on.grips).toContain(1);
+    expect(on).toEqual(off);
   });
 });

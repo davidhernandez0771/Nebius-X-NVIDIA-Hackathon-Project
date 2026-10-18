@@ -1,5 +1,9 @@
 // Which two styles the overlay shows and how far it has morphed between them.
 // Pure: the renderer calls stepCycle once per animation frame.
+//
+// Two triggers: "timer" (the preview page) holds each style a few seconds and also morphs when
+// the gripper opens or closes; "events" (Record) morphs only when the caller's cue counter
+// changes (grasp, freeze, reset, recording), at most once per cooldown.
 
 export const HAND_ART_STYLES = ["ascii", "bayer", "halftone", "particles", "lines"] as const;
 export type HandArtStyle = (typeof HAND_ART_STYLES)[number];
@@ -17,6 +21,10 @@ export interface CycleOptions {
   /** Reduced motion: no morphs, one static style (the pinned one, else staticStyle). */
   reducedMotion: boolean;
   staticStyle: HandArtStyle;
+  /** "timer": hold, then morph (and on gripper changes); "events": morph when the cue changes. */
+  trigger: "timer" | "events";
+  /** Events mode: an event this soon after the last morph started is dropped. */
+  cooldownMs: number;
 }
 
 export interface CycleState {
@@ -29,6 +37,10 @@ export interface CycleState {
   heldMs: number;
   /** The gripper state last frame; null before the first frame. */
   lastGrip: boolean | null;
+  /** The event cue last frame; null before the first frame. */
+  lastCue: number | null;
+  /** Time since the last morph started. */
+  sinceMorphMs: number;
   /** Changes for every morph, so each one sweeps a different noise mask. */
   seed: number;
 }
@@ -39,21 +51,32 @@ export const DEFAULT_CYCLE: CycleOptions = {
   pinned: null,
   reducedMotion: false,
   staticStyle: "lines",
+  trigger: "timer",
+  cooldownMs: 400,
 };
 
 export function initialCycle(o: CycleOptions): CycleState {
   const s = o.pinned ?? (o.reducedMotion ? o.staticStyle : HAND_ART_STYLES[0]);
-  return { a: s, b: s, mix: 0, morphing: false, heldMs: 0, lastGrip: null, seed: 0 };
+  return { a: s, b: s, mix: 0, morphing: false, heldMs: 0, lastGrip: null, lastCue: null, sinceMorphMs: Infinity, seed: 0 };
 }
 
 const nextStyle = (s: HandArtStyle): HandArtStyle =>
   HAND_ART_STYLES[(styleId(s) + 1) % HAND_ART_STYLES.length];
 
-const morphTo = (s: CycleState, b: HandArtStyle): CycleState => ({ ...s, b, mix: 0, morphing: true, seed: s.seed + 1 });
+const morphTo = (s: CycleState, b: HandArtStyle): CycleState => ({
+  ...s,
+  b,
+  mix: 0,
+  morphing: true,
+  sinceMorphMs: 0,
+  seed: s.seed + 1,
+});
 
-export function stepCycle(s: CycleState, dtMs: number, gripperClosed: boolean, o: CycleOptions): CycleState {
+/** cue: a counter the caller bumps on each event (events mode only). */
+export function stepCycle(s: CycleState, dtMs: number, gripperClosed: boolean, o: CycleOptions, cue = 0): CycleState {
   const gripChanged = s.lastGrip !== null && s.lastGrip !== gripperClosed;
-  s = { ...s, lastGrip: gripperClosed };
+  const cueChanged = s.lastCue !== null && s.lastCue !== cue;
+  s = { ...s, lastGrip: gripperClosed, lastCue: cue, sinceMorphMs: s.sinceMorphMs + dtMs };
 
   if (o.reducedMotion) {
     const only = o.pinned ?? o.staticStyle;
@@ -67,6 +90,8 @@ export function stepCycle(s: CycleState, dtMs: number, gripperClosed: boolean, o
   }
 
   if (o.pinned) return s.a === o.pinned ? s : morphTo(s, o.pinned);
+
+  if (o.trigger === "events") return cueChanged && s.sinceMorphMs >= o.cooldownMs ? morphTo(s, nextStyle(s.a)) : s;
 
   const heldMs = s.heldMs + dtMs;
   if (gripChanged || heldMs >= o.holdMs) return morphTo({ ...s, heldMs }, nextStyle(s.a));

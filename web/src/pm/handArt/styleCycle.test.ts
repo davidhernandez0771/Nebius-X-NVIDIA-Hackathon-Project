@@ -7,6 +7,8 @@ const opts = (o: Partial<CycleOptions> = {}): CycleOptions => ({
   pinned: null,
   reducedMotion: false,
   staticStyle: "lines",
+  trigger: "timer",
+  cooldownMs: 400,
   ...o,
 });
 
@@ -96,5 +98,54 @@ describe("stepCycle, reduced motion", () => {
     const o = opts({ reducedMotion: true, pinned: "ascii" });
     const s = stepCycle(initialCycle(opts({ reducedMotion: true })), 16, false, o);
     expect(s).toMatchObject({ a: "ascii", b: "ascii", mix: 0, morphing: false });
+  });
+});
+
+describe("stepCycle, event-driven (Record: the style changes when something happens)", () => {
+  const ev = (o: Partial<CycleOptions> = {}) => opts({ trigger: "events", morphMs: 400, cooldownMs: 400, ...o });
+  const runCue = (s: CycleState, ms: number, cue: number, o: CycleOptions, grip = false, step = 16): CycleState => {
+    for (let t = 0; t < ms; t += step) s = stepCycle(s, step, grip, o, cue);
+    return s;
+  };
+
+  it("never changes on a timer", () => {
+    const s = runCue(initialCycle(ev()), 10_000, 0, ev());
+    expect(s).toMatchObject({ a: HAND_ART_STYLES[0], morphing: false });
+  });
+
+  it("crossfades to the next style when the cue changes", () => {
+    let s = runCue(initialCycle(ev()), 100, 0, ev());
+    s = stepCycle(s, 16, false, ev(), 1);
+    expect(s.morphing).toBe(true);
+    expect(s.b).toBe(HAND_ART_STYLES[1]);
+    s = runCue(s, 420, 1, ev());
+    expect(s).toMatchObject({ a: HAND_ART_STYLES[1], morphing: false, mix: 0 });
+  });
+
+  it("drops a second event inside the cooldown, and takes the next one after it", () => {
+    let s = runCue(initialCycle(ev()), 100, 0, ev());
+    s = stepCycle(s, 16, false, ev(), 1);
+    const seed = s.seed;
+    s = runCue(s, 200, 2, ev()); // 200 ms later: inside the cooldown
+    expect(s.seed).toBe(seed);
+    s = runCue(s, 300, 2, ev()); // the morph finishes, no new one
+    expect(s).toMatchObject({ a: HAND_ART_STYLES[1], morphing: false });
+    s = stepCycle(s, 16, false, ev(), 3);
+    expect(s.morphing).toBe(true);
+    expect(s.b).toBe(HAND_ART_STYLES[2]);
+  });
+
+  it("ignores the gripper by itself (the page's cue includes grasp changes) and the first frame's cue", () => {
+    let s = stepCycle(initialCycle(ev()), 16, false, ev(), 7);
+    expect(s.morphing).toBe(false);
+    s = runCue(s, 500, 7, ev(), true);
+    expect(s).toMatchObject({ a: HAND_ART_STYLES[0], morphing: false, seed: 0 });
+  });
+
+  it("reduced motion stays one static style whatever happens", () => {
+    const o = ev({ reducedMotion: true });
+    let s = initialCycle(o);
+    for (let cue = 0; cue < 5; cue++) s = runCue(s, 500, cue, o);
+    expect(s).toMatchObject({ a: "lines", b: "lines", morphing: false, mix: 0 });
   });
 });

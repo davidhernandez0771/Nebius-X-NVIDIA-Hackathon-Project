@@ -1,6 +1,7 @@
 // A generative hand overlay: the 21 landmarks drawn as textmode marks, Bayer dither,
 // halftone, particles or glowing lines, morphing between them every few seconds and
-// whenever the gripper opens or closes. Transparent; sits on top of the webcam view.
+// whenever the gripper opens or closes, or (trigger "events") only when the caller's cue
+// changes. Transparent; sits on top of the webcam view.
 //
 // Pass the hand either as props (re-render per frame) or, cheaper, as `source`, a
 // function the overlay calls once per animation frame.
@@ -15,6 +16,8 @@ import "./handArt.css";
 export interface HandArtFrame {
   landmarks: readonly HandLandmark[] | null;
   gripperClosed?: boolean;
+  /** Bumped by the caller on each event; with trigger "events", each change morphs the style. */
+  cue?: number;
 }
 
 export interface HandArtStats {
@@ -37,6 +40,7 @@ export interface HandArtOverlayProps {
   /** 21 raw (unmirrored) MediaPipe landmarks, or null for no hand. Ignored when `source` is set. */
   landmarks?: readonly HandLandmark[] | null;
   gripperClosed?: boolean;
+  cue?: number;
   /** Polled once per animation frame; return the latest hand, or null. */
   source?: () => HandArtFrame | null;
   /** A fixed style, or "auto" to cycle. */
@@ -47,8 +51,13 @@ export interface HandArtOverlayProps {
   reducedMotion?: boolean;
   holdMs?: number;
   morphMs?: number;
+  /** "timer" (default): change style every holdMs; "events": change when the cue changes. */
+  trigger?: CycleOptions["trigger"];
+  cooldownMs?: number;
   /** About twice a second. */
   onStats?: (s: HandArtStats) => void;
+  /** true once it draws; false without WebGL, on a lost context, and on unmount. */
+  onActiveChange?: (active: boolean) => void;
   className?: string;
 }
 
@@ -83,6 +92,8 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
     morphMs: props.morphMs ?? DEFAULT_CYCLE.morphMs,
     pinned: props.style && props.style !== "auto" ? props.style : null,
     reducedMotion,
+    trigger: props.trigger ?? DEFAULT_CYCLE.trigger,
+    cooldownMs: props.cooldownMs ?? DEFAULT_CYCLE.cooldownMs,
   };
   const cycleRef = useRef(cycle);
   cycleRef.current = cycle;
@@ -95,9 +106,11 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
       renderer = new HandArtRenderer(el, { mirrored: latest.current.mirrored ?? true });
     } catch {
       setState("unsupported"); // no WebGL: Record's own 2D skeleton still shows
+      latest.current.onActiveChange?.(false);
       return;
     }
     setState("running");
+    latest.current.onActiveChange?.(true);
 
     const resize = () => renderer.resize(el.clientWidth, el.clientHeight, window.devicePixelRatio || 1);
     resize();
@@ -115,10 +128,10 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
       const dt = Math.min(MAX_DT_MS, Math.max(0, now - last));
       last = now;
       const p = latest.current;
-      const hand = p.source ? p.source() : { landmarks: p.landmarks ?? null, gripperClosed: p.gripperClosed };
+      const hand = p.source ? p.source() : { landmarks: p.landmarks ?? null, gripperClosed: p.gripperClosed, cue: p.cue };
       renderer.setMirrored(p.mirrored ?? true);
       renderer.setCycleOptions(cycleRef.current);
-      renderer.setHand(hand?.landmarks ?? null, !!hand?.gripperClosed);
+      renderer.setHand(hand?.landmarks ?? null, !!hand?.gripperClosed, hand?.cue ?? 0);
       const info = renderer.frame(dt);
       cpu.add(info.cpuMs);
       info.gpuMs.forEach((ms) => gpu.add(ms));
@@ -148,6 +161,7 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
       e.preventDefault();
       cancelAnimationFrame(raf);
       setState("unsupported");
+      latest.current.onActiveChange?.(false);
     };
     el.addEventListener("webglcontextlost", onLost);
 
@@ -156,6 +170,7 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
       observer?.disconnect();
       el.removeEventListener("webglcontextlost", onLost);
       renderer.dispose();
+      latest.current.onActiveChange?.(false);
     };
   }, []);
 

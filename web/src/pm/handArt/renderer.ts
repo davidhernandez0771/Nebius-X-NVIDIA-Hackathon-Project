@@ -68,6 +68,7 @@ export class HandArtRenderer {
   private cycle: CycleState = initialCycle(DEFAULT_CYCLE);
   private landmarks: readonly HandLandmark[] | null = null;
   private gripperClosed = false;
+  private cue = 0;
   private grip = 0;
   private presence = 0;
   private time = 0;
@@ -126,9 +127,10 @@ export class HandArtRenderer {
     this.timer = "createQuery" in ctx ? GpuTimer.create(ctx) : null;
   }
 
-  setHand(landmarks: readonly HandLandmark[] | null, gripperClosed: boolean) {
+  setHand(landmarks: readonly HandLandmark[] | null, gripperClosed: boolean, cue = 0) {
     this.landmarks = landmarks;
     this.gripperClosed = gripperClosed;
+    this.cue = cue;
   }
 
   setMirrored(mirrored: boolean) {
@@ -138,7 +140,7 @@ export class HandArtRenderer {
   setCycleOptions(o: CycleOptions) {
     const switchedMode = o.reducedMotion !== this.cycleOpts.reducedMotion;
     this.cycleOpts = o;
-    if (switchedMode) this.cycle = { ...initialCycle(o), lastGrip: this.cycle.lastGrip };
+    if (switchedMode) this.cycle = { ...initialCycle(o), lastGrip: this.cycle.lastGrip, lastCue: this.cycle.lastCue };
   }
 
   resize(cssW: number, cssH: number, dpr: number) {
@@ -158,7 +160,7 @@ export class HandArtRenderer {
   frame(dtMs: number): FrameInfo {
     const start = performance.now();
     const o = this.cycleOpts;
-    this.cycle = stepCycle(this.cycle, dtMs, this.gripperClosed, o);
+    this.cycle = stepCycle(this.cycle, dtMs, this.gripperClosed, o, this.cue);
     if (!o.reducedMotion) this.time += dtMs / 1000;
     this.grip = o.reducedMotion ? +this.gripperClosed : approach(this.grip, +this.gripperClosed, dtMs, GRIP_EASE_MS);
 

@@ -28,6 +28,8 @@ import {
   robotReach,
   type Framing,
 } from "./framing";
+import { LazyHandArtOverlay, type HandArtFrame } from "../handArt";
+import { ArtCue } from "./artCue";
 import { HandControlPanel } from "./HandControlPanel";
 import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
 import "../pm.css";
@@ -38,6 +40,10 @@ const BONES = [
   [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20],
 ];
 const UI_INTERVAL_MS = 100; // framing text updates at ~10 Hz; the canvas draws every frame
+// Hand art (display only) changes style when something happens (ArtCue), crossfading; events
+// closer together than the cooldown are dropped, and the crossfade ends before the next can start.
+const ART_MORPH_MS = 400;
+const ART_COOLDOWN_MS = 400;
 
 // Same choice as TeleopClient: the right hand, else the first one.
 const pickHand = (hands: TrackedHand[]) => hands.find((h) => h.handedness === "Right") ?? hands[0] ?? null;
@@ -72,8 +78,16 @@ function reachOf(msg: HandPoseMsg): { fraction: number; x: number } {
   return { fraction, x: X_RANGE[0] + fraction * (X_RANGE[1] - X_RANGE[0]) };
 }
 
-/** Mirrored, like a mirror: the user's right hand appears on the right. */
-function draw(canvas: HTMLCanvasElement, hand: TrackedHand | null, framing: Framing, settings: TeleopControlSettings, gripper: 0 | 1) {
+/** Mirrored, like a mirror: the user's right hand appears on the right. artDrawing: the hand-art
+ *  overlay draws the hand, so the 2D bones (its no-WebGL fallback) are skipped. */
+function draw(
+  canvas: HTMLCanvasElement,
+  hand: TrackedHand | null,
+  framing: Framing,
+  settings: TeleopControlSettings,
+  gripper: 0 | 1,
+  artDrawing: boolean,
+) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
@@ -99,19 +113,21 @@ function draw(canvas: HTMLCanvasElement, hand: TrackedHand | null, framing: Fram
   if (!hand) return;
 
   const lm = hand.landmarks;
-  ctx.strokeStyle = cssVar("--accent");
-  ctx.lineWidth = 2 * dpr;
-  ctx.beginPath();
-  for (const [a, b] of BONES) {
-    ctx.moveTo(x(lm[a].x), y(lm[a].y));
-    ctx.lineTo(x(lm[b].x), y(lm[b].y));
-  }
-  ctx.stroke();
-  ctx.fillStyle = cssVar("--text");
-  for (const p of lm) {
+  if (!artDrawing) {
+    ctx.strokeStyle = cssVar("--accent");
+    ctx.lineWidth = 2 * dpr;
     ctx.beginPath();
-    ctx.arc(x(p.x), y(p.y), 2.5 * dpr, 0, Math.PI * 2);
-    ctx.fill();
+    for (const [a, b] of BONES) {
+      ctx.moveTo(x(lm[a].x), y(lm[a].y));
+      ctx.lineTo(x(lm[b].x), y(lm[b].y));
+    }
+    ctx.stroke();
+    ctx.fillStyle = cssVar("--text");
+    for (const p of lm) {
+      ctx.beginPath();
+      ctx.arc(x(p.x), y(p.y), 2.5 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // The hand dot: the point that drives the arm (palm center, or the wrist with the region off).
@@ -157,6 +173,10 @@ export default function RecordPage() {
   const pinchCalStep = useRef<PinchCalState["step"] | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const session = useRef<{ tracker: TrackingAdapter; link: RecordLink | null } | null>(null);
+  const artHand = useRef<HandArtFrame | null>(null); // polled by the hand-art overlay each animation frame
+  const artActive = useRef(false); // the overlay is drawing (WebGL up)
+  const resets = useRef(0); // Reset scene presses, for the hand-art cue
+  const recordingNow = useRef(false); // the sim is recording, for the hand-art cue
 
   function updateSettings(next: TeleopControlSettings) {
     settingsRef.current = next;
@@ -166,6 +186,7 @@ export default function RecordPage() {
   }
 
   function teardown() {
+    artHand.current = null;
     calibrator.current = null;
     pinchCalibrator.current = null;
     centerer.current = null;
@@ -183,6 +204,7 @@ export default function RecordPage() {
     let lastUi = -Infinity;
     let last: HandPoseMsg | undefined;
     const latch = new PinchLatch(); // the gripper: 3D pinch, hysteresis, 2 frames to change
+    const cue = new ArtCue();
     // Auto-centered reach: unless the depth range was calibrated or set by hand, center it on the
     // hand's natural distance once tracking starts (ReachCenterer: ~1 s of palm widths).
     centerer.current = settingsRef.current.depthAuto ? new ReachCenterer() : null;
@@ -201,7 +223,13 @@ export default function RecordPage() {
       if (centerer.current) recenter(centerer.current, frame.timestamp, msg);
       const tracked = msg.tracking_ok && hand ? { center: palmCenter(hand.landmarks), palmWidth: msg.palm_width } : null;
       const framing = s.enabled ? controlFraming(tracked, s) : framingCheck(msg);
-      if (canvas.current) draw(canvas.current, hand, framing, s, gripper);
+      // Display only: the overlay reads this; nothing flows back into the message or the gripper.
+      artHand.current = {
+        landmarks: hand?.landmarks ?? null,
+        gripperClosed: gripper === 1,
+        cue: cue.update({ gripper, recording: recordingNow.current, resets: resets.current }),
+      };
+      if (canvas.current) draw(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current);
       const uiTick = frame.timestamp - lastUi >= UI_INTERVAL_MS;
       if (calibrator.current) calibrate(calibrator.current, frame.timestamp, tracked, uiTick);
       if (pinchCalibrator.current)
@@ -306,12 +334,16 @@ export default function RecordPage() {
     setPhase({ state: "idle" });
   }
 
-  const control = (action: ControlAction) => session.current?.link?.sendControl(action);
+  function control(action: ControlAction) {
+    if (action === "reset_scene") resets.current++;
+    return session.current?.link?.sendControl(action);
+  }
 
   const streaming = phase.state === "streaming";
   const lost = streaming && (track === "no-hand" || track === "error");
   const simReady = streaming && relay.simConnected;
   const recording = simReady && !!sim?.recording;
+  recordingNow.current = recording;
 
   return (
     <Zones
@@ -322,6 +354,15 @@ export default function RecordPage() {
           </PageTitle>
           <div className="pm-stage">
             <canvas ref={canvas} aria-label="Your hand, mirrored, with the workspace box" />
+            {settings.showHandArt && streaming && (
+              <LazyHandArtOverlay
+                source={() => artHand.current}
+                trigger="events"
+                morphMs={ART_MORPH_MS}
+                cooldownMs={ART_COOLDOWN_MS}
+                onActiveChange={(active) => (artActive.current = active)}
+              />
+            )}
             {!streaming && (
               <div className="pm-stage-idle">
                 <p className="muted">

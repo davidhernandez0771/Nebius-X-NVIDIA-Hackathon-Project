@@ -80,18 +80,18 @@ describe("HandArtOverlay", () => {
     render(<HandArtOverlay landmarks={hand} gripperClosed />);
     tick();
     const r = fake.instances[0];
-    expect(r.setHand).toHaveBeenLastCalledWith(hand, true);
+    expect(r.setHand).toHaveBeenLastCalledWith(hand, true, 0);
     expect(r.setMirrored).toHaveBeenLastCalledWith(true);
     expect(r.frame).toHaveBeenCalledTimes(1);
   });
 
   it("polls `source` once per frame instead of the props", () => {
-    const source = vi.fn(() => ({ landmarks: hand, gripperClosed: false }));
+    const source = vi.fn(() => ({ landmarks: hand, gripperClosed: false, cue: 3 }));
     render(<HandArtOverlay landmarks={null} source={source} />);
     tick();
     tick();
     expect(source).toHaveBeenCalledTimes(2);
-    expect(fake.instances[0].setHand).toHaveBeenLastCalledWith(hand, false);
+    expect(fake.instances[0].setHand).toHaveBeenLastCalledWith(hand, false, 3);
   });
 
   it("passes a picked style and reduced motion to the style cycle", () => {
@@ -102,6 +102,27 @@ describe("HandArtOverlay", () => {
     rerender(<HandArtOverlay landmarks={hand} style="auto" reducedMotion />);
     tick();
     expect(r.setCycleOptions).toHaveBeenLastCalledWith(expect.objectContaining({ pinned: null, reducedMotion: true }));
+  });
+
+  it("passes the event trigger, cooldown and morph time to the style cycle", () => {
+    render(<HandArtOverlay landmarks={hand} trigger="events" cooldownMs={400} morphMs={400} />);
+    tick();
+    expect(fake.instances[0].setCycleOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ trigger: "events", cooldownMs: 400, morphMs: 400 }),
+    );
+  });
+
+  it("tells the page whether it is drawing (no WebGL: false, so Record keeps its 2D skeleton)", () => {
+    const onActive = vi.fn();
+    const { unmount } = render(<HandArtOverlay landmarks={hand} onActiveChange={onActive} />);
+    expect(onActive).toHaveBeenLastCalledWith(true);
+    unmount();
+    expect(onActive).toHaveBeenLastCalledWith(false);
+    fake.fail = true;
+    const failed = vi.fn();
+    render(<HandArtOverlay landmarks={hand} onActiveChange={failed} />);
+    expect(failed).toHaveBeenLastCalledWith(false);
+    expect(failed).not.toHaveBeenCalledWith(true);
   });
 
   it("reports frame stats about twice a second", () => {
