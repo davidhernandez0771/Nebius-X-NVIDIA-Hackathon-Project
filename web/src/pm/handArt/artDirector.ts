@@ -10,9 +10,16 @@ export interface ArtSignals {
   /** A hand is tracked this frame. */
   hand: boolean;
   gripperClosed: boolean;
-  recording: boolean;
-  /** reset_scene messages sent so far; each rise is a reset. */
-  resets: number;
+  /** The sim is recording. Undefined: the page doesn't say (see cue). */
+  recording?: boolean;
+  /** reset_scene messages sent so far; each rise is a reset. Undefined: the page doesn't say. */
+  resets?: number;
+  /**
+   * A page that sends neither recording nor resets (pm/hand-v3's Record) bumps this counter on
+   * each event instead. A bump the gripper doesn't explain (Reset scene, record start/stop)
+   * plays the reset glitch, so those moments still show; it can't tell which one it was.
+   */
+  cue?: number;
   /** Optional: a page whose hand control freezes the arm. null (unknown) keeps the last value. */
   frozen?: boolean | null;
 }
@@ -46,7 +53,10 @@ export function stepDirector(s: DirectorState, dtMs: number, x: ArtSignals): { s
   if (p) {
     if (p.gripperClosed && !x.gripperClosed) releaseLeftMs = RELEASE_MS;
     if (x.gripperClosed) releaseLeftMs = 0;
-    if (x.resets > p.resets) resetLeftMs = RESET_MS;
+    if ((x.resets ?? 0) > (p.resets ?? 0)) resetLeftMs = RESET_MS;
+    const explicit = x.recording !== undefined || x.resets !== undefined;
+    const cueBump = x.cue !== undefined && p.cue !== undefined && x.cue !== p.cue;
+    if (!explicit && cueBump && x.gripperClosed === p.gripperClosed) resetLeftMs = RESET_MS;
   }
   const frozen = x.frozen ?? s.frozen;
   const lostMs = x.hand ? 0 : s.lostMs + dtMs;

@@ -86,3 +86,29 @@ describe("stepDirector: which style each thing that happens shows", () => {
     expect(r.style).toBe("glitch");
   });
 });
+
+describe("stepDirector with only T4's event counter (pm/hand-v3's Record: landmarks, gripper, cue)", () => {
+  const v3 = (cue: number, gripperClosed = false): ArtSignals => ({ hand: true, gripperClosed, cue });
+
+  it("plays the reset glitch for a cue bump the gripper doesn't explain (Reset scene, record start/stop)", () => {
+    let r = run(initialDirector(), 100, v3(0));
+    r = run(r.state, 16, v3(1));
+    expect(r.style).toBe("glitch");
+    r = run(r.state, RESET_MS + 50, v3(1));
+    expect(r.style).toBe("ink");
+  });
+
+  it("reads a cue bump with a gripper change as grab or release, not a reset", () => {
+    let r = run(initialDirector(), 100, v3(0));
+    r = run(r.state, 16, v3(1, true));
+    expect(r.style).toBe("bloom");
+    r = run(r.state, 16, v3(2, false));
+    expect(r.style).toBe("burst");
+  });
+
+  it("ignores the cue when the page sends recording and resets itself", () => {
+    let r = run(initialDirector(), 100, { ...base, cue: 0 });
+    r = run(r.state, 16, { ...base, cue: 1, recording: true });
+    expect(r.style).toBe("trail");
+  });
+});

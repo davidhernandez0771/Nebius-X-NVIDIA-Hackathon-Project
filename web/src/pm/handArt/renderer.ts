@@ -64,10 +64,13 @@ export interface RendererOptions {
 export interface HandArtInput {
   landmarks: readonly HandLandmark[] | null;
   gripperClosed: boolean;
-  recording: boolean;
-  resets: number;
+  /** Undefined when the page doesn't say; see ArtSignals. */
+  recording?: boolean;
+  resets?: number;
   /** Optional: the page's hand control froze the arm; null when unknown. */
   frozen?: boolean | null;
+  /** The page's event counter, used only when it sends neither recording nor resets. */
+  cue?: number;
 }
 
 export interface FrameInfo {
@@ -117,7 +120,7 @@ export class HandArtRenderer {
   private cycleOpts: CycleOptions = DEFAULT_CYCLE;
   private cycle: CycleState = initialCycle(DEFAULT_CYCLE, "ink");
   private director: DirectorState = initialDirector();
-  private input: HandArtInput = { landmarks: null, gripperClosed: false, recording: false, resets: 0 };
+  private input: HandArtInput = { landmarks: null, gripperClosed: false };
   private lastPacked: PackedSkeleton | null = null;
   private burstSeed = -1;
   private replayIndex = -1;

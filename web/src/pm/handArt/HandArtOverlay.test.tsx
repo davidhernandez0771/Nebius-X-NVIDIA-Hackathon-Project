@@ -81,18 +81,19 @@ describe("HandArtOverlay", () => {
     render(<HandArtOverlay landmarks={hand} gripperClosed />);
     tick();
     const r = fake.instances[0];
-    expect(r.setHand).toHaveBeenLastCalledWith({ landmarks: hand, gripperClosed: true, frozen: null, recording: false, resets: 0 });
+    expect(r.setHand).toHaveBeenLastCalledWith(expect.objectContaining({ landmarks: hand, gripperClosed: true, frozen: null }));
+    expect(r.setHand.mock.lastCall![0].recording).toBeUndefined(); // the page didn't say
     expect(r.setMirrored).toHaveBeenLastCalledWith(true);
     expect(r.frame).toHaveBeenCalledTimes(1);
   });
 
   it("polls `source` once per frame instead of the props", () => {
-    const source = vi.fn(() => ({ landmarks: hand, gripperClosed: false, frozen: true, recording: true, resets: 3 }));
+    const source = vi.fn(() => ({ landmarks: hand, gripperClosed: false, frozen: true, recording: true, resets: 3, cue: 5 }));
     render(<HandArtOverlay landmarks={null} source={source} />);
     tick();
     tick();
     expect(source).toHaveBeenCalledTimes(2);
-    expect(fake.instances[0].setHand).toHaveBeenLastCalledWith({ landmarks: hand, gripperClosed: false, frozen: true, recording: true, resets: 3 });
+    expect(fake.instances[0].setHand).toHaveBeenLastCalledWith({ landmarks: hand, gripperClosed: false, frozen: true, recording: true, resets: 3, cue: 5 });
   });
 
   it("passes a picked style and reduced motion to the style cycle", () => {

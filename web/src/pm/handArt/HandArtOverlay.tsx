@@ -23,7 +23,10 @@ export interface HandArtFrame {
   resets?: number;
   /** Optional: the page's hand control froze the arm (shows the ripple); null when unknown. */
   frozen?: boolean | null;
-  /** Ignored. Accepted so pages written for the earlier event counter still compile. */
+  /**
+   * An event counter (pm/hand-v3's Record). Used only when recording and resets are absent: a
+   * bump the gripper doesn't explain plays the reset glitch. Prefer sending recording and resets.
+   */
   cue?: number;
 }
 
@@ -151,8 +154,9 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
         landmarks: hand?.landmarks ?? null,
         gripperClosed: !!hand?.gripperClosed,
         frozen: hand?.frozen ?? null,
-        recording: !!hand?.recording,
-        resets: hand?.resets ?? 0,
+        recording: hand?.recording,
+        resets: hand?.resets,
+        cue: hand?.cue,
       });
       const info = renderer.frame(dt);
       cpu.add(info.cpuMs);
