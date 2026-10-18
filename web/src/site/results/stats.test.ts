@@ -43,7 +43,8 @@ describe("replay", () => {
   });
 
   it("carries the running rate and its Wilson CI", () => {
-    const last = replay("0110").at(-1)!;
+    const frames = replay("0110");
+    const last = frames[frames.length - 1];
     expect(last.rate).toBe(0.5);
     expect([last.lo, last.hi]).toEqual(wilson(2, 4));
     expect(replay("")[0].rate).toBeNull();

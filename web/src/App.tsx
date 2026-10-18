@@ -29,6 +29,7 @@ const Entry = lazy(() => import("./pages/Entry"));
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
+const SiteResultsPage = lazy(() => import("./site/results/ResultsPage").then((m) => ({ default: m.ResultsPage })));
 
 // Dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
@@ -75,6 +76,7 @@ export default function App() {
               </Suspense>
             }
           />
+          <Route path="/site/results" element={<Suspense fallback={null}><SiteResultsPage /></Suspense>} />
         </Route>
         <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
         <Route element={<DashboardShell />}>

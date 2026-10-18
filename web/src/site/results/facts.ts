@@ -118,24 +118,34 @@ export const PLATEAU = {
   source: t3("1321–1323, 1257"),
 };
 
+type Measure = { k: number; n: number; what: string; ci?: string; later?: string; source: Source };
+
 export type ReportCard = {
   key: "franka" | "openarm" | "yours";
   robot: string;
   status: { label: string; tone: "live" | "issue" | "neutral" };
   summary: string;
-  success: { k: number; n: number; what: string; ci?: string; source: Source } | null;
-  failures: { of: number; reasons: { label: string; k: number }[]; overlap: boolean; source: Source } | null;
+  /** Copies of one source demo that passed the physics check: the same 30 scenes for every arm. */
+  copies: Measure | null;
+  policy: Measure | null;
+  /** Why there is no policy, when that is known; otherwise a missing policy is "Pending". */
+  policyNote?: string;
+  failures: { what: string; of: number; reasons: { label: string; k: number }[]; overlap: boolean; source: Source } | null;
   reach: { value: string; detail: string; source: Source } | null;
 };
+
+const SAME_SCENES = "copies that passed the physics check, on the same 30 scenes (seeds 100–129)";
 
 export const REPORT_CARDS: ReportCard[] = [
   {
     key: "franka",
     robot: "Franka Panda",
     status: { label: "Tested", tone: "live" },
-    summary: "Our main arm. The policy below was trained on 10 demos plus 100 physics-verified copies.",
-    success: { k: 17, n: 40, what: "new scenes the trained policy completed", ci: "28.5–57.8%", source: t3("1156") },
+    summary: "Our main arm, and the one every policy on this page was trained for.",
+    copies: { k: 27, n: 30, what: SAME_SCENES, later: "30/30 after a later fix to how copies are planned.", source: t2("513, 639–640") },
+    policy: { k: 17, n: 40, what: "new scenes completed by the policy trained on 10 demos + 100 copies", ci: "28.5–57.8%", source: t3("1156") },
     failures: {
+      what: "Of the policy's 23 failed scenes",
       of: 23,
       reasons: [
         { label: "Picked the cube up, then dropped it", k: 22 },
@@ -150,9 +160,12 @@ export const REPORT_CARDS: ReportCard[] = [
     key: "openarm",
     robot: "OpenArm",
     status: { label: "Design flaw found", tone: "issue" },
-    summary: "Same task, same source demo. The simulator found the limit before any hardware did.",
-    success: { k: 0, n: 30, what: "copies that passed the physics check", source: t2("310, 368") },
+    summary: "Same task, same source demo, same scenes. The simulator found the limit before any hardware did.",
+    copies: { k: 0, n: 30, what: SAME_SCENES, source: t2("310, 513") },
+    policy: null,
+    policyNote: "Not trained: no copies passed the physics check.",
     failures: {
+      what: "Of the 30 failed copies",
       of: 30,
       reasons: [
         { label: "Couldn't hold the commanded pose", k: 30 },
@@ -174,7 +187,8 @@ export const REPORT_CARDS: ReportCard[] = [
     robot: "Your robot",
     status: { label: "Coming next", tone: "neutral" },
     summary: "Upload a URDF, give its parts roles (base, hand, gripper), and run the same workflow to get this card.",
-    success: null,
+    copies: null,
+    policy: null,
     failures: null,
     reach: null,
   },

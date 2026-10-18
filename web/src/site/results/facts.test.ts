@@ -67,8 +67,15 @@ describe("report cards", () => {
 
   it("say pending instead of inventing a value", () => {
     const yours = REPORT_CARDS.find((c) => c.key === "yours")!;
-    expect(yours.success).toBeNull();
-    expect(yours.failures).toBeNull();
-    expect(yours.reach).toBeNull();
+    expect([yours.copies, yours.policy, yours.failures, yours.reach]).toEqual([null, null, null, null]);
+  });
+
+  it("compare copies on the same seeds, and say why a policy is missing", () => {
+    const [franka, openarm] = REPORT_CARDS;
+    expect(`${franka.copies!.k}/${franka.copies!.n}`).toBe("27/30");
+    expect(`${openarm.copies!.k}/${openarm.copies!.n}`).toBe("0/30");
+    expect(franka.copies!.what).toBe(openarm.copies!.what);
+    expect(openarm.policy).toBeNull();
+    expect(openarm.policyNote).toMatch(/no copies passed/);
   });
 });
