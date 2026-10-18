@@ -336,6 +336,52 @@
   margin-left: 0.5rem;
 }
 
+.ha-crossing {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ha-crossing legend {
+  margin-bottom: 0.25rem;
+  padding: 0;
+  color: var(--ha-muted);
+  font-size: 0.8125rem;
+}
+
+.ha-crossing p {
+  margin: 0;
+  color: var(--ha-muted);
+  font-size: 0.8125rem;
+}
+
+.ha-crossing-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* The two directions, drawn as what they do: out of the palm, and back into it. */
+.ha-btn-push::before,
+.ha-btn-pull::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+}
+
+.ha-btn-push::before {
+  background: radial-gradient(circle, var(--ha-teal) 0 18%, transparent 22% 48%, var(--ha-teal) 52% 64%, transparent 68%);
+}
+
+.ha-btn-pull::before {
+  background: radial-gradient(circle, var(--ha-teal) 0 34%, transparent 38%);
+  box-shadow: 0 0 0 2px rgba(25, 245, 194, 0.35);
+}
+
 .ha-actions {
   display: grid;
   gap: 0.5rem;

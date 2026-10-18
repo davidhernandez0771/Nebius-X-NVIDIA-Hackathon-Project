@@ -28,6 +28,10 @@ export interface HandArtFrame {
    * bump the gripper doesn't explain plays the reset glitch. Prefer sending recording and resets.
    */
   cue?: number;
+  /** Bumped each time the hand passes through the workspace plane in depth: plays the break-through. */
+  breakthrough?: number;
+  /** 1: pushing through toward the camera (shatters outward); -1: backing out (pulls inward). */
+  breakthroughDir?: 1 | -1;
 }
 
 export interface HandArtStats {
@@ -46,6 +50,8 @@ export interface HandArtStats {
   morphing: boolean;
   /** The style the hand's state calls for (shown once the crossfade and cooldown allow). */
   target: HandArtStyle;
+  /** A break-through is playing. */
+  breaking: boolean;
 }
 
 export interface HandArtOverlayProps {
@@ -55,6 +61,8 @@ export interface HandArtOverlayProps {
   frozen?: boolean | null;
   recording?: boolean;
   resets?: number;
+  breakthrough?: number;
+  breakthroughDir?: 1 | -1;
   /** Polled once per animation frame; return the latest hand, or null. */
   source?: () => HandArtFrame | null;
   /** A fixed style, or "auto" (default) to follow the hand's state. */
@@ -157,6 +165,8 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
         recording: hand?.recording,
         resets: hand?.resets,
         cue: hand?.cue,
+        breakthrough: hand?.breakthrough,
+        breakthroughDir: hand?.breakthroughDir,
       });
       const info = renderer.frame(dt);
       cpu.add(info.cpuMs);
@@ -179,6 +189,7 @@ export default function HandArtOverlay(props: HandArtOverlayProps) {
           styleB: info.cycle.b,
           morphing: info.cycle.morphing,
           target: info.target,
+          breaking: info.breaking,
         });
       }
     };

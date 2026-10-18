@@ -60,6 +60,19 @@ describe("HandArtPreviewPage", () => {
     expect(container.querySelector(".ha-stage-busy")).toBeTruthy();
   });
 
+  it("fires the break-through both ways, and with no direction", () => {
+    render(<HandArtPreviewPage />);
+    const frame = () => seen.props!.source!()!;
+    expect(frame().breakthrough).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "Push through" }));
+    expect(frame()).toMatchObject({ breakthrough: 1, breakthroughDir: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Back out" }));
+    expect(frame()).toMatchObject({ breakthrough: 2, breakthroughDir: -1 });
+    fireEvent.click(screen.getByRole("button", { name: "Cross with no direction" }));
+    expect(frame().breakthrough).toBe(3);
+    expect(frame().breakthroughDir).toBeUndefined();
+  });
+
   it("holds the gripper closed on request", () => {
     render(<HandArtPreviewPage />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Hold gripper closed" }));
@@ -81,17 +94,29 @@ describe("HandArtPreviewPage", () => {
       styleB: "ink",
       morphing: false,
       target: "ink",
+      breaking: false,
     });
     fireEvent.click(screen.getByRole("button", { name: "Measure each style" }));
-    for (let i = 0; i < 6; i++) {
-      expect(seen.props!.statsKey).toBe(seen.props!.style); // fresh statistics per style
-      act(() => seen.props!.onStats!(stats(i + 1)));
-      act(() => vi.advanceTimersByTime(3500));
+    const keys = new Set();
+    for (let i = 0; i < 7; i++) {
+      keys.add(seen.props!.statsKey); // fresh statistics per step
+      if (i === 6) {
+        const before = seen.props!.source!()!.breakthrough!;
+        act(() => vi.advanceTimersByTime(1000));
+        expect(seen.props!.source!()!.breakthrough).toBeGreaterThan(before); // break-throughs firing
+        act(() => seen.props!.onStats!(stats(i + 1)));
+        act(() => vi.advanceTimersByTime(2500));
+      } else {
+        act(() => seen.props!.onStats!(stats(i + 1)));
+        act(() => vi.advanceTimersByTime(3500));
+      }
     }
+    expect(keys.size).toBe(7);
     const rows = screen.getAllByRole("row").slice(1);
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(7);
     expect(rows[0].textContent).toContain("Ink strokes");
     expect(rows[5].textContent).toContain("6.00 ms");
+    expect(rows[6].textContent).toContain("Break-through");
     expect(screen.getByRole("button", { name: "Measure each style" })).toBeTruthy();
   });
 

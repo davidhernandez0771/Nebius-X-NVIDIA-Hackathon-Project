@@ -23,6 +23,7 @@ import {
 } from "three";
 import type { HandLandmark } from "../../hand/contracts";
 import { initialDirector, stepDirector, type DirectorState } from "./artDirector";
+import { breakProgress, initialBreak, stepBreak, type BreakState } from "./breakthrough";
 import { GpuTimer } from "./gpuTimer";
 import { DEFAULT_CAPS, fieldSize, renderSize, type RenderCaps } from "./quality";
 import { QUAD_VERT, TRAIL_FRAG, handFragment } from "./shaders";
@@ -71,6 +72,10 @@ export interface HandArtInput {
   frozen?: boolean | null;
   /** The page's event counter, used only when it sends neither recording nor resets. */
   cue?: number;
+  /** Bumped each time the hand passes through the workspace plane in depth. */
+  breakthrough?: number;
+  /** 1 pushing through toward the camera, -1 backing out; anything else: no direction. */
+  breakthroughDir?: number;
 }
 
 export interface FrameInfo {
@@ -84,6 +89,8 @@ export interface FrameInfo {
   /** GPU ms of earlier frames whose timings arrived this frame; empty without timer queries. */
   gpuMs: number[];
   drew: boolean;
+  /** A break-through is playing. */
+  breaking: boolean;
 }
 
 const approach = (v: number, target: number, dtMs: number, tauMs: number) =>
@@ -120,6 +127,7 @@ export class HandArtRenderer {
   private cycleOpts: CycleOptions = DEFAULT_CYCLE;
   private cycle: CycleState = initialCycle(DEFAULT_CYCLE, "ink");
   private director: DirectorState = initialDirector();
+  private breakState: BreakState = initialBreak();
   private input: HandArtInput = { landmarks: null, gripperClosed: false };
   private lastPacked: PackedSkeleton | null = null;
   private burstSeed = -1;
@@ -161,6 +169,10 @@ export class HandArtRenderer {
       uPassB: { value: 0 },
       uSeed: { value: 0 },
       uAge: { value: 0 },
+      uBreakT: { value: -1 },
+      uBreakDir: { value: 0 },
+      uBreakSeed: { value: 0 },
+      uBreakFlash: { value: 0 },
       uGrip: { value: 0 },
       uPresence: { value: 0 },
       uTrail: { value: this.trailRead.texture },
@@ -245,13 +257,24 @@ export class HandArtRenderer {
     const d = stepDirector(this.director, dtMs, { ...x, hand: !!packed });
     this.director = d.state;
     this.cycle = stepCycle(this.cycle, dtMs, d.style, o);
+    this.breakState = stepBreak(this.breakState, dtMs, x.breakthrough, x.breakthroughDir);
+    const breakT = breakProgress(this.breakState, o.reducedMotion);
     if (!o.reducedMotion) this.time += dtMs / 1000;
     this.grip = o.reducedMotion ? +x.gripperClosed : approach(this.grip, +x.gripperClosed, dtMs, GRIP_EASE_MS);
     const presence = packed ? 1 : this.lastPacked ? LOST_PRESENCE : 0;
     this.presence = o.reducedMotion ? presence : approach(this.presence, presence, dtMs, PRESENCE_EASE_MS);
 
     const gpuMs = this.timer?.poll() ?? [];
-    const info = { cycle: this.cycle, target: d.style, width: this.size.width, height: this.size.height, drew: false, cpuMs: 0, gpuMs };
+    const info = {
+      cycle: this.cycle,
+      target: d.style,
+      width: this.size.width,
+      height: this.size.height,
+      drew: false,
+      breaking: breakT !== null,
+      cpuMs: 0,
+      gpuMs,
+    };
     const sk = this.lastPacked;
     if (!this.ready || !sk || (this.presence < 0.01 && !packed)) {
       // Nothing to show: clear once, then stay idle until a hand comes back.
@@ -285,7 +308,12 @@ export class HandArtRenderer {
     u.uTime.value = this.time;
     u.uScale.value = sk.scale;
     (u.uPalm.value as Vector2).set(sk.palm[0], sk.palm[1]);
-    (u.uBounds.value as Vector3).set(sk.palm[0], sk.palm[1], this.boundsRadius(sk));
+    const bounds = this.boundsRadius(sk);
+    (u.uBounds.value as Vector3).set(sk.palm[0], sk.palm[1], breakT !== null ? Math.max(bounds, sk.scale * 2.8) : bounds);
+    u.uBreakT.value = breakT ?? -1;
+    u.uBreakDir.value = this.breakState.dir;
+    u.uBreakSeed.value = this.breakState.seed;
+    u.uBreakFlash.value = o.reducedMotion ? 1 : 0;
     u.uMix.value = this.cycle.morphing ? Math.max(this.cycle.mix, 1e-4) : 0;
     u.uSeed.value = this.cycle.seed;
     u.uGrip.value = this.grip;

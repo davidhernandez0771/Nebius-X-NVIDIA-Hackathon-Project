@@ -21,6 +21,7 @@ vi.mock("./renderer", () => ({
       frame: vi.fn(() => ({
         cycle: { a: "ink", b: "bloom", mix: 0.5, morphing: true },
         target: "bloom",
+        breaking: true,
         width: 640,
         height: 480,
         cpuMs: 0.4,
@@ -96,6 +97,16 @@ describe("HandArtOverlay", () => {
     expect(fake.instances[0].setHand).toHaveBeenLastCalledWith({ landmarks: hand, gripperClosed: false, frozen: true, recording: true, resets: 3, cue: 5 });
   });
 
+  it("passes the break-through count and direction (props or source)", () => {
+    const { rerender } = render(<HandArtOverlay landmarks={hand} breakthrough={2} breakthroughDir={-1} />);
+    tick();
+    const r = fake.instances[0];
+    expect(r.setHand).toHaveBeenLastCalledWith(expect.objectContaining({ breakthrough: 2, breakthroughDir: -1 }));
+    rerender(<HandArtOverlay source={() => ({ landmarks: hand, breakthrough: 3, breakthroughDir: 1 })} />);
+    tick();
+    expect(r.setHand).toHaveBeenLastCalledWith(expect.objectContaining({ breakthrough: 3, breakthroughDir: 1 }));
+  });
+
   it("passes a picked style and reduced motion to the style cycle", () => {
     const { rerender } = render(<HandArtOverlay landmarks={hand} style="ripple" reducedMotion={false} />);
     tick();
@@ -132,7 +143,7 @@ describe("HandArtOverlay", () => {
     render(<HandArtOverlay landmarks={hand} onStats={onStats} />);
     for (let i = 0; i < 40; i++) tick(16);
     expect(onStats).toHaveBeenCalledTimes(1);
-    expect(onStats.mock.calls[0][0]).toMatchObject({ width: 640, height: 480, styleA: "ink", styleB: "bloom", morphing: true, target: "bloom", gpuMeanMs: 1.5 });
+    expect(onStats.mock.calls[0][0]).toMatchObject({ width: 640, height: 480, styleA: "ink", styleB: "bloom", morphing: true, target: "bloom", breaking: true, gpuMeanMs: 1.5 });
     expect(onStats.mock.calls[0][0].fps).toBeCloseTo(62.5, 0);
   });
 

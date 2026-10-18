@@ -74,6 +74,10 @@ uniform float uMix;       // crossfade 0..1; 0: no crossfade, this pass draws al
 uniform float uPassB;     // 1: this pass draws the incoming style (and the seam)
 uniform float uSeed;
 uniform float uAge;       // seconds since this pass's style began
+uniform float uBreakT;    // 0..1 through a break-through; < 0: none playing
+uniform float uBreakDir;  // 1 pushing through toward the camera, -1 backing out, 0 unknown
+uniform float uBreakSeed;
+uniform float uBreakFlash; // 1: reduced motion, a brief flash only
 uniform float uGrip;      // 0 open .. 1 closed, eased
 uniform float uPresence;  // 0 no hand .. 1 hand, eased
 uniform sampler2D uTrail;
@@ -259,6 +263,74 @@ vec4 sGlitch(vec2 p, float age) {
   return over(frags, over(slabs, hand));
 }
 
+// Cell edges (F2 - F1, 0 on an edge) and a per-cell random: the shards of a broken surface.
+vec2 cells(vec2 x) {
+  vec2 i = floor(x);
+  vec2 f = fract(x);
+  float d1 = 8.0;
+  float d2 = 8.0;
+  float id = 0.0;
+  for (int yy = -1; yy <= 1; yy++) {
+    for (int xx = -1; xx <= 1; xx++) {
+      vec2 g = vec2(float(xx), float(yy));
+      vec2 o = vec2(hash12(i + g), hash12(i + g + 19.7));
+      float d = length(g + o - f);
+      if (d < d1) { d2 = d1; d1 = d; id = hash12(i + g + 3.3); }
+      else if (d < d2) d2 = d;
+    }
+  }
+  return vec2(d2 - d1, id);
+}
+
+// The break-through: the hand passing through the workspace surface. A noise-edged front (the
+// style crossfade's mask, made radial) races out from the palm when pushing through, or closes
+// in on it when backing out. The art is shoved across the front like a lens, and the side the
+// front has passed breaks into glassy shards with bright cracks drifting the same way. Without
+// a direction, only the front and the lens. Returns the effect, and where to sample the art.
+vec4 breakFx(vec2 p, out vec2 q) {
+  q = p;
+  float bt = uBreakT;
+  vec2 d = p - uPalm;
+  float r = length(d);
+  vec2 n = r > 1e-5 ? d / r : vec2(0.0);
+  bool pull = uBreakDir < -0.5;
+  bool shards = abs(uBreakDir) > 0.5;
+  float sgn = pull ? -1.0 : 1.0;
+  float env = 1.0 - smoothstep(0.62, 1.0, bt);
+
+  // Noise on the direction (not the angle, which would seam where it wraps).
+  float wob = 1.0 + 0.24 * (vnoise(n * 1.7 + vec2(uBreakSeed * 7.0, uBreakSeed * 3.1)) - 0.5);
+  float k = pull ? 1.0 - bt * bt : 1.0 - (1.0 - bt) * (1.0 - bt);
+  float R = mix(uScale * 0.06, uScale * 2.3, k) * wob;
+  float w = uScale * (0.07 + 0.12 * (1.0 - bt));
+  float x = (r - R) / w;
+  float front = exp(-x * x) * env;
+  q = p - n * front * uScale * 0.16 * sgn;
+
+  // Broken: inside the front when pushing through, outside it when backing out.
+  float broken = pull ? smoothstep(R - w, R + w, r) : 1.0 - smoothstep(R - w, R + w, r);
+  broken *= 1.0 - smoothstep(uScale * 2.0, uScale * 2.6, r);
+  float crack = 0.0;
+  float pane = 0.0;
+  if (shards && broken > 0.001) {
+    float size = uScale * 0.3;
+    vec2 cp = (p - n * sgn * uScale * 0.4 * bt) / size + uBreakSeed * 13.1;
+    vec2 v = cells(cp);
+    // Dense and bright at the palm, where it gives; broken up and fainter farther out.
+    float near = 1.0 - smoothstep(0.0, uScale * 2.0, r);
+    float keep = step(0.62 - 0.5 * near, vnoise(cp * 1.3 + 4.0));
+    crack = (1.0 - smoothstep(0.0, cpx * (1.4 + 1.6 * near) / size, v.x)) * broken * keep * (0.35 + 0.65 * near);
+    pane = (0.06 + 0.16 * v.y) * broken * (1.0 - bt);
+  }
+  // A flash at the palm: as the surface gives (push), or as it closes (pull).
+  float flashT = pull ? smoothstep(0.55, 0.9, bt) * (1.0 - smoothstep(0.9, 1.0, bt)) : 1.0 - smoothstep(0.0, 0.3, bt);
+  float flash = exp(-r / (uScale * 0.18)) * flashT;
+
+  float a = clamp(max(max(front * 0.85, crack * 0.95 * env), max(pane * env, flash)), 0.0, 1.0);
+  vec3 c = mix(uInk, accent, clamp(front + 0.4 * crack, 0.0, 1.0));
+  return vec4(c * a, a);
+}
+
 vec4 styleAt(vec2 p, float dP, float age) {
 #if STYLE == 0
   return sInk(p, dP);
@@ -283,12 +355,23 @@ void main() {
     gl_FragColor = vec4(0.0);
     return;
   }
-  float dP = handD(p);
-  vec4 col = styleAt(p, dP, uAge);
+  vec2 q = p;
+  vec4 fx = vec4(0.0);
+  if (uBreakT >= 0.0 && uBreakFlash < 0.5) fx = breakFx(p, q);
+  float dP = handD(q);
+  vec4 col = styleAt(q, dP, uAge);
 
   // A soft dark backdrop under the hand, so the art reads over a busy webcam image.
   float back = 0.34 * exp(-max(dP - uBoneR, 0.0) / (uScale * 0.3));
   col = over(col, vec4(uShade * back, back));
+  col = over(fx, col);
+  // Reduced motion: the break-through is a brief brightening of the hand, nothing moves.
+  if (uBreakT >= 0.0 && uBreakFlash > 0.5) {
+    float f = 1.0 - uBreakT;
+    col.rgb = mix(col.rgb, accent * col.a, 0.8 * f);
+    float halo = 0.55 * f * exp(-max(dP - uBoneR, 0.0) / (uScale * 0.15));
+    col = over(col, vec4(accent * halo, halo));
+  }
 
   if (uMix > 0.0) {
     float n = 0.65 * vnoise(p / (cpx * 90.0) + uSeed * 3.17) + 0.35 * vnoise(p / (cpx * 34.0) - uSeed * 1.31);

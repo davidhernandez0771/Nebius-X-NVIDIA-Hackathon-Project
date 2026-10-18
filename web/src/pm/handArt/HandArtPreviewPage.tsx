@@ -1,5 +1,5 @@
-// /pm/hand-art: the overlay playing a hand clip, so the six styles and the event sequence can
-// be reviewed without a webcam or the sim. A clip saved with ClipRecorder can be loaded.
+// /pm/hand-art: the overlay playing a hand clip, so the six styles, the event sequence and the
+// depth break-through can be reviewed without a webcam or the sim. A clip saved with ClipRecorder can be loaded.
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import HandArtOverlay, { useSystemReducedMotion, type HandArtStats } from "./HandArtOverlay";
@@ -19,6 +19,14 @@ export const STYLE_INFO: Record<HandArtStyle, { name: string; when: string }> = 
 type Choice = HandArtStyle | "auto";
 const CHOICES: Choice[] = ["auto", ...HAND_ART_STYLES];
 const MEASURE_MS = 3500;
+/** While measuring the break-through, it fires this often, alternating direction (worst case). */
+const BREAK_EVERY_MS = 450;
+
+/** What "Measure" times, in order: each style, then ink with break-throughs firing. */
+const MEASURE_STEPS: Array<{ style: HandArtStyle; label: string; breaking: boolean }> = [
+  ...HAND_ART_STYLES.map((style) => ({ style, label: "", breaking: false })),
+  { style: "ink", label: "Break-through, every 0.45 s", breaking: true },
+];
 
 type SpanKind = "closed" | "recording" | "frozen" | "lost";
 
@@ -54,6 +62,7 @@ function clipTracks(clip: HandClip) {
 function describe(s: HandArtStats | null, choice: Choice, reduced: boolean): string {
   if (!s) return "Starting";
   const name = (x: HandArtStyle) => STYLE_INFO[x].name;
+  if (s.breaking) return `${name(s.styleA)}, breaking through`;
   if (reduced) return `${name(s.styleA)}, held still while motion is reduced`;
   if (s.morphing) return `${name(s.styleA)}, crossfading into ${name(s.styleB).toLowerCase()}`;
   if (choice !== "auto") return `${name(s.styleA)}, pinned`;
@@ -61,7 +70,7 @@ function describe(s: HandArtStats | null, choice: Choice, reduced: boolean): str
 }
 
 interface Measurement {
-  style: HandArtStyle;
+  label: string;
   gpuMeanMs: number | null;
   gpuP95Ms: number | null;
   cpuMeanMs: number;
@@ -78,7 +87,7 @@ export default function HandArtPreviewPage() {
   const reduced = reducedOverride ?? systemReduced;
   const [stats, setStats] = useState<HandArtStats | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [measuring, setMeasuring] = useState<number | null>(null); // index into HAND_ART_STYLES
+  const [measuring, setMeasuring] = useState<number | null>(null); // index into MEASURE_STEPS
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
 
   const duration = clipDurationMs(clip);
@@ -90,6 +99,9 @@ export default function HandArtPreviewPage() {
   const live = useRef({ clip, playing, holdClosed });
   live.current = { clip, playing, holdClosed };
   const latestStats = useRef<HandArtStats | null>(null);
+  // The depth crossing, as Record will report it: a counter and the direction of the last one.
+  const crossing = useRef<{ count: number; dir: 1 | -1 | undefined }>({ count: 0, dir: undefined });
+  const fireBreak = (dir: 1 | -1 | undefined) => (crossing.current = { count: crossing.current.count + 1, dir });
 
   const source = () => {
     const c = clock.current;
@@ -98,25 +110,45 @@ export default function HandArtPreviewPage() {
     c.last = now;
     if (scrub.current && document.activeElement !== scrub.current) scrub.current.value = String(Math.round(c.t));
     const s = sampleClip(live.current.clip, c.t);
-    return { ...s, gripperClosed: live.current.holdClosed || s.gripperClosed };
+    return {
+      ...s,
+      gripperClosed: live.current.holdClosed || s.gripperClosed,
+      breakthrough: crossing.current.count,
+      breakthroughDir: crossing.current.dir,
+    };
   };
 
-  // Measuring: each style pinned for MEASURE_MS, its frame times read at the end.
+  // Measuring: each step pinned for MEASURE_MS, its frame times read at the end.
   useEffect(() => {
     if (measuring === null) return;
+    const step = MEASURE_STEPS[measuring];
+    let flip: 1 | -1 = 1;
+    const firing = step.breaking
+      ? setInterval(() => {
+          fireBreak(flip);
+          flip = flip === 1 ? -1 : 1;
+        }, BREAK_EVERY_MS)
+      : undefined;
     const timer = setTimeout(() => {
       const s = latestStats.current;
-      const style = HAND_ART_STYLES[measuring];
       setMeasurements((m) => [
         ...m,
-        { style, gpuMeanMs: s?.gpuMeanMs ?? null, gpuP95Ms: s?.gpuP95Ms ?? null, cpuMeanMs: s?.cpuMeanMs ?? 0 },
+        {
+          label: step.label || STYLE_INFO[step.style].name,
+          gpuMeanMs: s?.gpuMeanMs ?? null,
+          gpuP95Ms: s?.gpuP95Ms ?? null,
+          cpuMeanMs: s?.cpuMeanMs ?? 0,
+        },
       ]);
-      setMeasuring(measuring + 1 < HAND_ART_STYLES.length ? measuring + 1 : null);
+      setMeasuring(measuring + 1 < MEASURE_STEPS.length ? measuring + 1 : null);
     }, MEASURE_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(firing);
+    };
   }, [measuring]);
 
-  const shownChoice: Choice = measuring !== null ? HAND_ART_STYLES[measuring] : choice;
+  const shownChoice: Choice = measuring !== null ? MEASURE_STEPS[measuring].style : choice;
 
   const onLoad = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -149,7 +181,7 @@ export default function HandArtPreviewPage() {
               source={source}
               style={shownChoice}
               reducedMotion={reduced}
-              statsKey={shownChoice}
+              statsKey={measuring ?? shownChoice}
               onStats={(s) => {
                 latestStats.current = s;
                 setStats(s);
@@ -208,6 +240,22 @@ export default function HandArtPreviewPage() {
                 </label>
               );
             })}
+          </fieldset>
+
+          <fieldset className="ha-crossing">
+            <legend>Depth crossing</legend>
+            <p>Plays when your hand passes through the workspace plane on Record.</p>
+            <div className="ha-crossing-buttons">
+              <button type="button" className="ha-btn ha-btn-push" onClick={() => fireBreak(1)}>
+                Push through
+              </button>
+              <button type="button" className="ha-btn ha-btn-pull" onClick={() => fireBreak(-1)}>
+                Back out
+              </button>
+            </div>
+            <button type="button" className="ha-btn ha-btn-quiet" onClick={() => fireBreak(undefined)}>
+              Cross with no direction
+            </button>
           </fieldset>
 
           <div className="ha-actions">
@@ -280,12 +328,12 @@ export default function HandArtPreviewPage() {
               }}
             >
               {measuring !== null
-                ? `Measuring ${STYLE_INFO[HAND_ART_STYLES[measuring]].name.toLowerCase()}…`
+                ? `Measuring ${(MEASURE_STEPS[measuring].label || STYLE_INFO[MEASURE_STEPS[measuring].style].name).toLowerCase()}…`
                 : "Measure each style"}
             </button>
             {measurements.length > 0 && (
               <table className="ha-table">
-                <caption>GPU and CPU time per frame, {MEASURE_MS / 1000} s per style</caption>
+                <caption>GPU and CPU time per frame, {MEASURE_MS / 1000} s each</caption>
                 <thead>
                   <tr>
                     <th scope="col">Style</th>
@@ -296,8 +344,8 @@ export default function HandArtPreviewPage() {
                 </thead>
                 <tbody>
                   {measurements.map((m) => (
-                    <tr key={m.style}>
-                      <th scope="row">{STYLE_INFO[m.style].name}</th>
+                    <tr key={m.label}>
+                      <th scope="row">{m.label}</th>
                       <td className="ha-num">{m.gpuMeanMs != null ? `${m.gpuMeanMs.toFixed(2)} ms` : "–"}</td>
                       <td className="ha-num">{m.gpuP95Ms != null ? `${m.gpuP95Ms.toFixed(2)} ms` : "–"}</td>
                       <td className="ha-num">{`${m.cpuMeanMs.toFixed(2)} ms`}</td>
