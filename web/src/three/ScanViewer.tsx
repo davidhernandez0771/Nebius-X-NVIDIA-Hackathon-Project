@@ -14,26 +14,8 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, useProgress } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { registerScanViewer } from "../hand/integration/activeScanViewer";
+import { registerScanViewer, type ScanViewerHandle } from "../hand/integration/activeScanViewer";
 import "./scanviewer.css";
-
-/**
- * Imperative zoom API for the hand-controlled two-hand pinch-to-zoom gesture
- * (see HAND_INTERACTION_PLAN.md GOAL 2). Drives the SAME camera-distance
- * dolly a mouse wheel would, via the live OrbitControls instance -- never a
- * CSS transform on the container -- so it composes correctly with the
- * existing orbit/target state instead of fighting it.
- */
-export interface ScanViewerHandle {
-  /** Current distance from the camera to the orbit target. */
-  getDistance(): number;
-  /** Clamped to [minDistance, maxDistance]; preserves the current orbit target and view direction. */
-  setDistance(distance: number): void;
-  readonly minDistance: number;
-  readonly maxDistance: number;
-  /** Suppresses/restores mouse-wheel zoom, drag-orbit and pan while a hand gesture is driving the camera directly. */
-  setOrbitEnabled(enabled: boolean): void;
-}
 
 // Loads a GLB room scan and shows it dark-tinted with orbit controls.
 // Heavy (three + fiber + drei): import it with React.lazy where it is used.
