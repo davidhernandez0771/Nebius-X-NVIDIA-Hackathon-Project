@@ -267,7 +267,7 @@
 
 .byor-reach__map {
   display: block;
-  max-width: 100%;
+  width: min(100%, 36rem);
   height: auto;
 }
 
@@ -352,11 +352,11 @@
 }
 
 .byor-key--all {
-  background: color-mix(in srgb, var(--sant-accent) 86%, transparent);
+  background: color-mix(in srgb, var(--sant-accent) 55%, transparent);
 }
 
 .byor-key--some {
-  background: color-mix(in srgb, var(--sant-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--sant-accent) 30%, transparent);
 }
 
 .byor-key--none {
@@ -405,7 +405,7 @@
 
 .byor-layer__map rect[data-ok="true"] {
   fill: var(--sant-accent);
-  fill-opacity: 0.75;
+  fill-opacity: 0.55;
 }
 
 .byor-layer__name {

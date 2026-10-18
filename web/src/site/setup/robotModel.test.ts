@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import URDFLoader from "urdf-loader";
 import franka from "./fixtures/franka.parts.json";
 import openarm from "./fixtures/openarm.parts.json";
-import { focusLinks, stickFigure, urdfFromParts } from "./robotModel";
+import { focusLinks, midPose, stickFigure, urdfFromParts } from "./robotModel";
 import type { Parts } from "./types";
 
 const panda = franka as unknown as Parts;
@@ -28,6 +28,16 @@ describe("focusLinks", () => {
     expect(focusLinks(panda, "panda_joint4")).toEqual(["panda_link4"]);
     expect(focusLinks(panda, null)).toEqual([]);
     expect(focusLinks(panda, "nope")).toEqual([]);
+  });
+});
+
+describe("midPose", () => {
+  it("puts each limited joint at the middle of its range; mimics follow their leader", () => {
+    const robot = new URDFLoader().parse(urdfFromParts(oa));
+    midPose(robot);
+    expect(robot.joints.openarm_joint1.angle).toBeCloseTo((-1.396 + 3.491) / 2, 2);
+    expect(robot.joints.openarm_joint6.angle).toBeCloseTo(0, 5);
+    expect(robot.joints.openarm_finger_joint1.angle).toBeCloseTo(0.022, 3);
   });
 });
 

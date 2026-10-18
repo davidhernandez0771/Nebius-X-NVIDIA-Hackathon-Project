@@ -17,7 +17,7 @@ import {
 } from "three";
 import type { URDFLink, URDFRobot } from "urdf-loader";
 import { loadRobot, type Loaded } from "./loadRobot";
-import { focusLinks, stickFigure } from "./robotModel";
+import { focusLinks, midPose, stickFigure } from "./robotModel";
 import type { Robot } from "./SetupPage";
 
 // Volt, as three.js colours (web/src/sant/tokens.css [data-mode="volt"]).
@@ -26,11 +26,13 @@ const VOLT = { bg: "#07090C", surface2: "#151A21", line: "#2A323C", control: "#5
 // The task's cube area (byor-api.md §6 task.workspace: cube_x 0.40-0.60, cube_y -0.20-0.20), drawn on the table.
 const CUBE_AREA = { x: [0.4, 0.6], y: [-0.2, 0.2] };
 
-const matte = new MeshStandardMaterial({ color: "#1A2129", roughness: 0.82, metalness: 0.08 });
+const matte = new MeshStandardMaterial({ color: "#252E38", roughness: 0.8, metalness: 0.08 });
 const lit = new MeshStandardMaterial({ color: "#0F3B32", roughness: 0.55, metalness: 0.05, emissive: VOLT.accent, emissiveIntensity: 0.55 });
 const edge = new LineBasicMaterial({ color: "#4A5664", transparent: true, opacity: 0.55 });
 const edgeLit = new LineBasicMaterial({ color: VOLT.accent });
-const joint = new MeshStandardMaterial({ color: VOLT.control, roughness: 0.6 });
+const joint = new MeshStandardMaterial({ color: VOLT.muted, roughness: 0.6 });
+// Capsules have no edge lines, so they sit a step lighter than the solid meshes.
+const bone = new MeshStandardMaterial({ color: "#3E4955", roughness: 0.7, metalness: 0.05 });
 
 const ownerLink = (o: Object3D): string | null => {
   for (let p: Object3D | null = o; p; p = p.parent) if ((p as URDFLink).isURDFLink) return p.name || (p as URDFLink).urdfName;
@@ -65,12 +67,13 @@ function dispose(robot: URDFRobot) {
     const g = (o as Mesh).geometry as BufferGeometry | undefined;
     g?.dispose();
     const mat = (o as Mesh).material as Material | Material[] | undefined;
-    for (const x of Array.isArray(mat) ? mat : mat ? [mat] : []) if (![matte, lit, edge, edgeLit, joint].includes(x as never)) x.dispose();
+    for (const x of Array.isArray(mat) ? mat : mat ? [mat] : []) if (![matte, lit, edge, edgeLit, joint, bone].includes(x as never)) x.dispose();
   });
 }
 
 function Frame({ target, size }: { target: Vector3; size: number }) {
-  const pos = useMemo(() => target.clone().add(new Vector3(1.25, 0.75, 1.35).multiplyScalar(Math.max(size, 0.4) * 1.35)), [target, size]);
+  // three-quarter view from the robot's front right, a little above the table
+  const pos = useMemo(() => target.clone().add(new Vector3(1.1, 0.55, 1.45).normalize().multiplyScalar(Math.max(size, 0.4) * 2.3)), [target, size]);
   return (
     <>
       <PerspectiveCamera makeDefault position={pos} fov={32} near={0.01} far={50} />
@@ -90,12 +93,12 @@ function Workspace() {
   }, []);
   return (
     <lineSegments geometry={geometry}>
-      <lineBasicMaterial color={VOLT.accent} transparent opacity={0.35} />
+      <lineBasicMaterial color={VOLT.accent} transparent opacity={0.7} />
     </lineSegments>
   );
 }
 
-function Bones({ robot, focus }: { robot: URDFRobot; focus: string[] }) {
+function Bones({ robot, focus, joint: focusJoint }: { robot: URDFRobot; focus: string[]; joint: string | null }) {
   const fig = useMemo(() => stickFigure(robot), [robot]);
   const r = Math.max(0.008, fig.size * 0.012);
   const up = new Vector3(0, 1, 0);
@@ -108,13 +111,13 @@ function Bones({ robot, focus }: { robot: URDFRobot; focus: string[] }) {
         const mid = b.a.clone().add(b.b).multiplyScalar(0.5);
         const on = focus.includes(b.link);
         return (
-          <mesh key={i} position={mid} quaternion={q} material={on ? lit : matte}>
+          <mesh key={i} position={mid} quaternion={q} material={on ? lit : bone}>
             <capsuleGeometry args={[r, Math.max(0.001, len - 2 * r), 4, 12]} />
           </mesh>
         );
       })}
       {fig.dots.map((d) => (
-        <mesh key={d.joint} position={d.p} material={joint}>
+        <mesh key={d.joint} position={d.p} material={d.joint === focusJoint ? lit : joint}>
           <sphereGeometry args={[r * 1.45, 16, 12]} />
         </mesh>
       ))}
@@ -135,17 +138,19 @@ function Solid({ robot, focus }: { robot: URDFRobot; focus: string[] }) {
   return <primitive object={robot} />;
 }
 
-function Scene({ loaded, focus, mount }: { loaded: Loaded; focus: string[]; mount: [number, number, number] }) {
+function Scene({ loaded, focus, joint, mount }: { loaded: Loaded; focus: string[]; joint: string | null; mount: [number, number, number] }) {
   const { robot, stick } = loaded;
   // urdf-loader builds the URDF's z-up frame; three.js is y-up.
   const frame = useMemo(() => {
     robot.updateMatrixWorld(true);
     const box = stick ? null : new Box3().setFromObject(robot);
     const fig = stick ? stickFigure(robot) : null;
-    const c = box ? box.getCenter(new Vector3()) : fig!.center;
-    const size = box ? Math.max(...box.getSize(new Vector3()).toArray()) : fig!.size;
-    const zUp = new Vector3(c.x + mount[0], c.y + mount[1], c.z + mount[2]);
-    return { target: new Vector3(zUp.x, zUp.z, -zUp.y), size };
+    const robotBox = box ?? new Box3().setFromCenterAndSize(fig!.center, new Vector3(fig!.size, fig!.size, fig!.size));
+    const all = robotBox.clone().translate(new Vector3(...mount));
+    all.expandByPoint(new Vector3(CUBE_AREA.x[1], CUBE_AREA.y[0], 0)).expandByPoint(new Vector3(CUBE_AREA.x[1], CUBE_AREA.y[1], 0));
+    const c = all.getCenter(new Vector3());
+    const size = Math.max(...all.getSize(new Vector3()).toArray());
+    return { target: new Vector3(c.x, c.z, -c.y), size };
   }, [robot, stick, mount]);
 
   return (
@@ -158,7 +163,7 @@ function Scene({ loaded, focus, mount }: { loaded: Loaded; focus: string[]; moun
       <Frame target={frame.target} size={frame.size} />
       <group rotation={[-Math.PI / 2, 0, 0]}>
         <Workspace />
-        <group position={mount}>{stick ? <Bones robot={robot} focus={focus} /> : <Solid robot={robot} focus={focus} />}</group>
+        <group position={mount}>{stick ? <Bones robot={robot} focus={focus} joint={joint} /> : <Solid robot={robot} focus={focus} />}</group>
       </group>
     </>
   );
@@ -183,6 +188,7 @@ export default function RobotPreview({
     loadRobot({ file: robot.file, parts: robot.parts }).then(
       (loaded) => {
         if (!live) return dispose(loaded.robot);
+        midPose(loaded.robot);
         if (!loaded.stick) dress(loaded.robot);
         setState({ status: "ready", loaded });
       },
@@ -209,11 +215,11 @@ export default function RobotPreview({
   return (
     <>
       <Canvas className="byor-view__canvas" frameloop="demand" dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "low-power" }}>
-        <Scene loaded={loaded} focus={lights} mount={mount} />
+        <Scene loaded={loaded} focus={lights} joint={focus && robot.parts.joints.some((j) => j.name === focus) ? focus : null} mount={mount} />
       </Canvas>
       <p className="byor-view__caption">
         <span>{caption(loaded)}</span>
-        <span className="byor-view__how">Drag to turn, scroll to zoom. The teal outline on the floor is where the cubes appear.</span>
+        <span className="byor-view__how">Every joint at the middle of its range. The teal outline on the floor is where the cubes appear. Drag to turn, scroll to zoom.</span>
       </p>
     </>
   );

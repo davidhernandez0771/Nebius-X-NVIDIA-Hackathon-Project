@@ -80,14 +80,14 @@ export function SetupPage() {
 
   const issues = useMemo(() => {
     if (!robot || !roles) return [];
-    const local = localIssues(roles);
+    const local = localIssues(roles, robot.parts);
     const seen = new Set(local.map((i) => i.code));
     return [...local, ...[...robot.parts.issues, ...serverIssues].filter((i) => !seen.has(i.code))];
   }, [robot, roles, serverIssues]);
 
   const recorded = robot?.client.mode === "fixture" || client?.mode === "fixture";
   const running = runState.phase === "saving" || runState.phase === "running";
-  const blocked = !roles || localIssues(roles).length > 0;
+  const blocked = !roles || !robot || localIssues(roles, robot.parts).length > 0;
   const startRun = () => {
     void run();
     const reduce = document.documentElement.dataset.motion === "reduced";

@@ -27,7 +27,8 @@ describe("ReportCard", () => {
     const { container } = openarm();
     expect(container.querySelectorAll(".byor-reach__cell")).toHaveLength(6 * 13);
     expect(container.querySelectorAll(".byor-reach__scene")).toHaveLength(30);
-    expect(container.querySelector('.byor-reach__cell[data-count="0"]')?.getAttribute("fill")).toMatch(/^url\(#/);
+    // the hatch is an inline style so the stylesheet's teal fill can't cover it
+    expect(container.querySelector<SVGElement>('.byor-reach__cell[data-count="0"]')?.style.fill).toMatch(/^url\(/);
     expect(screen.getByText("The tool reaches 51% of the cells in all 5 poses.")).toBeTruthy();
   });
 

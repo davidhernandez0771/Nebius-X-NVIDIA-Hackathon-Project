@@ -38,7 +38,6 @@ export function ReachMap({ report }: { report: ReportCard }) {
       <svg
         className="byor-reach__map"
         viewBox={`0 0 ${w} ${h}`}
-        width={w}
         role="img"
         aria-labelledby={`${id}-cap`}
         onMouseLeave={() => setHover(null)}
@@ -65,8 +64,8 @@ export function ReachMap({ report }: { report: ReportCard }) {
                 className="byor-reach__cell"
                 data-count={c.count}
                 data-all={c.count === total}
-                fill={c.count === 0 ? `url(#${id}-hatch)` : undefined}
-                style={c.count ? { fillOpacity: 0.16 + (0.7 * c.count) / total } : undefined}
+                // inline, so it wins over the stylesheet's teal fill
+                style={c.count ? { fillOpacity: 0.12 + (0.43 * c.count) / total } : { fill: `url(#${id}-hatch)` }}
                 onMouseEnter={() => setHover(text)}
               />
             );

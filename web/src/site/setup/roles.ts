@@ -109,14 +109,40 @@ export function isSuggested(parts: Parts, role: Role, name: string): boolean {
 
 const err = (code: string, message: string, where: string): Issue => ({ code, severity: "error", message, where });
 
+/** The moving joints on the path from `base` down to `hand`, base first; null if the hand isn't below the base. */
+export function chainJoints(parts: Parts, base: string, hand: string): string[] | null {
+  const byChild = new Map(parts.joints.map((j) => [j.child, j]));
+  const path: string[] = [];
+  for (let link = hand; link !== base; ) {
+    const j = byChild.get(link);
+    if (!j) return null;
+    if (j.type !== "fixed") path.unshift(j.name);
+    link = j.parent;
+  }
+  return path;
+}
+
 /** Instant checks with the backend's codes; the 422 from PUT /roles stays authoritative. */
-export function localIssues(roles: RoleSet): Issue[] {
+export function localIssues(roles: RoleSet, parts?: Parts): Issue[] {
   const out: Issue[] = [];
   if (!roles.base) out.push(err("no_base", "pick the base link", "base"));
   if (roles.arm_joints.length < 5)
     out.push(err("arm_too_short", `the arm has ${roles.arm_joints.length} joints; the task needs at least 5`, "arm_joints"));
   if (!roles.hand) out.push(err("no_hand", "pick the hand link", "hand"));
   if (roles.gripper_joints.length === 0) out.push(err("no_gripper", "pick at least one gripper joint", "gripper_joints"));
+  if (parts && roles.base && roles.hand && roles.arm_joints.length >= 5) {
+    const chain = chainJoints(parts, roles.base, roles.hand);
+    if (!chain || chain.join() !== roles.arm_joints.join())
+      out.push(
+        err(
+          "arm_not_chain",
+          chain
+            ? `the arm joints must be the moving joints from the base (${roles.base}) to the hand (${roles.hand}): ${chain.join(", ")}`
+            : `the hand (${roles.hand}) isn't below the base (${roles.base})`,
+          "arm_joints",
+        ),
+      );
+  }
   return out;
 }
 

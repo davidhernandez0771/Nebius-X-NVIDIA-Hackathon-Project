@@ -90,6 +90,13 @@ describe("localIssues", () => {
     expect(localIssues(fromSuggested(panda))).toEqual([]);
   });
 
+  it("flags arm joints that aren't the moving joints between the base and the hand", () => {
+    const r = { ...fromSuggested(oa), hand: "openarm_link5" };
+    expect(localIssues(r, oa).map((i) => i.code)).toEqual(["arm_not_chain"]);
+    expect(localIssues(r, oa)[0].message).toContain("openarm_joint1, openarm_joint2, openarm_joint3, openarm_joint4, openarm_joint5");
+    expect(localIssues(fromSuggested(oa), oa)).toEqual([]);
+  });
+
   it("uses the backend's codes", () => {
     const r = { ...fromSuggested(panda), arm_joints: ["panda_joint1", "panda_joint2"], gripper_joints: [], hand: null };
     expect(localIssues(r).map((i) => i.code)).toEqual(["arm_too_short", "no_hand", "no_gripper"]);

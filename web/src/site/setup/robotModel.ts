@@ -32,6 +32,19 @@ export function focusLinks(parts: Parts, name: string | null): string[] {
   return j ? [j.child] : [];
 }
 
+/**
+ * Every limited joint at the middle of its range (the backend's start-pose IK starts there too, byor-api.md §4):
+ * an arm reads as an arm, not the zero pose's straight column. Mimic joints follow their leader.
+ */
+export function midPose(robot: URDFRobot): void {
+  for (const j of Object.values(robot.joints)) {
+    if ((j as { mimicJoint?: string }).mimicJoint) continue;
+    if ((j.jointType === "revolute" || j.jointType === "prismatic") && Number.isFinite(j.limit.lower) && Number.isFinite(j.limit.upper))
+      j.setJointValue((j.limit.lower + j.limit.upper) / 2);
+  }
+  robot.updateMatrixWorld(true);
+}
+
 export type Bone = { link: string; a: Vector3; b: Vector3 };
 export type StickFigure = { bones: Bone[]; dots: { joint: string; p: Vector3 }[]; size: number; center: Vector3 };
 

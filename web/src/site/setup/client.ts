@@ -159,7 +159,7 @@ export function fixtureClient({ now = () => Date.now(), runMs = 9000 }: { now?: 
     },
     async putRoles(id: string, body: RolesBody): Promise<RolesResult> {
       const rec = byId(id);
-      const errors = localIssues(body);
+      const errors = localIssues(body, rec.parts);
       if (errors.length) throw new ByorError(422, errors);
       ready.add(id);
       if (sameRoles(fromSuggested(rec.parts), { base: body.base, arm_joints: body.arm_joints, hand: body.hand, gripper_joints: body.gripper_joints }))

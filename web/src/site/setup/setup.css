@@ -713,6 +713,17 @@
   }
 }
 
+@media (max-width: 720px) {
+  /* T5's app header, on this page only: the two actions wrap under the title. */
+  .sant-app:has(.byor-drop, .byor-work) .sant-app__head {
+    flex-wrap: wrap;
+  }
+
+  .sant-app:has(.byor-drop, .byor-work) .sant-app__actions {
+    flex-wrap: wrap;
+  }
+}
+
 @media (max-width: 560px) {
   .byor-drop {
     padding: var(--sant-space-6) var(--sant-space-4);
