@@ -1,0 +1,86 @@
+{
+ "roles": {
+  "base": "panda_link0",
+  "arm_joints": [
+   "panda_joint1",
+   "panda_joint2",
+   "panda_joint3",
+   "panda_joint4",
+   "panda_joint5",
+   "panda_joint6",
+   "panda_joint7"
+  ],
+  "hand": "panda_hand",
+  "gripper_joints": [
+   "panda_finger_joint1",
+   "panda_finger_joint2"
+  ],
+  "tcp_offset": null,
+  "gripper_open": null,
+  "gripper_closed": null,
+  "mount": {
+   "pos": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "start_joint_pos": null
+ },
+ "spec": {
+  "name": "byor_3292d47ab6",
+  "ik_link": "panda_link7",
+  "arm_joints": [
+   "panda_joint1",
+   "panda_joint2",
+   "panda_joint3",
+   "panda_joint4",
+   "panda_joint5",
+   "panda_joint6",
+   "panda_joint7"
+  ],
+  "finger_joints": [
+   "panda_finger_joint1"
+  ],
+  "passive_finger_joints": [
+   "panda_finger_joint2"
+  ],
+  "gripper_open": 0.04,
+  "gripper_closed": 0.0,
+  "tcp_offset": [
+   0.0,
+   -0.0,
+   0.210279
+  ],
+  "hand_in_tool_wxyz": [
+   0.92388,
+   0.0,
+   0.0,
+   0.382683
+  ],
+  "base_pos": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "start_joint_pos": {
+   "panda_joint1": 0.025706,
+   "panda_joint2": -0.311026,
+   "panda_joint3": -0.02388,
+   "panda_joint4": -2.347666,
+   "panda_joint5": -0.008179,
+   "panda_joint6": 2.036711,
+   "panda_joint7": 0.792045,
+   "panda_finger_joint1": 0.04,
+   "panda_finger_joint2": 0.04
+  },
+  "sources": {
+   "ik_link": "panda_hand is joined to panda_link7 by fixed joints, which the URDF importer merges (merge_fixed_joints); IK drives panda_link7",
+   "tcp_offset": "finger geometry: the fingertips are 0.1123 m along the hand's +z; the grasp point sits 0.009 m above them (Franka's documented TCP is 0.0089 m above its fingertips)",
+   "gripper": "the limit with the fingers farther apart is open (panda_finger_joint1 0.04); the other limit is closed",
+   "start_joint_pos": "IK for the tool at (0.45, 0, 0.35) pointing down, from the middle of each joint's range: residual 0.0 mm, 0.000 rad"
+  }
+ },
+ "issues": [],
+ "ready": true
+}

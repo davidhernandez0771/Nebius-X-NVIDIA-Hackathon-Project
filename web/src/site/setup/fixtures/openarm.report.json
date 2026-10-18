@@ -1,0 +1,1429 @@
+{
+ "schema": "sant.robot_report/1",
+ "robot": {
+  "id": "byor_790916a678",
+  "name": "openarm",
+  "urdf_sha256": "790916a67838e2d9c17e78ffac28d726b206e4c16779a9320601e2eb278b6d63",
+  "dof": 7
+ },
+ "roles": {
+  "base": "openarm_link0",
+  "arm_joints": [
+   "openarm_joint1",
+   "openarm_joint2",
+   "openarm_joint3",
+   "openarm_joint4",
+   "openarm_joint5",
+   "openarm_joint6",
+   "openarm_joint7"
+  ],
+  "hand": "openarm_link7",
+  "gripper_joints": [
+   "openarm_finger_joint1",
+   "openarm_finger_joint2"
+  ],
+  "tcp_offset": null,
+  "gripper_open": null,
+  "gripper_closed": null,
+  "mount": {
+   "pos": [
+    0.2,
+    0.0,
+    0.25
+   ]
+  },
+  "start_joint_pos": null
+ },
+ "spec": {
+  "name": "byor_790916a678",
+  "ik_link": "openarm_link7",
+  "arm_joints": [
+   "openarm_joint1",
+   "openarm_joint2",
+   "openarm_joint3",
+   "openarm_joint4",
+   "openarm_joint5",
+   "openarm_joint6",
+   "openarm_joint7"
+  ],
+  "finger_joints": [
+   "openarm_finger_joint1"
+  ],
+  "passive_finger_joints": [
+   "openarm_finger_joint2"
+  ],
+  "gripper_open": 0.0439999998,
+  "gripper_closed": 0.0,
+  "tcp_offset": [
+   0.0,
+   0.0,
+   0.1931
+  ],
+  "hand_in_tool_wxyz": [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ],
+  "base_pos": [
+   0.2,
+   0.0,
+   0.25
+  ],
+  "start_joint_pos": {
+   "openarm_joint1": 0.629621,
+   "openarm_joint2": -0.368205,
+   "openarm_joint3": -0.35948,
+   "openarm_joint4": 1.607138,
+   "openarm_joint5": -0.297911,
+   "openarm_joint6": 0.300824,
+   "openarm_joint7": -1.402014,
+   "openarm_finger_joint1": 0.044,
+   "openarm_finger_joint2": 0.044
+  },
+  "sources": {
+   "ik_link": "openarm_link7 is the last arm link",
+   "tcp_offset": "link openarm_ee_tcp: a fixed child of the hand named like a tool point",
+   "gripper": "the limit with the fingers farther apart is open (openarm_finger_joint1 0.0439999998); the other limit is closed",
+   "start_joint_pos": "IK for the tool at (0.45, 0, 0.35) pointing down, from the middle of each joint's range: residual 0.0 mm, 0.000 rad"
+  }
+ },
+ "task": {
+  "name": "pick-place",
+  "text": "pick up the red cube and place it in the blue bin",
+  "workspace": {
+   "cube_x": [
+    0.4,
+    0.6
+   ],
+   "cube_y": [
+    -0.2,
+    0.2
+   ],
+   "cube_yaw": [
+    -1.5707963267948966,
+    1.5707963267948966
+   ],
+   "bin_x": [
+    0.4,
+    0.65
+   ],
+   "bin_y": [
+    -0.3,
+    0.3
+   ]
+  },
+  "seeds": [
+   100,
+   129
+  ],
+  "source": "demo_pipeline.multiply.SCENE_RANGES['franka'] (spec 8.6); scenes from demo_pipeline.multiply.sample_scene"
+ },
+ "verdict": {
+  "value": "not_ready",
+  "source": "rule: ready if pick-place succeeds in >= 24 of 30 scenes (80%), partial if >= 6 (20%), else not_ready"
+ },
+ "pick_place": {
+  "successes": {
+   "value": 0,
+   "of": 30,
+   "source": "scripted expert (sim_worker.scripted) on the base scene, moved into each scene by demo_pipeline.multiply.transform_trajectory, replayed by sim_worker.replay (differential IK, Isaac Lab 3.0 PhysX), judged by demo_pipeline.success.check_success"
+  },
+  "failure_reasons": {
+   "value": {
+    "collision": 13,
+    "dropped": 8,
+    "not_in_bin": 10,
+    "unreachable": 30
+   },
+   "source": "demo_pipeline.success.check_success reason codes over the failed scenes; one scene can have several"
+  },
+  "tracking_mean_mm": {
+   "value": 54.66,
+   "source": "sim_worker.tracking.tracking_stats: commanded vs reached tool point, mean over every step of every scene"
+  }
+ },
+ "reach_map": {
+  "fraction": {
+   "value": 0.513,
+   "source": "share of grid cells reachable in every layer"
+  },
+  "grid": {
+   "x": [
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65
+   ],
+   "y": [
+    -0.3,
+    -0.25,
+    -0.2,
+    -0.15,
+    -0.1,
+    -0.05,
+    0.0,
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3
+   ]
+  },
+  "layers": [
+   {
+    "name": "grasp",
+    "z": 0.025,
+    "yaw_deg": 0,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+     ]
+    ],
+    "fraction": 0.615
+   },
+   {
+    "name": "grasp",
+    "z": 0.025,
+    "yaw_deg": 45,
+    "reachable": [
+     [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+     ]
+    ],
+    "fraction": 0.564
+   },
+   {
+    "name": "grasp",
+    "z": 0.025,
+    "yaw_deg": -45,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+     ],
+     [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+     ]
+    ],
+    "fraction": 0.59
+   },
+   {
+    "name": "release",
+    "z": 0.1,
+    "yaw_deg": 0,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+     ]
+    ],
+    "fraction": 0.731
+   },
+   {
+    "name": "carry",
+    "z": 0.25,
+    "yaw_deg": 0,
+    "reachable": [
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+     ],
+     [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+     ],
+     [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+     ],
+     [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+     ]
+    ],
+    "fraction": 0.692
+   }
+  ],
+  "source": "sim_worker.urdf_kin.solve_best on the URDF chain openarm_link0 -> openarm_link7 (the one Isaac imports), mount at [0.2, 0.0, 0.25]: tool pointing down at each cell, joint limits enforced, from 4 start poses (the start pose, the previous cell's solution, the middle of each range, one random); reachable = within 5 mm and 0.05 rad"
+ },
+ "joint_limit_hits": {
+  "value": [
+   {
+    "joint": "openarm_joint2",
+    "limit": "lower",
+    "value": -1.74532899,
+    "scenes": 22,
+    "steps": 657
+   },
+   {
+    "joint": "openarm_joint3",
+    "limit": "lower",
+    "value": -1.57079593,
+    "scenes": 8,
+    "steps": 91
+   },
+   {
+    "joint": "openarm_joint4",
+    "limit": "lower",
+    "value": 0.0,
+    "scenes": 10,
+    "steps": 377
+   },
+   {
+    "joint": "openarm_joint5",
+    "limit": "upper",
+    "value": 1.57079593,
+    "scenes": 8,
+    "steps": 361
+   },
+   {
+    "joint": "openarm_joint6",
+    "limit": "lower",
+    "value": -0.785397964,
+    "scenes": 2,
+    "steps": 149
+   },
+   {
+    "joint": "openarm_joint6",
+    "limit": "upper",
+    "value": 0.785397964,
+    "scenes": 15,
+    "steps": 1214
+   },
+   {
+    "joint": "openarm_joint7",
+    "limit": "lower",
+    "value": -1.57079593,
+    "scenes": 17,
+    "steps": 1216
+   },
+   {
+    "joint": "openarm_joint7",
+    "limit": "upper",
+    "value": 1.57079593,
+    "scenes": 4,
+    "steps": 236
+   }
+  ],
+  "source": "recorded joint positions (run/var_*/steps.npz joint_pos) within 0.01 rad (prismatic: 0.5 mm) of a URDF limit, over all scenes; arm joints only"
+ },
+ "scenes": {
+  "source": "one row per seed: success and reasons from check_success, positions from sample_scene, tracking from tracking_stats, limit hits as above",
+  "rows": [
+   {
+    "seed": 100,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 59.8,
+    "n_steps": 376,
+    "cube": [
+     0.5193,
+     0.1161
+    ],
+    "bin": [
+     0.572,
+     -0.186
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint4:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 101,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 81.08,
+    "n_steps": 376,
+    "cube": [
+     0.5845,
+     0.1477
+    ],
+    "bin": [
+     0.6433,
+     -0.1653
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint4:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 102,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "collision",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 86.47,
+    "n_steps": 376,
+    "cube": [
+     0.4928,
+     0.1565
+    ],
+    "bin": [
+     0.6483,
+     -0.1545
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint4:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 103,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 31.59,
+    "n_steps": 376,
+    "cube": [
+     0.4625,
+     -0.1103
+    ],
+    "bin": [
+     0.615,
+     0.2145
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:upper"
+    ]
+   },
+   {
+    "seed": 104,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 27.02,
+    "n_steps": 376,
+    "cube": [
+     0.5124,
+     -0.0936
+    ],
+    "bin": [
+     0.4151,
+     0.283
+    ],
+    "limit_hits": [
+     "openarm_joint5:upper"
+    ]
+   },
+   {
+    "seed": 105,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 32.58,
+    "n_steps": 376,
+    "cube": [
+     0.5113,
+     -0.1334
+    ],
+    "bin": [
+     0.6149,
+     0.2125
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:upper"
+    ]
+   },
+   {
+    "seed": 106,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 59.82,
+    "n_steps": 376,
+    "cube": [
+     0.5965,
+     -0.1838
+    ],
+    "bin": [
+     0.5161,
+     0.2787
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower"
+    ]
+   },
+   {
+    "seed": 107,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 39.46,
+    "n_steps": 376,
+    "cube": [
+     0.5955,
+     -0.088
+    ],
+    "bin": [
+     0.4252,
+     0.2522
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint5:upper"
+    ]
+   },
+   {
+    "seed": 108,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 64.83,
+    "n_steps": 376,
+    "cube": [
+     0.4716,
+     0.1734
+    ],
+    "bin": [
+     0.4896,
+     -0.2328
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint4:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 109,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 20.56,
+    "n_steps": 376,
+    "cube": [
+     0.4389,
+     -0.1394
+    ],
+    "bin": [
+     0.5357,
+     0.2996
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint5:upper",
+     "openarm_joint6:upper",
+     "openarm_joint7:upper"
+    ]
+   },
+   {
+    "seed": 110,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 30.94,
+    "n_steps": 376,
+    "cube": [
+     0.5439,
+     0.1796
+    ],
+    "bin": [
+     0.4457,
+     -0.1205
+    ],
+    "limit_hits": [
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 111,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 25.0,
+    "n_steps": 376,
+    "cube": [
+     0.4307,
+     -0.1323
+    ],
+    "bin": [
+     0.5645,
+     0.1605
+    ],
+    "limit_hits": [
+     "openarm_joint5:upper",
+     "openarm_joint6:upper"
+    ]
+   },
+   {
+    "seed": 112,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 62.59,
+    "n_steps": 376,
+    "cube": [
+     0.4233,
+     0.1377
+    ],
+    "bin": [
+     0.4043,
+     -0.2538
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 113,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 28.12,
+    "n_steps": 376,
+    "cube": [
+     0.5309,
+     -0.1294
+    ],
+    "bin": [
+     0.5049,
+     0.2667
+    ],
+    "limit_hits": []
+   },
+   {
+    "seed": 114,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 42.27,
+    "n_steps": 376,
+    "cube": [
+     0.4998,
+     0.1374
+    ],
+    "bin": [
+     0.4344,
+     -0.1679
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 115,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 114.41,
+    "n_steps": 376,
+    "cube": [
+     0.5405,
+     0.0415
+    ],
+    "bin": [
+     0.6053,
+     -0.2995
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint4:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 116,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "collision",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 65.62,
+    "n_steps": 376,
+    "cube": [
+     0.4553,
+     0.1791
+    ],
+    "bin": [
+     0.5523,
+     -0.2236
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 117,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 38.99,
+    "n_steps": 376,
+    "cube": [
+     0.5724,
+     -0.0739
+    ],
+    "bin": [
+     0.6201,
+     0.24
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint4:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:upper"
+    ]
+   },
+   {
+    "seed": 118,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 26.25,
+    "n_steps": 376,
+    "cube": [
+     0.4288,
+     -0.1689
+    ],
+    "bin": [
+     0.4882,
+     0.2533
+    ],
+    "limit_hits": [
+     "openarm_joint5:upper",
+     "openarm_joint6:upper"
+    ]
+   },
+   {
+    "seed": 119,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 25.02,
+    "n_steps": 376,
+    "cube": [
+     0.4723,
+     -0.1491
+    ],
+    "bin": [
+     0.4596,
+     0.2768
+    ],
+    "limit_hits": [
+     "openarm_joint5:upper"
+    ]
+   },
+   {
+    "seed": 120,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 23.62,
+    "n_steps": 376,
+    "cube": [
+     0.4277,
+     -0.132
+    ],
+    "bin": [
+     0.4545,
+     0.2363
+    ],
+    "limit_hits": [
+     "openarm_joint5:upper"
+    ]
+   },
+   {
+    "seed": 121,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 68.3,
+    "n_steps": 376,
+    "cube": [
+     0.5196,
+     0.0874
+    ],
+    "bin": [
+     0.5529,
+     -0.2838
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 122,
+    "success": false,
+    "reasons": [
+     "unreachable"
+    ],
+    "tracking_mean_mm": 26.92,
+    "n_steps": 376,
+    "cube": [
+     0.5651,
+     -0.1298
+    ],
+    "bin": [
+     0.4523,
+     0.1935
+    ],
+    "limit_hits": [
+     "openarm_joint5:upper",
+     "openarm_joint6:upper"
+    ]
+   },
+   {
+    "seed": 123,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 60.53,
+    "n_steps": 376,
+    "cube": [
+     0.5624,
+     0.1195
+    ],
+    "bin": [
+     0.4572,
+     -0.2174
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint4:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 124,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 57.33,
+    "n_steps": 376,
+    "cube": [
+     0.5012,
+     0.0656
+    ],
+    "bin": [
+     0.413,
+     -0.2639
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint4:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 125,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 66.96,
+    "n_steps": 376,
+    "cube": [
+     0.556,
+     0.1145
+    ],
+    "bin": [
+     0.4805,
+     -0.2287
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 126,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "collision",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 112.1,
+    "n_steps": 376,
+    "cube": [
+     0.4012,
+     0.1767
+    ],
+    "bin": [
+     0.6448,
+     -0.2262
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint6:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 127,
+    "success": false,
+    "reasons": [
+     "collision",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 77.64,
+    "n_steps": 376,
+    "cube": [
+     0.5171,
+     0.1839
+    ],
+    "bin": [
+     0.467,
+     -0.2714
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint4:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 128,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "collision",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 66.61,
+    "n_steps": 376,
+    "cube": [
+     0.4502,
+     0.1913
+    ],
+    "bin": [
+     0.4779,
+     -0.2855
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint6:lower",
+     "openarm_joint7:lower"
+    ]
+   },
+   {
+    "seed": 129,
+    "success": false,
+    "reasons": [
+     "not_in_bin",
+     "collision",
+     "dropped",
+     "unreachable"
+    ],
+    "tracking_mean_mm": 117.22,
+    "n_steps": 376,
+    "cube": [
+     0.573,
+     0.129
+    ],
+    "bin": [
+     0.6434,
+     -0.2444
+    ],
+    "limit_hits": [
+     "openarm_joint2:lower",
+     "openarm_joint3:lower",
+     "openarm_joint4:lower",
+     "openarm_joint6:upper",
+     "openarm_joint7:lower"
+    ]
+   }
+  ]
+ },
+ "provenance": {
+  "fixture": "T1 web fixture, not a BYOR run. Pick-place rows are the built-in robot's recorded run (data/multiply_openarm/yield.json; docs/superpowers/notes/2026-10-15-t2-status.md:311 (OpenArm multiply 0/30, seeds 100-129)). The reach map and limit hits are sim_worker.byor_report on the uploaded URDF and that run's joint positions.",
+  "created_at": "2026-10-18",
+  "baseline": {
+   "source": "docs/superpowers/notes/2026-10-15-t2-status.md:311 (OpenArm multiply 0/30, seeds 100-129)"
+  }
+ }
+}
