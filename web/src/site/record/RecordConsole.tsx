@@ -1,6 +1,6 @@
 // /record: the Record page in the Volt look. T7's instrument-rack tiles (site/record-hud, after
 // docs/design/prototypes/record-console.html) around the camera view, fed by the same teleop
-// session as /pm/record (useRecordSession: hand v4's simple pinch, reset gesture, original hand
+// session as /legacy/pm/record (useRecordSession: hand v4's simple pinch, reset gesture, original hand
 // art, control region, break-through). The page always fits the window: a 100dvh grid, no page
 // scrollbar, nothing scrolls inside a tile; the rare settings sit in a slide-over drawer.
 
@@ -8,11 +8,11 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AppShell } from "../../sant/shells/AppShell";
 import type { TrackingStatus } from "../../hand/contracts";
-import { LazyHandArtOverlay } from "../../pm/handArt";
-import ResetGestureRing from "../../pm/record/ResetGestureRing";
-import type { StagePalette } from "../../pm/record/stageDraw";
-import { ART_COOLDOWN_MS, ART_MORPH_MS, SINK_COMMAND, STEP_S, useRecordSession, type PoseUi, type RecordSession } from "../../pm/record/useRecordSession";
-import { PINCH_CLOSE_BELOW, PINCH_OPEN_ABOVE } from "../../teleop/pinch";
+import { LazyHandArtOverlay } from "../../record/handArt";
+import ResetGestureRing from "../../record/ResetGestureRing";
+import type { StagePalette } from "../../record/stageDraw";
+import { ART_COOLDOWN_MS, ART_MORPH_MS, SINK_COMMAND, STEP_S, useRecordSession, type PoseUi, type RecordSession } from "../../record/useRecordSession";
+import { PINCH_CLOSE_BELOW, PINCH_OPEN_ABOVE } from "../../record/teleop/pinch";
 import {
   CamTile,
   ChannelTile,
@@ -36,8 +36,8 @@ import "./record-console.css";
 const DRAWER_ID = "rc-settings";
 const LINKS = [
   { to: "/record", label: "Record" },
-  { to: "/pm/review", label: "Review" },
-  { to: "/pm/dataset", label: "Dataset" },
+  { to: "/legacy/pm/review", label: "Review" },
+  { to: "/legacy/pm/dataset", label: "Dataset" },
 ];
 const EPISODE: Record<RecordState, string> = { idle: "idle", recording: "rec", paused: "paused" };
 const TRACK_DETAIL: Partial<Record<TrackingStatus, string>> = { loading: "starting", "no-hand": "no hand", error: "frames stopped" };
@@ -240,7 +240,7 @@ export function RecordConsole() {
                 {EPISODE[rec]}
               </p>
               {sim?.demoId && (
-                <Link className="rc-review" to={`/pm/review?id=${encodeURIComponent(sim.demoId)}`}>
+                <Link className="rc-review" to={`/legacy/pm/review?id=${encodeURIComponent(sim.demoId)}`}>
                   Review {sim.demoId}
                 </Link>
               )}

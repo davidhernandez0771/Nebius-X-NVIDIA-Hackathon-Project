@@ -3,8 +3,8 @@
 // latch, so the rack shows what the arm will do, not a separate guess. Pure, so the preview's
 // fixture and T4's live stream go through the same code.
 
-import { CALIBRATION, GRIPPER, TABLE_MARK, Z_RANGE, nextGripper } from "../../pm/record/framing";
-import type { HandPoseMsg } from "../../teleop/handPoseMessage";
+import { CALIBRATION, GRIPPER, TABLE_MARK, Z_RANGE, nextGripper } from "../../record/framing";
+import type { HandPoseMsg } from "../../record/teleop/handPoseMessage";
 
 /** teleop.py Calibration's workspace in meters (Isaac Lab world frame, z up). Update together. */
 export const WORKSPACE = {

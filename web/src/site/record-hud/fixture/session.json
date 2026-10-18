@@ -1,5 +1,5 @@
 {
-  "about": "Scripted 10 s pick-and-place hand path, not a webcam recording. Wire fields are measured from the drawn landmarks as web/src/teleop/handPoseMessage.ts measures them. Written by web/scripts/record-hud-fixture.mjs.",
+  "about": "Scripted 10 s pick-and-place hand path, not a webcam recording. Wire fields are measured from the drawn landmarks as web/src/record/teleop/handPoseMessage.ts measures them. Written by web/scripts/record-hud-fixture.mjs.",
   "rate_hz": 30,
   "frames": [
     {"t_ms":0,"tracking_ok":true,"wrist_uv":[0.7,0.421],"palm_width":0.09683,"pinch_ratio":1.32655,"yaw_rad":0,"frame_w":640,"frame_h":480,"phase":"approach","landmarks":[[0.7,0.421],[0.747,0.382],[0.778,0.341],[0.802,0.294],[0.821,0.256],[0.734,0.266],[0.738,0.202],[0.738,0.158],[0.741,0.122],[0.7,0.257],[0.7,0.183],[0.7,0.137],[0.7,0.096],[0.669,0.269],[0.665,0.204],[0.662,0.166],[0.661,0.134],[0.639,0.291],[0.632,0.24],[0.626,0.21],[0.621,0.179]]},

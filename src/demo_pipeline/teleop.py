@@ -1,6 +1,6 @@
 """Webcam teleop: hand measurements from the browser -> end-effector target pose + gripper (spec 8.1).
 
-The browser (web/src/teleop/handPoseMessage.ts) sends one `HandPoseMsg` per tracked
+The browser (web/src/record/teleop/handPoseMessage.ts) sends one `HandPoseMsg` per tracked
 frame; the backend relays it unchanged; the sim worker calls `to_ee_target()` and a
 `GripperLatch` on every message. JSON field names are identical in Python and TS.
 
@@ -41,10 +41,10 @@ class HandPoseMsg(_Model):
     yaw_rad: float = Field(ge=-math.pi, le=math.pi)  # atan2(dx, -dy) of lm0 -> lm9 in px; up = 0, raw right = +pi/2
     frame_w: int = Field(gt=0)
     frame_h: int = Field(gt=0)
-    # Optional (web/src/teleop/controlRegion.ts): the palm center remapped into the user's control
+    # Optional (web/src/record/teleop/controlRegion.ts): the palm center remapped into the user's control
     # region and clamped, raw unmirrored like wrist_uv, plus depth from palm width (0 far, 1 near).
     control: tuple[float, float, float] | None = None
-    # Optional (web/src/teleop/pinch.ts): 1 closed, 0 open. Absent: the 2D pinch thresholds below.
+    # Optional (web/src/record/teleop/pinch.ts): 1 closed, 0 open. Absent: the 2D pinch thresholds below.
     grip: Literal[0, 1] | None = None
 
     @model_validator(mode="after")

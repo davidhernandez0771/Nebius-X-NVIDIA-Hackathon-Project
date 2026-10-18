@@ -4,10 +4,10 @@
 // a compact Volt slide-over that fits a 720 px tall window without scrolling.
 
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
-import { DEPTH_GAP, DEPTH_MAX, DEPTH_MIN, SIZE_MIN, STEP_TEXT } from "../../pm/record/HandControlPanel";
-import type { RecordSession } from "../../pm/record/useRecordSession";
-import { DEFAULT_TELEOP_CONTROL, REGION_SIZE_MAX, clampRegion, type TeleopControlSettings } from "../../teleop/controlRegion";
-import { TRACE_SECONDS } from "../../teleop/debugTrace";
+import { DEPTH_GAP, DEPTH_MAX, DEPTH_MIN, SIZE_MIN, STEP_TEXT } from "../../record/controlSettings";
+import type { RecordSession } from "../../record/useRecordSession";
+import { DEFAULT_TELEOP_CONTROL, REGION_SIZE_MAX, clampRegion, type TeleopControlSettings } from "../../record/teleop/controlRegion";
+import { TRACE_SECONDS } from "../../record/teleop/debugTrace";
 
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : v.toFixed(3));
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { PoseUi } from "../../pm/record/useRecordSession";
-import type { HandPoseMsg } from "../../teleop/handPoseMessage";
+import type { PoseUi } from "../../record/useRecordSession";
+import type { HandPoseMsg } from "../../record/teleop/handPoseMessage";
 import { WORKSPACE, initialHud } from "../record-hud";
 import { LIVE_HISTORY, stepLiveHud } from "./liveHud";
 

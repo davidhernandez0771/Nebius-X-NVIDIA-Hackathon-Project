@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CALIBRATION } from "../../pm/record/framing";
+import { CALIBRATION } from "../../record/framing";
 import { CamTile, HandOverlay } from "./CamTile";
 import { GripKnobTile } from "./GripKnob";
 import { HeightTraceTile } from "./HeightTrace";

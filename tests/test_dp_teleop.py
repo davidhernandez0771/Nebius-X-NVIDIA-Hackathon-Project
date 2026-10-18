@@ -217,11 +217,11 @@ def test_msg_json_round_trip_uses_the_shared_field_names():
     assert HandPoseMsg.model_validate_json(with_control.model_dump_json()) == with_control
 
 
-TS_FIXTURE = Path(__file__).resolve().parents[1] / "web" / "src" / "teleop" / "__fixtures__" / "hand_pose_msg.json"
+TS_FIXTURE = Path(__file__).resolve().parents[1] / "web" / "src" / "record" / "teleop" / "__fixtures__" / "hand_pose_msg.json"
 
 
 def test_ts_fixture_validates_as_HandPoseMsg():
-    # Produced by web/src/teleop/handPoseMessage.test.ts's toHandPoseMsg() from fixed landmarks.
+    # Produced by web/src/record/teleop/handPoseMessage.test.ts's toHandPoseMsg() from fixed landmarks.
     msg = HandPoseMsg.model_validate_json(TS_FIXTURE.read_text(encoding="utf-8"))
 
     assert msg.tracking_ok is True

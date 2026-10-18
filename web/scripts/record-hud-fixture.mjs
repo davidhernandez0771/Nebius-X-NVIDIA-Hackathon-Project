@@ -2,7 +2,7 @@
 // Record HUD preview (/site/record-hud), in the HandPoseMsg wire format plus the 21 landmarks.
 //
 // It is scripted, not a webcam recording: keyframes drive a drawn hand, and the wire fields are then
-// measured from those landmarks the way web/src/teleop/handPoseMessage.ts measures them, so the file
+// measured from those landmarks the way web/src/record/teleop/handPoseMessage.ts measures them, so the file
 // is shaped exactly like a real session and a real one can replace it. 30 Hz is the rate messages
 // arrive at (docs/superpowers/notes/2026-10-15-t4-status.md:169).
 //
@@ -105,7 +105,7 @@ for (let i = 0; i < RATE_HZ * SECONDS; i++) {
 
 const about =
   "Scripted 10 s pick-and-place hand path, not a webcam recording. Wire fields are measured from the drawn landmarks " +
-  "as web/src/teleop/handPoseMessage.ts measures them. Written by web/scripts/record-hud-fixture.mjs.";
+  "as web/src/record/teleop/handPoseMessage.ts measures them. Written by web/scripts/record-hud-fixture.mjs.";
 const body = frames.map((f) => "    " + JSON.stringify(f)).join(",\n");
 writeFileSync(OUT, `{\n  "about": ${JSON.stringify(about)},\n  "rate_hz": ${RATE_HZ},\n  "frames": [\n${body}\n  ]\n}\n`);
 console.log(`wrote ${frames.length} frames to ${OUT}`);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { HandPoseMsg } from "../../teleop/handPoseMessage";
+import type { HandPoseMsg } from "../../record/teleop/handPoseMessage";
 import {
   HISTORY,
   WORKSPACE,

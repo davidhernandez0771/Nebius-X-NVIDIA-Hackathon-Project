@@ -4,7 +4,7 @@
 // same toTarget (teleop.py's to_ee_target). The session's pose updates at ~10 Hz, so 80 samples
 // keep the traces at 8 s like the preview's.
 
-import type { PoseUi } from "../../pm/record/useRecordSession";
+import type { PoseUi } from "../../record/useRecordSession";
 import { initialHud, toTarget, type HudState, type Point } from "../record-hud";
 
 /** The session's UI rate (useRecordSession: one pose update per ~100 ms). */

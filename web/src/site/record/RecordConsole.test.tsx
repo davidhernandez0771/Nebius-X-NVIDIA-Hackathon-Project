@@ -1,5 +1,5 @@
 // /record: the Volt Record page on the shared teleop session. The session itself is covered by
-// pm/record/RecordPage.test.tsx (same hook); here: the rack shows what the session sends, the
+// legacy/pm/record/RecordPage.test.tsx (same hook); here: the rack shows what the session sends, the
 // record button and its timer, the sim notice, and the settings drawer.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,9 +7,9 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { MemoryRouter } from "react-router-dom";
 import { MotionProvider } from "../../sant/motion/MotionProvider";
 import type { HandFrame, TrackedHand } from "../../hand/contracts";
-import type { SimStatus } from "../../pm/record/recordLink";
-import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../teleop/controlRegion";
-import { VICTORY_FLEX, VICTORY_THUMB, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../teleop/__fixtures__/handPoses";
+import type { SimStatus } from "../../record/recordLink";
+import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../record/teleop/controlRegion";
+import { VICTORY_FLEX, VICTORY_THUMB, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../record/teleop/__fixtures__/handPoses";
 import { RecordConsole } from "./RecordConsole";
 
 const tracker = vi.hoisted(() => ({
@@ -32,8 +32,8 @@ interface FakeLink {
 const links = vi.hoisted(() => ({ list: [] as FakeLink[] }));
 
 vi.mock("../../hand/tracking", () => ({ createMediapipeTracker: () => tracker }));
-vi.mock("../../pm/handArt", () => ({ LazyHandArtOverlay: () => <div data-testid="hand-art-overlay" /> }));
-vi.mock("../../pm/record/recordLink", () => ({
+vi.mock("../../record/handArt", () => ({ LazyHandArtOverlay: () => <div data-testid="hand-art-overlay" /> }));
+vi.mock("../../record/recordLink", () => ({
   RecordLink: class {
     sent: string[] = [];
     grips: (0 | 1 | undefined)[] = [];
@@ -169,7 +169,7 @@ describe("/record", () => {
     const link = await startCamera();
     act(() => link.emitStatus(connected));
     act(() => link.emitSim(sim({ steps: 376, demoId: "human_20261016_ab12", lastResult: "saved human_20261016_ab12: verified success" })));
-    expect(screen.getByRole("link", { name: "Review human_20261016_ab12" }).getAttribute("href")).toBe("/pm/review?id=human_20261016_ab12");
+    expect(screen.getByRole("link", { name: "Review human_20261016_ab12" }).getAttribute("href")).toBe("/legacy/pm/review?id=human_20261016_ab12");
     expect(screen.getByText("saved human_20261016_ab12: verified success")).toBeTruthy();
   });
 

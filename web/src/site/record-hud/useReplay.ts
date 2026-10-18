@@ -1,7 +1,7 @@
 // Plays a recorded session through stepHud on the animation clock, for the preview. Live data
 // would call stepHud per message instead; this only stands in for the webcam and the relay.
 import { useEffect, useRef, useState } from "react";
-import type { HandPoseMsg } from "../../teleop/handPoseMessage";
+import type { HandPoseMsg } from "../../record/teleop/handPoseMessage";
 import { frameAt, initialHud, stepHud, type HudState, type Point } from "./hudModel";
 
 export type SessionFrame = HandPoseMsg & { phase: string; landmarks: Point[] };
