@@ -31,6 +31,8 @@ const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ 
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
+// The world (sprint 9): one continuous 3D journey, from the story down to the work (docs/design/world-core.md).
+const World = lazy(() => import("./world/core/WorldRoot"));
 
 // Dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
@@ -40,7 +42,8 @@ export default function App() {
   const [calibrationOpen, setCalibrationOpen] = useState(false);
   // The new SANT site (/site, /robots, …) has no hand cursor: hide its controls there, and turn the
   // camera off if it was left on, since there is no switch on those pages to turn it off.
-  const onSite = siteModeOf(useLocation().pathname) !== null;
+  const path = useLocation().pathname;
+  const onSite = siteModeOf(path) !== null || /^\/world(\/|$)/.test(path);
   const { enabled: handOn, disable: handOff } = hand;
   useEffect(() => {
     if (onSite && handOn) handOff();
@@ -69,6 +72,7 @@ export default function App() {
         />
         <Route element={<SantRoot />}>
           <Route path="/site" element={<Suspense fallback={null}><SiteLanding /></Suspense>} />
+          <Route path="/world" element={<Suspense fallback={null}><World /></Suspense>} />
           <Route
             path="/design"
             element={
