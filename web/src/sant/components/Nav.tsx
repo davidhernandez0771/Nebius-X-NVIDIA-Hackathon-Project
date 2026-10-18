@@ -4,6 +4,7 @@ import { usePowerOn } from "../shells/PowerOn";
 import { Button } from "./Button";
 import { EffectsToggle } from "./EffectsToggle";
 import { Logo } from "./Logo";
+import { PillNav } from "./PillNav";
 import { StepRail } from "./StepRail";
 
 export type NavItem = { to: string; label: string };
@@ -33,7 +34,7 @@ export function StoryNav({ home = "/", links = [], cta }: { home?: string; links
   );
 }
 
-/** Volt nav: the wordmark, the S·A·N·T rail for where the demo is, and a status slot. */
+/** Volt nav: the wordmark, the S·A·N·T rail for where the demo is, the pages as a glass pill, and a status slot. */
 export function AppNav({ home = "/", active, links = [], status }: { home?: string; active: number | null; links?: NavItem[]; status?: ReactNode }) {
   return (
     <nav className="sant-nav sant-nav--app" aria-label="App">
@@ -41,17 +42,7 @@ export function AppNav({ home = "/", active, links = [], status }: { home?: stri
         <Logo size="sm" lit="all" />
       </NavLink>
       <StepRail active={active} />
-      {links.length > 0 && (
-        <ul className="sant-nav__links">
-          {links.map((l) => (
-            <li key={l.to}>
-              <NavLink to={l.to} end className="sant-nav__link">
-                {l.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      )}
+      {links.length > 0 && <PillNav items={links} label="Pages" />}
       <div className="sant-nav__end">
         {status}
         <EffectsToggle />

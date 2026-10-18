@@ -359,3 +359,86 @@
   display: grid;
   gap: var(--sant-space-5);
 }
+
+/* App-page parts (HudSections.tsx) */
+
+.sant-design-glyphs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--sant-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant-design-glyph-run {
+  display: grid;
+  gap: var(--sant-space-3);
+  justify-items: start;
+  padding-top: var(--sant-space-4);
+  border-top: 1px solid var(--sant-line);
+}
+
+.sant-design-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sant-space-4);
+  min-height: 2.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant-design-strip li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sant-space-2);
+  font-size: var(--sant-fs-small);
+}
+
+.sant-design-strip li:not(:last-child)::after {
+  content: "";
+  width: 20px;
+  height: 1px;
+  margin-left: var(--sant-space-2);
+  background: var(--sant-control);
+}
+
+.sant-design-center {
+  justify-items: center;
+}
+
+.sant-design-dials {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-around;
+  gap: var(--sant-space-5);
+}
+
+.sant-design-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sant-space-3);
+  font-size: var(--sant-fs-small);
+  white-space: nowrap;
+}
+
+.sant-design-slider input {
+  width: min(16rem, 50vw);
+  accent-color: var(--sant-accent);
+}
+
+.sant-design-loaders {
+  display: grid;
+  gap: var(--sant-space-6);
+}
+
+/* A patterned ground behind the pill so its glass blur shows. */
+.sant-design-pill-stage {
+  justify-items: center;
+  padding: var(--sant-space-8) var(--sant-space-4);
+  background-image:
+    repeating-linear-gradient(135deg, var(--sant-accent-soft) 0 2px, transparent 2px 18px),
+    radial-gradient(circle at 30% 40%, var(--sant-violet-soft), transparent 60%);
+}

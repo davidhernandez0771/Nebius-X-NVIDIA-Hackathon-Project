@@ -801,6 +801,576 @@
   .sant-nav__end { gap: var(--sant-space-3); }
 }
 
+/* ---------------------------------------------------------- tracking HUD */
+/* Detector-style overlay: corner brackets, not full rectangles, so the webcam stays readable. */
+
+.sant-hud {
+  position: relative;
+  margin: 0;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--sant-radius-sm);
+  background-color: var(--sant-surface);
+  background-image: radial-gradient(circle, var(--sant-line) 1px, transparent 1.2px);
+  background-size: 24px 24px;
+  font-family: var(--sant-font-data);
+  --hud-tone: var(--sant-text);
+  container-type: inline-size;
+}
+
+/* In a narrow frame the coordinate lines collide; the label tabs carry what matters. */
+@container (max-width: 520px) {
+  .sant-hud__meta { display: none; }
+}
+
+.sant-hud__media,
+.sant-hud__overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.sant-hud__media > * {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sant-hud__reg {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--sant-control);
+  border-style: solid;
+  border-width: 0;
+}
+
+.sant-hud__reg--tl { top: 10px; left: 10px; border-top-width: 1px; border-left-width: 1px; }
+.sant-hud__reg--tr { top: 10px; right: 10px; border-top-width: 1px; border-right-width: 1px; }
+.sant-hud__reg--bl { bottom: 10px; left: 10px; border-bottom-width: 1px; border-left-width: 1px; }
+.sant-hud__reg--br { bottom: 10px; right: 10px; border-bottom-width: 1px; border-right-width: 1px; }
+
+/* A tick every tenth of the frame, the scale the box coordinates are given in. */
+.sant-hud__ruler {
+  position: absolute;
+  top: 10px;
+  left: 32px;
+  right: 32px;
+  height: 5px;
+  background: repeating-linear-gradient(90deg, var(--sant-control) 0 1px, transparent 1px 10%);
+  opacity: 0.7;
+}
+
+.sant-hud__readout {
+  position: absolute;
+  right: 32px;
+  bottom: 10px;
+  font-size: 11px;
+  color: var(--sant-muted);
+}
+
+.sant-hud__box {
+  position: absolute;
+  background: color-mix(in srgb, var(--hud-tone) 3%, transparent);
+}
+
+.sant-hud[data-animate="true"] .sant-hud__box {
+  transition:
+    left var(--sant-dur-1) linear,
+    top var(--sant-dur-1) linear,
+    width var(--sant-dur-1) linear,
+    height var(--sant-dur-1) linear;
+}
+
+.sant-hud__box[data-tone="live"] { --hud-tone: var(--sant-accent); }
+.sant-hud__box[data-tone="issue"] { --hud-tone: var(--sant-issue); }
+.sant-hud__box[data-tone="info"] { --hud-tone: var(--sant-violet); }
+
+.sant-hud__corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 0 solid var(--hud-tone);
+}
+
+.sant-hud__corner--tl { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; --lock: -5px, -5px; }
+.sant-hud__corner--tr { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; --lock: 5px, -5px; }
+.sant-hud__corner--bl { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; --lock: -5px, 5px; }
+.sant-hud__corner--br { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; --lock: 5px, 5px; }
+
+/* A new box locks on: its corners close in from just outside. */
+.sant-hud[data-animate="true"] .sant-hud__corner {
+  animation: sant-hud-lock var(--sant-dur-3) var(--sant-ease-out) both;
+}
+
+@keyframes sant-hud-lock {
+  from { transform: translate(var(--lock)); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.sant-hud__tag {
+  position: absolute;
+  left: -0.75px;
+  bottom: 100%;
+  padding: 1px 6px;
+  border-radius: 2px 2px 2px 0;
+  background: var(--hud-tone);
+  color: var(--sant-on-accent);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.sant-hud__meta {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  font-size: 10px;
+  color: var(--sant-muted);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- status glyphs */
+
+.sant-glyph {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sant-space-2);
+  --tone: var(--sant-text);
+  --tone-soft: var(--sant-surface-2);
+}
+
+.sant-glyph[data-tone="info"] { --tone: var(--sant-violet); --tone-soft: var(--sant-violet-soft); }
+.sant-glyph[data-tone="issue"] { --tone: var(--sant-issue); --tone-soft: var(--sant-issue-soft); }
+.sant-glyph[data-tone="live"] { --tone: var(--sant-accent); --tone-soft: var(--sant-accent-soft); }
+.sant-glyph[data-tone="danger"] { --tone: var(--sant-danger); --tone-soft: color-mix(in srgb, var(--sant-danger) 14%, var(--sant-bg)); }
+.sant-glyph[data-tone="muted"] { --tone: var(--sant-muted); --tone-soft: transparent; }
+
+.sant-glyph__svg {
+  flex: none;
+  overflow: visible;
+}
+
+.sant-glyph__fill { fill: var(--tone-soft); }
+
+.sant-glyph__edge {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 1.5;
+}
+
+.sant-glyph__mark {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+}
+
+.sant-glyph[data-state="recorded"] .sant-glyph__mark {
+  fill: var(--tone);
+  stroke: none;
+}
+
+/* A new state: the square fills, then the mark draws in. */
+.sant-glyph[data-animate="true"] .sant-glyph__fill {
+  animation: sant-glyph-fill var(--sant-dur-3) var(--sant-ease-out) both;
+}
+
+.sant-glyph[data-animate="true"] .sant-glyph__mark {
+  animation: sant-glyph-draw var(--sant-dur-4) var(--sant-ease-out) var(--sant-dur-1) both;
+}
+
+.sant-glyph[data-animate="true"][data-state="recorded"] .sant-glyph__mark {
+  animation-name: sant-glyph-pop;
+}
+
+/* Still in progress: a short dash runs around the edge. */
+.sant-glyph[data-busy="true"] .sant-glyph__edge {
+  stroke-dasharray: 22 78;
+}
+
+.sant-glyph[data-animate="true"][data-busy="true"] .sant-glyph__edge {
+  animation: sant-glyph-busy 1.4s linear infinite;
+}
+
+@keyframes sant-glyph-fill {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sant-glyph-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes sant-glyph-pop {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: none; }
+}
+
+.sant-glyph[data-state="recorded"] .sant-glyph__mark {
+  transform-origin: 12px 12px;
+}
+
+@keyframes sant-glyph-busy {
+  to { stroke-dashoffset: -100; }
+}
+
+.sant-glyph__label {
+  font-size: var(--sant-fs-small);
+  color: var(--sant-text);
+}
+
+/* ------------------------------------------------------- count-up tiles */
+
+.sant-tiles {
+  display: grid;
+  gap: var(--sant-space-2);
+  justify-items: start;
+}
+
+.sant-tiles__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  font-family: var(--sant-font-data);
+  font-weight: 500;
+  font-size: clamp(2.5rem, 1.6rem + 3vw, 4rem);
+  line-height: 1;
+}
+
+.sant-tiles__group {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.sant-tiles__tile {
+  position: relative;
+  display: block;
+  width: 0.82em;
+  height: 1.2em;
+  overflow: hidden;
+  border-radius: var(--sant-radius-md);
+  background: var(--sant-surface-2);
+  border: 1px solid var(--sant-line);
+}
+
+/* Digits fade into the tile at its top and bottom edges as they roll through. */
+.sant-tiles__tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--sant-surface-2), transparent 24%, transparent 76%, var(--sant-surface-2));
+  pointer-events: none;
+}
+
+.sant-tiles__strip {
+  display: block;
+  transform: translateY(calc(var(--pos) * -1.2em));
+}
+
+.sant-tiles__digit {
+  display: block;
+  height: 1.2em;
+  line-height: 1.2em;
+  text-align: center;
+}
+
+.sant-tiles__tile[data-lead="true"] .sant-tiles__digit:first-child {
+  visibility: hidden;
+}
+
+.sant-tiles__point,
+.sant-tiles__suffix {
+  padding-bottom: 0.1em;
+  color: var(--sant-muted);
+}
+
+.sant-tiles__label {
+  font-size: var(--sant-fs-small);
+}
+
+.sant-tiles__note,
+.sant-tiles__source {
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+/* ------------------------------------------------------ dotted countdown */
+
+.sant-count {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 13rem;
+  height: 13rem;
+}
+
+.sant-count__ring {
+  position: absolute;
+  inset: 0;
+}
+
+.sant-count__tick {
+  position: absolute;
+  top: calc(50% - 3px);
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sant-line);
+  transform: rotate(calc(var(--i) * 360deg / var(--n))) translateY(-6rem);
+}
+
+/* Each second the ring empties clockwise from the top: one dot every 1/24 of the step. */
+.sant-count[data-idle="false"][data-animate="true"] .sant-count__tick {
+  animation: sant-count-drain calc(var(--sant-count-step) / var(--n)) linear both;
+  animation-delay: calc(var(--i) * var(--sant-count-step) / var(--n));
+}
+
+.sant-count[data-idle="false"][data-animate="false"] .sant-count__tick {
+  background: var(--sant-accent);
+}
+
+@keyframes sant-count-drain {
+  from { background: var(--sant-accent); }
+  to { background: var(--sant-line); }
+}
+
+.sant-count__digit {
+  display: grid;
+  grid-template-columns: repeat(5, 11px);
+  grid-auto-rows: 11px;
+  gap: 5px;
+}
+
+.sant-count__dot {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sant-line) 60%, transparent);
+  transition: background-color var(--sant-dur-3) var(--sant-ease-out);
+  transition-delay: calc(var(--row) * var(--sant-stagger-list));
+}
+
+.sant-count__dot[data-on="true"] { background: var(--sant-accent); }
+.sant-count[data-idle="true"] .sant-count__dot[data-on="true"] { background: var(--sant-muted); }
+
+/* ------------------------------------------------------------------ dial */
+
+.sant-dial {
+  position: relative;
+  display: inline-grid;
+  justify-items: center;
+  width: 11rem;
+  --tone: var(--sant-accent);
+}
+
+.sant-dial[data-tone="issue"] { --tone: var(--sant-issue); }
+.sant-dial[data-tone="info"] { --tone: var(--sant-violet); }
+
+.sant-dial__svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.sant-dial__bezel {
+  fill: var(--sant-surface);
+  stroke: var(--sant-line);
+}
+
+.sant-dial__scale {
+  transform-origin: 80px 80px;
+}
+
+.sant-dial[data-animate="true"] .sant-dial__scale {
+  transition: transform var(--sant-dur-3) var(--sant-ease-out);
+}
+
+.sant-dial__track,
+.sant-dial__lit {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.sant-dial__track { stroke: var(--sant-line); }
+.sant-dial__lit { stroke: var(--tone); }
+
+.sant-dial__tick {
+  stroke: var(--sant-control);
+  stroke-width: 1;
+}
+
+.sant-dial__tick[data-major="true"] {
+  stroke: var(--sant-text);
+  stroke-width: 1.25;
+}
+
+.sant-dial__num {
+  fill: var(--sant-muted);
+  font-family: var(--sant-font-data);
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.sant-dial__index { fill: var(--tone); }
+
+.sant-dial__readout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  padding-top: 42%;
+  box-sizing: border-box;
+  font-family: var(--sant-font-data);
+}
+
+.sant-dial__value {
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.sant-dial__unit {
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant-dial__label {
+  margin-top: var(--sant-space-1);
+  font-size: var(--sant-fs-small);
+  color: var(--sant-muted);
+}
+
+/* ---------------------------------------------------------- glyph loader */
+
+.sant-glyphs {
+  display: grid;
+  gap: var(--sant-space-2);
+  font-family: var(--sant-font-data);
+}
+
+.sant-glyphs__text {
+  font-size: var(--sant-fs-body);
+  color: var(--sant-text);
+  white-space: pre;
+}
+
+.sant-glyphs__band {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  font-size: var(--sant-fs-small);
+  color: var(--sant-line);
+  white-space: pre;
+}
+
+.sant-glyphs__band [data-on="true"] { color: var(--sant-accent); }
+
+.sant-glyphs__pct {
+  margin-left: var(--sant-space-2);
+  color: var(--sant-muted);
+}
+
+.sant-glyphs__detail {
+  font-family: var(--sant-font-ui);
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+/* -------------------------------------------------------------- pill nav */
+
+.sant-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sant-space-2);
+  padding: 4px;
+  border-radius: var(--sant-radius-pill);
+  border: 1px solid color-mix(in srgb, var(--sant-text) 14%, transparent);
+  background: var(--sant-surface);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--sant-text) 8%, transparent),
+    var(--sant-shadow-float);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sant-pill {
+    background: color-mix(in srgb, var(--sant-surface) 55%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+  }
+}
+
+.sant-pill__list {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant-pill__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sant-pill__mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--w);
+  transform: translateX(var(--x));
+  border-radius: var(--sant-radius-pill);
+  background: color-mix(in srgb, var(--sant-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sant-accent) 45%, transparent);
+  transition:
+    transform var(--sant-dur-3) var(--sant-ease-move),
+    width var(--sant-dur-3) var(--sant-ease-move);
+}
+
+.sant-pill__join {
+  width: 24px;
+  height: 1px;
+  background: var(--sant-control);
+  transition: background-color var(--sant-dur-3) var(--sant-ease-out);
+}
+
+.sant-pill__join[data-done="true"] { background: var(--sant-accent); }
+
+.sant .sant-pill__link {
+  position: relative;
+  display: inline-flex;
+  padding: 6px 14px;
+  border-radius: var(--sant-radius-pill);
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+  text-decoration: none;
+  transition: color var(--sant-dur-2) var(--sant-ease-out);
+}
+
+.sant .sant-pill__link:hover,
+.sant .sant-pill__link[aria-current="page"] {
+  color: var(--sant-text);
+  text-decoration: none;
+}
+
+.sant-pill__end {
+  display: flex;
+  align-items: center;
+  padding-right: var(--sant-space-2);
+}
+
 /* -------------------------------------------------------------- power-on */
 
 .sant-poweron {
@@ -842,6 +1412,23 @@
 
 .sant-poweron__unit[data-lit="true"] {
   color: var(--sant-accent);
+}
+
+/* With dust, a unit is invisible until its dust lands, then lights in its place. */
+.sant-poweron[data-dust="on"] .sant-poweron__unit:not([data-lit="true"]) {
+  color: transparent;
+}
+
+.sant-poweron__dust {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.sant-poweron__mark {
+  position: relative;
 }
 
 /* ------------------------------------------------- route view transition */

@@ -260,6 +260,26 @@ See [`motion.md`](motion.md) for the tokens. In short:
 - **anime.js pauses with the tab** (`pauseOnDocumentHidden`), and every scoped animation is reverted
   on unmount.
 
+## 10. App-page parts from the visual references (added 2026-10-17)
+
+The lead's list of user-picked references (`visual-references-2026-10-17.md`, "UI ideas" and
+"Active Theory"). They are inspiration only: we copied no code, assets or compositions. What each
+gave us, and where ours differs:
+
+| Part | Reference | What we took | Ours |
+|---|---|---|---|
+| `TrackingHUD` | *Object Detector Shader* <https://recent.design/i/n2vc3b4-object-detector-shader>; *Micrographics System* <https://recent.design/i/k6v39ws-micrographics-system> | computer-vision annotation as a visual language: boxes, label tabs, technical micrographics | DOM, not a shader. Corner brackets instead of full rectangles so the webcam stays readable, a label tab with the score, the box centre in frame coordinates, registration marks and a tenth-scale ruler. Fed by props |
+| `StatusGlyph` | *Status Icon System* <https://recent.design/i/96z4z4r-status-icon-system> | rounded-square status icons that animate between states | our six pipeline states, each with its own mark and name; the square fills, then the mark draws in; a dash circles the edge while a step runs |
+| `CountUpTiles` | *CSS Count Up Animations* <https://recent.design/i/h0xhuv4-css-count-up-animations> | numerals on rounded-square tiles | an odometer: the lowest digit rolls with the value and higher digits turn only on a carry, so every frame is a value between the two measurements (7.5% → 42.5%) |
+| `DottedCountdown` | *Dotted Countdown* <https://recent.design/i/cqt5k5j-dotted-countdown> | dotted numerals inside circles, high contrast | a 5 × 7 dot-matrix digit inside a 24-dot ring that empties once a second; it keeps time with effects off |
+| `Dial` | *Rolling Dial Shader* <https://recent.design/i/8r9hgol-rolling-dial-shader> | a HUD dial on a dark grid | SVG, no glass cube. The scale rolls under a fixed index mark, so the value always reads at the top; amber when the gripper is closed |
+| `GlyphLoader` | Active Theory's loader <https://activetheory.net/> (a short glyph counter, then a circular field of slashes) | loading told with characters instead of a spinner | the label itself resolves out of loader glyphs from the left, over a band of slashes that fills with the progress; a real progress bar when progress is known |
+| `PillNav` | Active Theory's nav (two links in a glass pill joined by a thin line) | the glass pill and the joining line | our pages are steps in order, so the joins light up to the current page, and a soft mark glides behind the current link |
+| Power-on dust | Active Theory's hero (dust drifting around a glowing emblem) | dust in a dark void | the dust gathers into the S·A·N·T mark, one unit after another, and each unit lights as its dust lands (canvas 2D, at most 900 specks, the pixel ratio capped at 1.5) |
+
+The recent.design pages give only a title, tags and a poster frame, so these notes rest on those
+descriptions and on Active Theory's live site. We judged the results on `/design`.
+
 ## Sources
 
 - MDN, View Transition API: <https://developer.mozilla.org/en-US/docs/Web/API/View_Transition_API>

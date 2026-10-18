@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { MotionProvider } from "../motion/MotionProvider";
+import { powerOnPlan } from "../motion/powerOn";
+import { DURATIONS } from "../motion/tokens";
 import { ToastProvider } from "../components";
 import { AppShell } from "./AppShell";
 import { PowerOnProvider } from "./PowerOn";
@@ -107,6 +109,55 @@ describe("AppShell", () => {
 });
 
 describe("PowerOn (story → app)", () => {
+  // jsdom has no 2D canvas; say so up front instead of letting it log "not implemented".
+  beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("draws the dust on a canvas that assistive tech never sees", () => {
+    stubReducedMotion(false);
+    vi.useFakeTimers();
+    app("/story");
+    fireEvent.click(screen.getByRole("button", { name: "Open the app" }));
+    const canvas = document.querySelector(".sant-poweron canvas");
+    expect(canvas).toBeTruthy();
+    expect(canvas?.closest('[aria-hidden="true"]')).toBeTruthy();
+  });
+
+  it("lights each unit of the mark as its dust lands", () => {
+    stubReducedMotion(false);
+    vi.useFakeTimers();
+    app("/story");
+    fireEvent.click(screen.getByRole("button", { name: "Open the app" }));
+    const lit = () => Array.from(document.querySelectorAll(".sant-poweron__unit")).map((u) => u.getAttribute("data-lit"));
+    const gather = powerOnPlan(false).find((p) => p.phase === "gather");
+    if (gather?.phase !== "gather") throw new Error("no gather step");
+    act(() => {
+      vi.advanceTimersByTime(gather.at + gather.duration - 1);
+    });
+    expect(lit()).toEqual(["false", "false", "false", "false"]);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(lit()).toEqual(["true", "false", "false", "false"]);
+    act(() => {
+      vi.advanceTimersByTime(3 * gather.stagger);
+    });
+    expect(lit()).toEqual(["true", "true", "true", "true"]);
+  });
+
+  it("still lights the mark, without dust, where there is no 2D canvas", () => {
+    stubReducedMotion(false);
+    vi.useFakeTimers();
+    app("/story");
+    fireEvent.click(screen.getByRole("button", { name: "Open the app" }));
+    expect(document.querySelector(".sant-poweron")?.getAttribute("data-dust")).toBe("off");
+  });
+
   it("covers the page, changes the route while covered, then reveals the app", () => {
     stubReducedMotion(false);
     vi.useFakeTimers();
@@ -119,7 +170,7 @@ describe("PowerOn (story → app)", () => {
     });
     expect(screen.getByRole("heading", { name: "App page" })).toBeTruthy();
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(DURATIONS.power - 420 + 20);
     });
     expect(document.querySelector(".sant-poweron")).toBeNull();
     expect(document.activeElement?.textContent).toBe("App page");

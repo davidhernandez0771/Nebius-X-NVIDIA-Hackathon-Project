@@ -46,7 +46,7 @@
   --sant-dur-4: 320ms;
   --sant-dur-story: 600ms;
   --sant-dur-count: 1100ms;
-  --sant-dur-power: 900ms;
+  --sant-dur-power: 1400ms;
 
   --sant-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --sant-ease-in: cubic-bezier(0.3, 0, 1, 1);

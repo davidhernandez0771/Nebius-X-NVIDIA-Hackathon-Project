@@ -22,6 +22,10 @@ export function DesignAppPage() {
       title="Review: s1_0002"
       active={2}
       home="/design"
+      links={[
+        { to: "/design", label: "Design system" },
+        { to: "/design/app", label: "App shell" },
+      ]}
       status={<Badge>Sample layout</Badge>}
       actions={
         <Button variant="secondary" size="sm" onClick={() => navigateWithTransition((to: string) => navigate(to), "/design", { reduced })}>

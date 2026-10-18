@@ -1,24 +1,14 @@
 // /design: the review page for the SANT design system. Every token, component and motion, in both
 // modes, using the project's real content. Spec: docs/design/design-system.md and motion.md.
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  ChartFrame,
-  Logo,
-  ResultBars,
-  SectionHeader,
-  Stat,
-  StepRail,
-  useToast,
-  type Arm,
-} from "../components";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { Badge, Button, Card, ChartFrame, Logo, ResultBars, Stat, StepRail, useToast, type Arm } from "../components";
 import { contrast } from "../contrast";
 import { DURATIONS, EASINGS, STAGGER } from "../motion/tokens";
 import { usePowerOn } from "../shells/PowerOn";
 import { StoryShell } from "../shells/StoryShell";
 import { FrameMeter } from "./FrameMeter";
+import { HudSections } from "./HudSections";
+import { Section } from "./Section";
 import "./design.css";
 
 // src: docs/superpowers/notes/2026-10-15-t3-status.md (2026-10-17 13:15, sprint 7 Tasks 3–4):
@@ -80,7 +70,7 @@ const DURATION_USE: Record<keyof typeof DURATIONS, string> = {
   "4": "Toasts, panels, a rail unit lighting",
   story: "A story reveal",
   count: "Counters and bars",
-  power: "The whole power-on",
+  power: "The whole power-on, dust included",
 };
 
 const EASING_USE: Record<keyof typeof EASINGS, string> = {
@@ -89,16 +79,6 @@ const EASING_USE: Record<keyof typeof EASINGS, string> = {
   move: "Between two on-screen states",
   emph: "The story's big moments",
 };
-
-function Section({ title, lede, note, children }: { title: string; lede?: ReactNode; note?: ReactNode; children: ReactNode }) {
-  const id = useId();
-  return (
-    <section className="sant-design-section" aria-labelledby={id}>
-      <SectionHeader id={id} title={title} lede={lede} note={note} />
-      {children}
-    </section>
-  );
-}
 
 /** One mode's swatches, read from the live CSS so the page can't disagree with tokens.css. */
 function Palette({ mode, title }: { mode: "paper" | "volt"; title: string }) {
@@ -390,10 +370,12 @@ export function DesignPage() {
         <Specimens />
       </Section>
 
+      <HudSections />
+
       <Section
         title="Shells"
         lede="This page sits in the story shell: paper, smooth scroll, the story nav. The app shell is Volt, with native scroll, the S·A·N·T rail and a status slot."
-        note="Crossing from story to app powers on: the Volt ground grows from the button you pressed while S·A·N·T lights up. With effects off it is an instant change of page."
+        note="Crossing from story to app powers on: the Volt ground grows from the button you pressed, dust gathers into S·A·N·T and each letter lights as its dust lands. Escape or a click skips it. With effects off it is an instant change of page."
       >
         <div className="sant-design-row">
           <Button onClick={(e) => powerOn.start("/design/app", e.currentTarget)}>Open the app shell</Button>

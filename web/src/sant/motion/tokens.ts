@@ -10,7 +10,7 @@ export const DURATIONS = {
   "4": 320,
   story: 600,
   count: 1100,
-  power: 900,
+  power: 1400,
 } as const;
 
 export const EASINGS = {

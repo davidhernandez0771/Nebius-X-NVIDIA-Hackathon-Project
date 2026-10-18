@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { SantRoot } from "../SantRoot";
 import { DesignAppPage } from "./DesignAppPage";
@@ -30,6 +30,7 @@ function at(path: string) {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   localStorage.clear();
 });
 
@@ -63,6 +64,52 @@ describe("/design", () => {
     for (const token of ["--sant-dur-1", "--sant-dur-power", "--sant-ease-out", "--sant-stagger-sant"]) {
       expect(within(motion).getByText(token)).toBeTruthy();
     }
+  });
+
+  it("shows each app-page part in its own section, drawn in Volt", () => {
+    at("/design");
+    for (const name of ["Tracking HUD", "Status glyphs", "Count-up tiles", "Countdown", "Dials", "Glyph loader", "Pill nav"]) {
+      const region = screen.getByRole("region", { name });
+      expect(region.querySelector('[data-mode="volt"]')).toBeTruthy();
+    }
+  });
+
+  it("counts the real result up on tiles, with its source", () => {
+    at("/design");
+    const region = screen.getByRole("region", { name: "Count-up tiles" });
+    expect(within(region).getAllByRole("group", { name: "42.5% success on 40 new scenes" }).length).toBeGreaterThan(0);
+    expect(within(region).getAllByText(/T3 status note/).length).toBeGreaterThan(0);
+  });
+
+  it("walks one demo through the pipeline glyphs", () => {
+    vi.useFakeTimers();
+    at("/design");
+    const region = screen.getByRole("region", { name: "Status glyphs" });
+    fireEvent.click(within(region).getByRole("button", { name: "Run a demo through" }));
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    const strip = within(region).getByRole("list", { name: "One demo through the pipeline" });
+    expect(within(strip).getAllByRole("img", { name: "Verified" })).toHaveLength(1);
+  });
+
+  it("runs the 3-2-1 countdown from its button", () => {
+    vi.useFakeTimers();
+    at("/design");
+    const region = screen.getByRole("region", { name: "Countdown" });
+    fireEvent.click(within(region).getByRole("button", { name: "Start the countdown" }));
+    expect(within(region).getByRole("timer").textContent).toMatch(/Recording starts in 3/);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(within(region).getByText("Recording would start now.")).toBeTruthy();
+  });
+
+  it("goes to the app shell from the pill nav", () => {
+    at("/design");
+    const region = screen.getByRole("region", { name: "Pill nav" });
+    fireEvent.click(within(region).getByRole("link", { name: "App shell" }));
+    expect(screen.getByRole("heading", { level: 1, name: /Review/ })).toBeTruthy();
   });
 
   it("offers a visible effects switch", () => {

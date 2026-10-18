@@ -20,7 +20,7 @@ moment. Everything else is feedback to the user's own action.
 | `--sant-dur-4` | 320 | toasts, panels, the step rail lighting a unit |
 | `--sant-dur-story` | 600 | a story reveal (headline words, chart frame) |
 | `--sant-dur-count` | 1100 | Stat counters, bar growth |
-| `--sant-dur-power` | 900 | the whole power-on |
+| `--sant-dur-power` | 1400 | the whole power-on, dust included |
 
 Exits use the next shorter step: a toast enters in 320 ms and leaves in 200 ms.
 
@@ -82,21 +82,30 @@ Exits use the next shorter step: a toast enters in 320 ms and leaves in 200 ms.
 
 ## 4. The power-on (story → app)
 
-Total `--sant-dur-power` (900 ms). The phases come from a pure function, `powerOnPlan(reduced)` in
-`web/src/sant/motion/powerOn.ts`, which is unit-tested.
+Total `--sant-dur-power` (1400 ms; it was 900 ms before the dust). The phases come from a pure
+function, `powerOnPlan(reduced)` in `web/src/sant/motion/powerOn.ts`, which is unit-tested.
 
 | t (ms) | Phase | What happens |
 |---|---|---|
 | 0 | cover | A Volt overlay grows from the clicked button: `clip-path: circle(0 at x y)` → `circle(150% at x y)`, ease-emph, 420 ms |
-| 160, 300, 440, 580 | light | The four S·A·N·T units light one by one (stagger-sant 140 ms), centered on the overlay |
-| 420 | navigate | The overlay now covers the screen; the route changes to the app page (`flushSync`) |
-| 720 | reveal | The overlay fades out over 180 ms, ease-in; the app shell's own rail is already lit |
-| 900 | done | The overlay is removed; focus moves to the app page's `<h1>` |
+| 100 | gather | Dust scattered over the screen starts to gather into the S·A·N·T mark. Unit u's dust lands at 700 + u × 140 ms (ease-emph, so no speck overshoots its target) |
+| 420 | navigate | The overlay now covers the screen; the route changes to the app page |
+| 700, 840, 980, 1120 | light | Each unit lights the moment its dust lands (stagger-sant 140 ms); the dust then fades over 200 ms |
+| 1220 | reveal | The overlay fades out over 180 ms, ease-in; the app shell's own rail is already lit |
+| 1400 | done | The overlay is removed; focus moves to the app page's `<h1>` |
 
-- **Repeated clicks:** a second click, or Escape, during the sequence jumps to `navigate` and `done`.
-- **Reduced motion:** the plan is `[{ phase: "navigate", at: 0 }, { phase: "done", at: 0 }]`, with
-  no overlay.
-- **Cost:** only `clip-path` and `opacity` animate. Nothing else on the page animates during it.
+- **The dust** (`web/src/sant/motion/dust.ts`, pure and unit-tested; drawn by `PowerOn.tsx`):
+  - targets are sampled from each unit's letter, drawn off-screen in its own font at its own place;
+  - at most 900 specks, on a canvas 2D with the pixel ratio capped at 1.5;
+  - each speck drifts, then curls in along a slight arc, and turns teal as it settles.
+- **No 2D canvas:** the overlay says `data-dust="off"` and the units light on the same timeline
+  without dust.
+- **Repeated clicks:** a second click, a click on the overlay, or Escape jumps to `navigate` and
+  `done`.
+- **Reduced motion or Effects off:** the plan is `[{ phase: "navigate", at: 0 }, { phase: "done",
+  at: 0 }]`, with no overlay and no dust.
+- **Cost:** `clip-path` and `opacity` on the overlay, plus one canvas for 1.4 s. Nothing else on
+  the page animates during it.
 
 ## 5. Implementation notes
 
