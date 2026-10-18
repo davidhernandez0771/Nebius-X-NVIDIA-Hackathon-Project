@@ -1,6 +1,6 @@
-// /record: the Volt Record page on the shared teleop session. The session itself is covered by
-// legacy/pm/record/RecordPage.test.tsx (same hook); here: the rack shows what the session sends, the
-// record button and its timer, the sim notice, and the settings drawer.
+// /record: the hologram Record page on the shared teleop session. The session itself is covered by
+// legacy/pm/record/RecordPage.test.tsx (same hook); here: the instruments show what the session
+// sends, the record button and its timer, the sim notice, the top bar, the boot and the drawer.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -10,6 +10,7 @@ import type { HandFrame, TrackedHand } from "../../hand/contracts";
 import type { SimStatus } from "../../record/recordLink";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../record/teleop/controlRegion";
 import { VICTORY_FLEX, VICTORY_THUMB, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../record/teleop/__fixtures__/handPoses";
+import { EFFECTS_KEY } from "../../sant/motion/effects";
 import { RecordConsole } from "./RecordConsole";
 
 const tracker = vi.hoisted(() => ({
@@ -145,7 +146,7 @@ describe("/record", () => {
     const link = await startCamera();
     act(() => link.emitStatus(noSim));
     expect(screen.getByText(/teleop_sink\.py --viz kit/)).toBeTruthy();
-    expect(screen.getByText("sim_link").closest(".rh-chip")?.getAttribute("data-state")).toBe("wait");
+    expect(screen.getByText("sim").closest(".rg-chip")?.getAttribute("data-state")).toBe("wait");
     expect(recordButton().disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Reset scene" }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -159,7 +160,7 @@ describe("/record", () => {
     act(() => link.emitSim(sim({ recording: true, steps: 150 })));
     expect(recordButton().getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("timer", { name: "Recording time" }).textContent).toBe("00:03.0");
-    expect(within(tile("recorded")).getByText("3.0")).toBeTruthy();
+    expect(within(tile("episode")).getByText("recording")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Reset scene" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(recordButton());
     expect(link.sent).toEqual(["record_start", "record_stop"]);
@@ -171,6 +172,7 @@ describe("/record", () => {
     act(() => link.emitSim(sim({ steps: 376, demoId: "human_20261016_ab12", lastResult: "saved human_20261016_ab12: verified success" })));
     expect(screen.getByRole("link", { name: "Review human_20261016_ab12" }).getAttribute("href")).toBe("/legacy/pm/review?id=human_20261016_ab12");
     expect(screen.getByText("saved human_20261016_ab12: verified success")).toBeTruthy();
+    expect(within(tile("recorded")).getByText("1")).toBeTruthy();
   });
 
   it("shows a paused recording (hand lost) on the record button", async () => {
@@ -198,24 +200,24 @@ describe("/record", () => {
   });
 });
 
-describe("/record: the rack shows what is sent", () => {
+describe("/record: the instruments show what is sent", () => {
   it("the gripper tile follows hand v4's latch (the grip sent with the pose)", async () => {
     const link = await startCamera();
     sendHand(0, hand());
     expect(link.grips[link.grips.length - 1]).toBe(0);
-    expect(within(tile("gripper_cmd")).getByText("0 open")).toBeTruthy();
+    expect(within(tile("gripper_cmd")).getByText("open")).toBeTruthy();
     holdFor(33, 200, hand({ thumbTip: pinchThumbTip() }));
     expect(link.grips[link.grips.length - 1]).toBe(1);
-    expect(within(tile("gripper_cmd")).getByText("1 closed")).toBeTruthy();
+    expect(within(tile("gripper_cmd")).getByText("closed")).toBeTruthy();
     expect(screen.getByRole("meter", { name: "Gripper" }).getAttribute("aria-valuetext")).toMatch(/^closed/);
   });
 
   it("fills the target tiles once a hand is tracked", async () => {
     await startCamera();
-    expect(within(tile("ee_target_x")).getByText("—")).toBeTruthy();
+    expect(within(tile("ee_x")).getByText("—")).toBeTruthy();
     holdFor(0, 200, hand());
-    expect(within(tile("ee_target_x")).queryByText("—")).toBeNull();
-    expect(screen.getByRole("img", { name: /Palm in the workspace: \d/ })).toBeTruthy();
+    expect(within(tile("ee_x")).queryByText("—")).toBeNull();
+    expect(screen.getByRole("img", { name: /^Robot twin: target x \d/ })).toBeTruthy();
   });
 
   it("the V sign held 1.5 s sends reset_scene once and says so", async () => {
@@ -237,7 +239,7 @@ describe("/record: settings drawer", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(button.getAttribute("aria-expanded")).toBe("false");
     open();
-    const dialog = screen.getByRole("dialog", { name: "settings" });
+    const dialog = screen.getByRole("dialog", { name: "Hand control" });
     expect(button.getAttribute("aria-expanded")).toBe("true");
     expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Close settings" }));
     fireEvent.keyDown(dialog, { key: "Escape" });
@@ -248,7 +250,7 @@ describe("/record: settings drawer", () => {
   it("holds region size, vertical position and calibration; calibration needs the camera", () => {
     renderPage();
     open();
-    const dialog = screen.getByRole("dialog", { name: "settings" });
+    const dialog = screen.getByRole("dialog", { name: "Hand control" });
     expect(within(dialog).getByRole("slider", { name: "Region size" })).toBeTruthy();
     expect(within(dialog).getByRole("slider", { name: "Vertical position" })).toBeTruthy();
     expect((within(dialog).getByRole("button", { name: "Calibrate by hand" }) as HTMLButtonElement).disabled).toBe(true);
@@ -272,5 +274,48 @@ describe("/record: settings drawer", () => {
     fireEvent.change(screen.getByRole("slider", { name: "Region size" }), { target: { value: "0.4" } });
     fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
     expect((screen.getByRole("slider", { name: "Region size" }) as HTMLInputElement).value).toBe(String(DEFAULT_TELEOP_CONTROL.region.width));
+  });
+});
+
+describe("/record: the hologram's top bar and boot", () => {
+  it("ejects to the workshop, shows the live sim's robot cartridge and S as the current step", () => {
+    renderPage();
+    expect(screen.getByRole("link", { name: /workshop/ }).getAttribute("href")).toBe("/robots");
+    expect(screen.getByText("FRANKA")).toBeTruthy();
+    expect(screen.getByText("Franka Panda")).toBeTruthy();
+    const steps = screen.getByRole("navigation", { name: "SANT steps" });
+    expect(within(steps).getByText("S · show").getAttribute("aria-current")).toBe("step");
+    expect(within(steps).getByText("T · train").getAttribute("aria-current")).toBeNull();
+  });
+
+  it("plugs in once: panes draw in with one scanline sweep, then it's gone", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderPage();
+      const root = container.querySelector(".rg");
+      expect(root?.hasAttribute("data-boot")).toBe(true);
+      expect(container.querySelector(".rg-scan")).toBeTruthy();
+      act(() => vi.advanceTimersByTime(1700));
+      expect(root?.hasAttribute("data-boot")).toBe(false);
+      expect(container.querySelector(".rg-scan")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("skips the boot for reduced motion (effects off)", () => {
+    localStorage.setItem(EFFECTS_KEY, "off");
+    const { container } = renderPage();
+    expect(container.querySelector(".rg")?.hasAttribute("data-boot")).toBe(false);
+    expect(container.querySelector(".rg-scan")).toBeNull();
+  });
+
+  it("shows the twin, the dial and the gauge empty until a hand is tracked", async () => {
+    await startCamera();
+    expect(screen.getByRole("img", { name: "Robot twin: no target yet" })).toBeTruthy();
+    expect(screen.getByRole("meter", { name: "Arm height" }).getAttribute("aria-valuetext")).toBe("no target");
+    holdFor(0, 200, hand());
+    expect(screen.getByRole("meter", { name: "Arm height" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m$/);
+    expect(within(tile("ee_target_z")).queryByText("—")).toBeNull();
   });
 });

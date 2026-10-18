@@ -1,4 +1,4 @@
-# The new Record page (`/record`), Volt look, fits the window
+# The new Record page (`/record`): the hologram design, fits the window
 
 Branch `pm/web-record`, from `pm/hand-v4` (ef539f7), with `pm/web-record-hud` (T7), `pm/web-landing`
 (T5) and `pm/remove-room-organizer` (T7's `/legacy` archive) merged in locally. Nothing pushed, merged
@@ -15,14 +15,15 @@ uv run uvicorn app.main:app --reload --app-dir src
 npm --prefix web run dev
 ```
 
-Open **http://localhost:5173/record** and click **Start camera** (title row, or the middle of the camera
-tile). The chips turn teal as each part connects: `hand_track`, `relay`, `sim_link`. **Record** starts
+Open **http://localhost:5173/record**, or the old URL **http://localhost:5173/pm/record**, which now
+redirects to `/record` (keeping `?trace`). Click **Start camera** in the middle of the camera pane.
+The chips in the top bar turn teal as each part connects: `hand`, `relay`, `sim`. **record** starts
 and stops a demo. Its timer is the sim's recorded time (steps × 20 ms), and the saved demo links to
-Review in the `episode` tile. **Settings** opens the drawer. `?trace` (latency trace) works here as it
-does on the old page.
+Review in the `episode` cell. **Reset scene** and **Stop camera** sit in the camera pane's header while
+the camera is on. The gear opens the settings drawer. `?trace` (latency trace) works as on the old page.
 
-The old page is archived at **http://localhost:5173/legacy/pm/record**. `/pm/record` still works,
-because T7's `/pm/*` redirect sends it there. Keep the old page until the user approves `/record`.
+The old page is archived at **http://localhost:5173/legacy/pm/record**. Every other `/pm/*` path still
+goes to `/legacy`.
 
 Live test #8's checklist (`2026-10-15-t4-status.md`, "What to try in live test #8") applies to `/record`
 as is. Both pages run the same session code.
@@ -34,7 +35,138 @@ as is. Both pages run the same session code.
 - `web/src/App.tsx` conflicted both times. I kept both sides' imports and routes: `/pm/hand-art` (hand
   v4) and `SantRoot` with `/site`, `/design`, `/site/record-hud` (T5, T7).
 
-## What was built
+## The hologram rebuild (`5dd544f`, `80c97e0`)
+
+The user approved `docs/design/prototypes/record-hologram.html` (in the main checkout, untracked there).
+`/record` was rebuilt to match it. The earlier Volt rack version is described further down, as history.
+
+| Commit | What |
+|---|---|
+| `5dd544f` | The page. `site/record/RecordConsole.tsx` runs the session hook, then `RecordView` lays it out. `instruments.tsx` has the twin, dial, gauge and trace, as SVGs drawn at their pane's pixel size. `twin.ts` holds the pure geometry and the twin's histories. `record-hologram.css` replaces `record-console.css`, and the drawer is restyled. |
+| `80c97e0` | `/pm/record` → `/record`, an exact route ahead of T7's `/pm/*` → `/legacy` splat. T7's redirect test now uses `/pm/review?id=abc#top`. A new test covers `/pm/record?trace#top` → `/record?trace#top`. |
+
+**What is on the page, and where its data comes from** (all from `useRecordSession`):
+- **Cutting-mat grid and plug-in boot.** The panes draw in and one scanline sweeps, for 1.6 s. Skipped when
+  motion is reduced (the OS setting, or SANT's effects off, through `useMotion`); the CSS turns it off too.
+- **Top bar:**
+  - **eject** (`⏏ workshop`) links to `/robots`, the robot shelf (T6's `pm/web-robots`). That route isn't on
+    this branch, so until it merges the link falls through to `/site`.
+  - **cartridge:** `FRANKA Franka Panda`. The live sink only takes `--robot franka` (Isaac Lab's Franka
+    Panda), and the shelf uses the same code and name. The prototype's "FR3" was a placeholder.
+  - **S/A/N/T rail:** S · show is the current step (`aria-current="step"`). The others are labels, not links.
+  - **chips** `hand`, `relay`, `sim`. Details such as "not connected" are in the tooltip and read by screen
+    readers.
+  - **record** with its timer, and the gear.
+- **Camera pane:**
+  - corner brackets, and the 4:3 frame letterboxed as before;
+  - the session's own stage drawing (dashed control region, hand bones, the orange hand dot) in hologram
+    colours, plus the original hand-art overlay;
+  - on top: captions (framing hints, hand lost, Reset fired), the reset ring, and the "sim isn't connected"
+    notice with the sink command;
+  - the footer shows the sim's last result and the camera's fps.
+- **Robot twin:**
+  - top view, seen from behind the robot like the operator: forward is up and the robot's left (+y) is on
+    the left. So the dot moves the way the hand moves in the mirrored camera. It shows the workspace
+    (dashed), the bin, the cube, the last 8 s of the target's path, and the target dot (orange while the
+    gripper is closed);
+  - side view: the target's height over the table, with a plumb line.
+
+  The cube and bin are the sink's fixed scene (`teleop_sink.py` `base_scene`: cube at 0.50, 0; bin at 0.50,
+  0.30; sizes from `scene_cfg.py`). The sim doesn't stream the cube's pose, so the twin shows where the
+  cube starts, not where it is after you move it.
+- **Gripper dial:** the orange needle is the pinch gap (what hand v4's latch reads), with marks where the
+  latch closes (below 0.25) and opens (above 0.50). The big word is the gripper actually sent (open or closed).
+- **Height gauge:** the target's z on a 10-step scale of the workspace's z range (0.02–0.40 m), with the
+  value in large type underneath.
+- **Bottom strip:**
+  - trace: height in teal and reach in ink over the last 8 s, with orange ticks while the gripper is closed;
+  - `ee_x` and `ee_y`;
+  - `recorded`: demos saved during this visit (distinct `demo_id`s in `sim_status`). The timer shows the
+    recorded time;
+  - `episode`: camera off, starting, tracking, no hand, recording or paused, plus the Review link.
+- **Drawer:** the same groups and rules as before (control region, reach, Calibrate by hand, display, debug
+  trace, Reset to defaults). It is titled "Hand control" and is 400 px wide; its slide-in is skipped when
+  motion is reduced.
+
+**Hand control is unchanged.**
+- Nothing changed in `web/src/record/teleop/`, `framing`, `recordLink`, the hand art or `web/src/hand/`.
+  The tracking module wasn't touched: T4 has it, for the hand-lock change.
+- The one change in shared code: `useRecordSession` adds an optional, display-only `fps` to its ~10 Hz pose
+  update.
+- All tests in `record/` and `legacy/pm/record/` are unchanged and pass.
+
+**Other files touched:**
+- `web/index.html`: IBM Plex Mono added to the Google Fonts link (the prototype's typeface).
+- The page now sits outside `AppShell`, because the prototype has no nav. Inside `.rg`, the old app's global
+  `button` rule (44 px pills, press scale) is reset.
+
+### Fit to the window: verified
+
+Same method as before: `/record` in an iframe of exactly 1280×720, 1440×900 and 1920×1080 (the Chrome
+window here can't be resized). At each size:
+- `document.scrollingElement.scrollHeight <= innerHeight` (and the same for width);
+- none of these elements has `scrollHeight > clientHeight + 1` or `scrollWidth > clientWidth + 1`: the top
+  bar and its groups, the stage, panes, side column, bottom strip and cells, the pane headers, the camera
+  footer, the notice, and the drawer panel and its groups.
+
+**Results**, checked after the 1.6 s boot. "Real" is the real page with the camera off; "stand-in" is a
+temporary page fed synthetic poses while recording:
+
+| Window | scrollHeight | Overflowing (real / stand-in) | Camera pane | 4:3 frame |
+|---|---|---|---|---|
+| 1280×720 | 720 | 0 / 0 | 788×549 | 647×486 |
+| 1440×900 | 900 | 0 / 0 | 890×729 | 864×648 |
+| 1920×1080 | 1080 | 0 / 0 | 1195×909 | 1127×846 |
+
+- **Drawer worst case at 720 px tall:** 0 overflowing, about 26 px to spare. I checked it on the stand-in,
+  with this content:
+  - Calibrate by hand running its longest step;
+  - re-centering;
+  - a finished trace's download line;
+  - the "Reset fired (not sent…)" caption and the sim notice behind the drawer.
+- **The stand-in** was a temporary local page: `RecordView` with a fake session object, drawing a moving
+  synthetic hand through the real `drawStage`. It was deleted and not committed. It has no WebGL hand art,
+  so its screenshots show the bones fallback.
+- **In Chrome:**
+  - `/pm/record?trace` lands on `/record?trace`;
+  - `/legacy/pm/record` still loads the old page, with its Hand control;
+  - the console shows no errors on `/record`.
+
+Screenshots (`2026-10-18-web-record/`):
+- `hologram-1280x720-camera-off.png`: the real page;
+- `hologram-1280x720.png`, `hologram-1440x900.png`, `hologram-1920x1080.png`: the stand-in, recording;
+- `hologram-1280x720-settings-no-sim.png`: the drawer's worst case, over the "sim isn't connected" state.
+
+The previous version's `record-*.jpg` screenshots were removed (they are in git history).
+
+### Tests
+
+- `npm --prefix web test`: **750 passed, 0 failed** (61 files).
+  - **New:**
+    - `twin.test.ts`, 7 tests: view orientation, fitBox, trace anchoring, the twin's histories;
+    - 4 in `RecordConsole.test.tsx`: eject, cartridge and rail; the boot runs, then is gone; the boot is
+      skipped with effects off; the instruments are empty until a hand is tracked;
+    - 1 in `App.test.tsx`: `/pm/record` → `/record`.
+  - **Changed (page tests only):**
+    - `RecordConsole.test.tsx` follows the new labels: the `sim` chip, `ee_x`, open/closed, the twin instead
+      of the palm pad, the drawer's "Hand control". The `recorded` cell now counts demos, so the recording
+      test checks the episode cell instead.
+    - `App.test.tsx`'s `/pm/*` redirect test uses `/pm/review`.
+  - No hand-control test changed.
+- `npm --prefix web run build`: OK (only the existing three.js chunk-size warning).
+- `uv run pytest`: not rerun, because no Python changed since `a32d5c3` (1534 passed, 18 skipped, 0 failed).
+
+### Open
+
+- **No live run with a webcam and Isaac** (no GPU, and no camera prompts during automation). Live test #8
+  on `/record` (or `/pm/record`) is the real check, including the WebGL hand art inside the new frame.
+- **Eject** goes to `/site` until `pm/web-robots`'s `/robots` route is merged.
+- **Live cube position** would need the sink to add the cube's pose to `sim_status`.
+- **No sim video** (unchanged: the sim draws in Isaac's Kit window).
+- **`pm/hand-lock`** (T4) branched from `4d3f3b4`, before this rebuild. It edits only the tracking module,
+  which this work doesn't touch, so the two should merge cleanly.
+
+## Earlier version: the Volt rack (replaced by the hologram)
 
 The table names paths from before the merge with T7's archive. Today's paths are listed under
 "Merge with T7's archive" below.
@@ -71,7 +203,7 @@ The table names paths from before the merge with T7's archive. Today's paths are
   `App.tsx` hides them and turns the app-wide hand cursor off. That cursor's camera would otherwise
   compete with Record's tracker.
 
-## Fit to the window: verified
+### Fit to the window (Volt rack version)
 
 **How it was checked.** Chrome's window here can't be resized (it stays maximized at 2048×962). So
 `/record` was loaded in an iframe of exactly 1280×720, 1440×900 and 1920×1080. Inside the iframe,
@@ -94,9 +226,9 @@ The table names paths from before the merge with T7's archive. Today's paths are
   captions, and the reset ring are absolutely positioned, so they can't change the fit. I injected
   their markup to check that they read well and don't overflow.
 
-Screenshots: `2026-10-18-web-record/record-1280x720.jpg`, `record-1440x900.jpg`, `record-1920x1080.jpg`,
-`record-1280x720-settings.jpg`. The larger sizes are scaled into the screenshot; their layout is at the
-full size.
+Screenshots (removed with the rebuild, still in git history before `5dd544f`):
+`2026-10-18-web-record/record-1280x720.jpg`, `record-1440x900.jpg`, `record-1920x1080.jpg`,
+`record-1280x720-settings.jpg`.
 
 Below 960 px wide the rack stacks and the page scrolls. That size was not part of the rule.
 

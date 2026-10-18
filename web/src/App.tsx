@@ -34,7 +34,7 @@ const ReviewPage2 = lazy(() => import("./site/review/ReviewPage2"));
 const SetupPage = lazy(() => import("./site/setup/SetupPage"));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
-// The new Record (Volt). The old one stays at /legacy/pm/record until the user approves this one.
+// The new Record (the hologram). The old one stays at /legacy/pm/record.
 const RecordConsole = lazy(() => import("./site/record/RecordConsole"));
 const SiteResultsPage = lazy(() => import("./site/results/ResultsPage").then((m) => ({ default: m.ResultsPage })));
 const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
@@ -42,6 +42,12 @@ const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
 const World = lazy(() => import("./world/core/WorldRoot"));
 
 const LEGACY = /^\/legacy(\/|$)/;
+
+/** /pm/record → /record (the live test's URL opens the new page), keeping the query (e.g. ?trace) and the hash. */
+function ToRecord() {
+  const { search, hash } = useLocation();
+  return <Navigate to={`/record${search}${hash}`} replace />;
+}
 
 /** /pm/... → /legacy/pm/..., keeping the query (e.g. /pm/review?id=…) and the hash. */
 function ToLegacy() {
@@ -132,7 +138,9 @@ export default function App() {
             <Route path="pm/results" element={<ResultsPage />} />
           </Route>
         </Route>
-        {/* Old bookmarks and the live test's /pm/record keep working. */}
+        {/* The live test's /pm/record opens the new Record (the old one stays at /legacy/pm/record);
+            other old bookmarks go to the archive. The exact path wins over the /pm/* splat. */}
+        <Route path="/pm/record" element={<ToRecord />} />
         <Route path="/pm/*" element={<ToLegacy />} />
         <Route path="*" element={<Navigate to="/site" replace />} />
       </Routes>
