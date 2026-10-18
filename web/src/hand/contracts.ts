@@ -50,6 +50,9 @@ export type Handedness = "Left" | "Right";
 export interface TrackedHand {
   landmarks: HandLandmark[]; // exactly 21, raw, unmirrored
   handedness: Handedness | null;
+  /** MediaPipe's worldLandmarks: the same 21 points in meters, origin near the hand's center.
+   *  Optional: the teleop pinch (teleop/pinch.ts) uses them, falling back to 2D without. */
+  worldLandmarks?: HandLandmark[];
 }
 
 /**

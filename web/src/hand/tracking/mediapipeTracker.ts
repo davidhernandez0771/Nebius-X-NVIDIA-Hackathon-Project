@@ -46,7 +46,7 @@ export function createMediapipeTracker(): TrackingAdapter {
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       const timestamp = performance.now();
       const result = landmarker.detectForVideo(video, timestamp);
-      const hands = buildTrackedHands(result.landmarks, result.handedness);
+      const hands = buildTrackedHands(result.landmarks, result.handedness, result.worldLandmarks);
 
       emitFrame({
         timestamp,

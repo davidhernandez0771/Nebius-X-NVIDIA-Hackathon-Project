@@ -37,6 +37,15 @@ describe("buildTrackedHands", () => {
     expect(result[1].landmarks[0].x).toBeCloseTo(0.1);
   });
 
+  it("passes MediaPipe's world landmarks (meters) through per hand, when given", () => {
+    const world = Array.from({ length: 21 }, (_, i) => ({ x: i * 0.001, y: -0.01, z: 0.02, visibility: 0.9 }));
+    const result = buildTrackedHands([hand21(0.1), hand21(0.5)], [[{ categoryName: "Right" }], [{ categoryName: "Left" }]], [world]);
+    expect(result[0].worldLandmarks).toHaveLength(21);
+    expect(result[0].worldLandmarks![3]).toEqual({ x: 0.003, y: -0.01, z: 0.02 });
+    expect(result[1].worldLandmarks).toBeUndefined(); // none for this hand
+    expect(buildTrackedHands([hand21(0.1)], [[{ categoryName: "Right" }]])[0]).not.toHaveProperty("worldLandmarks");
+  });
+
   it("maps an unrecognized or missing handedness category to null", () => {
     const withUnknown = buildTrackedHands([hand21(0.2)], [[{ categoryName: "Unknown" }]]);
     expect(withUnknown[0].handedness).toBeNull();
