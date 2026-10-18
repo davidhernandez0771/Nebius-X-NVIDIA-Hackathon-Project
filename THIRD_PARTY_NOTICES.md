@@ -68,6 +68,7 @@ Transitive dependencies are pinned in `uv.lock`.
 | react-router-dom | 6.30.6 | MIT |
 | three | 0.169.0 | MIT |
 | @react-three/fiber / @react-three/drei | 8.18.0 / 9.122.0 | MIT |
+| urdf-loader (gkjohnson, https://github.com/gkjohnson/urdf-loaders) | 0.13.1 | Apache-2.0. Loaded lazily, only on `/robots/setup` (the 3D robot preview). |
 | animejs | 4.5.0 | MIT |
 | lenis | 1.3.26 | MIT |
 | Dev: vite, vitest, @vitejs/plugin-react, jsdom, @testing-library/react, @testing-library/jest-dom, @types/* | see `web/package-lock.json` | MIT |

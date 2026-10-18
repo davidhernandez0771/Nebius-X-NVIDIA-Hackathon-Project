@@ -1,0 +1,18 @@
+{
+ "id": "byor_790916a678",
+ "name": "openarm",
+ "created": true,
+ "urdf": "openarm_unimanual.urdf",
+ "sha256": "790916a67838e2d9c17e78ffac28d726b206e4c16779a9320601e2eb278b6d63",
+ "n_links": 12,
+ "n_joints": 11,
+ "issues": [
+  {
+   "code": "start_pose_unsolved",
+   "severity": "warning",
+   "message": "the start pose did not converge (182 mm, 0.69 rad off); set start_joint_pos",
+   "where": "start_joint_pos"
+  }
+ ],
+ "parts": "/robots/byor_790916a678/parts"
+}

@@ -1,0 +1,21 @@
+{
+ "status": 422,
+ "body": {
+  "detail": {
+   "errors": [
+    {
+     "code": "arm_too_short",
+     "severity": "error",
+     "message": "the arm has 4 DOF (panda_joint1, panda_joint2, panda_joint3, panda_joint4); the task needs at least 5",
+     "where": "arm_joints"
+    },
+    {
+     "code": "arm_not_chain",
+     "severity": "error",
+     "message": "the arm joints must be the moving joints on the path from the base (panda_link0) to the hand (panda_hand), listed from the base outwards: panda_joint1, panda_joint2, panda_joint3, panda_joint4, panda_joint5, panda_joint6, panda_joint7",
+     "where": "arm_joints"
+    }
+   ]
+  }
+ }
+}

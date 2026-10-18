@@ -1,0 +1,494 @@
+{
+ "id": "byor_790916a678",
+ "name": "openarm",
+ "root": "openarm_link0",
+ "links": [
+  {
+   "name": "openarm_link0",
+   "parent_joint": null,
+   "child_joints": [
+    "openarm_joint1"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_link1",
+   "parent_joint": "openarm_joint1",
+   "child_joints": [
+    "openarm_joint2"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_link2",
+   "parent_joint": "openarm_joint2",
+   "child_joints": [
+    "openarm_joint3"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_link3",
+   "parent_joint": "openarm_joint3",
+   "child_joints": [
+    "openarm_joint4"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_link4",
+   "parent_joint": "openarm_joint4",
+   "child_joints": [
+    "openarm_joint5"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_link5",
+   "parent_joint": "openarm_joint5",
+   "child_joints": [
+    "openarm_joint6"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_link6",
+   "parent_joint": "openarm_joint6",
+   "child_joints": [
+    "openarm_joint7"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_link7",
+   "parent_joint": "openarm_joint7",
+   "child_joints": [
+    "openarm_finger_joint1",
+    "openarm_finger_joint2",
+    "openarm_hand_joint"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_right_finger",
+   "parent_joint": "openarm_finger_joint1",
+   "child_joints": [],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_left_finger",
+   "parent_joint": "openarm_finger_joint2",
+   "child_joints": [],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "openarm_hand",
+   "parent_joint": "openarm_hand_joint",
+   "child_joints": [
+    "openarm_ee_tcp_joint"
+   ],
+   "has_geometry": false,
+   "has_inertial": false
+  },
+  {
+   "name": "openarm_ee_tcp",
+   "parent_joint": "openarm_ee_tcp_joint",
+   "child_joints": [],
+   "has_geometry": false,
+   "has_inertial": false
+  }
+ ],
+ "joints": [
+  {
+   "name": "openarm_joint1",
+   "type": "revolute",
+   "parent": "openarm_link0",
+   "child": "openarm_link1",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.0625
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -1.39626287,
+    "upper": 3.49065877,
+    "effort": 54.0,
+    "velocity": 44.9999997
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_joint2",
+   "type": "revolute",
+   "parent": "openarm_link1",
+   "child": "openarm_link2",
+   "axis": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     -0.0300999992,
+     0.0,
+     0.0599999987
+    ],
+    "rpy": [
+     3.14159265,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -1.74532899,
+    "upper": 1.74532899,
+    "effort": 54.0,
+    "velocity": 44.9999997
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_joint3",
+   "type": "revolute",
+   "parent": "openarm_link2",
+   "child": "openarm_link3",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0300999992,
+     0.0,
+     -0.0662500001
+    ],
+    "rpy": [
+     -3.14159265,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -1.57079593,
+    "upper": 1.57079593,
+    "effort": 28.0,
+    "velocity": 7.99999956
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_joint4",
+   "type": "revolute",
+   "parent": "openarm_link3",
+   "child": "openarm_link4",
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0315000005,
+     0.153750002
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": 0.0,
+    "upper": 2.44346069,
+    "effort": 28.0,
+    "velocity": 7.99999956
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_joint5",
+   "type": "revolute",
+   "parent": "openarm_link4",
+   "child": "openarm_link5",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     -0.0315000005,
+     0.0954999998
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -1.57079593,
+    "upper": 1.57079593,
+    "effort": 10.0,
+    "velocity": 29.9999984
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_joint6",
+   "type": "revolute",
+   "parent": "openarm_link5",
+   "child": "openarm_link6",
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0375000015,
+     0.0,
+     0.120499991
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -0.785397964,
+    "upper": 0.785397964,
+    "effort": 10.0,
+    "velocity": 29.9999984
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_joint7",
+   "type": "revolute",
+   "parent": "openarm_link6",
+   "child": "openarm_link7",
+   "axis": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     -0.0375000015,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -1.57079593,
+    "upper": 1.57079593,
+    "effort": 10.0,
+    "velocity": 29.9999984
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_finger_joint1",
+   "type": "prismatic",
+   "parent": "openarm_link7",
+   "child": "openarm_right_finger",
+   "axis": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     -0.00499999989,
+     0.115099996
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": 0.0,
+    "upper": 0.0439999998,
+    "effort": 10.0,
+    "velocity": 1.0
+   },
+   "mimic": null
+  },
+  {
+   "name": "openarm_finger_joint2",
+   "type": "prismatic",
+   "parent": "openarm_link7",
+   "child": "openarm_left_finger",
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.00499999989,
+     0.115099996
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -0.00879999995,
+    "upper": 0.0527999997,
+    "effort": 0.0,
+    "velocity": 1.0
+   },
+   "mimic": {
+    "joint": "openarm_finger_joint1",
+    "multiplier": 1.0,
+    "offset": 0.0
+   }
+  },
+  {
+   "name": "openarm_hand_joint",
+   "type": "fixed",
+   "parent": "openarm_link7",
+   "child": "openarm_hand",
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.100100003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     3.14159265
+    ]
+   },
+   "limits": null,
+   "mimic": null
+  },
+  {
+   "name": "openarm_ee_tcp_joint",
+   "type": "fixed",
+   "parent": "openarm_hand",
+   "child": "openarm_ee_tcp",
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.0929999799
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": null,
+   "mimic": null
+  }
+ ],
+ "suggested_roles": {
+  "base": "openarm_link0",
+  "arm_joints": [
+   "openarm_joint1",
+   "openarm_joint2",
+   "openarm_joint3",
+   "openarm_joint4",
+   "openarm_joint5",
+   "openarm_joint6",
+   "openarm_joint7"
+  ],
+  "hand": "openarm_link7",
+  "gripper_joints": [
+   "openarm_finger_joint1",
+   "openarm_finger_joint2"
+  ]
+ },
+ "why": {
+  "base": "the root link (no parent joint)",
+  "arm_joints": "the longest chain of revolute joints from the root (7)",
+  "hand": "the last arm link, followed through fixed joints to where the gripper joints start",
+  "gripper_joints": "the prismatic, mimic and finger/gripper/jaw-named joints after the hand (2; openarm_finger_joint2 mimics openarm_finger_joint1)"
+ },
+ "derived": {
+  "dof": 7,
+  "reach_m": {
+   "value": 0.754,
+   "source": "sum of joint-origin distances from the first arm joint to the tool point"
+  },
+  "tcp": {
+   "link": "openarm_link7",
+   "offset": [
+    0.0,
+    0.0,
+    0.1931
+   ],
+   "approach_axis": [
+    0,
+    0,
+    1
+   ],
+   "source": "link openarm_ee_tcp: a fixed child of the hand named like a tool point"
+  },
+  "gripper": {
+   "open": 0.0439999998,
+   "closed": 0.0,
+   "source": "the limit with the fingers farther apart is open (openarm_finger_joint1 0.0439999998); the other limit is closed"
+  }
+ },
+ "issues": [
+  {
+   "code": "start_pose_unsolved",
+   "severity": "warning",
+   "message": "the start pose did not converge (182 mm, 0.69 rad off); set start_joint_pos",
+   "where": "start_joint_pos"
+  }
+ ]
+}
