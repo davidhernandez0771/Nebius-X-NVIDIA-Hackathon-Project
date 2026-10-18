@@ -60,6 +60,8 @@ export type PoseUi = {
   size3d: number | null; // the 3D reach signal, shown next to the palm width either way
   /** The tracked hand's landmarks in raw camera coordinates (display only); null without a hand. */
   landmarks: readonly (readonly [number, number])[] | null;
+  /** Camera frames per second since the last update (display only); null on the first one. */
+  fps?: number | null;
 };
 
 function cameraMessage(err: unknown): string {
@@ -133,6 +135,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     const tracker = createMediapipeTracker();
     session.current = { tracker, link: null };
     let lastUi = -Infinity;
+    let framesSinceUi = 0; // for the fps readout (display only)
     let last: HandPoseMsg | undefined;
     const latch = new PinchLatch(); // the gripper: closes at once, opens after a wide gap held 150 ms
     const cue = new ArtCue();
@@ -185,6 +188,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
         cue: cue.update({ gripper, recording: recordingNow.current, resets: resets.current, breakthrough: crossing.count }),
       };
       if (canvas.current) drawStage(canvas.current, hand, framing, s, gripper, s.showHandArt && artActive.current, paletteRef.current);
+      framesSinceUi++;
       const uiTick = frame.timestamp - lastUi >= UI_INTERVAL_MS;
       if (calibrator.current) calibrate(calibrator.current, frame.timestamp, tracked, uiTick);
       if (tracer.current) {
@@ -201,9 +205,13 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
         traceStep(tracer.current, traceFrame(frame, hand, msg, signals), uiTick);
       }
       if (uiTick || reset.event) {
+        const elapsed = frame.timestamp - lastUi;
+        // framesSinceUi frames (intervals) arrived since the last update, this one included.
+        const fps = Number.isFinite(elapsed) && elapsed > 0 ? (framesSinceUi * 1000) / elapsed : null;
         lastUi = frame.timestamp;
+        framesSinceUi = 0;
         const landmarks = msg.tracking_ok && hand ? hand.landmarks.map((p) => [p.x, p.y] as const) : null;
-        setPose({ msg, framing, gripper, pinch, victory, reset, size3d, landmarks });
+        setPose({ msg, framing, gripper, pinch, victory, reset, size3d, landmarks, fps });
       }
     });
     try {

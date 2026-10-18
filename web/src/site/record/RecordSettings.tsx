@@ -1,7 +1,7 @@
 // The settings drawer on /record: the rarely used controls (control region, reach, Calibrate by
 // hand, display, debug trace), out of the way of the rack. Same settings and the same rules as
 // the old page's HandControlPanel (clampRegion, the depth gap, depthAuto off when set by hand), in
-// a compact Volt slide-over that fits a 720 px tall window without scrolling.
+// a compact slide-over in the hologram look that fits a 720 px tall window without scrolling.
 
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { DEPTH_GAP, DEPTH_MAX, DEPTH_MIN, SIZE_MIN, STEP_TEXT } from "../../record/controlSettings";
@@ -102,7 +102,7 @@ export function RecordSettings({ id, open, onClose, session }: { id: string; ope
       <div ref={panel} id={id} className="rc-drawer__panel" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} onKeyDown={onKeyDown}>
         <header className="rc-drawer__head">
           <h2 id={`${id}-title`} className="rc-drawer__title">
-            settings
+            Hand control
           </h2>
           <button ref={close} type="button" className="rc-btn rc-btn--icon" aria-label="Close settings" onClick={onClose}>
             ×
@@ -131,7 +131,7 @@ export function RecordSettings({ id, open, onClose, session }: { id: string; ope
             disabled={off}
             onChange={(v) => setRegion({ centerY: v })}
           />
-          <p className="rc-hint">Smaller box = less movement · bottom edge = the table.</p>
+          <p className="rc-hint">Small moves inside the dashed box reach the whole table. Its bottom edge is table height.</p>
         </Group>
 
         <Group title="reach">
