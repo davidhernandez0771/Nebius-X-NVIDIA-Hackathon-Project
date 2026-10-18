@@ -17,6 +17,11 @@ once per control step, after its last physics substep; render_every=1 keeps the 
 the same either way. With a Sections (sim_worker.teleop_trace), apply() and read_state() time their parts
 (ik, physics, render, read) for the sink's latency trace, with a CUDA sync before each timer stops.
 
+Recording cameras: with pause_idle_cameras, the front and wrist cameras' render products stop updating while
+nothing is recorded (set_recording, called by the session), so each render draws only the viewport. When a
+recording starts they resume and render CAMERA_WARMUP_STEPS frames (no physics) before the first recorded
+step, as after a reset, so the first frames are not stale. read_state() returns frames only while they run.
+
 The caller must already be inside isaaclab.app.launch_simulation(make_sim_cfg(...), args).
 Isaac Lab 3.0 quaternions are (x, y, z, w); everything here that crosses into demo_pipeline is (w, x, y, z).
 """
@@ -48,9 +53,11 @@ MAX_FF_STEP_M = 0.02  # 1 m/s at 50 Hz; a hand moves ~0.3 m/s, so anything faste
 
 class IsaacTeleopDriver:
     def __init__(self, *, record_cameras: bool, robot: str = "franka", vel_ff: bool = True,
-                 render_every: int = 1, sections: Sections | None = None) -> None:
+                 render_every: int = 1, sections: Sections | None = None, pause_idle_cameras: bool = False) -> None:
         self.s = _replay._session(record_cameras, robot)
         self.record_cameras = record_cameras
+        self.pause_idle_cameras = pause_idle_cameras and record_cameras
+        self._cameras_on = record_cameras
         self.vel_ff = vel_ff
         self.sections = sections
         sync = torch.cuda.synchronize if sections is not None and str(self.s.sim.device).startswith("cuda") else None
@@ -81,6 +88,17 @@ class IsaacTeleopDriver:
         self._prev_pos = None
         self._action = default
 
+    def set_recording(self, on: bool) -> None:
+        """Run the recording cameras only while recording (with pause_idle_cameras; else a no-op)."""
+        if not self.pause_idle_cameras or on == self._cameras_on:
+            return
+        for cam in ("front", "wrist"):
+            self.s.scene[cam]._render_data.render_product.hydra_texture.set_updates_enabled(on)
+        self._cameras_on = on
+        if on:
+            for _ in range(CAMERA_WARMUP_STEPS):
+                self.s.sim.render()
+
     def _time(self, name: str):
         return self.sections.time(name) if self.sections is not None else nullcontext()
 
@@ -109,7 +127,7 @@ class IsaacTeleopDriver:
         forces = {group: max(_replay._max_pair_force(s.scene[name]) for name in sensors)
                   for group, sensors in ARM_CONTACT_SENSORS.items()}
         frames = {}
-        if self.record_cameras:
+        if self.record_cameras and self._cameras_on:
             for cam in ("front", "wrist"):
                 frames[cam] = s.scene[cam].data.output["rgb"].torch[0, ..., :3].cpu().numpy().astype(np.uint8)
         return StepState(

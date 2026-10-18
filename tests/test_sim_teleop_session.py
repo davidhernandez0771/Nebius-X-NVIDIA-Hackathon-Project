@@ -316,6 +316,53 @@ def test_paused_steps_do_not_read_the_state(rig):
     assert session.paused and driver.reads == 0
 
 
+class CameraDriver(FakeDriver):
+    """A driver that can pause its recording cameras while nothing is recorded."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.recording_calls: list[bool] = []
+
+    def set_recording(self, on: bool) -> None:
+        self.recording_calls.append(on)
+
+
+def test_the_driver_is_told_when_recording_starts_and_ends():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_start")
+    assert driver.recording_calls == [True]
+    for _ in range(3):
+        session.on_hand(hand())
+        session.step()
+    session.on_control("record_stop")
+    assert driver.recording_calls == [True, False]
+
+
+def test_the_driver_is_told_recording_ended_even_when_the_save_fails():
+    driver = CameraDriver()
+
+    def fail(rec):
+        raise OSError("disk full")
+
+    session = TeleopSession(driver, SCENE, fail, clock=FakeClock())
+    session.on_control("record_start")
+    for _ in range(3):
+        session.on_hand(hand())
+        session.step()
+    session.on_control("record_stop")
+    assert driver.recording_calls == [True, False] and "save failed" in session.last_result
+
+
+def test_a_refused_start_or_stop_does_not_tell_the_driver():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_stop")  # not recording
+    session.on_control("record_start")
+    session.on_control("record_start")  # already recording
+    assert driver.recording_calls == [True]
+
+
 def test_start_while_recording_does_not_restart(rig):
     session, _, clock, _ = rig
     session.on_control("record_start")

@@ -28,6 +28,7 @@ from pathlib import Path
 from isaaclab.app import add_launcher_args, launch_simulation
 
 RENDER_EVERY_DEFAULT = 1
+PAUSE_IDLE_CAMERAS_DEFAULT = False
 
 parser = argparse.ArgumentParser(description="Run the webcam-teleop session in Isaac Lab.")
 parser.add_argument("--relay", default="ws://127.0.0.1:8000/ws/teleop?role=sim", help="backend relay URL (live)")
@@ -41,6 +42,8 @@ parser.add_argument("--latency", action="store_true", help="log where the teleop
 parser.add_argument("--latency-log", type=Path, default=None, help="also append each window here (JSONL); implies --latency")
 parser.add_argument("--render-every", type=int, default=RENDER_EVERY_DEFAULT, choices=[1, 2],
                     help="render after every Nth physics step (2 = once per control step)")
+parser.add_argument("--pause-idle-cameras", action=argparse.BooleanOptionalAction, default=PAUSE_IDLE_CAMERAS_DEFAULT,
+                    help="stop rendering the recording cameras while not recording")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.num_envs != 1:
@@ -113,6 +116,7 @@ def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trac
         "ms_per_step": round(1000 * (t_steps - t_rec) / len(msgs), 1),
         "ms_per_idle_step": round(1000 * (t_rec - t0) / max(lead_in, 1), 1),
         "render_every": args_cli.render_every,
+        "pause_idle_cameras": args_cli.pause_idle_cameras,
     }
     print("RESULT_JSON " + json.dumps(result), flush=True)
     return 0 if result["ok"] else 1
@@ -126,14 +130,14 @@ def main() -> int:
         if args_cli.latency or args_cli.latency_log is not None:
             trace = LatencyTrace(path=args_cli.latency_log, log=lambda line: print(line, flush=True))
         driver = IsaacTeleopDriver(record_cameras=not args_cli.no_cameras, robot=args_cli.robot,
-                                   render_every=args_cli.render_every,
+                                   render_every=args_cli.render_every, pause_idle_cameras=args_cli.pause_idle_cameras,
                                    sections=trace.sections if trace is not None else None)
         session = TeleopSession(driver, scene, make_store_saver(store, bin_inner=BIN_INNER))
         # print and exit inside the context: closing the app ends the process
         if args_cli.fake_hand:
             return fake_hand_smoke(session, store, scene, trace)
         print(f"[teleop] store: {store.root}; relay: {args_cli.relay}; render every {args_cli.render_every} "
-              f"physics step(s); latency trace {'on' if trace else 'off'}; Ctrl+C to stop", flush=True)
+              f"physics step(s); idle cameras {'paused' if args_cli.pause_idle_cameras else 'on'}; latency trace {'on' if trace else 'off'}; Ctrl+C to stop", flush=True)
         try:
             relay_loop(session, args_cli.relay, trace=trace)
         except KeyboardInterrupt:

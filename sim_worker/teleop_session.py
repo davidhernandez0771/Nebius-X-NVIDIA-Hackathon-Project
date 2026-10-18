@@ -77,6 +77,9 @@ class TeleopDriver(Protocol):
     def read_state(self) -> StepState:
         """The robot and scene right now."""
 
+    # Optional: set_recording(on: bool) -> None. The session calls it when a recording starts (True) and when
+    # it ends, saved or not (False), so a driver can pause work only a recording needs (camera rendering).
+
 
 @dataclass(frozen=True)
 class Recording:
@@ -120,6 +123,7 @@ class TeleopSession:
             if self.state == "recording":
                 self.last_result = "already recording"
                 return
+            self._tell_driver_recording(True)
             self.state = "recording"
             self._started_at = self.clock()
             self._rec: dict[str, list] = {"pos": [], "quat": [], "gripper": [], "states": []}
@@ -204,6 +208,12 @@ class TeleopSession:
             self.last_result = f"save failed: {type(e).__name__}: {e}"
         finally:
             self.state = "idle"
+            self._tell_driver_recording(False)
+
+    def _tell_driver_recording(self, on: bool) -> None:
+        hook = getattr(self.driver, "set_recording", None)
+        if hook is not None:
+            hook(on)
 
 
 # --- the sink's relay side --------------------------------------------------------------------
