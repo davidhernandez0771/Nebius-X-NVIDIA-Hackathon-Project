@@ -7,7 +7,7 @@ export type SiteMode = "paper" | "volt";
 export type ModeOf = (pathname: string) => SiteMode | null;
 
 const PAPER = [/^\/site\/?$/, /^\/site\/results(\/|$)/, /^\/design\/?$/];
-const VOLT = [/^\/robots(\/|$)/, /^\/review2(\/|$)/, /^\/site\/record-hud(\/|$)/, /^\/design\/app(\/|$)/];
+const VOLT = [/^\/record\/?$/, /^\/robots(\/|$)/, /^\/review2(\/|$)/, /^\/site\/record-hud(\/|$)/, /^\/design\/app(\/|$)/];
 
 /** The new site's pages by mode; null for every other route (the old app keeps its own look). */
 export const siteModeOf: ModeOf = (pathname) => {

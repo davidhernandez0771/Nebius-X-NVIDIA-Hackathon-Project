@@ -33,6 +33,8 @@ const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) 
 const RecordHudPreview = lazy(() => import("./site/record-hud/RecordHudPreview").then((m) => ({ default: m.RecordHudPreview })));
 const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
+// The new Record (Volt). /pm/record stays until the user approves it.
+const RecordConsole = lazy(() => import("./site/record/RecordConsole"));
 
 // Dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
@@ -89,6 +91,7 @@ export default function App() {
             }
           />
           <Route path="/site/record-hud" element={<Suspense fallback={null}><RecordHudPreview /></Suspense>} />
+          <Route path="/record" element={<Suspense fallback={null}><RecordConsole /></Suspense>} />
         </Route>
         <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
         <Route element={<DashboardShell />}>

@@ -70,6 +70,7 @@ export function HeightTraceTile({
   xHistory,
   xRange,
   graspZ,
+  capacity,
 }: {
   z: number | null;
   zHistory: readonly number[];
@@ -77,6 +78,8 @@ export function HeightTraceTile({
   xHistory: readonly number[];
   xRange: Range;
   graspZ?: number;
+  /** Samples across the trace (default HISTORY, 8 s at ~30 Hz); pass the count for 8 s at another rate. */
+  capacity?: number;
 }) {
   return (
     <RackTile label="ee_target_z · height" unit="m" span="wide">
@@ -89,6 +92,7 @@ export function HeightTraceTile({
         range={zRange}
         secondary={{ history: xHistory, range: xRange }}
         marks={graspZ === undefined ? [] : [{ value: graspZ, label: "grasp_z" }]}
+        capacity={capacity}
         label="Height, and reach behind it, over the last 8 seconds"
       />
       <p className="rh-legend" aria-hidden="true">

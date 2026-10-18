@@ -11,9 +11,22 @@ const SCALE = [-135, -67, 0, 67, 135];
  * gauge: no lit arc, no redline, one needle. `stale` dims it at the last pinch seen while the
  * hand is lost (the sim holds the gripper meanwhile).
  */
-export function GripKnob({ pinch, closed, stale = false, max = 1.5 }: { pinch: number | null; closed: boolean; stale?: boolean; max?: number }) {
+export function GripKnob({
+  pinch,
+  closed,
+  stale = false,
+  max = 1.5,
+  thresholds = [GRIPPER.openAbove, GRIPPER.closeBelow],
+}: {
+  pinch: number | null;
+  closed: boolean;
+  stale?: boolean;
+  max?: number;
+  /** The latch thresholds to mark on the scale; the sim's GripperLatch by default. */
+  thresholds?: readonly number[];
+}) {
   const angle = pinch === null ? -135 : knobAngle(pinch, 0, max, true);
-  const marks = [GRIPPER.openAbove, GRIPPER.closeBelow].map((v) => knobAngle(v, 0, max, true));
+  const marks = thresholds.map((v) => knobAngle(v, 0, max, true));
   return (
     <div
       className="rh-knob"
@@ -47,12 +60,24 @@ export function GripKnob({ pinch, closed, stale = false, max = 1.5 }: { pinch: n
 }
 
 /** `gripper` null: no command yet (before the first tracked hand). */
-export function GripKnobTile({ pinch, gripper, stale = false }: { pinch: number | null; gripper: 0 | 1 | null; stale?: boolean }) {
+export function GripKnobTile({
+  pinch,
+  gripper,
+  stale = false,
+  thresholds,
+  unit = "pinch",
+}: {
+  pinch: number | null;
+  gripper: 0 | 1 | null;
+  stale?: boolean;
+  thresholds?: readonly number[];
+  unit?: string;
+}) {
   const closed = gripper === 1;
   return (
-    <RackTile label="gripper_cmd" unit="pinch" selected={closed}>
+    <RackTile label="gripper_cmd" unit={unit} selected={closed}>
       <div className="rh-instrument">
-        <GripKnob pinch={pinch} closed={closed} stale={stale} />
+        <GripKnob pinch={pinch} closed={closed} stale={stale} thresholds={thresholds} />
       </div>
       <p className="rh-mid">{gripper === null ? "—" : `${gripper} ${closed ? "closed" : "open"}`}</p>
     </RackTile>
