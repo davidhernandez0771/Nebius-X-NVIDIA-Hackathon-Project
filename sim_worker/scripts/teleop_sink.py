@@ -12,6 +12,11 @@ Automated smoke (no person, no backend; headless is fine):
   in-process: it holds the first pose for --lead-in-s to line up, as a person would, then records
   one message per control step and stops. The saved demo is then replayed with sim_worker.replay
   for an independent check. Prints RESULT_JSON; exit 0 only if both checks succeed.
+
+Latency (off by default): --latency logs a [latency] line every 2 s (stages from the webcam to the finished
+control step, steps per second, real-time factor, ik/physics/render/read ms per step; sim_worker.teleop_trace);
+--latency-log PATH also appends each window as a JSON row. The browser adds its stamps with the Record page's
+?latency=1. --render-every 2 renders once per control step instead of after each of its 2 physics steps.
 """
 
 import argparse
@@ -22,6 +27,8 @@ from pathlib import Path
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
+RENDER_EVERY_DEFAULT = 1
+
 parser = argparse.ArgumentParser(description="Run the webcam-teleop session in Isaac Lab.")
 parser.add_argument("--relay", default="ws://127.0.0.1:8000/ws/teleop?role=sim", help="backend relay URL (live)")
 parser.add_argument("--fake-hand", action="store_true", help="automated smoke: scripted fake hand, no relay")
@@ -30,6 +37,10 @@ parser.add_argument("--no-cameras", action="store_true", help="state-only episod
 parser.add_argument("--robot", default="franka", choices=["franka"], help="teleop is calibrated for the Franka")
 parser.add_argument("--data-dir", type=Path, default=None, help="DemoStore root (default: DATA_DIR / data)")
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
+parser.add_argument("--latency", action="store_true", help="log where the teleop delay goes, every 2 s")
+parser.add_argument("--latency-log", type=Path, default=None, help="also append each window here (JSONL); implies --latency")
+parser.add_argument("--render-every", type=int, default=RENDER_EVERY_DEFAULT, choices=[1, 2],
+                    help="render after every Nth physics step (2 = once per control step)")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.num_envs != 1:
@@ -46,6 +57,7 @@ from sim_worker.scene_cfg import BIN_INNER  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
 from sim_worker.teleop_isaac import IsaacTeleopDriver  # noqa: E402
 from sim_worker.teleop_session import TELEOP_DT, TeleopSession, make_store_saver, relay_loop, scripted_hand  # noqa: E402
+from sim_worker.teleop_trace import LatencyTrace, now_ms  # noqa: E402
 
 
 def base_scene() -> Scene:
@@ -53,18 +65,28 @@ def base_scene() -> Scene:
                  bin_pose=bin_pose_for(0.5, 0.3), robot=args_cli.robot, seed=0)
 
 
-def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene) -> int:
+def _smoke_step(session: TeleopSession, msg, trace: LatencyTrace | None) -> None:
+    """One control step as relay_loop runs it (no pacing: as fast as the sim goes)."""
+    t_start = now_ms()
+    session.on_hand(msg)
+    if trace is not None:
+        trace.hand_applied({"recv": t_start}, applied=t_start)
+    session.step()
+    if trace is not None:
+        trace.step_done(start=t_start, end=now_ms(), sections=trace.sections.take(), sleep_ms=0.0)
+        trace.maybe_report()
+
+
+def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trace: LatencyTrace | None) -> int:
     msgs = scripted_hand(scripted_expert(scene))
     lead_in = round(args_cli.lead_in_s / TELEOP_DT)
     t0 = time.time()
     for _ in range(lead_in):  # line up, not recorded
-        session.on_hand(msgs[0])
-        session.step()
+        _smoke_step(session, msgs[0], trace)
     session.on_control("record_start")
     t_rec = time.time()
     for msg in msgs:
-        session.on_hand(msg)
-        session.step()
+        _smoke_step(session, msg, trace)
     t_steps = time.time()
     session.on_control("record_stop")
     t_saved = time.time()
@@ -89,6 +111,8 @@ def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene) -> i
         "wall_s": {"lead_in": round(t_rec - t0, 1), "record": round(t_steps - t_rec, 1),
                    "save": round(t_saved - t_steps, 1), "replay": round(t_done - t_saved, 1)},
         "ms_per_step": round(1000 * (t_steps - t_rec) / len(msgs), 1),
+        "ms_per_idle_step": round(1000 * (t_rec - t0) / max(lead_in, 1), 1),
+        "render_every": args_cli.render_every,
     }
     print("RESULT_JSON " + json.dumps(result), flush=True)
     return 0 if result["ok"] else 1
@@ -98,14 +122,20 @@ def main() -> int:
     store = DemoStore(args_cli.data_dir)
     scene = base_scene()
     with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
-        driver = IsaacTeleopDriver(record_cameras=not args_cli.no_cameras, robot=args_cli.robot)
+        trace = None
+        if args_cli.latency or args_cli.latency_log is not None:
+            trace = LatencyTrace(path=args_cli.latency_log, log=lambda line: print(line, flush=True))
+        driver = IsaacTeleopDriver(record_cameras=not args_cli.no_cameras, robot=args_cli.robot,
+                                   render_every=args_cli.render_every,
+                                   sections=trace.sections if trace is not None else None)
         session = TeleopSession(driver, scene, make_store_saver(store, bin_inner=BIN_INNER))
         # print and exit inside the context: closing the app ends the process
         if args_cli.fake_hand:
-            return fake_hand_smoke(session, store, scene)
-        print(f"[teleop] store: {store.root}; relay: {args_cli.relay}; Ctrl+C to stop", flush=True)
+            return fake_hand_smoke(session, store, scene, trace)
+        print(f"[teleop] store: {store.root}; relay: {args_cli.relay}; render every {args_cli.render_every} "
+              f"physics step(s); latency trace {'on' if trace else 'off'}; Ctrl+C to stop", flush=True)
         try:
-            relay_loop(session, args_cli.relay)
+            relay_loop(session, args_cli.relay, trace=trace)
         except KeyboardInterrupt:
             pass
         return 0

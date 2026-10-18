@@ -40,6 +40,8 @@ from demo_pipeline.store import DemoStore
 from demo_pipeline.success import check_success
 from demo_pipeline.teleop import Calibration, GripperLatch, HandPoseMsg, to_ee_target
 
+from .teleop_trace import LatencyTrace, coalesce_hands, now_ms, split_trace
+
 TELEOP_DT = 0.02  # s per control step; equals sim_worker.tracking.CONTROL_DT (that module imports torch)
 FPS = 50
 LOST_PAUSE_S = 0.3  # spec 8.1: tracking lost for longer than this pauses the recording
@@ -152,8 +154,8 @@ class TeleopSession:
                 self._target = to_ee_target(msg, self.calib)
             self._gripper = gripper
         self.driver.apply(self._target, self._gripper)
-        state = self.driver.read_state()
         if self.state == "recording" and not self.paused:
+            state = self.driver.read_state()  # only recorded steps: it syncs the GPU and copies the cameras
             self._rec["pos"].append(self._target.pos)
             self._rec["quat"].append(self._target.quat_wxyz)
             self._rec["gripper"].append(self._gripper)
@@ -206,13 +208,19 @@ class TeleopSession:
 
 # --- the sink's relay side --------------------------------------------------------------------
 
-def dispatch(session: TeleopSession, text: str) -> str | None:
-    """Apply one relay message to the session: a control, or a HandPoseMsg. The relay's own
-    "status" chatter is ignored. Returns a line to log for an "error" from the relay or for a
-    message that is invalid (dropped), else None."""
+def _parse(text: str):
     try:
-        data = json.loads(text)
+        return json.loads(text)
     except ValueError:
+        return None
+
+
+def _is_hand(data) -> bool:
+    return isinstance(data, dict) and "type" not in data
+
+
+def _dispatch_data(session: TeleopSession, data, text: str) -> str | None:
+    if data is None:
         return f"invalid message (not JSON): {text[:80]!r}"
     kind = data.get("type") if isinstance(data, dict) else None
     if kind == "error":
@@ -223,10 +231,38 @@ def dispatch(session: TeleopSession, text: str) -> str | None:
         if kind == "control":
             session.on_control(str(data.get("action")))
         else:
-            session.on_hand(HandPoseMsg.model_validate(data))
+            session.on_hand(HandPoseMsg.model_validate(split_trace(data)[0] if isinstance(data, dict) else data))
     except (ValueError, ValidationError) as e:
         return f"invalid message: {e}"
     return None
+
+
+def dispatch(session: TeleopSession, text: str) -> str | None:
+    """Apply one relay message to the session: a control, or a HandPoseMsg (its latency "trace", if any, is
+    ignored here). The relay's own "status" chatter is ignored. Returns a line to log for an "error" from the
+    relay or for a message that is invalid (dropped), else None."""
+    return _dispatch_data(session, _parse(text), text)
+
+
+def apply_inbox(
+    session: TeleopSession, items: list[tuple[str, float]], *, trace: LatencyTrace | None = None
+) -> tuple[list[str], dict | None]:
+    """Apply what arrived since the last tick, (text, received at epoch ms) in arrival order. Controls apply in
+    order; of each run of hand messages only the newest is validated and applied (the session only ever steps
+    with its latest hand, so the older ones are stale). Returns (lines to log, the applied hand's trace stamps
+    plus "recv", or None if no new hand applied)."""
+    parsed = [(_parse(text), text, recv) for text, recv in items]
+    kept, stale = coalesce_hands(parsed, lambda p: _is_hand(p[0]))
+    if trace is not None:
+        trace.stale(stale)
+    problems, stamps = [], None
+    for data, text, recv in kept:
+        problem = _dispatch_data(session, data, text)
+        if problem:
+            problems.append(problem)
+        elif _is_hand(data):
+            stamps = {**(split_trace(data)[1] or {}), "recv": recv}
+    return problems, stamps
 
 
 def relay_loop(
@@ -238,18 +274,21 @@ def relay_loop(
     retry_s: float = 2.0,
     should_stop: Callable[[], bool] = lambda: False,
     log: Callable[[str], None] = print,
+    trace: LatencyTrace | None = None,
 ) -> None:
     """Run the session against the relay (src/app/routers/teleop.py, role=sim) until should_stop().
 
     The session and the robot stay on the calling thread (Isaac's main thread). A reader thread
     keeps a WebSocket open, reconnecting every retry_s while the relay is down, and queues what
-    arrives. Each tick drains the queue in order, then calls session.step(), at most once per
-    `period` of wall clock. A slower sim just runs slower; it never tries to catch up. The status
-    goes back to the relay whenever it changes apart from the step count, and every status_every
-    ticks. While the relay is down, the robot keeps holding its pose."""
+    arrives with its arrival time. Each tick applies the queue (apply_inbox: controls in order, the
+    newest hand only), then calls session.step(), at most once per `period` of wall clock. A slower
+    sim just runs slower; it never tries to catch up. The status goes back to the relay whenever it
+    changes apart from the step count, and every status_every ticks. While the relay is down, the
+    robot keeps holding its pose. With a trace (sim_worker.teleop_trace), each tick is timed and a
+    summary is logged every trace.report_every_s."""
     from websockets.sync.client import connect  # lazy: only the live sink needs it
 
-    inbox: queue.SimpleQueue[str] = queue.SimpleQueue()
+    inbox: queue.SimpleQueue[tuple[str, float]] = queue.SimpleQueue()
     conn_box: list = [None]
 
     def reader() -> None:
@@ -259,7 +298,7 @@ def relay_loop(
                     conn_box[0] = conn
                     log(f"[teleop] connected to {url}")
                     for text in conn:
-                        inbox.put(text if isinstance(text, str) else text.decode())
+                        inbox.put((text if isinstance(text, str) else text.decode(), now_ms()))
             except Exception as e:  # refused, dropped, closed: retry while running
                 if conn_box[0] is not None:
                     log(f"[teleop] relay connection lost: {type(e).__name__}: {e}")
@@ -271,15 +310,20 @@ def relay_loop(
     next_tick, tick, last_sent = time.monotonic(), 0, None
     try:
         while not should_stop():
+            items = []
             while True:
                 try:
-                    text = inbox.get_nowait()
+                    items.append(inbox.get_nowait())
                 except queue.Empty:
                     break
-                problem = dispatch(session, text)
-                if problem:
-                    log(f"[teleop] {problem}")
+            problems, stamps = apply_inbox(session, items, trace=trace)
+            for problem in problems:
+                log(f"[teleop] {problem}")
+            t_start = now_ms()
+            if trace is not None and stamps is not None:
+                trace.hand_applied(stamps, applied=t_start)
             session.step()
+            t_end = now_ms()
             status = session.status()
             changed = last_sent is None or {**status, "steps": 0} != {**last_sent, "steps": 0}
             conn = conn_box[0]
@@ -296,6 +340,10 @@ def relay_loop(
                 time.sleep(delay)
             else:
                 next_tick = time.monotonic()  # behind real time: don't try to catch up
+            if trace is not None:
+                trace.step_done(start=t_start, end=t_end, sections=trace.sections.take(),
+                                sleep_ms=max(delay, 0.0) * 1000.0)
+                trace.maybe_report()
     finally:
         conn = conn_box[0]
         if conn is not None:

@@ -9,7 +9,7 @@
 
 import type { HandFrame } from "../../hand/contracts";
 import type { TeleopControlSettings } from "../../teleop/controlRegion";
-import { TeleopClient, type TeleopStatus } from "../../teleop/teleopClient";
+import { TeleopClient, type TeleopClientOptions, type TeleopStatus } from "../../teleop/teleopClient";
 
 export type ControlAction = "record_start" | "record_stop" | "reset_scene";
 
@@ -53,7 +53,7 @@ export class RecordLink {
   private simConnected = false;
   private closed = false;
 
-  constructor(url: string, WebSocketImpl: typeof WebSocket = WebSocket) {
+  constructor(url: string, WebSocketImpl: typeof WebSocket = WebSocket, options: TeleopClientOptions = {}) {
     let captured: WebSocket | null = null;
     class Capturing extends WebSocketImpl {
       constructor(u: string | URL, protocols?: string | string[]) {
@@ -61,7 +61,7 @@ export class RecordLink {
         captured = this;
       }
     }
-    this.teleop = new TeleopClient(url, Capturing);
+    this.teleop = new TeleopClient(url, Capturing, options);
     this.socket = captured as WebSocket | null; // set by Capturing during the TeleopClient constructor
     this.socket?.addEventListener("message", this.handleMessage);
     this.teleop.onStatus((s) => {

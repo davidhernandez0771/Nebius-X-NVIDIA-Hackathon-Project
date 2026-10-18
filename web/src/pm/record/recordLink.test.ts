@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HandLandmark } from "../../hand/contracts";
 import { DEFAULT_TELEOP_CONTROL } from "../../teleop/controlRegion";
+import { latencyTraceRequested } from "../../teleop/teleopClient";
 import { RecordLink, controlMessage, parseSimStatus } from "./recordLink";
 
 /** A stand-in WebSocket: records what is sent, and lets a test open it and deliver messages. */
@@ -147,5 +148,31 @@ describe("RecordLink", () => {
     link.push(frame(0), 1);
     expect(JSON.parse(sock.sent[0]).grip).toBe(1);
     link.close();
+  });
+
+  it("adds latency stamps to the hand poses only when asked", () => {
+    const landmarks: HandLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    landmarks[5] = { x: 0.45, y: 0.5, z: 0 };
+    landmarks[17] = { x: 0.55, y: 0.5, z: 0 };
+    const frame = { timestamp: 0, frameWidth: 640, frameHeight: 480, hands: [{ landmarks, handedness: "Right" as const }] };
+    const sent = (opts?: { trace?: boolean }) => {
+      const link = new RecordLink("ws://relay", Impl, opts);
+      const sock = FakeSocket.last!;
+      sock.open();
+      link.push(frame);
+      link.close();
+      return JSON.parse(sock.sent[0]);
+    };
+    expect(sent().trace).toBeUndefined();
+    expect(Object.keys(sent({ trace: true }).trace).sort()).toEqual(["cap", "send"]);
+  });
+});
+
+describe("latencyTraceRequested", () => {
+  it("is on only for ?latency=1", () => {
+    expect(latencyTraceRequested("?latency=1")).toBe(true);
+    expect(latencyTraceRequested("?x=2&latency=1")).toBe(true);
+    expect(latencyTraceRequested("")).toBe(false);
+    expect(latencyTraceRequested("?latency=0")).toBe(false);
   });
 });

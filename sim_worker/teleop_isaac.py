@@ -11,11 +11,20 @@ previous command to this one: the hand's own velocity, one control step late. A 
 hand after a reset, or tracking regained far away) is not fed forward: above MAX_FF_STEP_M per
 step, the IK position target alone moves the arm.
 
+Rendering: SimulationContext.step() renders after every physics step, so a control step renders DECIMATION
+times. With render_every=DECIMATION the driver steps through SubstepSim (sim_worker.teleop_render) and renders
+once per control step, after its last physics substep; render_every=1 keeps the sim's own behaviour. Physics is
+the same either way. With a Sections (sim_worker.teleop_trace), apply() and read_state() time their parts
+(ik, physics, render, read) for the sink's latency trace, with a CUDA sync before each timer stops.
+
 The caller must already be inside isaaclab.app.launch_simulation(make_sim_cfg(...), args).
 Isaac Lab 3.0 quaternions are (x, y, z, w); everything here that crosses into demo_pipeline is (w, x, y, z).
 """
 
 from __future__ import annotations
+
+import dataclasses
+from contextlib import nullcontext
 
 import numpy as np
 import torch
@@ -25,7 +34,9 @@ from demo_pipeline.schemas import Pose, Scene
 from . import replay as _replay
 from .replay import CAMERA_WARMUP_STEPS, CONTACT_N, PHYSICS_DT
 from .scene_cfg import ARM_CONTACT_SENSORS
+from .teleop_render import SubstepSim
 from .teleop_session import TELEOP_DT, StepState
+from .teleop_trace import Sections
 from .tracking import CONTROL_DT
 
 if TELEOP_DT != CONTROL_DT:
@@ -36,10 +47,17 @@ MAX_FF_STEP_M = 0.02  # 1 m/s at 50 Hz; a hand moves ~0.3 m/s, so anything faste
 
 
 class IsaacTeleopDriver:
-    def __init__(self, *, record_cameras: bool, robot: str = "franka", vel_ff: bool = True) -> None:
+    def __init__(self, *, record_cameras: bool, robot: str = "franka", vel_ff: bool = True,
+                 render_every: int = 1, sections: Sections | None = None) -> None:
         self.s = _replay._session(record_cameras, robot)
         self.record_cameras = record_cameras
         self.vel_ff = vel_ff
+        self.sections = sections
+        sync = torch.cuda.synchronize if sections is not None and str(self.s.sim.device).startswith("cuda") else None
+        self._sync = sync
+        # replay's step helpers, stepping through SubstepSim (render cadence, timing)
+        self._stepper = dataclasses.replace(
+            self.s, sim=SubstepSim(self.s.sim, render_every=render_every, sections=sections, sync=sync))
         self._prev_cmd: torch.Tensor | None = None
         self._prev_pos: np.ndarray | None = None
         self._action: torch.Tensor | None = None
@@ -63,17 +81,28 @@ class IsaacTeleopDriver:
         self._prev_pos = None
         self._action = default
 
+    def _time(self, name: str):
+        return self.sections.time(name) if self.sections is not None else nullcontext()
+
     def apply(self, target: Pose, gripper: int) -> None:
         s = self.s
         pos = np.asarray(target.pos, dtype=np.float64)
-        cmd = _replay._hand_target(s, pos, target.quat_wxyz)
-        vel = None
-        if self.vel_ff and self._prev_cmd is not None and np.linalg.norm(pos - self._prev_pos) <= MAX_FF_STEP_M:
-            vel = _replay._joint_vel_ff(s, self._prev_cmd, cmd)
-        self._action = _replay._physics_step(s, cmd, int(gripper), joint_vel=vel)
+        with self._time("ik"):
+            cmd = _replay._hand_target(s, pos, target.quat_wxyz)
+            vel = None
+            if self.vel_ff and self._prev_cmd is not None and np.linalg.norm(pos - self._prev_pos) <= MAX_FF_STEP_M:
+                vel = _replay._joint_vel_ff(s, self._prev_cmd, cmd)
+            if self._sync is not None:
+                self._sync()
+        # the per-substep IK inside _physics_step is charged to "other" (step wall minus the timed sections)
+        self._action = _replay._physics_step(self._stepper, cmd, int(gripper), joint_vel=vel)
         self._prev_cmd, self._prev_pos = cmd, pos
 
     def read_state(self) -> StepState:
+        with self._time("read"):
+            return self._read_state()
+
+    def _read_state(self) -> StepState:
         s = self.s
         robot, cube = s.scene["robot"], s.scene["cube"]
         tcp, quat = _replay._tcp_pose(s)
