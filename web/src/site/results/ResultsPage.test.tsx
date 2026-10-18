@@ -33,7 +33,7 @@ function stubObserver() {
 
 function page() {
   return render(
-    <MemoryRouter initialEntries={["/site/results"]}>
+    <MemoryRouter initialEntries={["/site/results"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         <Route element={<SantRoot />}>
           <Route path="/site/results" element={<ResultsPage />} />
@@ -53,12 +53,21 @@ describe("Results page", () => {
   it("leads with the confirmatory result, its CIs and p", () => {
     stubReducedMotion(true);
     page();
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Multiplying 10 demos made the robot better.");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Multiplying 10 demos made the robot better. Tripling the copies didn't help more.",
+    );
     expect(screen.getByRole("group", { name: /^17\/40 / })).toBeTruthy();
     const ledger = screen.getByRole("table", { name: /headline result/i });
-    expect(within(ledger).getByText("2.6–19.9%")).toBeTruthy();
-    expect(within(ledger).getByText("28.5–57.8%")).toBeTruthy();
-    expect(within(ledger).getByText(/0\.0005/)).toBeTruthy();
+    for (const ci of ["2.6–19.9%", "28.5–57.8%", "26.3–55.4%"]) expect(within(ledger).getByText(ci)).toBeTruthy();
+    expect(ledger.textContent).toMatch(/p = 0\.0005/);
+    expect(ledger.textContent).toMatch(/p = 0\.0012/);
+  });
+
+  it("says the source demos were scripted, next to the proof", () => {
+    stubReducedMotion(true);
+    page();
+    const hero = screen.getByRole("region", { name: /Multiplying 10 demos/ });
+    expect(hero.textContent).toMatch(/Scripted-expert source demos; human demos come next\./);
   });
 
   it("shows the limits beside the result, not only in a footnote", () => {
@@ -87,7 +96,7 @@ describe("Results page", () => {
     const { container } = page();
     const cited = container.querySelectorAll("figure, .sant-report:not(.sant-report--pending), .sant-margin-note, .sant-results__limits li");
     expect(cited.length).toBeGreaterThan(8);
-    for (const el of cited) expect(el.textContent).toMatch(/status note, lines? \d/);
+    for (const el of cited) expect(el.textContent).toMatch(/note, lines? \d/);
   });
 
   it("with motion reduced, shows the finished run and no replay button", () => {
@@ -122,12 +131,15 @@ describe("Results page", () => {
     page();
     const franka = screen.getByRole("region", { name: "Franka Panda" });
     expect(franka.textContent).toMatch(/22 of 23/);
-    expect(franka.textContent).toMatch(/8 of 8/);
-    const openarm = screen.getByRole("region", { name: "OpenArm" });
+    expect(franka.textContent).toMatch(/23 of 24/);
     expect(franka.textContent).toMatch(/27\/30/);
+    expect(within(franka).getAllByText("Pending")).toHaveLength(1);
+    expect(franka.textContent).toMatch(/No reach map measured yet/);
+    const openarm = screen.getByRole("region", { name: "OpenArm" });
     expect(openarm.textContent).toMatch(/0\/30/);
     expect(openarm.textContent).toMatch(/Design flaw found/);
-    expect(openarm.textContent).toMatch(/Not trained/);
+    expect(openarm.textContent).toMatch(/±45° wrist/);
+    expect(screen.getByRole("region", { name: "Flexiv Rizon 4s" }).textContent).toMatch(/9\/30/);
     const yours = screen.getByRole("region", { name: "Your robot" });
     expect(within(yours).getAllByText("Pending")).toHaveLength(4);
   });

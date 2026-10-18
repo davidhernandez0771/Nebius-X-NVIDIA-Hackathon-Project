@@ -2,23 +2,26 @@
 //
 // Why static: results.json (GET /results) holds the pooled 4/60 vs 24/60 for the 30k pair and
 // has no 300-copy cell, so the confirmatory 40-scene numbers live here, cited, as
-// docs/design/content-spec.md §4 ("Data note", option b) says. Nothing is derived from pooled
-// counts. facts.test.ts checks that the outcome strings add up to k and that every printed CI is
-// the Wilson CI of k/n. Line numbers are from the notes as of sprint 9; the notes are append-only.
+// docs/design/content-spec.md §4 ("Data note") says. Nothing is derived from pooled counts.
+// The facts and wording follow the spec's fact registry (sprint 9: R1–R18, C1–C4, B1–B5, A2, Y3).
+// facts.test.ts checks that the outcome strings add up to k and that every printed CI is the
+// Wilson CI of k/n. Line numbers are from the notes as of sprint 9; the notes are append-only.
 
 export const NOTES = {
-  t2: "docs/superpowers/notes/2026-10-15-t2-status.md",
-  t3: "docs/superpowers/notes/2026-10-15-t3-status.md",
+  t2: { name: "T2 status note", path: "docs/superpowers/notes/2026-10-15-t2-status.md" },
+  t3: { name: "T3 status note", path: "docs/superpowers/notes/2026-10-15-t3-status.md" },
+  web: { name: "Web pages note", path: "docs/superpowers/notes/2026-10-16-web-pages.md" },
 } as const;
 
 export type Source = { note: keyof typeof NOTES; lines: string };
 
 const t2 = (lines: string): Source => ({ note: "t2", lines });
 const t3 = (lines: string): Source => ({ note: "t3", lines });
+const web = (lines: string): Source => ({ note: "web", lines });
 
 export function cite(s: Source): string {
   const many = /[–,]/.test(s.lines);
-  return `${s.note.toUpperCase()} status note, ${many ? "lines" : "line"} ${s.lines}`;
+  return `${NOTES[s.note].name}, ${many ? "lines" : "line"} ${s.lines}`;
 }
 
 export type Arm = {
@@ -98,18 +101,27 @@ export const VERIFIED = {
 /** The scenes: new, fixed before the run, never used to choose anything. */
 export const SCENES = { seeds: "5020–5059", source: t3("1112–1114, 1160–1161") };
 
-/** T3's own sentence for the headline result. */
+/** The H1 (spec §4), T3's own sentence for the result (R14), and the replication in one sentence (R18). */
 export const HEADLINE = {
+  title: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more.",
   text: "On 40 held-out home-start scenes, ACT trained on 10 demos + 100 multiplied variants succeeded 17/40 (43%, 95% CI 28–58%) vs 3/40 (8%, 3–20%) for the 10 demos alone (Fisher p < 0.001); one training run per cell, 30k steps each.",
   source: t3("1171–1173"),
+  replicates: "A second, independently multiplied set of 300 copies scored 16/40 against the same 3/40 (p = 0.0012), so the effect replicates. The raw arm and the scenes are shared.",
+  replicatesSource: t3("1313, 1318–1320"),
 };
 
-/** What the result does not show. Shown next to it, never in a footnote only. */
+/** Said in the same viewport as every proof beat (spec wording rule 2). */
+export const PROOF_SO_FAR = { text: "Scripted-expert source demos; human demos come next.", source: t2("897") };
+
+/** What the result does not show (C1–C4, A2). Shown next to it, never in a footnote only. */
 export const LIMITS = [
-  { text: "One task (a cube into a bin), one simulated arm, one policy type (ACT), and one training run per arm.", source: t3("1165–1166") },
-  { text: "The 10 source demos came from a scripted expert, not a person, and were already clean. This tests multiplying, not perfecting.", source: t2("897") },
-  { text: "Every policy got the same 30k training steps, so the ones with fewer examples saw each one more often.", source: t3("1167, 1257") },
-  { text: "The multiplied policy still drops the cube: that's 22 of its 23 failures.", source: t3("1176") },
+  { text: "One task (a 5 cm cube into a bin), one simulated arm (Franka), one policy type (ACT), and one training run per arm.", sources: [t3("1165–1166")] },
+  {
+    text: "The 10 source demos came from a scripted expert and were already clean, so this tests multiplying, not perfecting. No real person's demo has been recorded and verified yet.",
+    sources: [t2("897"), web("436")],
+  },
+  { text: "Every policy got the same 30k training steps, so the ones with fewer examples saw each one more often.", sources: [t3("1167, 1257")] },
+  { text: "It still drops the cube: 22 of 23 failures with 100 copies, 23 of 24 with 300.", sources: [t3("1176, 1325")] },
 ];
 
 /** Why 300 copies didn't beat 100 here, in the note's own terms. */
@@ -118,75 +130,79 @@ export const PLATEAU = {
   source: t3("1321–1323, 1257"),
 };
 
-type Measure = { k: number; n: number; what: string; ci?: string; later?: string; source: Source };
+type Measure = { k: number; n: number; what: string; ci?: string; also?: string; source: Source };
 
 export type ReportCard = {
-  key: "franka" | "openarm" | "yours";
+  key: "franka" | "openarm" | "flexiv" | "yours";
   robot: string;
   status: { label: string; tone: "live" | "issue" | "neutral" };
   summary: string;
-  /** Copies of one source demo that passed the physics check: the same 30 scenes for every arm. */
+  /** Copies of one source demo that passed the physics check, on the same 30 scenes for every arm. */
   copies: Measure | null;
   policy: Measure | null;
-  /** Why there is no policy, when that is known; otherwise a missing policy is "Pending". */
-  policyNote?: string;
-  failures: { what: string; of: number; reasons: { label: string; k: number }[]; overlap: boolean; source: Source } | null;
+  /** Failure counts where the registry has them (R9), otherwise the registry's reason in words (B2, B3). */
+  failures: { why: string; counts?: { label: string; k: number; of: number }[]; source: Source } | null;
   reach: { value: string; detail: string; source: Source } | null;
+  /** Shown under "Pending" to say why a value is missing. */
+  pendingNotes?: { policy?: string; reach?: string };
 };
 
 const SAME_SCENES = "copies that passed the physics check, on the same 30 scenes (seeds 100–129)";
+const NO_POLICY = "No policy trained on it yet.";
 
 export const REPORT_CARDS: ReportCard[] = [
   {
     key: "franka",
     robot: "Franka Panda",
-    status: { label: "Tested", tone: "live" },
-    summary: "Our main arm, and the one every policy on this page was trained for.",
-    copies: { k: 27, n: 30, what: SAME_SCENES, later: "30/30 after a later fix to how copies are planned.", source: t2("513, 639–640") },
-    policy: { k: 17, n: 40, what: "new scenes completed by the policy trained on 10 demos + 100 copies", ci: "28.5–57.8%", source: t3("1156") },
-    failures: {
-      what: "Of the policy's 23 failed scenes",
-      of: 23,
-      reasons: [
-        { label: "Picked the cube up, then dropped it", k: 22 },
-        { label: "Cube hadn't settled", k: 1 },
-      ],
-      overlap: false,
-      source: t3("1176–1177"),
+    status: { label: "Ready", tone: "live" },
+    summary: "Our main robot. Every result on this page is on it.",
+    copies: { k: 27, n: 30, what: SAME_SCENES, also: "30/30 after a later fix to how copies are planned.", source: t2("513, 639–640") },
+    policy: {
+      k: 17,
+      n: 40,
+      what: "new scenes completed by the policy trained on 10 demos + 100 copies",
+      ci: "28.5–57.8%",
+      also: "16/40 with 300 copies (95% CI 26.3–55.4%).",
+      source: t3("1156, 1307"),
     },
-    reach: { value: "8 of 8", detail: "corners of the shared workspace reached", source: t2("515") },
+    failures: {
+      why: "Picks the cube up, then drops it.",
+      counts: [
+        { label: "Policy with 100 copies", k: 22, of: 23 },
+        { label: "Policy with 300 copies", k: 23, of: 24 },
+      ],
+      source: t3("1176, 1325"),
+    },
+    reach: null,
+    pendingNotes: { reach: "No reach map measured yet." },
   },
   {
     key: "openarm",
     robot: "OpenArm",
     status: { label: "Design flaw found", tone: "issue" },
-    summary: "Same task, same source demo, same scenes. The simulator found the limit before any hardware did.",
-    copies: { k: 0, n: 30, what: SAME_SCENES, source: t2("310, 513") },
+    summary: "Same source demo, same scenes. A design limit found in simulation, before anyone built a cell around it.",
+    copies: { k: 0, n: 30, what: SAME_SCENES, source: t2("310–311, 513") },
     policy: null,
-    policyNote: "Not trained: no copies passed the physics check.",
-    failures: {
-      what: "Of the 30 failed copies",
-      of: 30,
-      reasons: [
-        { label: "Couldn't hold the commanded pose", k: 30 },
-        { label: "Collision", k: 13 },
-        { label: "Cube not in the bin", k: 10 },
-        { label: "Dropped the cube", k: 8 },
-      ],
-      overlap: true,
-      source: t2("310"),
-    },
-    reach: {
-      value: "±45° wrist",
-      detail: "keeps a vertical grasp in a 0.15–0.2 m height band, and the shared workspace doesn't fit inside it",
-      source: t2("301–304"),
-    },
+    failures: { why: "The arm itself: it can't keep the gripper pointing down across the workspace.", source: t2("301–304, 528–529") },
+    reach: { value: "±45° wrist", detail: "confines a vertical grasp to a ~0.2 m height band", source: t2("368") },
+    pendingNotes: { policy: NO_POLICY },
+  },
+  {
+    key: "flexiv",
+    robot: "Flexiv Rizon 4s",
+    status: { label: "Tested", tone: "neutral" },
+    summary: "Same source demo, same scenes. The arm reaches; the gripper model is the problem.",
+    copies: { k: 9, n: 30, what: SAME_SCENES, source: t2("513, 592") },
+    policy: null,
+    failures: { why: "The gripper model's near-massless fingers slip or drag the cube.", source: t2("529, 592") },
+    reach: { value: "Fine", detail: "its failures are grip, not reach", source: t2("540") },
+    pendingNotes: { policy: NO_POLICY },
   },
   {
     key: "yours",
     robot: "Your robot",
-    status: { label: "Coming next", tone: "neutral" },
-    summary: "Upload a URDF, give its parts roles (base, hand, gripper), and run the same workflow to get this card.",
+    status: { label: "Preview", tone: "neutral" },
+    summary: "Coming next: upload a URDF, mark the base, the hand and the gripper, and run the same workflow to get this card.",
     copies: null,
     policy: null,
     failures: null,

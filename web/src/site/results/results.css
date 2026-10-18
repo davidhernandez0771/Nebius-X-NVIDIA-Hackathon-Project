@@ -41,12 +41,30 @@
   gap: var(--sant-space-7);
 }
 
+/* Two sentences, so a step below the display size: the claim, then its honest limit. */
 .sant .sant-results__title {
-  max-width: 15ch;
+  max-width: 19ch;
+  font-size: clamp(2.75rem, 1.6rem + 4vw, 5.25rem);
+  text-wrap: balance;
 }
 
-.sant .sant-results__sub {
+.sant-results__sub {
+  display: grid;
+  gap: var(--sant-space-3);
+  max-width: var(--sant-measure);
   margin-top: calc(-1 * var(--sant-space-4));
+}
+
+.sant .sant-results__sub .sant-lede {
+  margin-top: 0;
+}
+
+/* Never a footnote: the proof is on scripted demos, said in ink beside the claim. */
+.sant-results__so-far {
+  padding-left: var(--sant-space-3);
+  border-left: 2px solid var(--sant-issue);
+  font-size: var(--sant-fs-body);
+  font-weight: 500;
 }
 
 .sant-results__proof {
@@ -346,7 +364,7 @@
 
 .sant-results__cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--sant-space-4);
   align-items: start;
 }
@@ -494,7 +512,8 @@
     gap: var(--sant-space-8);
   }
 
-  .sant-results__limits {
+  .sant-results__limits,
+  .sant-results__cards {
     grid-template-columns: minmax(0, 1fr);
   }
 

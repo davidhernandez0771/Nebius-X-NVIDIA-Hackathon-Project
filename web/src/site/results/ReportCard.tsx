@@ -9,8 +9,13 @@ const TONE = { live: "live", issue: "issue", neutral: "plain" } as const;
 
 type Measure = NonNullable<Data["copies"]>;
 
-function Pending() {
-  return <span className="sant-report__pending">Pending</span>;
+function Pending({ why }: { why?: string }) {
+  return (
+    <>
+      <span className="sant-report__pending">Pending</span>
+      {why && <span className="sant-report__aside">{why}</span>}
+    </>
+  );
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -36,7 +41,7 @@ function Count({ m }: { m: Measure }) {
           </>
         )}
       </span>
-      {m.later && <span className="sant-report__aside">{m.later}</span>}
+      {m.also && <span className="sant-report__aside">{m.also}</span>}
     </>
   );
 }
@@ -44,10 +49,10 @@ function Count({ m }: { m: Measure }) {
 /**
  * The robot report card: copies that pass physics, how often the trained policy succeeds, why it
  * fails, and how far it reaches. A template fed by props, so the robot shelf can show the same
- * card. Anything not measured says "Pending".
+ * card. Anything not measured says "Pending", with the reason when there is one.
  */
 export function ReportCard({ card }: { card: Data }) {
-  const { copies, policy, failures, reach } = card;
+  const { copies, policy, failures, reach, pendingNotes = {} } = card;
   const sources = [copies?.source, policy?.source, failures?.source, reach?.source].filter((s): s is Source => !!s);
   const pending = sources.length === 0;
 
@@ -61,27 +66,26 @@ export function ReportCard({ card }: { card: Data }) {
       <p className="sant-report__summary">{card.summary}</p>
       <dl className="sant-report__rows">
         <Row label="Copies verified">{copies ? <Count m={copies} /> : <Pending />}</Row>
-        <Row label="Policy success">
-          {policy ? <Count m={policy} /> : card.policyNote ? <span className="sant-report__what">{card.policyNote}</span> : <Pending />}
-        </Row>
+        <Row label="Policy success">{policy ? <Count m={policy} /> : <Pending why={pendingNotes.policy} />}</Row>
         <Row label="Why it fails">
           {failures ? (
             <>
-              <span className="sant-report__what">{failures.what}:</span>
-              <ul className="sant-report__reasons">
-                {failures.reasons.map((r) => (
-                  <li key={r.label}>
-                    <span className="sant-report__reason">{r.label}</span>
-                    <span className="sant-report__count sant-num">
-                      {r.k} of {failures.of}
-                    </span>
-                    <span className="sant-report__track" aria-hidden="true">
-                      <span className="sant-report__fill" style={{ "--f": String(r.k / failures.of) } as CSSProperties} />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {failures.overlap && <span className="sant-report__aside">A failure can have more than one reason.</span>}
+              <span className="sant-report__what">{failures.why}</span>
+              {failures.counts && (
+                <ul className="sant-report__reasons">
+                  {failures.counts.map((c) => (
+                    <li key={c.label}>
+                      <span className="sant-report__reason">{c.label}</span>
+                      <span className="sant-report__count sant-num">
+                        {c.k} of {c.of} failures
+                      </span>
+                      <span className="sant-report__track" aria-hidden="true">
+                        <span className="sant-report__fill" style={{ "--f": String(c.k / c.of) } as CSSProperties} />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           ) : (
             <Pending />
@@ -90,11 +94,11 @@ export function ReportCard({ card }: { card: Data }) {
         <Row label="Reach">
           {reach ? (
             <>
-              <span className="sant-report__big sant-num">{reach.value}</span>
+              <span className="sant-report__big">{reach.value}</span>
               <span className="sant-report__what">{reach.detail}</span>
             </>
           ) : (
-            <Pending />
+            <Pending why={pendingNotes.reach} />
           )}
         </Row>
       </dl>

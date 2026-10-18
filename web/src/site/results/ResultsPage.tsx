@@ -8,7 +8,7 @@ import { formatStat } from "../../sant/motion/format";
 import { StoryShell } from "../../sant/shells/StoryShell";
 import { Cite } from "./Cite";
 import { CopiesChart } from "./CopiesChart";
-import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, PLATEAU, REPORT_CARDS, SCENES, VERIFIED, cite } from "./facts";
+import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, PLATEAU, PROOF_SO_FAR, REPORT_CARDS, SCENES, VERIFIED, cite } from "./facts";
 import { ReportCard } from "./ReportCard";
 import "./results.css";
 
@@ -21,9 +21,14 @@ function Headline() {
   return (
     <section className="sant-results__hero" aria-labelledby="results-title">
       <h1 id="results-title" className="sant-display sant-results__title">
-        Multiplying 10 demos made the robot better.
+        {HEADLINE.title}
       </h1>
-      <p className="sant-lede sant-results__sub">{HEADLINE.text}</p>
+      <div className="sant-results__sub">
+        <p className="sant-lede">
+          {HEADLINE.text} {HEADLINE.replicates}
+        </p>
+        <p className="sant-results__so-far">{PROOF_SO_FAR.text}</p>
+      </div>
       <div className="sant-notes">
         <div className="sant-results__proof">
           <CountUpTiles
@@ -42,7 +47,7 @@ function Headline() {
               </tr>
             </thead>
             <tbody>
-              {[RAW, X100].map((a) => (
+              {ARMS.map((a) => (
                 <tr key={a.key} data-arm={a.key}>
                   <th scope="row">{a.label}</th>
                   <td className="sant-num">
@@ -56,7 +61,8 @@ function Headline() {
             <tfoot>
               <tr>
                 <td colSpan={4}>
-                  Fisher exact, two-sided: p = <span className="sant-num">{COMPARISONS.rawVs100.p}</span>
+                  Fisher exact, two-sided, against the 10 demos alone: p = <span className="sant-num">{COMPARISONS.rawVs100.p}</span>{" "}
+                  with 100 copies, p = <span className="sant-num">{COMPARISONS.rawVs300.p}</span> with 300.
                 </td>
               </tr>
             </tfoot>
@@ -73,13 +79,20 @@ function Headline() {
             <span className="sant-num">
               {VERIFIED.x100.k}/{VERIFIED.x100.n}
             </span>{" "}
+            and{" "}
+            <span className="sant-num">
+              {VERIFIED.x300.k}/{VERIFIED.x300.n}
+            </span>{" "}
             did.
           </p>
-          <Cite source={RAW.count} />
-          <Cite source={COMPARISONS.rawVs100.source} prefix="p: " />
+          <Cite source={{ note: "t3", lines: "1156, 1307" }} prefix="Counts: " />
+          <Cite source={{ note: "t3", lines: "1131, 1156, 1313" }} prefix="p: " />
           <Cite source={HEADLINE.source} prefix="Sentence: " />
+          <Cite source={HEADLINE.replicatesSource} prefix="Replication: " />
           <Cite source={SCENES.source} prefix="Scenes: " />
           <Cite source={VERIFIED.x100.source} prefix="Copies: " />
+          <Cite source={VERIFIED.x300.source} prefix="" />
+          <Cite source={PROOF_SO_FAR.source} prefix="Source demos: " />
         </aside>
       </div>
     </section>
@@ -94,7 +107,9 @@ function Limits() {
         {LIMITS.map((l) => (
           <li key={l.text}>
             <p>{l.text}</p>
-            <Cite source={l.source} />
+            {l.sources.map((s, i) => (
+              <Cite key={i} source={s} prefix={i === 0 ? "Source: " : ""} />
+            ))}
           </li>
         ))}
       </ul>
@@ -166,7 +181,7 @@ function Cards() {
       <SectionHeader
         id="results-card"
         title="The report card"
-        lede="Every robot that goes through SANT gets one: how often it succeeds, why it fails, and how far it reaches. Here it is for two arms we tested, next to the slot for yours."
+        lede="Every robot that goes through SANT gets one: how often it succeeds, why it fails, and how far it reaches. Here it is for the three arms we ran, next to the slot for yours."
       />
       <div className="sant-results__cards">
         {REPORT_CARDS.map((c) => (
@@ -187,9 +202,9 @@ function Sources() {
         lede="Every number on this page cites a line in one of these notes. They are append-only, so the lines stay put."
       />
       <ul>
-        {Object.entries(NOTES).map(([k, path]) => (
-          <li key={k}>
-            {k.toUpperCase()} status note: <code>{path}</code>
+        {Object.values(NOTES).map((n) => (
+          <li key={n.path}>
+            {n.name}: <code>{n.path}</code>
           </li>
         ))}
       </ul>

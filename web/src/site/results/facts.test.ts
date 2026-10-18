@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARMS, COMPARISONS, NOTES, REPORT_CARDS, cite, type Source } from "./facts";
+import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, REPORT_CARDS, cite, type Source } from "./facts";
 import { wilson } from "./stats";
 
 const one = (x: number) => (Math.round(x * 1000) / 10).toFixed(1);
@@ -42,7 +42,7 @@ describe("the arms", () => {
 });
 
 describe("sources", () => {
-  const all = sources({ ARMS, COMPARISONS, REPORT_CARDS });
+  const all = sources({ ARMS, COMPARISONS, HEADLINE, LIMITS, REPORT_CARDS });
 
   it("are on every fact", () => {
     expect(all.length).toBeGreaterThan(20);
@@ -53,6 +53,7 @@ describe("sources", () => {
   });
 
   it("read as a note and its lines", () => {
+    expect(cite({ note: "web", lines: "436" })).toBe("Web pages note, line 436");
     expect(cite({ note: "t3", lines: "1156" })).toBe("T3 status note, line 1156");
     expect(cite({ note: "t3", lines: "1171–1173" })).toBe("T3 status note, lines 1171–1173");
     expect(cite({ note: "t2", lines: "302–303, 368" })).toBe("T2 status note, lines 302–303, 368");
@@ -60,22 +61,27 @@ describe("sources", () => {
 });
 
 describe("report cards", () => {
-  it("give every failure reason a count no bigger than its total", () => {
-    for (const card of REPORT_CARDS)
-      for (const r of card.failures?.reasons ?? []) expect(r.k).toBeLessThanOrEqual(card.failures!.of);
+  const card = (key: string) => REPORT_CARDS.find((c) => c.key === key)!;
+
+  it("count drops the way the arms do (R9)", () => {
+    const counts = card("franka").failures!.counts!.map((c) => `${c.k} of ${c.of}`);
+    expect(counts).toEqual(ARMS.slice(1).map((a) => `${a.drops.k} of ${a.drops.of}`));
   });
 
-  it("say pending instead of inventing a value", () => {
-    const yours = REPORT_CARDS.find((c) => c.key === "yours")!;
+  it("compare copies on the same 30 scenes (B2, B3, Y3)", () => {
+    const copies = ["franka", "openarm", "flexiv"].map((k) => card(k).copies!);
+    expect(copies.map((c) => `${c.k}/${c.n}`)).toEqual(["27/30", "0/30", "9/30"]);
+    expect(new Set(copies.map((c) => c.what)).size).toBe(1);
+  });
+
+  it("say pending, with the reason, where nothing is measured", () => {
+    expect(card("franka").reach).toBeNull();
+    expect(card("franka").pendingNotes?.reach).toMatch(/no reach map/i);
+    for (const k of ["openarm", "flexiv"]) {
+      expect(card(k).policy).toBeNull();
+      expect(card(k).pendingNotes?.policy).toBeTruthy();
+    }
+    const yours = card("yours");
     expect([yours.copies, yours.policy, yours.failures, yours.reach]).toEqual([null, null, null, null]);
-  });
-
-  it("compare copies on the same seeds, and say why a policy is missing", () => {
-    const [franka, openarm] = REPORT_CARDS;
-    expect(`${franka.copies!.k}/${franka.copies!.n}`).toBe("27/30");
-    expect(`${openarm.copies!.k}/${openarm.copies!.n}`).toBe("0/30");
-    expect(franka.copies!.what).toBe(openarm.copies!.what);
-    expect(openarm.policy).toBeNull();
-    expect(openarm.policyNote).toMatch(/no copies passed/);
   });
 });
