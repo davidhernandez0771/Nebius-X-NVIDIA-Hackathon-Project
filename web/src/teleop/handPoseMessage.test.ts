@@ -126,7 +126,9 @@ describe("toHandPoseMsg", () => {
 
   it("matches the committed cross-language fixture", () => {
     const msg = toHandPoseMsg(FIXTURE_HAND, HD, undefined, DEFAULT_TELEOP_CONTROL);
-    expect(Object.keys(msg).sort()).toEqual(Object.keys(fixture).sort());
+    // grip is not toHandPoseMsg's: TeleopClient.push attaches the page's pinch latch state.
+    expect([...Object.keys(msg), "grip"].sort()).toEqual(Object.keys(fixture).sort());
+    expect([0, 1]).toContain(fixture.grip);
     for (let i = 0; i < 3; i++) expect(msg.control![i]).toBeCloseTo(fixture.control[i], 12);
     expect(msg.t_ms).toBe(fixture.t_ms);
     expect(msg.tracking_ok).toBe(fixture.tracking_ok);
@@ -203,6 +205,15 @@ describe("TeleopClient", () => {
     client.setControl(null);
     client.push(frame(200));
     expect(sent().map((m) => m.control !== undefined)).toEqual([false, true, false]);
+  });
+
+  it("attaches the grip it is given (the page's pinch latch), and none without one", () => {
+    const { client, sent } = newClient();
+    client.push(frame(0), 1);
+    client.push(frame(100), 0);
+    client.push(frame(200, []), 1); // lost: the latch's held state goes along
+    client.push(frame(300));
+    expect(sent().map((m) => m.grip)).toEqual([1, 0, 1, undefined]);
   });
 
   it("does not send while the socket is not open", () => {

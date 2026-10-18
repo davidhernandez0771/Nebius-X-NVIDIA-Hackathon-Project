@@ -26,6 +26,9 @@ export interface HandPoseMsg {
   // width (0 far, 1 near, smoothed over ~120 ms); raw unmirrored like wrist_uv. See controlRegion.ts. Absent: the sim maps
   // wrist_uv and palm_width with its own Calibration, as before.
   control?: [number, number, number];
+  // Optional (hand v3, pinch.ts): the page's pinch latch, 1 closed / 0 open, attached by
+  // TeleopClient.push. Absent: the sim's GripperLatch thresholds pinch_ratio.
+  grip?: 0 | 1;
 }
 
 export interface FrameInfo {

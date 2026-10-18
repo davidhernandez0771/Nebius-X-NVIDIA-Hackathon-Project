@@ -71,8 +71,8 @@ export class RecordLink {
     });
   }
 
-  push(frame: HandFrame): void {
-    this.teleop.push(frame);
+  push(frame: HandFrame, grip?: 0 | 1): void {
+    this.teleop.push(frame, grip);
   }
 
   /** Control-region settings for the hand poses (HandPoseMsg.control); null sends none. */

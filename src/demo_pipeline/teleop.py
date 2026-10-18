@@ -8,12 +8,15 @@ Image conventions: `wrist_uv` is raw (unmirrored) MediaPipe normalized coordinat
 u left->right, v top->bottom. The user watches a mirrored view, so u is mirrored here.
 The optional `control` is the browser's control-region mapping of the palm center, in the
 same raw orientation; when present it replaces the image-region and palm-width fractions.
+The optional `grip` (hand v3) is the browser's pinch latch: 3D thumb-index distance over the
+index finger's length, with hysteresis and a 2-frame change; when present, GripperLatch follows it.
 Robot conventions: Isaac Lab world frame, Z-up, meters, quaternions (w, x, y, z).
 """
 
 from __future__ import annotations
 
 import math
+from typing import Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -41,6 +44,8 @@ class HandPoseMsg(_Model):
     # Optional (web/src/teleop/controlRegion.ts): the palm center remapped into the user's control
     # region and clamped, raw unmirrored like wrist_uv, plus depth from palm width (0 far, 1 near).
     control: tuple[float, float, float] | None = None
+    # Optional (web/src/teleop/pinch.ts): 1 closed, 0 open. Absent: the 2D pinch thresholds below.
+    grip: Literal[0, 1] | None = None
 
     @model_validator(mode="after")
     def _ranges(self) -> "HandPoseMsg":
@@ -134,6 +139,7 @@ class GripperLatch:
     """Pinch -> gripper command with hysteresis: closes below close_below, opens above open_above.
 
     Starts open (0). Holds its state while tracking is lost, whatever the stale pinch says.
+    A message with `grip` set is followed directly: the browser's latch already has hysteresis.
     """
 
     def __init__(self, close_below: float = 0.35, open_above: float = 0.45) -> None:
@@ -144,7 +150,9 @@ class GripperLatch:
         self.state: int = 0
 
     def update(self, msg: HandPoseMsg) -> int:
-        if msg.tracking_ok:
+        if msg.tracking_ok and msg.grip is not None:
+            self.state = msg.grip
+        elif msg.tracking_ok:
             if msg.pinch_ratio < self.close_below:
                 self.state = 1
             elif msg.pinch_ratio > self.open_above:

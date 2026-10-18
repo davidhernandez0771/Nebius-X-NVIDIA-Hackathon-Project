@@ -44,11 +44,14 @@ export class TeleopClient {
     this.socket.onmessage = (ev: MessageEvent) => this.handleServerMessage(ev.data);
   }
 
-  push(frame: HandFrame): void {
+  /** grip: the page's pinch latch state (pinch.ts), sent as HandPoseMsg.grip; omitted: no grip field. */
+  push(frame: HandFrame, grip?: 0 | 1): void {
     const t = frame.timestamp;
     if (this.lastSentAt !== null && t - this.lastSentAt < MIN_INTERVAL_MS) return;
 
     const msg = toHandPoseMsg(pickHand(frame.hands), frame, this.last, this.control);
+    delete msg.grip; // a lost hand's message copies the last one, grip included
+    if (grip !== undefined) msg.grip = grip;
     if (!msg.tracking_ok && this.lastLostSentAt !== null && t - this.lastLostSentAt < LOST_INTERVAL_MS) return;
     if (this.socket.readyState !== SOCKET_OPEN) return;
 

@@ -135,4 +135,17 @@ describe("RecordLink", () => {
     expect(sent.map((m) => "control" in m)).toEqual([false, true]);
     link.close();
   });
+
+  it("passes the page's grip through to the hand poses it sends", () => {
+    const link = new RecordLink("ws://relay", Impl);
+    const sock = FakeSocket.last!;
+    sock.open();
+    const landmarks: HandLandmark[] = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    landmarks[5] = { x: 0.45, y: 0.5, z: 0 };
+    landmarks[17] = { x: 0.55, y: 0.5, z: 0 };
+    const frame = (t: number) => ({ timestamp: t, frameWidth: 640, frameHeight: 480, hands: [{ landmarks, handedness: "Right" as const }] });
+    link.push(frame(0), 1);
+    expect(JSON.parse(sock.sent[0]).grip).toBe(1);
+    link.close();
+  });
 });
