@@ -24,7 +24,6 @@ import { CalibrationPanel } from "./hand/overlay/CalibrationPanel";
 
 // Full-bleed 3D pages live outside the dashboard shell and load lazily, so the
 // three.js bundle is only fetched when one of them is visited.
-const Landing = lazy(() => import("./pages/Landing"));
 const Entry = lazy(() => import("./pages/Entry"));
 // SANT website (sprint 8): the design-system review pages, under SantRoot's providers.
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
@@ -49,16 +48,9 @@ export default function App() {
   return (
     <>
       <Routes>
-        {/* The landing page is the front door. /welcome is kept as an alias. */}
-        <Route
-          path="/"
-          element={
-            <Suspense fallback={null}>
-              <Landing />
-            </Suspense>
-          }
-        />
-        <Route path="/welcome" element={<Navigate to="/" replace />} />
+        {/* The SANT landing (/site) is the front door. /welcome is kept as an alias. */}
+        <Route path="/" element={<Navigate to="/site" replace />} />
+        <Route path="/welcome" element={<Navigate to="/site" replace />} />
         <Route
           path="/enter"
           element={
@@ -102,7 +94,7 @@ export default function App() {
           <Route path="/pm/dataset" element={<DatasetPage />} />
           <Route path="/pm/results" element={<ResultsPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/site" replace />} />
       </Routes>
       {!onSite && (
         <>
