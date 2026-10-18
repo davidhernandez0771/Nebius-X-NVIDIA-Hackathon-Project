@@ -52,7 +52,8 @@ from sim_worker.scripted import scripted_expert  # noqa: E402
 from sim_worker.tracking import TrackingOptions  # noqa: E402
 from sim_worker.urdf_import import Roles, build_spec  # noqa: E402
 
-BASELINES = {"franka_builtin": "27/30, unreachable 3 (data/multiply_franka/yield.json, 2026-10-16)",
+BASELINES = {"franka_builtin": "30/30 (multiply_run on 41d1268, data/multiply_franka_rerun_20261018/yield.json; the "
+                               "2026-10-16 run in data/multiply_franka was 27/30, unreachable 3)",
              "openarm_builtin": "0/30, unreachable 30 (data/multiply_openarm/yield.json, 2026-10-16)"}
 
 

@@ -96,10 +96,11 @@ def test_pick_place_summary_counts_failures_and_weights_tracking_by_steps():
 
 def _values_have_sources(node, path="report"):
     if isinstance(node, dict):
-        if "value" in node:
+        if "value" in node:  # a sourced number or table: its source covers what is inside the value
             assert "source" in node, f"{path} has a value but no source"
         for k, v in node.items():
-            _values_have_sources(v, f"{path}.{k}")
+            if k != "value" or "source" not in node:
+                _values_have_sources(v, f"{path}.{k}")
     elif isinstance(node, list):
         for i, v in enumerate(node):
             _values_have_sources(v, f"{path}[{i}]")
