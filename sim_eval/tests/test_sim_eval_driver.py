@@ -86,3 +86,15 @@ def test_a_cell_is_done_only_when_every_requested_seed_has_a_valid_episode(tmp_p
     assert drv.seeds_to_run(tmp_path / "missing.json", n=20, seed0=5000) == 20
     bad = _results(tmp_path / "bad.json", range(5000, 5020), ended_by="sim_error")
     assert drv.seeds_to_run(bad, n=20, seed0=5000) == 20
+
+
+def test_trace_passes_through_to_run_eval(tmp_path):
+    # Sprint 9 grasp fix: the eval keeps per-step traces so drops can be diagnosed afterwards.
+    drv = _load_driver()
+    cmd = drv.run_eval_command(python="py", port=8765, n=40, seed0=5020, cell="c", out=tmp_path / "o.json",
+                               registry=None, trace=True)
+    declared = set(re.findall(r'add_argument\(\s*"(--[a-z0-9_-]+)"', (SCRIPTS / "run_eval.py").read_text("utf-8")))
+    assert "--trace" in cmd and {a for a in cmd if a.startswith("--")} <= declared
+    plain = drv.run_eval_command(python="py", port=8765, n=40, seed0=5020, cell="c", out=tmp_path / "o.json",
+                                 registry=None)
+    assert "--trace" not in plain

@@ -38,6 +38,8 @@ parser.add_argument("--train-episodes", type=Path, nargs="*", default=[],
                     help="recorded training episode dirs: also evaluate on their scenes, from their own start pose")
 parser.add_argument("--record-seeds", type=int, nargs="*", default=[], help="save camera frames for these seeds")
 parser.add_argument("--record-every", type=int, default=5, help="keep every k-th frame of recorded seeds")
+parser.add_argument("--trace", action="store_true",
+                    help="save every control step of every episode (actions, joints, cube, contacts) to <out>_traces/")
 parser.add_argument("--seed0", type=int, default=5000, help="first test-scene seed (>= 5000)")
 parser.add_argument("--cell", default=None, help="experiment cell name; writes eval_success into the registry")
 parser.add_argument("--cameras", action="store_true", help="render front + wrist 128x128 (needed by image policies)")
@@ -76,7 +78,7 @@ from sim_eval.report import (  # noqa: E402
     resolve_start,
     write_results,
 )
-from sim_eval.recording import FrameRecorder  # noqa: E402
+from sim_eval.recording import FrameRecorder, StepTracer  # noqa: E402
 from sim_eval.results import aggregate  # noqa: E402
 from sim_eval.scenes import scene_plan  # noqa: E402
 from sim_eval.retry import RetryingPolicy  # noqa: E402
@@ -185,6 +187,10 @@ def main() -> None:
             env = FrameRecorder(env, args_cli.record_seeds, frames_dir, every=args_cli.record_every)
             print(f"[eval] recording seeds {args_cli.record_seeds} every {args_cli.record_every} steps to {frames_dir}",
                   flush=True)
+        if args_cli.trace:
+            traces_dir = out.with_name(out.stem + "_traces")
+            env = StepTracer(env, None, traces_dir)
+            print(f"[eval] tracing every step of every episode to {traces_dir}", flush=True)
         build_s = time.time() - t_build
         print(f"[eval] scene built in {build_s:.1f} s; joints {env.joint_names}", flush=True)
 
@@ -201,7 +207,7 @@ def main() -> None:
         new = []
         if scenes:
             new, _ = evaluate(env, policy, scenes, on_episode=progress, max_seconds=args_cli.max_seconds)
-        if isinstance(env, FrameRecorder):
+        if isinstance(env, (FrameRecorder, StepTracer)):
             env.close()
         poller.stop()
         episodes = sorted([*done, *new], key=lambda e: e.seed)

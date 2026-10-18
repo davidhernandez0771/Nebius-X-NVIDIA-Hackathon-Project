@@ -49,6 +49,7 @@ class StepRecord:
     contact_arm_bin: bool
     contact_arm_table: bool
     max_contact_force: float
+    cube_quat_wxyz: np.ndarray | None = None  # (4,) world; for step traces only, scoring never reads it
 
 
 class EvalEnv(Protocol):
