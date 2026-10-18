@@ -93,6 +93,19 @@ def test_gate_ignores_this_process_and_all_its_ancestors():
     assert ok is True
 
 
+def test_gate_ignores_a_lock_wrapper_that_only_names_isaac_in_its_args():
+    # 2026-10-18: T2's gpu.lock wrapper (a plain venv python) waited for the lock with an Isaac command in its
+    # argv; counting it as Isaac deadlocked the lock holder's gate. Only an Isaac *executable* counts.
+    wrapper = (rf"C:\dev\pm-t2\.venv\Scripts\python.exe gpu_run.py export -- {ISAAC_PY} sim_worker/scripts/x.py")
+    base = rf'"C:\Users\me\AppData\Roaming\uv\python\cpython-3.14\python.exe"  gpu_run.py export -- {ISAAC_PY} x.py'
+    procs = [(10, 1, f"{ISAAC_PY} run_eval.py"), (40, 2, wrapper), (41, 40, base)]
+    ok, rec = isaac_gate(procs, own_pid=10, free_mib=12000)
+    assert ok is True and rec["other_isaac"] == []
+    procs.append((42, 41, f'"{ISAAC_PY}" sim_worker/scripts/x.py'))  # the wrapper's Isaac child, quoted
+    ok, rec = isaac_gate(procs, own_pid=10, free_mib=12000)
+    assert ok is False and [o["pid"] for o in rec["other_isaac"]] == [42]
+
+
 def test_episode_log_sits_next_to_the_results_file(tmp_path):
     assert episode_log_path(tmp_path / "evals" / "raw_5_1.json") == tmp_path / "evals" / "raw_5_1.episodes.jsonl"
 

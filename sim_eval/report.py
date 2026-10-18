@@ -44,14 +44,24 @@ def _ancestors(processes: list[tuple[int, int, str]], pid: int) -> set[int]:
     return chain
 
 
+def _executable(cmd: str) -> str:
+    """The program a command line runs: its first token, quoted or not."""
+    cmd = (cmd or "").strip()
+    if cmd.startswith('"'):
+        return cmd[1:].split('"', 1)[0]
+    return cmd.split(" ", 1)[0]
+
+
 def isaac_gate(processes: list[tuple[int, int, str]], *, own_pid: int, free_mib: int | None,
                min_free_mib: int = MIN_FREE_MIB) -> tuple[bool, dict]:
-    """May this eval run? Only if no *other* python process runs from Isaac (command line contains 'isaac') and
-    nvidia-smi reports enough free memory. `processes` is [(pid, parent pid, command line)] of python.exe
-    processes; this process and its ancestors (venv launchers, the eval_cells driver) don't count as other."""
+    """May this eval run? Only if no *other* python process runs from Isaac (its executable's path contains
+    'isaac') and nvidia-smi reports enough free memory. `processes` is [(pid, parent pid, command line)] of
+    python.exe processes; this process and its ancestors (venv launchers, the eval_cells driver) don't count as
+    other. Only the executable counts: a C:\dev\gpu.lock wrapper from another venv that waits with an Isaac
+    command in its arguments is not Isaac (counting it deadlocked the lock holder, 2026-10-18); its Isaac child is."""
     mine = _ancestors(processes, own_pid)
     others = [{"pid": pid, "cmd": cmd[:200]} for pid, _, cmd in processes
-              if pid not in mine and "isaac" in (cmd or "").lower()]
+              if pid not in mine and "isaac" in _executable(cmd).lower()]
     reasons = []
     if others:
         reasons.append("another Isaac process is running: " + "; ".join(f"{o['pid']} {o['cmd']}" for o in others))

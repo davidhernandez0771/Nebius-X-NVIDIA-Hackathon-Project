@@ -783,7 +783,16 @@ def main(argv: list[str] | None = None) -> int:
     from demo_pipeline.paths import data_dir
 
     data = Path(data_dir()).resolve()
-    log = print
+    run_log = data / "human_exp" / args.name / "run.log"
+
+    def log(msg: str) -> None:  # child-process, lock and gate messages: to the console and run.log
+        line = msg if msg.startswith("[human-exp") else f"[human-exp {datetime.now():%H:%M:%S}] {msg}"
+        print(line, flush=True)
+        if not msg.startswith("[human-exp"):  # Experiment.log writes its own lines to run.log
+            run_log.parent.mkdir(parents=True, exist_ok=True)
+            with run_log.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+
     gpu_stage = make_gpu_stage(log)
     judge = clip = None
     if settings["nemotron"]:
