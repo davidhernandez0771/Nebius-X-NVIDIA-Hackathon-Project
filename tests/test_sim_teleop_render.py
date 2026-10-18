@@ -24,7 +24,7 @@ class FakeSim:
 
 def test_render_every_substep_is_what_the_sim_does_on_its_own():
     real, plain = FakeSim(), FakeSim()
-    sim = SubstepSim(real, render_every=1)
+    sim = SubstepSim(real, substeps=2, render_every=1)
     for _ in range(4):
         sim.step()
         plain.step()
@@ -33,7 +33,7 @@ def test_render_every_substep_is_what_the_sim_does_on_its_own():
 
 def test_render_every_second_substep_renders_once_per_control_step():
     real = FakeSim()
-    sim = SubstepSim(real, render_every=2)
+    sim = SubstepSim(real, substeps=2, render_every=2)
     for _ in range(4):  # two control steps of two physics substeps
         sim.step()
     assert real.calls == ["physics", "physics", "render", "physics", "physics", "render"]
@@ -41,19 +41,19 @@ def test_render_every_second_substep_renders_once_per_control_step():
 
 def test_no_render_when_the_sim_is_not_rendering():
     real = FakeSim(rendering=False)
-    sim = SubstepSim(real, render_every=1)
+    sim = SubstepSim(real, substeps=2, render_every=1)
     sim.step()
     assert real.calls == ["physics"]
 
 
 def test_step_render_false_is_respected():
     real = FakeSim()
-    SubstepSim(real, render_every=1).step(render=False)
+    SubstepSim(real, substeps=2, render_every=1).step(render=False)
     assert real.calls == ["physics"]
 
 
 def test_other_attributes_pass_through():
-    assert SubstepSim(FakeSim(), render_every=1).device == "cuda:0"
+    assert SubstepSim(FakeSim(), substeps=2, render_every=1).device == "cuda:0"
 
 
 def test_physics_and_render_are_timed_into_sections_with_a_sync_first():
@@ -70,9 +70,25 @@ def test_physics_and_render_are_timed_into_sections_with_a_sync_first():
             t[0] += 0.010
             super().render()
 
-    sim = SubstepSim(SlowSim(), render_every=2, sections=sections, sync=lambda: synced.append(1))
+    sim = SubstepSim(SlowSim(), substeps=2, render_every=2, sections=sections, sync=lambda: synced.append(1))
     sim.step()
     sim.step()
     out = sections.take()
     assert out["physics"] == 6.0 and out["render"] == 10.0
     assert len(synced) == 3  # after each physics substep and after the render
+
+
+def test_the_render_cadence_can_change_between_control_steps():
+    real = FakeSim()
+    sim = SubstepSim(real, substeps=2, render_every=1)
+    sim.step(), sim.step()
+    sim.render_every = 2
+    sim.step(), sim.step()
+    assert real.calls == ["physics", "render", "physics", "render", "physics", "physics", "render"]
+
+
+def test_render_every_must_divide_the_substeps():
+    import pytest
+
+    with pytest.raises(ValueError):
+        SubstepSim(FakeSim(), substeps=2, render_every=3)

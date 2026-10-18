@@ -32,6 +32,37 @@ def circle_message(t_s: float, *, t_ms: float, sent_ms: float) -> dict:
     return {**msg.model_dump(mode="json", exclude_none=True), TRACE_KEY: {"cap": sent_ms, "send": sent_ms}}
 
 
+def _drain(ws) -> None:
+    while True:
+        try:
+            ws.recv(timeout=0)
+        except TimeoutError:
+            return
+
+
+def _connect_when_sim_is_up(connect, url: str, wait_s: float):
+    """A browser connection to the relay once it reports a connected sim; reconnects if the socket drops while
+    waiting (the sim takes a minute to start, and local sockets here are occasionally reset)."""
+    deadline = time.monotonic() + wait_s
+    while True:
+        ws = connect(url)
+        try:
+            while True:  # the relay says {"type": "status", "sim_connected": ...} on connect and on change
+                msg = json.loads(ws.recv(timeout=max(0.1, deadline - time.monotonic())))
+                if msg.get("type") == "status" and msg.get("sim_connected"):
+                    return ws
+        except TimeoutError:
+            ws.close()
+            raise
+        except Exception as e:  # dropped while waiting: try again
+            ws.close()
+            if time.monotonic() > deadline:
+                raise
+            print(f"[probe] relay connection dropped while waiting for the sim ({type(e).__name__}); reconnecting",
+                  flush=True)
+            time.sleep(1.0)
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--url", default="ws://127.0.0.1:8000/ws/teleop?role=browser")
@@ -42,12 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     from websockets.sync.client import connect
 
-    with connect(args.url) as ws:
-        deadline = time.monotonic() + args.sim_wait_s
-        while True:  # the relay says {"type": "status", "sim_connected": ...} on connect and on change
-            msg = json.loads(ws.recv(timeout=max(0.1, deadline - time.monotonic())))
-            if msg.get("type") == "status" and msg.get("sim_connected"):
-                break
+    with _connect_when_sim_is_up(connect, args.url, args.sim_wait_s) as ws:
         print(f"[probe] sim connected; sending {args.rate:g} Hz for {args.seconds:g} s", flush=True)
         t0 = time.monotonic()
         rec_start = (args.seconds - args.record_s) / 2 if args.record_s > 0 else None
@@ -62,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
                 recording, rec_start = False, None
             ws.send(json.dumps(circle_message(t, t_ms=t * 1000.0, sent_ms=now_ms())))
             k += 1
+            _drain(ws)  # the sim's status messages: unread, they fill the socket's queue and keepalive fails
             time.sleep(max(0.0, t0 + k / args.rate - time.monotonic()))
         if recording:
             ws.send(json.dumps({"type": "control", "action": "record_stop"}))

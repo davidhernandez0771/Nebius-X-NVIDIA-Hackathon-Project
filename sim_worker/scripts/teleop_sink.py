@@ -16,7 +16,9 @@ Automated smoke (no person, no backend; headless is fine):
 Latency (off by default): --latency logs a [latency] line every 2 s (stages from the webcam to the finished
 control step, steps per second, real-time factor, ik/physics/render/read ms per step; sim_worker.teleop_trace);
 --latency-log PATH also appends each window as a JSON row. The browser adds its stamps with the Record page's
-?latency=1. --render-every 2 renders once per control step instead of after each of its 2 physics steps.
+?latency=1. --render legacy | fast | fastest: how often the window and the recording cameras are rendered
+(sim_worker.teleop_isaac). --no-high-qos leaves Windows free to throttle the sink while its window
+is in the background (sim_worker.teleop_qos).
 """
 
 import argparse
@@ -27,8 +29,7 @@ from pathlib import Path
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-RENDER_EVERY_DEFAULT = 1
-PAUSE_IDLE_CAMERAS_DEFAULT = False
+RENDER_DEFAULT = "fast"
 
 parser = argparse.ArgumentParser(description="Run the webcam-teleop session in Isaac Lab.")
 parser.add_argument("--relay", default="ws://127.0.0.1:8000/ws/teleop?role=sim", help="backend relay URL (live)")
@@ -40,10 +41,14 @@ parser.add_argument("--data-dir", type=Path, default=None, help="DemoStore root 
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
 parser.add_argument("--latency", action="store_true", help="log where the teleop delay goes, every 2 s")
 parser.add_argument("--latency-log", type=Path, default=None, help="also append each window here (JSONL); implies --latency")
-parser.add_argument("--render-every", type=int, default=RENDER_EVERY_DEFAULT, choices=[1, 2],
-                    help="render after every Nth physics step (2 = once per control step)")
-parser.add_argument("--pause-idle-cameras", action=argparse.BooleanOptionalAction, default=PAUSE_IDLE_CAMERAS_DEFAULT,
-                    help="stop rendering the recording cameras while not recording")
+parser.add_argument("--high-qos", action=argparse.BooleanOptionalAction, default=True,
+                    help="opt out of Windows power throttling, so the sim keeps full speed while the browser is "
+                         "in front (sim_worker.teleop_qos)")
+parser.add_argument("--render", choices=["fast", "legacy", "fastest"], default=RENDER_DEFAULT,
+                    help="fast: while not recording, render the window once per control step and pause the "
+                         "recording cameras; recording renders as legacy (frames unchanged). legacy: render "
+                         "after every physics step. fastest: fast, and once per control step while recording too "
+                         "(recorded frames change slightly)")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.num_envs != 1:
@@ -60,6 +65,7 @@ from sim_worker.scene_cfg import BIN_INNER  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
 from sim_worker.teleop_isaac import IsaacTeleopDriver  # noqa: E402
 from sim_worker.teleop_session import TELEOP_DT, TeleopSession, make_store_saver, relay_loop, scripted_hand  # noqa: E402
+from sim_worker.teleop_qos import high_qos  # noqa: E402
 from sim_worker.teleop_trace import LatencyTrace, now_ms  # noqa: E402
 
 
@@ -80,7 +86,8 @@ def _smoke_step(session: TeleopSession, msg, trace: LatencyTrace | None) -> None
         trace.maybe_report()
 
 
-def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trace: LatencyTrace | None) -> int:
+def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trace: LatencyTrace | None,
+                    qos: bool) -> int:
     msgs = scripted_hand(scripted_expert(scene))
     lead_in = round(args_cli.lead_in_s / TELEOP_DT)
     t0 = time.time()
@@ -115,8 +122,8 @@ def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trac
                    "save": round(t_saved - t_steps, 1), "replay": round(t_done - t_saved, 1)},
         "ms_per_step": round(1000 * (t_steps - t_rec) / len(msgs), 1),
         "ms_per_idle_step": round(1000 * (t_rec - t0) / max(lead_in, 1), 1),
-        "render_every": args_cli.render_every,
-        "pause_idle_cameras": args_cli.pause_idle_cameras,
+        "render": args_cli.render,
+        "high_qos": qos,
     }
     print("RESULT_JSON " + json.dumps(result), flush=True)
     return 0 if result["ok"] else 1
@@ -125,19 +132,20 @@ def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trac
 def main() -> int:
     store = DemoStore(args_cli.data_dir)
     scene = base_scene()
+    qos = high_qos() if args_cli.high_qos else False
     with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
         trace = None
         if args_cli.latency or args_cli.latency_log is not None:
             trace = LatencyTrace(path=args_cli.latency_log, log=lambda line: print(line, flush=True))
         driver = IsaacTeleopDriver(record_cameras=not args_cli.no_cameras, robot=args_cli.robot,
-                                   render_every=args_cli.render_every, pause_idle_cameras=args_cli.pause_idle_cameras,
+                                   render=args_cli.render,
                                    sections=trace.sections if trace is not None else None)
         session = TeleopSession(driver, scene, make_store_saver(store, bin_inner=BIN_INNER))
         # print and exit inside the context: closing the app ends the process
         if args_cli.fake_hand:
-            return fake_hand_smoke(session, store, scene, trace)
-        print(f"[teleop] store: {store.root}; relay: {args_cli.relay}; render every {args_cli.render_every} "
-              f"physics step(s); idle cameras {'paused' if args_cli.pause_idle_cameras else 'on'}; latency trace {'on' if trace else 'off'}; Ctrl+C to stop", flush=True)
+            return fake_hand_smoke(session, store, scene, trace, qos)
+        print(f"[teleop] store: {store.root}; relay: {args_cli.relay}; render {args_cli.render}; "
+              f"high QoS {'on' if qos else 'off'}; latency trace {'on' if trace else 'off'}; Ctrl+C to stop", flush=True)
         try:
             relay_loop(session, args_cli.relay, trace=trace)
         except KeyboardInterrupt:

@@ -1,10 +1,10 @@
 """SubstepSim: the teleop driver's view of Isaac Lab's SimulationContext, for replay's step helpers.
 
 SimulationContext.step() renders after every physics step whenever rendering is on (a GUI window or RTX
-cameras), so a control step of DECIMATION physics substeps renders DECIMATION times. SubstepSim steps physics
-without rendering and renders only every `render_every`-th step: render_every=1 is exactly what the sim does on
-its own; render_every=DECIMATION renders once per control step, after its last substep, so what is shown and
-what the cameras read is the state the control step ends in. Physics is the same either way.
+cameras), so a control step of `substeps` physics steps renders `substeps` times. SubstepSim steps physics
+without rendering and renders only every `render_every`-th physics step (a divisor of `substeps`; it may change
+between control steps): render_every=1 is exactly what the sim does on its own; render_every=substeps renders
+once per control step, after its last physics step. Physics is the same either way.
 
 With a Sections (sim_worker.teleop_trace), physics and render time are added to it; `sync` (e.g.
 torch.cuda.synchronize) runs before each timer stops, so asynchronous GPU work is charged to the part that
@@ -21,12 +21,22 @@ from .teleop_trace import Sections
 
 
 class SubstepSim:
-    def __init__(self, sim: Any, *, render_every: int, sections: Sections | None = None,
+    def __init__(self, sim: Any, *, substeps: int, render_every: int, sections: Sections | None = None,
                  sync: Callable[[], None] | None = None) -> None:
-        if render_every < 1:
-            raise ValueError("render_every must be >= 1")
-        self._sim, self._every, self._sections, self._sync = sim, render_every, sections, sync
+        self._sim, self._substeps = sim, substeps
+        self._sections, self._sync = sections, sync
+        self.render_every = render_every
         self._count = 0
+
+    @property
+    def render_every(self) -> int:
+        return self._every
+
+    @render_every.setter
+    def render_every(self, n: int) -> None:
+        if n < 1 or self._substeps % n:
+            raise ValueError(f"render_every must divide the {self._substeps} physics steps of a control step")
+        self._every = n
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._sim, name)
