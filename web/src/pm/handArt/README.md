@@ -1,16 +1,17 @@
 # Hand art (T7)
 
 The Record overlay that draws the tracked hand. There is one style for each thing that happens,
-and a 400 ms crossfade between styles, at most one per 400 ms cooldown.
+and a 400 ms crossfade between styles, at most one per 400 ms cooldown. A **break-through** plays
+when the hand passes through the workspace plane in depth.
 
-| Event (page state) | Style | Look |
+| Event | Style | Look |
 |---|---|---|
 | idle | **Ink strokes** | Light dry-brush strokes along the bones, thick at the joints, breaking into bristles at the fingertips, over a thin teal wireframe |
 | grab (gripper closes) | **Ink bloom** | Amber brush strokes burst out of the palm, sparse to dense, then settle smaller and sparser so a long grab still shows the hand |
 | release (gripper opens) | **Particle burst** | Streaks shoot out from where the fingertips let go (1.1 s) |
-| recording | **Particle trail** | A glowing particle hand that leaves a light trail as it moves |
-| no hand for 300 ms (tracking lost) | **Dot ripple** | A calm dot field rippling out from the last palm position, with the hand's last pose in teal dots |
-| reset (each rise of the reset count) | **Glitch** | The hand tears into displaced rows, dark slabs and pixel fragments, then snaps back (0.9 s) |
+| recording (start to stop) | **Particle trail** | A glowing particle hand that leaves a light trail as it moves |
+| no hand for 300 ms (tracking lost) | **Dot ripple** | A calm dot field rippling out from the last palm position |
+| reset | **Glitch** | The hand tears into displaced rows, dark slabs and pixel fragments, then snaps back (0.9 s) |
 
 When several apply at once, the most urgent wins, in this order: reset, no hand, grab, release,
 recording, idle (`artDirector.ts`).
@@ -18,106 +19,117 @@ recording, idle (`artDirector.ts`).
 **Colors** are Volt:
 - light ink `#E6EDF3` and teal `#19F5C2`;
 - amber `#FFB000` while the gripper is closed;
-- a transparent background, with a soft dark backdrop (`#07090C`, about 34%) under the hand so it
-  reads over the webcam.
+- a transparent background, with a soft dark backdrop under the hand so it reads over the webcam.
 
-**Reduced motion** holds one static style (ink): no crossfades, and time is frozen.
+**Reduced motion** holds one static style (ink).
 
-**Inspiration:** the user-picked studies in the sprint's visual references, all from
-recent.design. Wireframe Ink and Radial Brushstroke by Zach Lieberman; Particle Burst and
-Particle Figure by A. J. Ortigo; Particle Face Illustration; Dot Field Motion; Glitch Brush Study
-by Martin Lorenz. These are our own shader versions, and no code, assets or compositions were
-copied.
+## Break-through (depth crossing)
 
-## Commits (branch `pm/t7-audit`)
+The page bumps `breakthrough` each time the hand passes through the workspace plane in depth, and
+sets `breakthroughDir`.
+- Only real plane crossings should bump it, never reaching the min/max depth or the square's
+  edges. Detecting that is the page's job (T4).
+- Push through (`1`, toward the camera):
+  - a noise-edged teal front races out from the palm, the same mask as the style crossfade but
+    radial and stronger;
+  - the art is shoved outward across the front like a lens;
+  - the surface behind the front breaks into glassy shards whose cracks drift outward, densest at
+    the palm.
+- Back out (`-1`): the front closes in on the palm, the cracks stay outside it, and the palm blinks
+  as the surface closes.
+- No direction (missing, or not ±1): one effect, the outward front and lens without shards.
+- Timing:
+  - it plays for 420 ms, and the current style keeps running underneath;
+  - a crossing within 250 ms of the last accepted one is dropped;
+  - one after that restarts the effect in its own direction.
+- Reduced motion: a 220 ms flash. The hand tints to the accent with a soft halo, and nothing moves.
+
+The effect is drawn inside each style's program, before the crossfade weighting, so it stays
+exact during a style change (`breakthrough.ts`, `breakFx` in `shaders.ts`).
+
+## Commits for T4 (branch `pm/art-v3`, from `pm/hand-v3` at `a2cf609`)
 
 | Commit | What |
 |---|---|
-| `6c66532` | The six styles: director, style cycle, shaders, renderer, overlay props, the `/pm/hand-art` preview, and tests |
-| this note's commit | This README |
+| `f39377f` | The six styles: director, style cycle, shaders, renderer, overlay props, `/pm/hand-art` (cherry-pick of `6c66532`) |
+| `2232ff7` | The first version of this README (cherry-pick of `4db5463`) |
+| `9e9356a` | hand-v3 adaptation: use Record's `cue` counter when the page sends no `recording`/`resets` |
+| `b191027` | The break-through: `breakthrough` and `breakthroughDir` props, the effect, preview buttons, the measured row |
+| this README's commit | This note |
 
-Both touch only `web/src/pm/handArt/**`, so they cherry-pick onto `pm/hand-v3` as they are. They
-build on T4's `788eeb8` and earlier hand-art commits (`22f5b12`, `ee79ef9`), which
-`pm/t4-diagnoser` already has. If `pm/hand-v3` doesn't have those, cherry-pick them first.
+All of them touch only `web/src/pm/handArt/**`. `pm/hand-v3` already has the earlier hand-art
+commits these build on (`161d75d`, `c868b1f`, `14e680d`), so it's
+`git cherry-pick f39377f 2232ff7 9e9356a b191027 <this commit>`, or merge `pm/art-v3`.
 
 ## Mount on Record (`pm/hand-v3`)
 
-Poll the hand once per frame. The overlay works out the events itself from these four values:
+**It works as is.** hand-v3's RecordPage already passes `landmarks`, `gripperClosed` and `cue`.
+- Grab, release and no-hand come from the gripper and the landmarks.
+- A `cue` bump the gripper doesn't explain (Reset scene, record start/stop) plays the reset glitch,
+  since a bare counter can't say which event it was.
+- The page's `trigger="events"` prop is accepted and ignored: the style always follows the events.
+
+**For the exact mapping, add these lines to `artHand.current` in RecordPage** (T4's file):
 
 ```tsx
-import { LazyHandArtOverlay, type HandArtFrame } from "../handArt";
-
-const artHand = useRef<HandArtFrame | null>(null);
-// In the tracker frame callback:
 artHand.current = {
-  landmarks: hand?.landmarks ?? null, // null = no hand: after 300 ms, the dot ripple
-  gripperClosed: gripper === 1,        // grab = closes, release = opens
-  recording: simIsRecording,           // record start / stop
-  resets: resetCount,                  // +1 per reset_scene sent (button or gesture)
+  landmarks: hand?.landmarks ?? null,
+  gripperClosed: gripper === 1,
+  recording: recordingNow.current,   // record start/stop: the particle trail while recording
+  resets: resets.current,            // each Reset scene: the glitch
+  breakthrough: crossings,           // +1 per plane crossing in depth
+  breakthroughDir: lastCrossingDir,  // 1 pushing through toward the camera, -1 backing out
+  // cue may stay; it's ignored once recording or resets is sent.
 };
-
-<LazyHandArtOverlay source={() => artHand.current} morphMs={400} cooldownMs={400} />
 ```
 
-- `frozen` is optional. A page whose control freezes the arm can pass it to show the ripple too.
-- `cue` and `trigger` are still accepted but ignored, so `pm/t4-diagnoser`'s RecordPage compiles
-  unchanged. They can be deleted.
-- `onActiveChange` still reports whether the overlay is drawing. Without WebGL it renders nothing,
-  so keep the 2D skeleton as the fallback.
+The `LazyHandArtOverlay` mount needs no change: `source`, `morphMs`/`cooldownMs` 400 and
+`onActiveChange` all stay as they are.
 
 ## How to try it
 
 1. Run `npm --prefix web run dev` from `C:\dev\pm-t7`, then open `http://localhost:5173/pm/hand-art`.
-   - **Follow the events** (the default) plays a 14 s synthetic hand through every event. The bar
-     under the stage marks recording (teal), gripper closed (amber), no hand (grey) and the reset
-     (tick).
-   - Pick a style to pin it. A pinned bloom, burst or glitch replays every 1.3–2.6 s.
-   - **Busy background** puts a bright, cluttered stand-in behind the art.
-   - **Reduce motion** shows the static fallback.
-   - **Measure each style** times each one for 3.5 s.
-2. Live, from this worktree: `web/public/models` and `web/public/mediapipe` were copied from
-   `C:\dev\pm-t4` (they are git-ignored). Open `/pm/record`, start the camera, and keep **Hand art**
-   on.
-   - This branch's RecordPage (T4's, unchanged) passes the landmarks and the gripper. So live you
-     see ink, bloom on a pinch, burst on release, and the ripple when the hand leaves the frame.
-   - The trail and the glitch need `recording` and `resets` from the page, as in the mount above.
-     Until then they show only on `/pm/hand-art`.
+   - **Depth crossing** has **Push through** and **Back out** buttons (and "Cross with no
+     direction"). They fire the break-through over whatever style is showing.
+   - **Follow the events** (the default) plays a 14 s synthetic hand through every event.
+   - Pick a style to pin it.
+   - **Busy background** and **Reduce motion** check readability and the fallback.
+   - **Measure each style** times each style, then break-throughs firing every 0.45 s.
+2. Live from this worktree: `web/public/models` and `web/public/mediapipe` are already here
+   (copied, git-ignored). Open `/pm/record`, start the camera, and keep **Hand art** on.
+   - The break-through needs T4's crossing detection and the two props above.
+   - Until then, it shows only on the preview page.
 
 ## Frame time (RTX 5080, Chrome/ANGLE D3D11, drawn at 1201×900, DPR capped at 1.5)
 
-Measured with **Measure each style** on `/pm/hand-art`, using GPU timer queries, 3.5 s per style:
+Measured with **Measure each style**, using GPU timer queries, 3.5 s each:
 
-| Style | GPU mean | GPU p95 | CPU mean |
+| Measured | GPU mean | GPU p95 | CPU mean |
 |---|---|---|---|
-| Ink strokes | 0.07 ms | 0.10 ms | 0.20 ms |
-| Ink bloom | 0.11 ms | 0.14 ms | 0.23 ms |
-| Particle burst | 0.12 ms | 0.22 ms | 0.75 ms |
-| Particle trail | 0.74 ms | 0.78 ms | 0.37 ms |
-| Dot ripple | 0.76 ms | 0.81 ms | 0.35 ms |
-| Glitch | 0.32 ms | 0.75 ms | 1.13 ms |
-| Following the events (with crossfades), 15 s | 0.14 ms | 0.37 ms | 0.29 ms |
+| Ink strokes | 0.07 ms | 0.07 ms | 0.17 ms |
+| Ink bloom | 0.10 ms | 0.12 ms | 0.65 ms |
+| Particle burst | 0.13 ms | 0.23 ms | 2.43 ms |
+| Particle trail | 0.88 ms | 0.94 ms | 1.87 ms |
+| Dot ripple | 0.98 ms | 1.07 ms | 0.50 ms |
+| Glitch | 0.31 ms | 0.93 ms | 0.63 ms |
+| Break-through on ink, firing every 0.45 s, alternating direction | 0.14 ms | 0.16 ms | 0.40 ms |
 
-- **Within the ~4 ms budget:** all six styles are well under it.
-- **Throttled tab:** the automated browser tab ran at about 10 fps. GPU timings don't depend on the
-  frame rate, but the CPU numbers include tab noise.
-- **Not yet measured alongside Isaac and MediaPipe.** Watch it during the live test: `onStats`
-  gives the same numbers.
-- **Startup:**
-  - The six styles in one program took 1.1–1.3 s to compile on D3D, and that compile blocked the
-    main thread.
-  - Now there is one program per style (34–174 ms each), compiled with `compileAsync` (parallel
-    compile).
-  - The longest main-thread stall while the overlay starts dropped from about 1.3 s to 13 ms.
-  - Nothing draws until the programs are ready, a fraction of a second.
+- **GPU:** everything is about 1 ms or less per frame. The break-through adds about 0.07 ms to the
+  style under it.
+- **CPU:** the automated tab was throttled to about 10 fps, so the CPU numbers include tab noise
+  (they vary run to run). GPU timings don't depend on the frame rate.
+- **Not measured with Isaac and MediaPipe running.** Check during the live test (`onStats`).
+- **Startup:** one shader program per style, compiled in the background (`compileAsync`). The
+  longest main-thread stall while the overlay starts is about 13 ms.
 
-## What changed from T4's version
+## Inspiration
 
-- **Event to style:** `styleCycle` no longer cycles on a counter. It follows a target style from
-  `artDirector`. A target that arrives during the cooldown waits; it is never dropped.
-  `HAND_ART_STYLES` are now the six above, replacing the five earlier textmode, dither and
-  halftone styles.
-- **RecordPage and teleop files are untouched** (the lead's rule). On this branch RecordPage still
-  imports `ArtCue` and passes `cue`/`trigger`, which the overlay ignores.
-- **The synthetic clip is now 14 s.** It adds a recording span, a hand-out-of-view gap, and a
-  victory sign with a reset. Clip frames may carry the optional `recording`, `resets` and `frozen`,
-  and `ClipRecorder.add` takes them.
+These are our own shader versions of the user-picked studies on recent.design. No code, assets or
+compositions were copied:
+- Zach Lieberman's Wireframe Ink and Radial Brushstroke;
+- A. J. Ortigo's Particle Burst and Particle Figure;
+- Particle Face Illustration;
+- Dot Field Motion;
+- Martin Lorenz's Glitch Brush Study.
+
+The break-through is our own extension of the style crossfade.
