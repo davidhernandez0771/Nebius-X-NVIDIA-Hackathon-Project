@@ -84,8 +84,11 @@ export function pickQuality(s: DeviceSignals): QualityChoice {
 }
 
 /** The browser's signals (navigator.deviceMemory is Chromium-only; absent means unknown). */
-/** Where the chosen tier is kept between visits. */
-export const SAVED_TIER_KEY = "world.tier";
+/**
+ * Where the chosen tier is kept between visits. v2: the first auto-tune could save "low" on a fast
+ * GPU (it read the workshop's streaming hitches as slow frames); those saves are ignored.
+ */
+export const SAVED_TIER_KEY = "world.tier.v2";
 
 export function readSavedTier(): string | null {
   try {

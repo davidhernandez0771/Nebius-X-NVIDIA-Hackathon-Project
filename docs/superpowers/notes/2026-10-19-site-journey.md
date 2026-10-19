@@ -198,6 +198,26 @@ The tiers extend T5's `quality.ts` with the brief's numbers:
 - **The preview artifact** loads the models through three's cache, because the host serves no
   `.glb` and blocks `data:` and `blob:` fetches.
 
+## Second review: the dive and the fps drops
+
+- **Into the workshop** (`stations/workshop/dive.ts`, `Portal.tsx`): no more fly-over of the ceiling
+  slab. This follows how Active Theory moves between floors.
+  1. From the descent's view down into the skylight, the camera dives at the ring and the view
+     widens. The frame closes to dark from the edges, with particles streaming outward.
+  2. At full dark it cuts inside the room (`StationModule.enter` / `cutAt`).
+  3. The dark opens from the centre, and the lamps boot as it opens. Before that, the room below
+     the skylight stays dark.
+- **The fps drops:**
+  - The auto-tune now judges the median of each window and needs two slow windows in a row. It
+    starts only 3 s after the last file finished streaming. Before, it could read the workshop's
+    upload hitches as a slow GPU and save "low" on an RTX 4060. Saved tiers now use
+    `world.tier.v2`, so those stale saves are ignored.
+  - The live resolution scale has hysteresis: 2 slow windows to go down, 3 fast ones to come up, and
+    it skips the window after each change. Each change reallocates the render targets, so it must not
+    flip back and forth.
+  - Streamed models have their textures uploaded (`initTexture`) as well as their shaders compiled
+    before the camera reaches them.
+
 ## Decisions to look at
 
 - **The spiral doesn't turn; the camera walks round it.** The baked `shelves.glb` is one mesh with

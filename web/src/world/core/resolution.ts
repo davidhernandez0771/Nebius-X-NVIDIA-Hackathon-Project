@@ -4,6 +4,7 @@
 // - a live scale (createScaler): when frames run slow it renders fewer pixels, a step at a time,
 //   before the auto-tune has to drop a whole tier, and gives them back when there is headroom.
 // Pure, so both are tested.
+import { median } from "./autotune";
 import type { QualityTier, TierName } from "./quality";
 
 /** Physical pixels the canvas may render, per tier. */
@@ -17,7 +18,12 @@ export function targetDpr(tier: QualityTier, cssW: number, cssH: number, deviceD
   return Math.round(dpr * 100) / 100;
 }
 
-export const SCALE = { frames: 60, slowMs: 19, fastMs: 12.5, min: 0.6, down: 0.15, up: 0.1, gapMs: 250 } as const;
+/**
+ * Windows of 60 frames, judged by the median. Down a step after 2 slow windows in a row, up a step
+ * after 3 fast ones, and the window after any change is skipped: every change reallocates the
+ * canvas and the post targets (a hitch of its own), so it must never flip back and forth.
+ */
+export const SCALE = { frames: 60, slowMs: 19, fastMs: 12.5, min: 0.6, down: 0.15, up: 0.1, gapMs: 250, slowWindows: 2, fastWindows: 3 } as const;
 
 export interface Scaler {
   /** A frame took `ms`. Returns the new scale when it changes, else null. */
@@ -27,24 +33,36 @@ export interface Scaler {
 
 export function createScaler(start = 1): Scaler {
   let scale = start;
-  let n = 0;
-  let sum = 0;
+  let win: number[] = [];
+  let slow = 0;
+  let fast = 0;
+  let skip = false;
   return {
     get scale() {
       return scale;
     },
     sample(ms) {
       if (!(ms > 0) || ms > SCALE.gapMs) return null;
-      sum += ms;
-      if (++n < SCALE.frames) return null;
-      const avg = sum / n;
-      n = 0;
-      sum = 0;
+      win.push(ms);
+      if (win.length < SCALE.frames) return null;
+      const med = median(win);
+      win = [];
+      // The window right after a change measures the change's own reallocation: skip it.
+      if (skip) {
+        skip = false;
+        return null;
+      }
+      slow = med > SCALE.slowMs ? slow + 1 : 0;
+      fast = med < SCALE.fastMs ? fast + 1 : 0;
       const prev = scale;
-      if (avg > SCALE.slowMs) scale = Math.max(SCALE.min, scale - SCALE.down);
-      else if (avg < SCALE.fastMs) scale = Math.min(1, scale + SCALE.up);
+      if (slow >= SCALE.slowWindows) scale = Math.max(SCALE.min, scale - SCALE.down);
+      else if (fast >= SCALE.fastWindows) scale = Math.min(1, scale + SCALE.up);
       scale = Math.round(scale * 100) / 100;
-      return scale !== prev ? scale : null;
+      if (scale === prev) return null;
+      slow = 0;
+      fast = 0;
+      skip = true;
+      return scale;
     },
   };
 }

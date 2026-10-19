@@ -68,6 +68,14 @@ export interface StationModule {
   travel: number;
   /** Viewport heights of scroll spent at the station (rail only). */
   length: number;
+  /**
+   * The camera through the travel in, t 0–1, in world coordinates, given where the previous station
+   * left it. Absent: a straight eased move. A station whose travel cuts (behind a full-screen mask,
+   * the workshop's dive through the skylight) says where in `cutAt`.
+   */
+  enter?: (t: number, from: CameraPose) => CameraPose;
+  /** The travel t at which `enter` jumps, hidden by the station's own mask (rail tests skip it). */
+  cutAt?: number;
   /** The camera through the dwell, t 0–1, local to `anchor`. Use still() for a fixed shot. */
   camera: (t: number) => CameraPose;
   /** The one pose used when motion is reduced (default: camera(0.5)). */

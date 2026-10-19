@@ -66,18 +66,18 @@ For each tier, open `/world?q=low`, then `/world?q=high`, then `/world?q=ultra` 
 | Logo | 0 | the loader, then the mark and plumes in front of the ring | | | | |
 | Beat 2 | 1.6 | "CHECKED BY PHYSICS.", particles arcing up | | | | |
 | Stats | 4.3 | 3/40 → 17/40, 40/40 over the skylight, the roof lattice below | | | | |
-| Workshop way in | 6.4 | the room from the front, "THE WORKSHOP." | | | | |
-| Spiral, step 0 | 6.8 | RECORD at the front, the dock bottom left | | | | |
-| Spiral, step 12 | 10.4 | ACT 30K at the front | | | | |
-| Spiral, step 23 | 13.7 | 59 / 60 at the front | | | | |
-| Machine, plug in | 15.3 | the cartridge seats, the slot flashes | | | | |
-| Projection | 16.1 | the beam, the wireframe arm, the Record screen | | | | |
-| Zoom end | 17.4 | the Record screen fills the view (Record opens) | | | | |
+| The dive | 6.05 | the frame closing to dark with particles streaming, then opening in the room | | | | |
+| Spiral, step 0 | 7.3 | RECORD at the front, the dock bottom left | | | | |
+| Spiral, step 12 | 10.9 | ACT 30K at the front | | | | |
+| Spiral, step 23 | 14.2 | 59 / 60 at the front | | | | |
+| Machine, plug in | 15.8 | the cartridge seats, the slot flashes | | | | |
+| Projection | 16.6 | the beam, the wireframe arm, the Record screen | | | | |
+| Zoom end | 17.9 | the Record screen fills the view (Record opens) | | | | |
 
-- [ ] **Scroll stress, on high:** go to 6.8, then spin the mouse wheel down hard through all 24 steps
+- [ ] **Scroll stress, on high:** go to 7.3, then spin the mouse wheel down hard through all 24 steps
   and back up. Note the lowest fps, and whether a step was skipped or a frame hitched. The RGB split
   should flare while you move and settle when you stop.
-- [ ] **Filter:** at 6.8, click `-> results`. The four cartridges slide to the top. Note the lowest fps
+- [ ] **Filter:** at 7.3, click `-> results`. The four cartridges slide to the top. Note the lowest fps
   while they slide.
 - [ ] **Detail:** click a cartridge. Note the fps during the camera move in. Click **Plug in →** and
   note the fps through the plug-in, the glide and the zoom, until Record opens.
@@ -101,7 +101,7 @@ the scroll stress never drops under 50.
 
 ## 4. Draw calls
 
-The budget is **60 or fewer** in the workshop. The cloud measured the "calls" line at 6.8 vh, step 0.
+The budget is **60 or fewer** in the workshop. The cloud measured the "calls" line at 7.3 vh, step 0.
 Those numbers are the same on any GPU; recheck them:
 
 | Tier | Measured in the cloud | Real PC |

@@ -52,7 +52,7 @@ describe("WorldRoot (no WebGL)", () => {
   it("follows the scroll from station to station, and the journey rail marks where you are", () => {
     renderWorld();
     const h = window.innerHeight;
-    // intro 3, descent 2.5, workshop 0.6 + its dwell, in viewport heights
+    // intro 3, descent 2.5, workshop 1.1 (the dive) + its dwell, in viewport heights
     scrollTo(h * (3 + 2.5 + 0.6 + 0.2));
     expect(current()).toBe("workshop");
     const rail = screen.getByRole("navigation", { name: "Journey" });
@@ -69,7 +69,7 @@ describe("WorldRoot (no WebGL)", () => {
     // The journey follows it to the machine.
     expect(window.scrollTo).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Open PiPER" })).toBeTruthy();
-    // intro 3, descent 2.5, workshop 0.6 + 7.6, machine 0.8 + 1.6, zoom 1.4 viewport heights
+    // intro 3, descent 2.5, workshop 1.1 + 7.6, machine 0.8 + 1.6, zoom 1.4 viewport heights
     scrollTo(h * 17.5);
     expect(current()).toBe("zoom");
     scrollTo(h * 100);
@@ -147,8 +147,8 @@ describe("the spiral's filters (no WebGL)", () => {
   it("opens the front cartridge's detail on Enter, closes it on Escape, and plugs it in", async () => {
     const { spiral } = await import("../scene/spiral");
     renderWorld();
-    // Step 0: intro 3 + descent 2.5 + the workshop's travel 0.6 and way in 0.7 viewport heights.
-    scrollTo(window.innerHeight * 6.8);
+    // Step 0: intro 3 + descent 2.5 + the workshop's dive 1.1 and way in 0.7 viewport heights.
+    scrollTo(window.innerHeight * 7.3);
     fireEvent.keyDown(window, { key: "Enter" });
     const dialog = screen.getByRole("dialog", { name: "RECORD, cartridge" });
     expect(within(dialog).getByText("2026 / FR3 / record a demo")).toBeTruthy();

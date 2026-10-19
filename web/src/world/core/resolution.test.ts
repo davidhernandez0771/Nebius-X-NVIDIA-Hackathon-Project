@@ -30,13 +30,26 @@ describe("the live scale", () => {
     return out;
   };
 
-  it("renders fewer pixels when frames are slow, down to the floor, and back up with headroom", () => {
+  it("renders fewer pixels after two slow windows, skips the window after a change, and comes back slowly", () => {
     const s = createScaler();
-    expect(feed(s, 25)).toBe(0.85);
-    expect(feed(s, 25)).toBe(0.7);
-    expect(feed(s, 25)).toBe(SCALE.min);
     expect(feed(s, 25)).toBeNull();
-    expect(feed(s, 8)).toBe(0.7);
+    expect(feed(s, 25)).toBe(0.85);
+    expect(feed(s, 25)).toBeNull(); // skipped: the change's own window
+    expect(feed(s, 25)).toBeNull();
+    expect(feed(s, 25)).toBe(0.7);
+    feed(s, 8); // skipped
+    expect(feed(s, 8)).toBeNull();
+    expect(feed(s, 8)).toBeNull();
+    expect(feed(s, 8)).toBe(0.8);
+  });
+
+  it("never goes below the floor, and ignores single hitches", () => {
+    const s = createScaler();
+    for (let i = 0; i < 40; i++) feed(s, 40);
+    expect(s.scale).toBe(SCALE.min);
+    const h = createScaler();
+    for (let w = 0; w < 6; w++) for (let i = 0; i < SCALE.frames; i++) h.sample(i % 20 === 0 ? 200 : 16.7);
+    expect(h.scale).toBe(1);
   });
 
   it("stays put at a steady 60 fps and ignores idle gaps", () => {

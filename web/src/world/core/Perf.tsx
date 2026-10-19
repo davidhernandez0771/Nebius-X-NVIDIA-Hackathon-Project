@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import type { WebGLRenderer } from "three";
+import { Texture, type Material, type WebGLRenderer } from "three";
 import { idle } from "./activity";
 import { createTuner } from "./autotune";
 import { hud } from "./hud";
@@ -15,8 +15,8 @@ import type { QualityTier, TierName } from "./quality";
 import { createScaler, targetDpr } from "./resolution";
 import type { WorldStore } from "./store";
 
-/** Seconds after the loader before the auto-tune starts: the logo has gathered (intro GATHER_S). */
-const TUNE_AFTER_S = 2.4;
+/** The auto-tune starts this long after the last file finished streaming in (uploads, compiles). */
+const TUNE_AFTER_LOAD_MS = 3000;
 
 export function HudProbe() {
   const gl = useThree((s) => s.gl);
@@ -57,16 +57,20 @@ export function HudProbe() {
 
 export function AutoTune({ store, tier, onTier }: { store: WorldStore; tier: TierName; onTier: (t: TierName) => void }) {
   const tuner = useMemo(() => createTuner(tier), [tier]);
-  const st = useRef<{ readyAt: number | null }>({ readyAt: null });
+  // When streaming last went quiet (performance.now), or null while files are still arriving.
+  const settled = useRef<number | null>(null);
   useEffect(() => {
     hud.tune = "auto";
+    const on = ({ active }: { active: boolean }) => {
+      settled.current = active ? null : performance.now();
+    };
+    on(useProgress.getState());
+    return useProgress.subscribe(on);
   }, []);
-  useFrame(({ clock }, delta) => {
+  useFrame((_, delta) => {
     if (tuner.done || idle()) return;
-    if (!store.getCoarse().ready) return;
-    const now = clock.elapsedTime;
-    st.current.readyAt ??= now;
-    if (now - st.current.readyAt < TUNE_AFTER_S) return;
+    // Not while the workshop streams in: uploads and compiles are hitches, not a slow GPU.
+    if (!store.getCoarse().ready || settled.current === null || performance.now() - settled.current < TUNE_AFTER_LOAD_MS) return;
     const next = tuner.sample(delta * 1000);
     if (next) onTier(next);
     if (tuner.done) hud.tune = `auto → ${tuner.tier}`;
@@ -130,8 +134,24 @@ export function WarmUp() {
     const warm = ({ active, loaded }: { active: boolean; loaded: number }) => {
       if (active || loaded === last || !r.compileAsync) return;
       last = loaded;
-      // After React has mounted what arrived.
-      setTimeout(() => live && r.compileAsync!(scene, camera).then(() => live && invalidate(), () => {}), 0);
+      // After React has mounted what arrived: compile its shaders and upload its textures now, so the
+      // first frame that shows it doesn't stall on either.
+      setTimeout(
+        () =>
+          live &&
+          r.compileAsync!(scene, camera).then(() => {
+            if (!live) return;
+            const seen = new Set<Texture>();
+            scene.traverse((o) => {
+              const mats = (o as { material?: Material | Material[] }).material;
+              for (const m of Array.isArray(mats) ? mats : mats ? [mats] : [])
+                for (const v of Object.values(m)) if (v instanceof Texture && !seen.has(v)) seen.add(v);
+            });
+            seen.forEach((t) => gl.initTexture(t));
+            invalidate();
+          }, () => {}),
+        0,
+      );
     };
     warm(useProgress.getState());
     const off = useProgress.subscribe(warm);

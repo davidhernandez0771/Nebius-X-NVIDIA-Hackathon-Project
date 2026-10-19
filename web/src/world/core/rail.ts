@@ -4,7 +4,7 @@
 // Pure, so continuity at every boundary is tested.
 import type { CameraPose, StationFrame, StationId, StationModule, Vec3 } from "./types";
 
-export type RailStation = Pick<StationModule, "id" | "anchor" | "travel" | "length" | "camera" | "rest" | "reach" | "follow">;
+export type RailStation = Pick<StationModule, "id" | "anchor" | "travel" | "length" | "camera" | "rest" | "reach" | "follow" | "enter" | "cutAt">;
 
 export interface RailSpan {
   id: StationId;
@@ -99,7 +99,9 @@ export function poseAt(stations: readonly RailStation[], rail: Rail, y: number):
   const p = locate(rail, y);
   const s = stations[p.index];
   if (p.phase === "dwell" || p.index === 0) return stationPose(s, p.t);
-  return mixPose(stationPose(stations[p.index - 1], 1), stationPose(s, 0), smoother(p.t));
+  const from = stationPose(stations[p.index - 1], 1);
+  if (s.enter) return s.enter(p.t, from);
+  return mixPose(from, stationPose(s, 0), smoother(p.t));
 }
 
 /** With reduced motion the camera never travels: it cuts between rest poses. */

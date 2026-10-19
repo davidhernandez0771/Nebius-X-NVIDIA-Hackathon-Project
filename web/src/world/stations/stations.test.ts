@@ -17,11 +17,13 @@ describe("the registered stations", () => {
 
   it("move the camera without a jump anywhere on the rail", () => {
     const rail = layoutRail(rails, 900);
+    // A travel that cuts behind its own mask (cutAt) may jump there, and only there.
+    const cuts = rail.spans.flatMap((s, i) => (rails[i].cutAt !== undefined ? [s.from + (s.start - s.from) * rails[i].cutAt!] : []));
     let prev = poseAt(rails, rail, 0);
     for (let y = 2; y <= rail.total; y += 2) {
       const p = poseAt(rails, rail, y);
       const step = Math.hypot(...p.position.map((v, i) => v - prev.position[i]));
-      expect(step).toBeLessThan(0.5);
+      if (!cuts.some((c) => c > y - 2 && c <= y)) expect(step).toBeLessThan(0.5);
       prev = p;
     }
   });

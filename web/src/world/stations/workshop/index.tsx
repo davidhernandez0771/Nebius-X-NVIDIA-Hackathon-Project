@@ -10,6 +10,7 @@ import { stop } from "../../scene/layout";
 import { Beats } from "../../ui/Beats";
 import { HoverTip } from "../../ui/HoverTip";
 import { LENGTH_VH, tOfStep, workshopCamera } from "./camera";
+import { CUT_AT, diveEnter } from "./dive";
 import { WorkshopScene } from "./Scene";
 import "./workshop.css";
 import { AskBox } from "../../ask/AskBox";
@@ -55,7 +56,10 @@ const workshop: StationModule = {
   owner: "T6",
   kind: "rail",
   anchor: [0, 0, 0],
-  travel: 0.6,
+  // In through the skylight, behind a mask (dive.ts): a longer travel, so the dive reads.
+  travel: 1.1,
+  enter: diveEnter,
+  cutAt: CUT_AT,
   length: LENGTH_VH,
   // The room from the front, then down the spiral one cartridge per step.
   camera: workshopCamera,

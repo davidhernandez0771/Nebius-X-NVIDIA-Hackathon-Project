@@ -21,6 +21,7 @@ import { addEnvironment } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
 import { N_ITEMS, spiral } from "../../scene/spiral";
 import { stepOfT, tOfStep } from "./camera";
+import { Portal } from "./Portal";
 import { usePick } from "./send";
 
 /** A small prefiltered room for the glossy plastic to reflect (high and ultra). */
@@ -80,6 +81,7 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
       </Suspense>
       <Arm quality={quality} reduced={reduced} />
       <StepFollower frame={frame} />
+      <Portal frame={frame} reduced={reduced} />
       <Suspense fallback={null}>
         <Library quality={quality} />
       </Suspense>
