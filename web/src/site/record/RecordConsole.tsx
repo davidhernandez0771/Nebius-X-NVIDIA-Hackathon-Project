@@ -169,7 +169,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
 
       <header className="rg-top">
         <div className="rg-crumb">
-          <Link className="rg-btn rg-eject" to="/robots" title="Eject the cartridge and go back to the workshop">
+          <Link className="rg-btn rg-eject" to="/" title="Eject the cartridge and go back to the workshop">
             <span aria-hidden="true">⏏</span> workshop
           </Link>
           <span className="rg-cart" title="The robot plugged in: the arm the live sim drives">
