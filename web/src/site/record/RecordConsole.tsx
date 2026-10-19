@@ -3,7 +3,8 @@
 // cartridge and the S/A/N/T rail on top, the camera pane with the hand art and the control region,
 // the 3D robot twin (live from the sim, else a replay of a verified copy: robotTwin.ts) in three views with
 // the alignment grid, the gripper dial and the height and left/right gauges, the bottom strip, and the
-// settings drawer.
+// settings drawer. Beside Record: "Stop & discard" while recording (record_discard: nothing is saved), and after
+// a save "Delete last demo" (one more click to confirm; DELETE /demos/{id} moves it to demos/_discarded).
 // Everything is fed by the same teleop session as /legacy/pm/record (useRecordSession: hand v4's
 // simple pinch, reset gesture, original hand art, control region, break-through). The page fits the
 // window: a 100dvh grid, no page scrollbar, nothing scrolls inside a pane.
@@ -11,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { TrackingStatus } from "../../hand/contracts";
+import { describeError, pmApi } from "../../pm/api";
 import { LazyHandArtOverlay } from "../../record/handArt";
 import ResetGestureRing from "../../record/ResetGestureRing";
 import type { StagePalette } from "../../record/stageDraw";
@@ -26,6 +28,7 @@ import "./record-hologram.css";
 
 const DRAWER_ID = "rg-settings";
 const BOOT_MS = 1600; // the plug-in: panes draw in and one scanline sweeps, then it's gone
+const CONFIRM_MS = 4000; // "Delete last demo" waits this long for the confirming click, then backs off
 const STEPS = ["S · show", "A · check", "N · neaten", "T · train"];
 const TRACK_DETAIL: Partial<Record<TrackingStatus, string>> = { loading: "starting", "no-hand": "no hand", error: "frames stopped" };
 
@@ -90,12 +93,12 @@ function useLive(pose: PoseUi | null): LiveState {
 }
 
 /** Saved demos seen this visit (each sim_status names the last one saved). */
-function useSavedDemos(demoId: string | null | undefined): number {
+function useSavedDemos(demoId: string | null | undefined): string[] {
   const [ids, setIds] = useState<string[]>([]);
   useEffect(() => {
     if (demoId) setIds((list) => (list.includes(demoId) ? list : [...list, demoId]));
   }, [demoId]);
-  return ids.length;
+  return ids;
 }
 
 export function RecordConsole() {
@@ -111,7 +114,12 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const { phase, relay, sim, pose, settings, streaming, lost, simReady, recording, resetToast } = session;
   const live = useLive(pose);
   const twin = useRecordTwin();
-  const saved = useSavedDemos(sim?.demoId);
+  const savedIds = useSavedDemos(sim?.demoId);
+  const [deleted, setDeleted] = useState<string[]>([]);
+  const [note, setNote] = useState<{ text: string; title: string } | null>(null); // the last delete's outcome, until the sim reports again
+  useEffect(() => setNote(null), [sim?.lastResult, sim?.demoId]);
+  const saved = savedIds.filter((id) => !deleted.includes(id)).length;
+  const lastDemo = sim?.demoId && !deleted.includes(sim.demoId) ? sim.demoId : null;
   const { reduced } = useMotion();
   const [boot, setBoot] = useState(!reduced);
   const [drawer, setDrawer] = useState(false);
@@ -212,6 +220,22 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
             <i aria-hidden="true" />
             <span>Record</span>
           </button>
+          {recording && (
+            <button type="button" className="rg-btn rg-btn--small" onClick={() => session.control("record_discard")}>
+              Stop &amp; discard
+            </button>
+          )}
+          {!recording && simReady && lastDemo && (
+            <DeleteLastDemo
+              key={lastDemo}
+              id={lastDemo}
+              onDeleted={(where) => {
+                setDeleted((list) => [...list, lastDemo]);
+                setNote({ text: `moved to ${where}`, title: `${lastDemo} moved to ${where}` });
+              }}
+              onError={(message) => setNote({ text: message, title: message })}
+            />
+          )}
           <span className="rg-time" role="timer" aria-label="Recording time" data-state={rec}>
             {formatClock(sim ? sim.steps * STEP_S * 1000 : 0)}
           </span>
@@ -366,10 +390,15 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
             <span className="rg-dot" aria-hidden="true" />
             {episode.text}
           </p>
-          {sim?.demoId && (
-            <Link className="rg-review" to={`/legacy/pm/review?id=${encodeURIComponent(sim.demoId)}`}>
-              Review {sim.demoId}
+          {lastDemo && (
+            <Link className="rg-review" to={`/legacy/pm/review?id=${encodeURIComponent(lastDemo)}`}>
+              Review {lastDemo}
             </Link>
+          )}
+          {note && (
+            <p className="rg-review rg-note" role="status" title={note.title}>
+              {note.text}
+            </p>
           )}
         </section>
       </footer>
@@ -396,6 +425,39 @@ function Cell({ label, unit, value, stale }: { label: string; unit: string; valu
         {value}
       </p>
     </section>
+  );
+}
+
+/** "Delete last demo", then "Confirm: delete <id>" for CONFIRM_MS; the confirming click moves it to demos/_discarded. */
+function DeleteLastDemo({ id, onDeleted, onError }: { id: string; onDeleted: (where: string) => void; onError: (message: string) => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!confirm) return;
+    const timer = window.setTimeout(() => setConfirm(false), CONFIRM_MS);
+    return () => window.clearTimeout(timer);
+  }, [confirm]);
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      const { discarded_to } = await pmApi.discardDemo(id);
+      onDeleted(discarded_to.slice(0, discarded_to.lastIndexOf("/")));
+    } catch (e) {
+      onError(describeError(e));
+      setConfirm(false);
+      setBusy(false);
+    }
+  };
+
+  return confirm ? (
+    <button type="button" className="rg-btn rg-btn--small" data-confirm onClick={remove} disabled={busy} aria-label={`Confirm: delete ${id}`}>
+      Confirm delete
+    </button>
+  ) : (
+    <button type="button" className="rg-btn rg-btn--small" onClick={() => setConfirm(true)} title={`Moves ${id} to demos/_discarded`}>
+      Delete last demo
+    </button>
   );
 }
 

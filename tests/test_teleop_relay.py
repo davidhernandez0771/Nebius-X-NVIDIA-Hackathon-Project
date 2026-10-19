@@ -134,7 +134,7 @@ def _sim_status(**over) -> dict:
     return status
 
 
-@pytest.mark.parametrize("action", ["record_start", "record_stop", "reset_scene"])
+@pytest.mark.parametrize("action", ["record_start", "record_stop", "record_discard", "reset_scene"])
 def test_control_message_is_forwarded_to_sim(client, action):
     with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
         browser.receive_json()

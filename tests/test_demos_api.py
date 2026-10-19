@@ -481,3 +481,38 @@ def test_tagged_run_keeps_the_untagged_result_and_records_what_was_gated(store, 
     assert result["gated"] == gated
     assert result["issues_reported_by_model"] == 1  # 0 kept + 1 dropped by the gate
     assert result["nemotron"]["decision"] == "keep"
+
+
+# --- DELETE /demos/{id}: moves the demo to demos/_discarded, never deletes ---------------
+
+def test_delete_moves_the_demo_folder_under_discarded(demos_api, store, tmp_path):
+    _post(demos_api, _demo("human_1"))
+    _post(demos_api, _demo("human_2", minutes=1))
+    _write_episode(store, "human_1")
+
+    r = demos_api.delete("/demos/human_1")
+
+    assert r.status_code == 200
+    assert r.json() == {"id": "human_1", "discarded_to": "demos/_discarded/human_1"}
+    kept = tmp_path / "data" / "demos" / "_discarded" / "human_1"
+    assert (kept / "demo.json").is_file() and (kept / "episode" / "episode.json").is_file()
+    assert demos_api.get("/demos/human_1").status_code == 404
+    assert [d["id"] for d in demos_api.get("/demos").json()] == ["human_2"]
+    assert [d["id"] for d in demos_api.get("/demos", params={"source": "human"}).json()] == ["human_2"]
+
+
+def test_delete_missing_or_unsafe_or_reserved_id_is_404(demos_api):
+    assert demos_api.delete("/demos/nope").status_code == 404
+    assert demos_api.delete("/demos/bad.id").status_code == 404
+    _post(demos_api, _demo("human_1"))
+    demos_api.delete("/demos/human_1")
+    assert demos_api.delete("/demos/_discarded").status_code == 404
+    assert demos_api.delete("/demos/human_1").status_code == 404  # already discarded
+
+
+def test_delete_a_demo_other_demos_derive_from_is_409(demos_api, tmp_path):
+    _post(demos_api, _demo("human_1"))
+    _post(demos_api, _demo("variant_1", source="variant", parent_id="human_1", minutes=1))
+    r = demos_api.delete("/demos/human_1")
+    assert r.status_code == 409 and "variant_1" in r.json()["detail"]
+    assert demos_api.get("/demos/human_1").status_code == 200

@@ -732,3 +732,58 @@ def test_relay_loop_keeps_stepping_while_the_relay_is_down():
     sink.join(timeout=10)
     assert not sink.is_alive()
     assert len(driver.applied) > 5
+
+
+# --- discarding a recording -------------------------------------------------------------
+
+def test_discard_ends_the_recording_without_saving(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 10, hand())
+    session.on_control("record_discard")
+    assert session.state == "idle" and saved == []
+    status = session.status()
+    assert status["recording"] is False and status["demo_id"] is None
+    assert status["last_result"] == "discarded: 10 step(s) not saved"
+    run(session, clock, 3, hand())  # idle again: follows the hand, records nothing
+    assert session.status()["steps"] == 10
+
+
+def test_discard_forgets_the_last_saved_demo_so_delete_cannot_hit_an_older_one(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    session.on_control("record_stop")
+    assert session.status()["demo_id"] == "human_test_0"
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    session.on_control("record_discard")
+    assert session.status()["demo_id"] is None and len(saved) == 1
+
+
+def test_discard_while_idle_is_refused(rig):
+    session, _, _, saved = rig
+    session.on_control("record_discard")
+    assert session.last_result == "not recording; nothing to discard" and session.state == "idle"
+    assert saved == []
+
+
+def test_discard_writes_no_demo_folder(tmp_path):
+    store = DemoStore(tmp_path)
+    clock = FakeClock()
+    session = TeleopSession(FakeDriver(), SCENE, make_store_saver(store), clock=clock, new_id=lambda: "human_x")
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    session.on_control("record_discard")
+    assert not (tmp_path / "demos").exists() and store.list_demos() == []
+
+
+def test_the_driver_is_told_recording_ended_on_discard():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_discard")  # refused: not recording
+    session.on_control("record_start")
+    session.on_hand(hand())
+    session.step()
+    session.on_control("record_discard")
+    assert driver.recording_calls == [True, False]

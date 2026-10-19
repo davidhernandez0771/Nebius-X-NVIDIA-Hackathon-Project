@@ -1,6 +1,7 @@
 """Sim-side webcam teleop: a pure state machine that turns HandPoseMsgs into a recorded human Demo (spec 8.1).
 
     idle --record_start--> recording --record_stop--> saving --(save_fn returns)--> idle
+                           recording --record_discard--> idle (nothing saved, no demo folder written)
 
 Every control step (TELEOP_DT = 50 Hz sim time) the session takes the latest HandPoseMsg, maps it
 with demo_pipeline.teleop (to_ee_target + GripperLatch), and drives the robot through an injected
@@ -16,6 +17,8 @@ TeleopDriver. It follows the hand while idle too, so the person can line up befo
   whatever the wall-clock pace. human_seconds is the wall-clock time from start to stop.
 - On stop, the Demo (source "human") and the per-step StepStates go to an injected save_fn as a
   Recording. make_store_saver() writes them into a DemoStore with episode_io.
+- record_discard ("Stop & discard" on the Record page) ends the recording and drops it: save_fn is never called.
+  It also forgets the last saved demo id, so the page's "Delete last demo" can't reach back to an older one.
 - The robot twin (the Record page's 3D view): twin_scene() and twin() are the relay's sim_twin_scene and
   sim_twin messages, the robot's joints, the gripper sent and the cube's pose. relay_loop sends them at most
   TWIN_HZ times a second, only while the relay says a page is watching, and only when they change. A driver
@@ -57,7 +60,7 @@ TWIN_HZ = 30  # at most this many sim_twin messages a second (at 50 Hz control s
 TWIN_DECIMALS = 4  # 0.1 mm / 0.1 mrad: below what the twin can show, and it keeps the message small
 
 State = Literal["idle", "recording", "saving"]
-ACTIONS = ("record_start", "record_stop", "reset_scene")
+ACTIONS = ("record_start", "record_stop", "record_discard", "reset_scene")
 
 
 @dataclass(frozen=True)
@@ -158,6 +161,11 @@ class TeleopSession:
                 self.last_result = "not recording; nothing to stop"
                 return
             self._save()
+        elif action == "record_discard":
+            if self.state != "recording":
+                self.last_result = "not recording; nothing to discard"
+                return
+            self._discard()
         else:  # reset_scene
             if self.state == "recording":
                 self.last_result = "stop recording first, then reset the scene"
@@ -265,6 +273,14 @@ class TeleopSession:
         finally:
             self.state = "idle"
             self._tell_driver_recording(False)
+
+    def _discard(self) -> None:
+        n = self._steps
+        self._rec = {"pos": [], "quat": [], "gripper": [], "states": []}
+        self.last_demo_id = None
+        self.last_result = f"discarded: {n} step(s) not saved"
+        self.state = "idle"
+        self._tell_driver_recording(False)
 
     def _tell_driver_recording(self, on: bool) -> None:
         hook = getattr(self.driver, "set_recording", None)

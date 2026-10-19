@@ -11,7 +11,7 @@ import type { HandFrame } from "../hand/contracts";
 import type { TeleopControlSettings } from "./teleop/controlRegion";
 import { TeleopClient, type TeleopClientOptions, type TeleopStatus } from "./teleop/teleopClient";
 
-export type ControlAction = "record_start" | "record_stop" | "reset_scene";
+export type ControlAction = "record_start" | "record_stop" | "record_discard" | "reset_scene";
 
 /** The relay's SimStatusMsg, camelCased. */
 export interface SimStatus {

@@ -113,6 +113,9 @@ export const pmApi = {
   },
   perfect: (id: string, diagnoser: "rules" | "nemotron") =>
     pmFetch<unknown>(`/demos/${encodeURIComponent(id)}/perfect?diagnoser=${diagnoser}`, post),
+  /** Throw a demo away: the backend moves its folder to demos/_discarded (never deletes it). */
+  discardDemo: (id: string) =>
+    pmFetch<{ id: string; discarded_to: string }>(`/demos/${encodeURIComponent(id)}`, { method: "DELETE" }),
   getJob: (id: string) => pmFetch<unknown>(`/jobs/${encodeURIComponent(id)}`),
   exportDataset: () => pmFetch<unknown>("/export", post),
 };

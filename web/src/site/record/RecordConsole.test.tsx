@@ -1,6 +1,7 @@
 // /record: the hologram Record page on the shared teleop session. The session itself is covered by
 // legacy/pm/record/RecordPage.test.tsx (same hook); here: the instruments show what the session
-// sends, the record button and its timer, the sim notice, the top bar, the boot and the drawer.
+// sends, the record button and its timer, Stop & discard and Delete last demo, the sim notice, the top bar, the
+// boot and the drawer.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
@@ -204,6 +205,65 @@ describe("/record", () => {
     expect(screen.getByRole("link", { name: "Review human_20261016_ab12" }).getAttribute("href")).toBe("/legacy/pm/review?id=human_20261016_ab12");
     expect(screen.getByText("saved human_20261016_ab12: verified success")).toBeTruthy();
     expect(within(tile("recorded")).getByText("1")).toBeTruthy();
+  });
+
+  it("Stop & discard shows only while recording and sends record_discard; Record still stops and saves", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    expect(screen.queryByRole("button", { name: "Stop & discard" })).toBeNull();
+    fireEvent.click(recordButton());
+    act(() => link.emitSim(sim({ recording: true, steps: 50 })));
+    fireEvent.click(screen.getByRole("button", { name: "Stop & discard" }));
+    expect(link.sent).toEqual(["record_start", "record_discard"]);
+    act(() => link.emitSim(sim({ steps: 50, lastResult: "discarded: 50 step(s) not saved" })));
+    expect(screen.queryByRole("button", { name: "Stop & discard" })).toBeNull();
+    expect(screen.getByText("discarded: 50 step(s) not saved")).toBeTruthy();
+    expect(within(tile("recorded")).getByText("0")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Delete last demo" })).toBeNull();
+  });
+
+  it("Delete last demo asks once more, then moves the demo away and stops counting it", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "human_x", discarded_to: "demos/_discarded/human_x" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ recording: true, steps: 80 })));
+    expect(screen.queryByRole("button", { name: "Delete last demo" })).toBeNull(); // nothing saved yet
+    act(() => link.emitSim(sim({ steps: 80, demoId: "human_x", lastResult: "saved human_x: verified success" })));
+    expect(within(tile("recorded")).getByText("1")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete last demo" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm: delete human_x" }));
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url.endsWith("/demos/human_x")).toBe(true);
+    expect(init.method).toBe("DELETE");
+    expect(within(tile("recorded")).getByText("0")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Review human_x" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+    expect(screen.getByText("moved to demos/_discarded").getAttribute("title")).toBe("human_x moved to demos/_discarded");
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the demo, counted, when the delete is refused, and says why", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: "demo 'human_x' has derived demos (variant_1); it stays" }), { status: 409 })));
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ steps: 80, demoId: "human_x", lastResult: "saved human_x" })));
+    fireEvent.click(screen.getByRole("button", { name: "Delete last demo" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm: delete human_x" }));
+    });
+    expect(screen.getByText("demo 'human_x' has derived demos (variant_1); it stays")).toBeTruthy();
+    expect(within(tile("recorded")).getByText("1")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Review human_x" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Delete last demo" })).toBeTruthy();
+    vi.unstubAllGlobals();
   });
 
   it("shows a paused recording (hand lost) on the record button", async () => {

@@ -170,3 +170,11 @@ def test_standin_demo_is_human_like_and_deterministic():
     assert {"jitter", "pause", "idle_start_end"} <= kinds and truth1["late_close_s"] > 0
     assert d1.trajectory != standin_demo(8, id="standin_08")[0].trajectory
     assert np.linalg.norm(np.asarray(d1.trajectory.ee_pos[0]) - HOME_TCP) < 0.02  # starts near home, jittered
+
+
+def test_select_skips_discarded_demos(tmp_path):
+    store = _store(tmp_path)
+    store.discard("standin_01")
+    assert select_ids(store, tag="standin_*") == ["standin_00"]
+    with pytest.raises(ValueError, match="not found"):
+        select_ids(store, ids=["standin_01"])

@@ -1174,3 +1174,33 @@
     grid-column: 1 / -1;
   }
 }
+
+/* the last "Delete last demo" outcome, under the Review link: quiet, never a banner */
+.rg-note {
+  margin: 4px 0 0;
+}
+
+.rg .rg-note:hover {
+  color: var(--rg-ink-2);
+}
+
+/* Laptop widths: Stop & discard / Delete last demo widen the right group, so the steps take the space left in the
+   middle (still centred there), with shorter joins, and the cartridge shows its code only (the name is in its title). */
+@media (min-width: 961px) and (max-width: 1360px) {
+  .rg-top {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .rg-steps {
+    justify-self: center;
+    min-width: 0;
+  }
+
+  .rg-steps em {
+    width: 10px;
+  }
+
+  .rg-cart > span {
+    display: none;
+  }
+}

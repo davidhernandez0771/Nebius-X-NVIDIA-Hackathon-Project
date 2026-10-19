@@ -9,7 +9,7 @@ forwarded verbatim to the sim (or dropped if no sim is connected); an invalid on
 connects or disconnects.
 
 Control (sprint 3c): a browser message with a "type" key must be a ControlMsg,
-{"type": "control", "action": "record_start" | "record_stop" | "reset_scene"}. A valid one is
+{"type": "control", "action": "record_start" | "record_stop" | "record_discard" | "reset_scene"}. A valid one is
 forwarded verbatim to the sim; an invalid one, or one sent while no sim is connected, gets an
 error back. Controls are not counted in messages_forwarded (that counts hand poses only).
 
@@ -64,7 +64,7 @@ class ControlMsg(_Msg):
     """Browser -> sim: drive the sim-side TeleopSession (sim_worker/teleop_session.py)."""
 
     type: Literal["control"]
-    action: Literal["record_start", "record_stop", "reset_scene"]
+    action: Literal["record_start", "record_stop", "record_discard", "reset_scene"]
 
 
 class SimStatusMsg(_Msg):
