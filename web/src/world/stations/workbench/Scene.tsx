@@ -130,6 +130,8 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
     g.visible = open;
     if (!open) {
       s.openedAt = -1;
+      // Opening isn't an edit: no turn on the way in.
+      s.edits = bench.edits;
       printed.mesh.visible = false;
       return;
     }
@@ -148,8 +150,9 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
       s.editAt = now;
     }
     const since = now - s.editAt;
-    const wiggle = reduced || s.editAt < 0 || since > 1 ? 0 : 0.2 * Math.exp(-5 * since) * Math.sin(13 * since);
-    busy ||= wiggle !== 0;
+    const wiggling = !reduced && s.editAt >= 0 && since <= 1;
+    const wiggle = wiggling ? 0.2 * Math.exp(-5 * since) * Math.sin(13 * since) : 0;
+    busy ||= wiggling;
     const sway = reduced || !quality.idleMotion ? 0 : 0.07 * Math.sin(now * 0.55);
     cart.group.rotation.y = home.yaw + wiggle + sway;
 
