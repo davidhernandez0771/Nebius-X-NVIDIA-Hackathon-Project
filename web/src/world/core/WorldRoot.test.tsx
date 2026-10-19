@@ -185,4 +185,17 @@ describe("the spiral's filters (no WebGL)", () => {
     expect(spiral.selected).toBe(5);
     vi.unstubAllGlobals();
   });
+
+  it("lists the cartridges as buttons without the 3D spiral, filtered too", async () => {
+    const { spiral } = await import("../scene/spiral");
+    renderWorld();
+    scrollTo(window.innerHeight * 8);
+    const list = screen.getByRole("list", { name: "Cartridges" });
+    expect(within(list).getAllByRole("button")).toHaveLength(24);
+    fireEvent.click(screen.getByRole("button", { name: "-> bring your robot" }));
+    expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual(["BRING ROBOT", "FRANKA", "OPENARM", "SO-101"]);
+    fireEvent.click(within(list).getByRole("button", { name: "OPENARM" }));
+    expect(spiral.selected).toBe(18);
+    expect(screen.getByRole("dialog", { name: "OPENARM, cartridge" })).toBeTruthy();
+  });
 });

@@ -19,9 +19,9 @@ export const stepOfT = (t: number) => (t * LENGTH_VH - ENTER_VH) / STEP_VH;
 
 /** How far out the camera stands from a cartridge, browsing and in the detail view. */
 const DIST = 7;
-const DETAIL_DIST = 4.8;
+const DETAIL_DIST = 6.2;
 /** In the detail view the cartridge sits right of centre, clear of the info block bottom left. */
-const DETAIL_SIDE = 0.9;
+const DETAIL_SIDE = 1.1;
 /** Under the 14.4 m ceiling, and over the desks (the machine's body tops out at 4.4 m). */
 const CAM_MAX_Y = 13.5;
 const CAM_MIN_Y = 4.6;

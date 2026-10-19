@@ -4,10 +4,11 @@
 // own cartridges and the bench (the keyboard path to what is clickable in 3D), and Ask SANT.
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
-import { TAGS, type TagId } from "../../scene/items";
+import { ITEMS, TAGS, type TagId } from "../../scene/items";
 import { ROBOTS, slotForRobot } from "../../scene/robots";
-import { setFilter, spiral, subscribeSpiral } from "../../scene/spiral";
+import { matches, setFilter, spiral, subscribeSpiral } from "../../scene/spiral";
 import { tOfStep } from "./camera";
+import { useDetail } from "./detail";
 import { useSend } from "./send";
 import { scrollToStep } from "./stepper";
 
@@ -23,7 +24,8 @@ export function useFilter(): (tag: TagId | null) => void {
 }
 
 export function Dock({ children }: { children?: ReactNode }) {
-  const { goTo, store } = useWorld();
+  const { goTo, store, mode } = useWorld();
+  const detail = useDetail();
   const filter = useSyncExternalStore(subscribeSpiral, filterNow);
   const pickFilter = useFilter();
   const send = useSend();
@@ -69,6 +71,22 @@ export function Dock({ children }: { children?: ReactNode }) {
           </li>
         ))}
       </ul>
+      {mode !== "3d" ? (
+        // Without the 3D spiral, its cartridges are a list.
+        <ul className="world-dock__list world-u" aria-label="Cartridges">
+          {ITEMS.map((it, i) =>
+            matches(i, filter) ? (
+              <li key={it.id}>
+                <button type="button" onClick={() => detail.open(i)}>
+                  {it.title}
+                </button>
+              </li>
+            ) : null,
+          )}
+        </ul>
+      ) : (
+        <p className="world-dock__keys world-u">↑ ↓ step · enter opens · esc closes</p>
+      )}
       <div className="world-dock__robots world-u" role="group" aria-label="Robots">
         {ROBOTS.map((r) => (
           <button key={r.id} type="button" onClick={() => send(slotForRobot(r.code).index)}>

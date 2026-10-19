@@ -55,8 +55,10 @@ function scrollToY(top: number) {
 }
 
 export function useStepper(): void {
-  const { store } = useWorld();
+  const { store, mode } = useWorld();
   useEffect(() => {
+    // The stills have nothing to step through: the page scrolls as usual there.
+    if (mode !== "3d") return;
     let acc = 0;
     let lastStep = 0;
     let accAt = 0;
@@ -117,7 +119,7 @@ export function useStepper(): void {
       window.removeEventListener("scroll", onScroll);
       if (idle) clearTimeout(idle);
     };
-  }, [store]);
+  }, [store, mode]);
 }
 
 /** Scroll to an item's step (a click on it, a filter, Ask SANT). */
