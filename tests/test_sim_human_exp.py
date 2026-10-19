@@ -1,6 +1,9 @@
 """sim_worker.human_exp + sim_worker.standin: the pure half of the one-command human-demo experiment."""
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -8,8 +11,8 @@ from demo_pipeline.multiply import sample_scene, transform_trajectory
 from demo_pipeline.schemas import Demo, Pose, Scene, Trajectory
 from demo_pipeline.stats import fisher_exact, wilson_ci
 from demo_pipeline.store import DemoStore
-from sim_worker.human_exp import (align_home, cells, compare, config_diff, demo_sha256, headline, select_ids,
-                                  variant_seed, variant_trajectory)
+from sim_worker.human_exp import (achieved_demo, align_home, cells, compare, config_diff, demo_sha256, headline,
+                                  select_ids, variant_seed, variant_trajectory)
 from sim_worker.scripted import DOWN_WXYZ, HOME_TCP, scripted_expert
 from sim_worker.standin import TELEOP_SCENE, late_close, standin_demo
 
@@ -19,6 +22,52 @@ IDENTITY = (1.0, 0.0, 0.0, 0.0)
 def _scene(seed=0):
     return Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=IDENTITY),
                  bin_pose=Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=IDENTITY), robot="franka", seed=seed)
+
+
+HUMAN_9F47 = Path(__file__).parent / "data" / "human_9f47"
+
+
+def _9f47():
+    demo = Demo.model_validate_json((HUMAN_9F47 / "demo.json").read_text(encoding="utf-8"))
+    live = json.loads((HUMAN_9F47 / "live.json").read_text(encoding="utf-8"))
+    return demo, {k: np.asarray(live[k]) for k in ("ee_pos", "ee_quat", "cube_pos")}
+
+
+def test_9f47_commanded_targets_miss_the_cube_the_arm_grasped():
+    # The bug, as recorded in live test #10: demo.json holds the hand targets, and the arm lagged them.
+    demo, live = _9f47()
+    a = demo.trajectory.to_arrays()
+    close = int(np.flatnonzero(np.diff(a["gripper"]) > 0)[0]) + 1
+    cube = live["cube_pos"][close]
+    assert np.linalg.norm(a["ee_pos"][close, :2] - cube[:2]) > 0.05  # the target was 8.5 cm short of the cube
+    assert np.linalg.norm(live["ee_pos"][close, :2] - cube[:2]) < 0.015  # the arm was on it
+
+
+def test_achieved_demo_replays_what_the_arm_did_and_keeps_the_targets():
+    demo, live = _9f47()
+    out = achieved_demo(demo, live["ee_pos"], live["ee_quat"])
+    a, o = demo.trajectory.to_arrays(), out.trajectory.to_arrays()
+    assert np.allclose(o["ee_pos"], live["ee_pos"]) and np.allclose(o["ee_quat"], live["ee_quat"], atol=1e-6)
+    assert out.trajectory.t == demo.trajectory.t and out.trajectory.gripper == demo.trajectory.gripper  # 50 Hz
+    assert out.commanded == demo.trajectory
+    assert (out.id, out.source, out.scene, out.human_seconds) == (demo.id, demo.source, demo.scene, demo.human_seconds)
+    close = int(np.flatnonzero(np.diff(a["gripper"]) > 0)[0]) + 1
+    release = int(np.flatnonzero(np.diff(a["gripper"]) < 0)[-1]) + 1
+    assert np.linalg.norm(o["ee_pos"][close, :2] - live["cube_pos"][close, :2]) < 0.015  # grasps the cube
+    bin_xy = np.asarray(demo.scene.bin_pose.pos[:2])
+    assert np.all(np.abs(o["ee_pos"][release, :2] - bin_xy) < 0.10)  # releases over the bin's inside
+
+
+def test_achieved_demo_leaves_a_demo_that_already_has_it_alone():
+    demo, live = _9f47()
+    once = achieved_demo(demo, live["ee_pos"], live["ee_quat"])
+    assert achieved_demo(once, live["ee_pos"] + 1.0, live["ee_quat"]) == once
+
+
+def test_achieved_demo_needs_one_pose_per_step():
+    demo, live = _9f47()
+    with pytest.raises(ValueError, match="steps"):
+        achieved_demo(demo, live["ee_pos"][:-1], live["ee_quat"][:-1])
 
 
 def _human_like():

@@ -12,8 +12,9 @@ TeleopDriver. It follows the hand while idle too, so the person can line up befo
   more than LOST_PAUSE_S (wall clock), recording pauses. The steps are not recorded, so the
   pause is cut out of the demo, and the status says `paused`. It resumes with the next tracked
   message. Shorter dropouts are recorded as a hold.
-- The Trajectory is the commanded target per recorded step, at t = k * TELEOP_DT (sim time),
-  whatever the wall-clock pace. human_seconds is the wall-clock time from start to stop.
+- The Trajectory is the tool pose the arm reached per recorded step, at t = k * TELEOP_DT (sim time),
+  whatever the wall-clock pace; Demo.commanded keeps the hand target per step. human_seconds is the
+  wall-clock time from start to stop.
 - On stop, the Demo (source "human") and the per-step StepStates go to an injected save_fn as a
   Recording. make_store_saver() writes them into a DemoStore with episode_io.
 - The robot twin (the Record page's 3D view): twin_scene() and twin() are the relay's sim_twin_scene and
@@ -253,10 +254,15 @@ class TeleopSession:
             if n < MIN_STEPS:
                 self.last_result = f"only {n} step(s) recorded; not saved"
                 return
-            traj = Trajectory.from_arrays(
-                np.arange(n) * TELEOP_DT, np.asarray(rec["pos"]), np.asarray(rec["quat"]), rec["gripper"]
+            t, states = np.arange(n) * TELEOP_DT, rec["states"]
+            # The demo is the path the arm reached, which is what the person watched and steered. The arm lags the
+            # hand target (2.5-5 cm in live test #10), so replaying the targets was another motion: 0/10 in the bin
+            # on replay, 10/10 live. The targets are kept for diagnostics.
+            achieved = Trajectory.from_arrays(
+                t, np.asarray([s.ee_pos for s in states]), np.asarray([s.ee_quat for s in states]), rec["gripper"]
             )
-            demo = Demo(id=self.new_id(), source="human", trajectory=traj, scene=self.scene,
+            commanded = Trajectory.from_arrays(t, np.asarray(rec["pos"]), np.asarray(rec["quat"]), rec["gripper"])
+            demo = Demo(id=self.new_id(), source="human", trajectory=achieved, commanded=commanded, scene=self.scene,
                         human_seconds=human_seconds)
             self.last_result = self.save_fn(Recording(demo=demo, states=list(rec["states"])))
             self.last_demo_id = demo.id
@@ -539,7 +545,8 @@ def make_store_saver(
         n = len(states)
         signals = episode_signals(states)
         reached = np.asarray([s.ee_pos for s in states], dtype=np.float64)
-        residual = np.linalg.norm(reached - np.asarray(demo.trajectory.ee_pos), axis=1)
+        target = demo.commanded if demo.commanded is not None else demo.trajectory
+        residual = np.linalg.norm(reached - np.asarray(target.ee_pos), axis=1)
         result = check_success(demo.trajectory, signals, demo.scene.bin_pose, bin_inner=bin_inner, tcp_error=residual)
 
         store.save_demo(demo)

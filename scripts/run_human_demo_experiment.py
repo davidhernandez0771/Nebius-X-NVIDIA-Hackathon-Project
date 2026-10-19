@@ -1,13 +1,19 @@
 """One command for the whole human-demo experiment: saved demos in, a results JSON the Results page reads out.
 
     uv run --with pillow python scripts/run_human_demo_experiment.py --name <name> --tag "human_2026*" ^
-        [--data-dir <DATA_DIR>] [--ids a,b,c] [--smoke] [--until <stage>] [--no-nemotron] [--publish-results]
+        [--data-dir <DATA_DIR>] [--ids a,b,c] [--smoke] [--until <stage>] [--sim-until <step>] ^
+        [--replay-path achieved|commanded] [--no-nemotron] [--publish-results]
 
 Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stages/ and a re-run resumes:
   select    the demos (--ids, or --tag: an fnmatch pattern over human demo ids), frozen with each demo.json's
             SHA-256 in config.json together with every setting; preregistration.md is written from it, before
             anything is trained. Only demo.json is copied into the experiment's own DemoStore (<exp>/store):
             the user's store, its live episodes and diagnoses are never written.
+            --replay-path achieved (the default; commanded with --smoke): the copy replays the tool pose the
+            arm reached (the live episode's steps.npz, 50 Hz), with the hand targets kept as Demo.commanded and
+            a replay_path.json saying why. Demos recorded before Demo.commanded hold the targets, which the arm
+            lagged: replaying them was another motion (live test #10: 0/10 in the bin on replay, 10/10 live).
+            A demo without a live episode is refused; stand-ins need --replay-path commanded.
   sim       one sim worker (Isaac, cameras, Franka), started and stopped here, under the GPU lock:
               physics   replay every demo as recorded: Isaac's verdict on what the person did;
               repair    perfect it with the rules (app.jobs.perfect_stored_demo -> "<id>_rules", verified);
@@ -15,6 +21,8 @@ Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stag
                         (raw arm, no repairs) and "<id>_rules_home" (the repaired one);
               multiply  --variants new scenes per repaired demo, rehomed like sprint 6's home-start variants,
                         each replayed and kept only if it verifies ("<id>_rules_home_m<seed>").
+            --sim-until physics|repair|align stops after that step (the stages after sim don't run either);
+            a later run without it carries on from the markers.
   grid      raw_<n> and perfected_multiply_<n> for lerobot_tools.experiments (checked with build_manifest).
   nemotron  T3's labeler and judge (app.ai.intent, demo_pipeline.intent.review_verdict): a label per human
             demo, a match for --judge-copies verified copies each; a ReviewVerdict card next to each passport in
@@ -37,6 +45,7 @@ Exit: 0 done (or stopped at --until), 1 refused, 2 stopped (a worker or child pr
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -63,8 +72,9 @@ from demo_pipeline.results import build_results  # noqa: E402
 from demo_pipeline.schemas import Demo, Passport, Trajectory, VerificationResult  # noqa: E402
 from demo_pipeline.sim_protocol import ReplayRequest  # noqa: E402
 from demo_pipeline.store import DemoStore, write_atomic  # noqa: E402
-from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, align_home, cells, compare, config_diff,  # noqa: E402
-                                  demo_sha256, headline, select_ids, variant_seed, variant_trajectory)
+from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, achieved_demo, align_home, cells,  # noqa: E402
+                                  compare, config_diff, demo_sha256, headline, select_ids, variant_seed,
+                                  variant_trajectory)
 
 ISAAC_PY = Path(r"C:\isaac\env_isaaclab\Scripts\python.exe")
 LEROBOT_PY = Path(r"C:\venvs\lerobot\Scripts\python.exe")
@@ -72,6 +82,8 @@ STAGES = ("select", "sim", "grid", "nemotron", "train", "eval", "results")
 ROBOT = "franka"
 BATCH = 8
 DEFAULTS = {"variants": 10, "steps": 30_000, "save_freq": 2500, "eval_n": 40, "eval_seed0": 5020}
+SIM_STEPS = ("physics", "repair", "align", "multiply")
+REPLAY_PATHS = ("achieved", "commanded")
 SMOKE = {"steps": 2000, "save_freq": 2000, "eval_n": 5}
 LABEL_FRAMES, JUDGE_FRAMES, MODEL_SIZE = 8, 4, 256  # as T3's pre-registered test (scripts/intent_eval.py)
 
@@ -175,6 +187,11 @@ class Experiment:
             "test": "fisher_exact_two_sided", "alpha": 0.05, "ci": "wilson_95",
             "pipeline_version": PIPELINE_VERSION, **settings,
         }
+        config["replay_path"] = settings.get("replay_path", "achieved")
+        if config["replay_path"] not in REPLAY_PATHS:
+            raise Refused(f"replay_path must be one of {REPLAY_PATHS}, got {config['replay_path']!r}")
+        if config["replay_path"] == "achieved":
+            config["steps_sha256"] = {id: self._live_steps_sha256(id) for id in chosen}
         if old is not None:
             diff = [k for k in config_diff(old, config) if k != "frozen_at"]
             if diff and not force_config:
@@ -188,28 +205,59 @@ class Experiment:
         (self.root / "preregistration.md").write_text(preregistration(config), encoding="utf-8")
         for id in chosen:  # demo.json only: the user's episode, passport and diagnosis stay where they are
             dst = self.root / "store" / "demos" / id / "demo.json"
-            if not dst.is_file():
-                dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.is_file():
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if config["replay_path"] == "commanded":
                 shutil.copyfile(self.deps.user_store.root / "demos" / id / "demo.json", dst)
+                continue
+            user_demo = self.deps.user_store.get_demo(id)
+            with np.load(self._live_steps(id)) as steps:
+                demo = achieved_demo(user_demo, steps["ee_pos"], steps["ee_quat"])
+            self.store.save_demo(demo)
+            _write_json(dst.parent / "replay_path.json", {
+                "replay_path": "achieved",
+                "why": ("the user's demo.json holds the hand targets the arm lagged (2.5-5 cm in live test #10), and "
+                        "replaying them was another motion (0/10 in the bin on replay, 10/10 live); this copy "
+                        "replays the tool pose the arm reached, and keeps the targets as `commanded`"
+                        if user_demo.commanded is None else "the user's demo.json already holds the achieved path"),
+                "from": str(self._live_steps(id)), "steps_sha256": config["steps_sha256"][id],
+                "user_demo_sha256": config["demo_sha256"][id], "at": _now()})
         _write_json(self.marker("select"), {"ids": chosen, "at": _now()})
-        self.log(f"select: {len(chosen)} demos: {', '.join(chosen)}")
+        self.log(f"select: {len(chosen)} demos: {', '.join(chosen)} (replaying the {config['replay_path']} path)")
+
+    def _live_steps(self, id: str) -> Path:
+        return self.deps.user_store.episode_dir(id) / "steps.npz"
+
+    def _live_steps_sha256(self, id: str) -> str:
+        path = self._live_steps(id)
+        if not path.is_file():
+            raise Refused(f"{id}: no live episode ({path}) to take the achieved path from; a demo without one "
+                          f"(a stand-in) needs --replay-path commanded")
+        return hashlib.sha256(path.read_bytes()).hexdigest()
 
     # --- sim: physics, repair, align, multiply --------------------------------------------------------
 
-    def sim(self) -> None:
+    def sim(self, until: str = "multiply") -> bool:
+        """physics, repair, align, multiply, stopping after `until`. True once all four are done."""
         if self.marker("sim").is_file():
             self.log("sim: done earlier")
-            return
+            return True
+        steps = (self.physics, self.repair, self.align, self.multiply)
         with self.deps.sim_session() as client:
             health = client.health()
             if not (health.ok and health.cameras and ROBOT in health.robots):
                 raise Stop(f"the sim worker can't record {ROBOT} camera episodes: {health}")
-            for step in (self.physics, self.repair, self.align, self.multiply):
+            for step in steps[: SIM_STEPS.index(until) + 1]:
                 try:
                     step(client)
                 except SimWorkerError as e:
                     raise Stop(f"{step.__name__}: the sim worker failed ({e}); re-run to resume") from e
+        if until != SIM_STEPS[-1]:
+            self.log(f"sim: stopped after {until} (--sim-until); nothing after it ran")
+            return False
         _write_json(self.marker("sim"), {"at": _now(), **self.sim_summary()})
+        return True
 
     def physics(self, client) -> None:
         for id in self.ids:
@@ -543,11 +591,15 @@ class Experiment:
 
     # --- the run -------------------------------------------------------------------------------------
 
-    def run(self, *, until: str = "results", publish: bool = False) -> None:
-        steps = {"sim": self.sim, "grid": self.grid, "nemotron": self.nemotron, "train": self.train,
+    def run(self, *, until: str = "results", publish: bool = False, sim_until: str = "multiply") -> None:
+        steps = {"grid": self.grid, "nemotron": self.nemotron, "train": self.train,
                  "eval": self.eval, "results": lambda: self.results(publish)}
         for stage in STAGES[1: STAGES.index(until) + 1]:
-            steps[stage]()
+            if stage == "sim":
+                if not self.sim(sim_until):
+                    return
+            else:
+                steps[stage]()
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -581,6 +633,8 @@ trained on the same {n} demos as recorded?
 
 **Demos** ({n}, frozen by content hash):
 {ids}
+
+**What is replayed** (`replay_path = {config.get('replay_path', 'commanded')}`): {"the tool pose the arm reached each step, from each demo's live episode (steps.npz, 50 Hz, hashes in config.json); the hand targets the arm lagged are kept as `commanded`, for diagnostics only." if config.get('replay_path') == 'achieved' else "each demo's stored trajectory, as is."}
 
 **Arms.** Both arms use ACT, {config['steps']} steps, batch {config['batch_size']}, the same recipe and seed.
 - **raw_{n}:** every demo as recorded, start-aligned
@@ -772,6 +826,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-cost-usd", type=float, default=0.10, help="Nemotron spend cap for this run")
     p.add_argument("--no-nemotron", action="store_true")
     p.add_argument("--until", choices=STAGES, default="results", help="stop after this stage")
+    p.add_argument("--sim-until", choices=SIM_STEPS, default="multiply",
+                   help="stop the sim stage after this step (and the run with it)")
+    p.add_argument("--replay-path", choices=REPLAY_PATHS, default=None,
+                   help="achieved: the pose the arm reached (live episode); commanded: demo.json as stored "
+                        "(default: achieved, or commanded with --smoke)")
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)
@@ -781,7 +840,8 @@ def main(argv: list[str] | None = None) -> int:
     settings = {k: getattr(args, k) if getattr(args, k) is not None else (SMOKE if args.smoke else {}).get(k, v)
                 for k, v in DEFAULTS.items()}
     settings.update(smoke=args.smoke, raw_arm=args.raw_arm, judge_copies=args.judge_copies,
-                    nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd)
+                    nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd,
+                    replay_path=args.replay_path or ("commanded" if args.smoke else "achieved"))
     if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
         p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")
@@ -822,7 +882,7 @@ def main(argv: list[str] | None = None) -> int:
                        force_config=args.force_config)
         except ValueError as e:  # select_ids: a missing, derived or unmatched demo
             raise Refused(str(e)) from e
-        exp.run(until=args.until, publish=args.publish_results)
+        exp.run(until=args.until, publish=args.publish_results, sim_until=args.sim_until)
     except Refused as e:
         exp.log(f"REFUSED: {e}")
         return 1

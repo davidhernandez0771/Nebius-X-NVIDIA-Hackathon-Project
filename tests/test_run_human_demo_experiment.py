@@ -11,10 +11,13 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from app.sim_client import SimWorkerUnavailable
+from demo_pipeline.episode_io import EpisodeMeta, save_episode
 from demo_pipeline.intent import Label, ObjectRef, Step, Verdict
+from demo_pipeline.schemas import Demo
 from demo_pipeline.store import DemoStore
 from fake_sim_worker import FakeSim
 from lerobot_tools.assemble import Cell, build_manifest
@@ -24,7 +27,9 @@ from sim_worker.standin import standin_demo
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_human_demo_experiment.py"
 IDS = ["standin_00", "standin_01", "standin_02"]
 SMOKE = {"variants": 2, "steps": 2000, "save_freq": 2000, "eval_n": 5, "eval_seed0": 5020, "smoke": True,
-         "raw_arm": "all", "judge_copies": 1, "nemotron": True, "max_cost_usd": 0.1}
+         "raw_arm": "all", "judge_copies": 1, "nemotron": True, "max_cost_usd": 0.1,
+         "replay_path": "commanded"}  # stand-ins have no live episode: their trajectory is all there is
+HUMAN_9F47 = Path(__file__).parent / "data" / "human_9f47"
 
 
 @pytest.fixture(scope="module")
@@ -282,3 +287,59 @@ def test_cli_refuses_unknown_demo(hx, tmp_path, capsys):
     _user_store(tmp_path)
     rc = hx.main(["--name", "x", "--ids", "nope", "--data-dir", str(tmp_path), "--no-nemotron", "--smoke"])
     assert rc == 1 and "REFUSED" in capsys.readouterr().out
+
+
+def _store_with_9f47(root: Path) -> tuple[DemoStore, Demo, dict]:
+    """The user's store as the live sink left it: demo.json (commanded targets) + the live episode (achieved)."""
+    store = DemoStore(root)
+    demo = Demo.model_validate_json((HUMAN_9F47 / "demo.json").read_text(encoding="utf-8"))
+    live = {k: np.asarray(v) for k, v in json.loads((HUMAN_9F47 / "live.json").read_text(encoding="utf-8")).items()
+            if k != "source"}
+    n = len(demo.trajectory.t)
+    store.save_demo(demo)
+    save_episode(store.episode_dir(demo.id), EpisodeMeta(demo_id=demo.id, robot="franka", task_text="t", fps=50,
+                                                         n_steps=n),
+                 {"joint_pos": np.zeros((n, 9)), "action": np.zeros((n, 9)), "ee_pos": live["ee_pos"],
+                  "ee_quat": live["ee_quat"], "gripper": np.asarray(demo.trajectory.gripper, dtype=np.int8)})
+    return store, demo, live
+
+
+def test_achieved_path_is_what_the_experiment_replays_and_the_users_demo_is_untouched(hx, tmp_path):
+    _, demo, live = _store_with_9f47(tmp_path)
+    before = _hashes(tmp_path)
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=[demo.id], tag=None, settings={**SMOKE, "replay_path": "achieved"})
+    exp.run(until="sim", sim_until="physics")
+
+    assert _hashes(tmp_path) == before  # the user's demo.json and episode are read, never written
+    copy = exp.store.get_demo(demo.id)
+    assert np.allclose(copy.trajectory.to_arrays()["ee_pos"], live["ee_pos"])
+    assert copy.commanded == demo.trajectory  # the hand targets stay, for diagnostics
+    assert np.allclose(sim.requests[0].trajectory.to_arrays()["ee_pos"], live["ee_pos"])  # physics replays it
+    root = tmp_path / "human_exp" / "smoke1"
+    note = json.loads((root / "store" / "demos" / demo.id / "replay_path.json").read_text(encoding="utf-8"))
+    assert note["replay_path"] == "achieved" and "lag" in note["why"] and note["steps_sha256"]
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    assert config["replay_path"] == "achieved" and config["steps_sha256"][demo.id] == note["steps_sha256"]
+    assert "achieved" in (root / "preregistration.md").read_text(encoding="utf-8")
+
+
+def test_achieved_path_refuses_a_demo_without_a_live_episode(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)  # stand-ins: no episode
+    with pytest.raises(hx.Refused, match="episode"):
+        exp.select(ids=IDS[:1], tag=None, settings={**SMOKE, "replay_path": "achieved"})
+
+
+def test_sim_until_stops_before_multiply_and_a_later_run_carries_on(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    exp.run(until="grid", sim_until="align")
+    root = tmp_path / "human_exp" / "smoke1"
+    names = [r.out_name for r in sim.requests]
+    assert sum(n.endswith("_home") for n in names) == 6 and not any("_m3" in n for n in names)
+    assert not (root / "stages" / "sim.json").exists() and not (root / "grid.json").exists()
+    assert not list((root / "stages").glob("multiply/*.json"))
+    exp.run(until="grid")  # the default goes on to multiply and the grid, redoing nothing
+    names = [r.out_name for r in sim.requests]
+    assert sum(n.endswith("_home") for n in names) == 6 and sum("_m3" in n for n in names) == 6
+    assert (root / "grid.json").is_file()
