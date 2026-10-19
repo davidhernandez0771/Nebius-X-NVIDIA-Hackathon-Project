@@ -1,10 +1,11 @@
 // What every cartridge on screen shares: cartridge.glb's parts (shell, label, window, inner, reels,
 // tape, pins, screw) with each node's own transform baked into its geometry, so one instance matrix
 // places them all; the slot matrices; and the one label atlas (labels.ts), redrawn once the fonts
-// arrive.
+// arrive and its saved cartridges' tiles again whenever the bench saves or removes one.
 import * as THREE from "three";
-import { drawAtlas, tileUv } from "./labels";
+import { drawAtlas, drawSavedTiles, tileUv } from "./labels";
 import type { Slot } from "./layout";
+import { subscribeSaved } from "./saved";
 
 export interface Part {
   name: string;
@@ -65,6 +66,11 @@ export function labelAtlas(onRedraw?: () => void): THREE.CanvasTexture {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   atlas = tex;
+  subscribeSaved(() => {
+    drawSavedTiles(canvas);
+    tex.needsUpdate = true;
+    redrawn.forEach((fn) => fn());
+  });
   const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
   if (fonts) {
     Promise.all([fonts.load('300 64px "Geist"'), fonts.load('500 24px "Geist"'), fonts.load('400 20px "Geist Mono"')])
