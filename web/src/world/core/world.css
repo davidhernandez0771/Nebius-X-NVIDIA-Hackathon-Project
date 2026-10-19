@@ -180,6 +180,27 @@
   opacity: 1;
 }
 
+.world-panel--workshop {
+  gap: var(--sant-space-3);
+}
+
+/* The workshop's three steps (a real sequence, so numbered). */
+.world-steps {
+  margin: 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: var(--sant-space-2);
+  max-width: 46ch;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+  line-height: 1.45;
+}
+
+.world-steps strong {
+  color: var(--sant-text);
+  font-weight: 500;
+}
+
 .world-choices {
   display: flex;
   flex-wrap: wrap;

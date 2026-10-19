@@ -59,18 +59,22 @@ describe("WorldRoot (no WebGL)", () => {
     expect(within(rail).getByRole("button", { name: "Workshop" }).getAttribute("aria-current")).toBe("step");
   });
 
-  it("chooses a cartridge in the workshop and opens its route at the end of the zoom", () => {
+  it("sends a robot's cartridge from the workshop to the machine, and opens Record at the end of the zoom", () => {
     vi.useFakeTimers();
     renderWorld();
     const h = window.innerHeight;
     scrollTo(h * 6.8);
-    fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByRole("button", { name: "Review" }).getAttribute("aria-pressed")).toBe("true");
+    vi.mocked(window.scrollTo).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "PiPER" }));
+    expect(screen.getByRole("button", { name: "PiPER" }).getAttribute("aria-pressed")).toBe("true");
+    // The journey follows it to the machine.
+    expect(window.scrollTo).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Open PiPER" })).toBeTruthy();
     scrollTo(h * 11);
     expect(current()).toBe("zoom");
     scrollTo(h * 100);
     act(() => vi.runAllTimers());
-    expect(screen.getByRole("heading", { name: "Review page" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
     expect(sessionStorage.getItem("world.return")).toBe("machine");
   });
 

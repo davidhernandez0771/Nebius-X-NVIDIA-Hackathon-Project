@@ -2,12 +2,14 @@
 // colour of every baked material (their light is in the atlas, so dimming the colour dims the room)
 // and the intensity of the few live lights on the moving parts. Mutated in place, never React state.
 // It also counts the files in, so the lamps know when the workshop is ready.
-import type { Light, MeshBasicMaterial } from "three";
+import { Color, type Light, type MeshBasicMaterial, type MeshStandardMaterial } from "three";
 import { ALL_MODELS } from "./assets";
 import { OFF } from "./flicker";
 
 const baked = new Set<MeshBasicMaterial>();
 const lights = new Map<Light, number>();
+const lit = new Map<MeshStandardMaterial, number>();
+const glows = new Map<MeshBasicMaterial, Color>();
 const loaded = new Set<string>();
 
 export const power = {
@@ -25,6 +27,8 @@ export function setPower(level: number): void {
   power.level = level;
   baked.forEach((m) => apply(m, level));
   lights.forEach((base, l) => (l.intensity = base * level));
+  lit.forEach((base, m) => (m.envMapIntensity = base * level));
+  glows.forEach((base, m) => m.color.copy(base).multiplyScalar(level));
 }
 
 /** A baked material follows the lamps from now on; returns the unregister. */
@@ -32,6 +36,21 @@ export function addBaked(m: MeshBasicMaterial): () => void {
   baked.add(m);
   apply(m, power.level);
   return () => baked.delete(m);
+}
+
+/** A lit material whose reflections (envMapIntensity `base` at full power) follow the lamps. */
+export function addLit(m: MeshStandardMaterial, base: number): () => void {
+  lit.set(m, base);
+  m.envMapIntensity = base * power.level;
+  return () => lit.delete(m);
+}
+
+/** A lamp-powered light strip (an unlit material of colour `base` at full power). */
+export function addGlow(m: MeshBasicMaterial, base: string): () => void {
+  const c = new Color(base);
+  glows.set(m, c);
+  m.color.copy(c).multiplyScalar(power.level);
+  return () => glows.delete(m);
 }
 
 /** A live light at full power `base`; returns the unregister. */
