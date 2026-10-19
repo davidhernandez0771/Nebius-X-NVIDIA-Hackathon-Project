@@ -2,6 +2,7 @@
 // workshop below. One full turn, so it ends facing the workshop the way it started.
 import { Box, PALETTE } from "../../core/Placeholder";
 import type { CameraPose, StationModule, StationOverlayProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
 
 const TOP = 36;
 const BOTTOM = 7;
@@ -47,6 +48,7 @@ function Overlay(_: StationOverlayProps) {
 
 const descent: StationModule = {
   id: "descent",
+  still: STILLS.descent,
   title: "Descent",
   owner: "core",
   kind: "rail",

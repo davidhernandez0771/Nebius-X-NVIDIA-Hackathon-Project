@@ -8,6 +8,7 @@ import { Box, PALETTE } from "../../core/Placeholder";
 import { smoother } from "../../core/rail";
 import { useWorldState } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps, StationSceneProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
 
 /** A placeholder screen for the hologram: the cartridge's name on the app's ground. */
 function useScreenTexture(label: string): THREE.CanvasTexture | null {
@@ -84,6 +85,7 @@ function Overlay(_: StationOverlayProps) {
 
 const machine: StationModule = {
   id: "machine",
+  still: STILLS.machine,
   title: "Machine",
   owner: "T7",
   kind: "rail",

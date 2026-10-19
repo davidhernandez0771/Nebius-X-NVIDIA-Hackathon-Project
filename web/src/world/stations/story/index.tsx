@@ -7,6 +7,7 @@ import { Box, PALETTE } from "../../core/Placeholder";
 import { useStationFrame } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps, StationSceneProps } from "../../core/types";
 import { hero } from "../../../site/landing/copy";
+import { STILLS } from "../../scene/assets";
 
 const BARS = 9;
 const BEATS = [
@@ -59,6 +60,7 @@ function Overlay(_: StationOverlayProps) {
 
 const story: StationModule = {
   id: "story",
+  still: STILLS.story,
   title: "Story",
   owner: "core (copy from T5)",
   kind: "rail",

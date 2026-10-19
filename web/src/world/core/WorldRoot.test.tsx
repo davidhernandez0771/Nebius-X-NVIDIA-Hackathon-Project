@@ -92,6 +92,15 @@ describe("WorldRoot (no WebGL)", () => {
     expect(document.documentElement.style.overflow).toBe("");
   });
 
+  it("shows the current station's pre-rendered still in place of the canvas", () => {
+    renderWorld();
+    const on = () => document.querySelector<HTMLImageElement>('.world-stills__img[data-on="true"]')?.getAttribute("src");
+    expect(document.querySelector(".world-canvas")).toBeNull();
+    expect(on()).toMatch(/stills\/story\.webp$/);
+    scrollTo(window.innerHeight * 6.8);
+    expect(on()).toMatch(/stills\/workshop\.webp$/);
+  });
+
   it("comes back from a 2D route to the machine, without leaving again", () => {
     sessionStorage.setItem("world.return", "machine");
     renderWorld();

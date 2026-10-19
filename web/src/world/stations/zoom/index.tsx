@@ -8,6 +8,7 @@ import { screenOpacity } from "../../core/handoff";
 import { mixPose, smoother } from "../../core/rail";
 import { useStationFrame, useWorld, useWorldState } from "../../core/WorldContext";
 import type { CameraPose, StationModule, StationOverlayProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
 
 const [cx, cy, cz] = PROJECTION.center;
 /** Closer than the fill distance, so a wide window is covered edge to edge too. */
@@ -34,6 +35,7 @@ function Overlay(_: StationOverlayProps) {
 
 const zoom: StationModule = {
   id: "zoom",
+  still: STILLS.zoom,
   title: "Into the projection",
   owner: "core",
   kind: "rail",

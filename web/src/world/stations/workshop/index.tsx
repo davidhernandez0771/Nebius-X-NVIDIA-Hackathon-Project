@@ -4,6 +4,7 @@ import { Button } from "../../../sant/components/Button";
 import { Box, PALETTE } from "../../core/Placeholder";
 import { useWorld, useWorldState } from "../../core/WorldContext";
 import type { Cartridge, StationModule, StationOverlayProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
 
 /** Placeholder shelf: each cartridge opens one of the app's real 2D routes. */
 export const CARTRIDGES: Cartridge[] = [
@@ -67,6 +68,7 @@ function Overlay(_: StationOverlayProps) {
 
 const workshop: StationModule = {
   id: "workshop",
+  still: STILLS.workshop,
   title: "Workshop",
   owner: "T6",
   kind: "rail",

@@ -26,6 +26,26 @@
   animation: world-fade-in 240ms var(--sant-ease-out);
 }
 
+/* No usable GPU: the stations' stills, stacked; the current one fades up. Dimmed a little so the
+   overlay copy reads over the brightest renders. */
+.world-stills__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 240ms var(--sant-ease-out);
+}
+
+.world-stills__img[data-on="true"] {
+  opacity: 0.82;
+}
+
+[data-motion-world="reduced"] .world-stills__img {
+  transition-duration: 160ms;
+}
+
 .world-veil {
   position: fixed;
   inset: 0;

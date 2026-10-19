@@ -10,7 +10,7 @@ motion. **T6 (workshop), T7 (machine) and T1 (workbench)** each own one folder a
 API below. Everything is a placeholder box until the Blender models arrive.
 
 - **Open it:** `npm --prefix web run dev`, then `http://localhost:5173/world`.
-- **URL flags:** `?quality=low|medium|high` forces a tier, and `?static` forces the no-WebGL fallback.
+- **URL flags:** `?quality=low|high|ultra` forces a tier, and `?static` (or `?quality=stills`) forces the stills fallback.
 - **While someone holds `C:\dev\gpu.lock`:** check pages only with `?quality=low` and screenshots.
 
 ## Files
@@ -157,17 +157,21 @@ names it in the console.
 
   An idle world draws nothing.
 - **Idle loops:** loops such as a hologram flicker go through `useWorldAnimating(on)`, inside the
-  canvas. It runs only on the **high** tier; on low and medium the world never animates by itself.
+  canvas. It runs on the **high** and **ultra** tiers; on low the world never animates by itself.
   Otherwise, call `invalidate()` from `useThree` once when your Scene changes something outside the
   scroll.
-- **Tiers** (`quality.ts`; `?quality=` wins):
+- **Tiers** (`quality.ts`, picked by the GPU check in `gpu.ts`; `?quality=low|high|ultra|stills` wins):
 
-  | Tier | Pixel ratio | Antialias | Shadows | Idle loops | Chosen when |
+  | Tier | Pixel ratio | Antialias | Idle loops | Extras | Chosen when |
   |---|---|---|---|---|---|
-  | low | 0.75–1 | off | off | no | ≤ 4 GB or ≤ 4 cores, data saver, phone width |
-  | medium | 1–1.5 | on | off | no | default |
-  | high | 1–2 | on | on | yes | ≥ 8 GB and ≥ 8 cores |
+  | low | 0.75–1 | off | no | none | an old integrated or phone GPU, a slow timing, phone width, data saver |
+  | high | 1–1.5 | on | yes | reflections | the default for a working GPU |
+  | ultra | 1–2 | on | yes | clearcoat, haze, dust | a discrete GPU by name and a fast timing, 8+ cores |
+  | stills | no canvas | | | one still per station | no WebGL2, a software renderer, or the performance caveat |
 
+  The check runs once per session (`sessionStorage` `world.gpu`): a WebGL2 context, the renderer's
+  name, and one timed fragment workload; the timing can only lower what the name suggests. Shadows are
+  off on every tier: the room's light is baked.
 - **Cost of a station:** keep it to plain meshes. Use instancing for repeats, and avoid
   post-processing and real-time reflections. The heavy model budget is the Blender pass's call, not
   this core's.
@@ -183,8 +187,9 @@ names it in the console.
 - **Scenes:** changes driven by `frame.t` follow the user's own scroll, so they stay. Anything
   driven by time (a tween, a loop) should read `reduced` and show its end state instead.
 
-**No WebGL, or `?static`:** there is no canvas. The overlays, the journey rail, cartridge choice, the
-workbench and the handoff all still work over a plain ground that shows the station's name.
+**No usable GPU, or `?static`:** there is no canvas. Each station's pre-rendered still (`still` on the
+module) fades in behind the overlays; the journey rail, cartridge choice, the workbench and the
+handoff all still work.
 
 ## The handoff to 2D (`core/handoff.ts`)
 

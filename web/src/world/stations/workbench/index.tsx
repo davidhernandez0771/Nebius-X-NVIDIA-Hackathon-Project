@@ -5,6 +5,7 @@ import { Box, PALETTE } from "../../core/Placeholder";
 import { still } from "../../core/layout";
 import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
 
 function Scene() {
   return (
@@ -31,6 +32,7 @@ function Overlay(_: StationOverlayProps) {
 
 const workbench: StationModule = {
   id: "workbench",
+  still: STILLS.workbench,
   title: "Workbench",
   owner: "T1",
   kind: "branch",

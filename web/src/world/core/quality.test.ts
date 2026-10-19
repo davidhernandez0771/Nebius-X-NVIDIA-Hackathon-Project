@@ -1,32 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { TIERS, pickTier } from "./quality";
+import { TIERS, pickQuality } from "./quality";
 
-describe("pickTier", () => {
-  it("lets ?quality= win", () => {
-    expect(pickTier({ query: "low", deviceMemory: 16, cores: 16 }).name).toBe("low");
-    expect(pickTier({ query: "HIGH", saveData: true }).name).toBe("high");
-    expect(pickTier({ query: "ultra", deviceMemory: 8, cores: 8 }).name).toBe("high");
+const pick = (s: Partial<Parameters<typeof pickQuality>[0]>) => {
+  const q = pickQuality({ gpu: "high", ...s });
+  return q.mode === "stills" ? "stills" : q.tier.name;
+};
+
+describe("pickQuality", () => {
+  it("lets ?quality= and ?static win", () => {
+    expect(pick({ query: "low", gpu: "ultra" })).toBe("low");
+    expect(pick({ query: "ULTRA", gpu: "low", saveData: true })).toBe("ultra");
+    expect(pick({ query: "medium" })).toBe("high");
+    expect(pick({ query: "stills", gpu: "ultra" })).toBe("stills");
+    expect(pick({ forceStatic: true, gpu: "ultra" })).toBe("stills");
+    expect(pick({ query: "nonsense", gpu: "low" })).toBe("low");
   });
-  it("drops to low on weak devices, phones and data saver", () => {
-    expect(pickTier({ deviceMemory: 4, cores: 8 }).name).toBe("low");
-    expect(pickTier({ deviceMemory: 8, cores: 4 }).name).toBe("low");
-    expect(pickTier({ saveData: true }).name).toBe("low");
-    expect(pickTier({ mobile: true, deviceMemory: 8, cores: 8 }).name).toBe("low");
+
+  it("follows the GPU check", () => {
+    expect(pick({ gpu: "ultra", deviceMemory: 16, cores: 16 })).toBe("ultra");
+    expect(pick({ gpu: "high" })).toBe("high");
+    expect(pick({ gpu: "low" })).toBe("low");
+    expect(pick({ gpu: "stills" })).toBe("stills");
   });
-  it("is high only when the device says it is strong, else medium", () => {
-    expect(pickTier({ deviceMemory: 8, cores: 12 }).name).toBe("high");
-    expect(pickTier({ cores: 12 }).name).toBe("medium");
-    expect(pickTier({}).name).toBe("medium");
+
+  it("keeps phones, data saver and tiny machines on low, and ultra off small CPUs", () => {
+    expect(pick({ gpu: "ultra", mobile: true })).toBe("low");
+    expect(pick({ gpu: "ultra", saveData: true })).toBe("low");
+    expect(pick({ gpu: "high", cores: 2 })).toBe("low");
+    expect(pick({ gpu: "ultra", cores: 4, deviceMemory: 16 })).toBe("high");
+    expect(pick({ gpu: "ultra", deviceMemory: 4, cores: 16 })).toBe("high");
   });
 });
 
 describe("TIERS", () => {
-  it("caps the pixel ratio and keeps idle loops off below high", () => {
+  it("caps the pixel ratio, keeps low still, and saves haze and dust for ultra", () => {
     expect(TIERS.low.dpr[1]).toBe(1);
-    expect(TIERS.medium.dpr[1]).toBe(1.5);
-    expect(TIERS.high.dpr[1]).toBe(2);
+    expect(TIERS.high.dpr[1]).toBe(1.5);
+    expect(TIERS.ultra.dpr[1]).toBe(2);
     expect(TIERS.low.idleMotion).toBe(false);
-    expect(TIERS.medium.idleMotion).toBe(false);
     expect(TIERS.low.antialias).toBe(false);
+    expect([TIERS.low.haze, TIERS.high.haze, TIERS.ultra.haze]).toEqual([false, false, true]);
+    expect([TIERS.low.dust, TIERS.high.dust, TIERS.ultra.dust]).toEqual([false, false, true]);
+    expect(Object.values(TIERS).every((t) => !t.shadows)).toBe(true);
   });
 });

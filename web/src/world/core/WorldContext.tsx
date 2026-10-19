@@ -50,7 +50,7 @@ export function useStationFrame(id: StationId, onFrame: (f: StationFrame) => voi
 
 /**
  * Inside the canvas: keep rendering every frame while `on` (an idle loop such as a flicker). Only
- * the high tier allows it; on low and medium the world renders only when something moves.
+ * the high and ultra tiers allow it; on low the world renders only when something moves.
  */
 export function useWorldAnimating(on: boolean): void {
   const { quality } = useWorld();

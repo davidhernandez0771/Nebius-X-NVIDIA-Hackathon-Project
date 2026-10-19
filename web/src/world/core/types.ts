@@ -76,4 +76,6 @@ export interface StationModule {
   Scene?: ComponentType<StationSceneProps>;
   /** DOM over the canvas: copy, controls and the keyboard path for anything clickable in 3D. */
   Overlay?: ComponentType<StationOverlayProps>;
+  /** A pre-rendered still of the station, shown instead of the canvas when there is no usable GPU. */
+  still?: string;
 }
