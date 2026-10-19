@@ -26,7 +26,8 @@ a mid laptop (Iris Xe / GTX 1650 class) at 1080p.
   To use the per-part measurement in step 6, run the dev server instead
   (`npm --prefix web run dev -- --port 5186`). The script reads a dev-only hook.
 - [ ] Clear the tier the auto-tune saved. In DevTools → Application → Local Storage, delete
-  `world.tier`, or run `localStorage.removeItem("world.tier")` in the console.
+  `world.tier.v2`, or run `localStorage.removeItem("world.tier.v2")` in the console. (The older
+  `world.tier` key is no longer read, so a tier saved by an earlier build is ignored.)
 
 ## 1. The HUD
 
@@ -87,17 +88,20 @@ the scroll stress never drops under 50.
 
 ## 3. The auto-tune
 
-- [ ] Clear `world.tier` (step 0), then open `/world?hud` with no `?q=`. The tier starts from the GPU
+- [ ] Clear `world.tier.v2` (step 0), then open `/world?hud` with no `?q=`. The tier starts from the GPU
   check: high on a normal GPU, ultra on a discrete one with 8+ cores.
-- [ ] Let the loader finish and the logo gather. About 2.4 s later the tune counts 120 frames, and the
-  HUD's tier line then reads `auto → <tier>`. Note the result.
+- [ ] Let the loader finish and the models stream in. 3 s after the last file arrives, the tune
+  measures windows of 120 frames and judges each by its median frame time, so a single hitch
+  doesn't count. It drops a tier only after two slow windows in a row. The HUD's tier line then reads
+  `auto → <tier>`. Note the result. While the page sits idle (no input for 3 s) it renders at
+  30 fps on purpose, and the tune and the resolution scale pause.
 - [ ] Reload. The saved tier is used straight away and the tune doesn't run again: the line shows
   no `auto`.
 - [ ] Known limit: the tune measures time between frames, and a 60 Hz display caps that at 16.7 ms.
   So "below 9 ms on high → ultra" only happens on a 120 Hz+ display. On 60 Hz, set ultra with the
   pill or `?q=ultra`, check its fps here, and write it down.
 - [ ] To force a drop, throttle the GPU: open a heavy WebGL tab next to it, or on a laptop switch to
-  the integrated GPU. The HUD should go high → low after about 2 s of slow frames.
+  the integrated GPU. The HUD should go high → low after two slow windows (about 5–6 s of slow frames).
 
 ## 4. Draw calls
 
