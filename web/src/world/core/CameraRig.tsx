@@ -20,6 +20,7 @@ interface RigState {
   pose: CameraPose | null;
   tween: { from: CameraPose; start: number } | null;
   cutAt: number | null;
+  jumps: number;
 }
 
 export function applyPose(camera: PerspectiveCamera, p: CameraPose): void {
@@ -44,7 +45,7 @@ export function CameraRig({
 }) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const invalidate = useThree((s) => s.invalidate);
-  const st = useRef<RigState>({ shown: store.targetY, key: null, pose: null, tween: null, cutAt: null });
+  const st = useRef<RigState>({ shown: store.targetY, key: null, pose: null, tween: null, cutAt: null, jumps: store.jumps });
 
   useEffect(() => store.onTarget(() => invalidate()), [store, invalidate]);
   useEffect(() => invalidate(), [reduced, invalidate]);
@@ -58,6 +59,14 @@ export function CameraRig({
     let moving = false;
 
     const target = store.targetY;
+    // A jump (the journey rail, behind the iris): no glide and no tween, the camera is just there.
+    if (s.jumps !== store.jumps) {
+      s.jumps = store.jumps;
+      s.shown = target;
+      s.pose = null;
+      s.tween = null;
+      s.cutAt = null;
+    }
     if (reduced) s.shown = target;
     else {
       s.shown += (target - s.shown) * (1 - Math.exp(-DAMP * dt));

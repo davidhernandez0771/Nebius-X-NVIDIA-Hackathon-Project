@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stop } from "../../scene/layout";
+import { ROOF_HIDE_Y } from "../../scene/BelowRoof";
 import { SKYLIGHT } from "../intro/layout";
 import { CLOSED_FROM, CLOSED_TO, CUT_AT, cover, diveEnter } from "./dive";
 
@@ -16,6 +17,11 @@ describe("the dive into the workshop", () => {
 
   it("never drops below the ceiling before the cut: the slab is never flown over", () => {
     for (let t = 0; t < CUT_AT; t += 0.01) expect(diveEnter(t, DESCENT_END).position[1]).toBeGreaterThan(SKYLIGHT.center[1] + 1);
+  });
+
+  it("shows the room only from inside: hidden above the ceiling before the cut, drawn from the cut on", () => {
+    for (let t = 0; t < CUT_AT; t += 0.01) expect(diveEnter(t, DESCENT_END).position[1]).toBeGreaterThan(ROOF_HIDE_Y);
+    for (let t = CUT_AT; t <= 1; t += 0.01) expect(diveEnter(t, DESCENT_END).position[1]).toBeLessThan(ROOF_HIDE_Y);
   });
 
   it("cuts only while the frame is fully dark, and is open at both ends", () => {

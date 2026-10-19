@@ -40,6 +40,10 @@ export interface WorldStore {
   setScroll(y: number): Place;
   /** Called by the camera rig each frame (or on scroll when there is no canvas). */
   setShown(y: number): void;
+  /** Counts jump() calls, so the camera rig can tell one happened. */
+  readonly jumps: number;
+  /** Puts both the scroll and the camera at y with no glide in between (a cut behind the iris). */
+  jump(y: number): void;
   onFrame(fn: FrameListener): () => void;
   /** Called on scroll so the canvas renders a frame. */
   onTarget(fn: () => void): () => void;
@@ -66,6 +70,7 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
   let viewport = vh;
   let targetY = y;
   let shownY = y;
+  let jumps = 0;
   let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh, ready: false, override: null };
   const listeners = new Set<() => void>();
   const frameListeners = new Set<FrameListener>();
@@ -120,6 +125,15 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
     },
     setShown(next) {
       shownY = next;
+      fill();
+    },
+    get jumps() {
+      return jumps;
+    },
+    jump(next) {
+      jumps++;
+      shownY = next;
+      store.setScroll(next);
       fill();
     },
     onFrame(fn) {

@@ -11,6 +11,7 @@ import { INITIAL_HANDOFF, handoffStep, saveReturn, takeReturn } from "./handoff"
 import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
 import { Hud } from "./Hud";
+import { runIris } from "./iris";
 import { TIERS, pickQuality, readSignals, saveTier, type QualityChoice, type TierName } from "./quality";
 import { dwellStart, locate } from "./rail";
 import { checkStations } from "./registry";
@@ -255,6 +256,31 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     };
   }, [coarse.branch, store]);
 
+  // The journey rail jumps behind the iris (iris.ts): it closes, the scroll and the camera cut to the
+  // station, and it opens there, so nothing in between plays (the dive, half a spiral). Reduced
+  // motion already cuts behind the veil, and a branch keeps its tween to the side.
+  const iris = useRef<HTMLDivElement>(null);
+  const jump = useCallback(
+    (id: StationId) => {
+      const m = stations.find((s) => s.id === id);
+      const y = dwellStart(store.rail, id);
+      const { branch, current } = store.getCoarse();
+      if (!m || m.kind === "branch" || reduced || !iris.current || y === null || (current === id && branch === null)) {
+        api.goTo(id);
+        return;
+      }
+      runIris(iris.current, () => {
+        const wasOpen = store.getCoarse().branch !== null;
+        store.setBranch(null);
+        store.jump(y);
+        // A branch locks the page scroll; the unlock lands a frame later.
+        if (wasOpen) requestAnimationFrame(() => scrollToY(y, false));
+        else scrollToY(y, false);
+      });
+    },
+    [api, reduced, stations, store],
+  );
+
   const onCut = useCallback(() => {
     const el = veil.current;
     if (!el) return;
@@ -290,10 +316,11 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
             );
           })}
         </main>
+        <div ref={iris} className="world-iris" aria-hidden="true" />
         <p className="world-brand world-u" aria-hidden="true">
           <b>S·A·N·T</b> &nbsp;perfect, then multiply
         </p>
-        <JourneyRail stations={stations} at={at} goTo={api.goTo} />
+        <JourneyRail stations={stations} at={at} goTo={jump} />
         {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />
       </div>

@@ -117,6 +117,8 @@ export function readSignals(search: string, gpu: GpuClass): DeviceSignals {
     deviceMemory: n.deviceMemory,
     cores: n.hardwareConcurrency,
     saveData: n.connection?.saveData,
-    mobile: typeof matchMedia === "function" && matchMedia("(max-width: 820px)").matches,
+    // A phone: small and touch. Width alone would also catch a desktop browser in a narrow window or
+    // side panel, which has the desktop's GPU.
+    mobile: typeof matchMedia === "function" && matchMedia("(max-width: 820px) and (pointer: coarse)").matches,
   };
 }

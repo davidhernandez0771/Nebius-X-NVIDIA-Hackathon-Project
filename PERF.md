@@ -44,7 +44,7 @@ a mid laptop (Iris Xe / GTX 1650 class) at 1080p.
   | post | `bloom ½ + final, msaa 4x` on high and ultra, `none` on low |
   | textures / geometry / programs | GPU memory objects and compiled shader programs |
   | heap | the JS heap in MB (Chrome only) |
-  | gpu | the renderer string. **Check that it names the real GPU, not "SwiftShader" or "Microsoft Basic".** |
+  | gpu | the GPU's name and graphics API (e.g. `NVIDIA GeForce RTX 4060 Laptop GPU · D3D11`). **Check that it names the real GPU, not "SwiftShader" or "Microsoft Basic".** `(integrated)` means Chrome is on the integrated graphics: see step 0. |
   | at | the station, and the scroll position in viewport heights (vh) |
 
 - The pill at the bottom right shows `tier · fps`. Clicking it steps through low → high → ultra and
@@ -66,7 +66,7 @@ For each tier, open `/world?q=low`, then `/world?q=high`, then `/world?q=ultra` 
 |---|---|---|---|---|---|---|
 | Logo | 0 | the loader, then the mark and plumes in front of the ring | | | | |
 | Beat 2 | 1.6 | "CHECKED BY PHYSICS.", particles arcing up | | | | |
-| Stats | 4.3 | 3/40 → 17/40, 40/40 over the skylight, the roof lattice below | | | | |
+| Stats | 4.3 | 3/40 → 17/40, 40/40 over the skylight, its well of teal rings and the particle lattice below (no modeled roof) | | | | |
 | The dive | 6.05 | the frame closing to dark with particles streaming, then opening in the room | | | | |
 | Spiral, step 0 | 7.3 | RECORD at the front, the dock bottom left | | | | |
 | Spiral, step 12 | 10.9 | ACT 30K at the front | | | | |

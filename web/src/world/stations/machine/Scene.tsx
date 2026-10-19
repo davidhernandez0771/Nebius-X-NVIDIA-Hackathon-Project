@@ -16,6 +16,7 @@ import { glideTo } from "../../core/scroll";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL } from "../../scene/assets";
+import { BelowRoof } from "../../scene/BelowRoof";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
 import { slotLook } from "../../scene/Helix";
 import { tileUv } from "../../scene/labels";
@@ -280,9 +281,9 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
   });
 
   return (
-    <group>
+    <BelowRoof>
       <primitive object={built.root} />
       <primitive object={hero.group} />
-    </group>
+    </BelowRoof>
   );
 }

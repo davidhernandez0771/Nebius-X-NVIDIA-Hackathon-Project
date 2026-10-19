@@ -9,6 +9,7 @@ import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { BAKED } from "../../scene/assets";
 import { Baked } from "../../scene/Baked";
+import { AboveRoof, BelowRoof } from "../../scene/BelowRoof";
 import { Arm } from "../../scene/Arm";
 import { Helix } from "../../scene/Helix";
 import { Haze } from "../../scene/Haze";
@@ -21,8 +22,10 @@ import { addEnvironment } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
 import { N_ITEMS, spiral } from "../../scene/spiral";
 import { stepOfT, tOfStep } from "./camera";
+import { CUT_AT } from "./dive";
 import { Portal } from "./Portal";
 import { usePick } from "./send";
+import { Well } from "./Well";
 
 /** A small prefiltered room for the glossy plastic to reflect (high and ultra). */
 function Reflections() {
@@ -57,9 +60,12 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
   const pick = usePick();
   const anisotropy = quality.name === "low" ? 1 : 4;
   // Cartridges answer the pointer only while the workshop (or the machine beside it) is in view,
-  // and not while one is open.
+  // and not while one is open. Not during the dive either: above the roof they aren't drawn.
   const active = useCallback(
-    () => (store.frames.workshop.current || store.frames.machine.current) && store.getCoarse().branch === null && spiral.selected < 0,
+    () =>
+      ((store.frames.workshop.current && store.frames.workshop.arrive >= CUT_AT) || store.frames.machine.current) &&
+      store.getCoarse().branch === null &&
+      spiral.selected < 0,
     [store],
   );
   const browsing = useCallback(() => store.frames.workshop.current && store.frames.workshop.t >= tOfStep(0) - 0.01, [store]);
@@ -68,23 +74,30 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
       <Lamps reduced={reduced} />
       <LiveLights />
       {quality.envMap ? <Reflections /> : null}
-      {BAKED.map((name) => (
-        <Suspense key={name} fallback={null}>
-          <Baked name={name} anisotropy={anisotropy} />
+      {/* The room, from inside only: above the ceiling the roof is the particle lattice and the ring. */}
+      <BelowRoof>
+        {BAKED.map((name) => (
+          <Suspense key={name} fallback={null}>
+            <Baked name={name} anisotropy={anisotropy} />
+          </Suspense>
+        ))}
+        <Pendants />
+        {quality.haze ? <Haze /> : null}
+        <Arm quality={quality} reduced={reduced} />
+        <Suspense fallback={null}>
+          <Library quality={quality} />
         </Suspense>
-      ))}
-      <Ribbon />
-      <Pendants />
-      {quality.haze ? <Haze /> : null}
-      <Suspense fallback={null}>
-        <Helix quality={quality} reduced={reduced} active={active} browsing={browsing} onPick={(k) => pick(k)} />
-      </Suspense>
-      <Arm quality={quality} reduced={reduced} />
+        <Ribbon />
+        <Suspense fallback={null}>
+          <Helix quality={quality} reduced={reduced} active={active} browsing={browsing} onPick={(k) => pick(k)} />
+        </Suspense>
+      </BelowRoof>
+      {/* From above, the skylight is a well of light, not a view into the dark room. */}
+      <AboveRoof>
+        <Well reduced={reduced} />
+      </AboveRoof>
       <StepFollower frame={frame} />
       <Portal frame={frame} reduced={reduced} />
-      <Suspense fallback={null}>
-        <Library quality={quality} />
-      </Suspense>
     </group>
   );
 }
