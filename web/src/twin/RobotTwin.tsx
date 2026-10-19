@@ -184,15 +184,16 @@ function Cube({ pose }: { pose: TwinPose }) {
   );
 }
 
-/** The operator's view: behind the robot, over its shoulder, looking down the table (the robot's left on the left,
- *  as in the mirrored camera). A narrow pane steps back so the table still fits. Drag to turn, scroll to zoom. */
+/** The operator's view: behind the robot, high and a little to its right, looking down the table (the robot's left
+ *  on the left, as in the mirrored camera). Straight behind, the arm hid the cube and bin. A narrow pane steps back
+ *  so the table still fits. Drag to turn, scroll to zoom. */
 function View({ interactive }: { interactive: boolean }) {
   const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
   // three.js is y up; the sim is z up: (x, y, z)_sim -> (x, z, -y)_three
   const target = useMemo(() => new Vector3(0.42, 0.08, 0), []);
   const position = useMemo(() => {
     const back = Math.max(1, 1.25 / aspect);
-    return target.clone().add(new Vector3(-1.05, 0.95, 0).multiplyScalar(back));
+    return target.clone().add(new Vector3(-0.8, 1.25, 0.5).multiplyScalar(back));
   }, [aspect, target]);
   return (
     <>
