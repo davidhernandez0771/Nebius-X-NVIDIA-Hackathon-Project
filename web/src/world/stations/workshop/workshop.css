@@ -192,3 +192,109 @@
 [data-motion-world="reduced"] .world-detail-hint {
   transition: none;
 }
+
+/* Ask SANT. */
+.world-ask__log {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.world-ask__line {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  color: var(--w-dim);
+}
+
+.world-ask__line--tool {
+  color: var(--w-teal);
+}
+
+.world-ask__line--say {
+  color: #cfe6e0;
+}
+
+.world-ask__privacy {
+  margin: 0 0 8px;
+  font-size: 9.5px;
+  color: var(--w-dim);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+.world-ask:focus-within .world-ask__privacy {
+  opacity: 1;
+  transform: none;
+}
+
+.world-ask__pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(143, 183, 255, 0.45);
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: rgba(8, 12, 22, 0.55);
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.world-ask__pill:focus-within {
+  border-color: var(--w-teal);
+  box-shadow: 0 0 0 4px rgba(25, 245, 194, 0.08);
+}
+
+.world-ask__pill input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--w-ink);
+  font-family: var(--w-mono);
+  font-size: 11px;
+}
+
+.world-ask__pill input::placeholder {
+  color: #6f84a8;
+}
+
+.world-ask__k {
+  color: var(--w-dim);
+  font-size: 10px;
+}
+
+/* The tour's caption. */
+.world-tour {
+  position: fixed;
+  top: 12vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  width: min(560px, calc(100vw - 32px));
+  text-align: center;
+  font-family: var(--w-mono);
+  color: var(--w-ink);
+  pointer-events: none;
+}
+
+.world-tour h3 {
+  margin: 0 0 8px;
+  font-weight: 300;
+  font-size: clamp(22px, 3vw, 40px);
+  text-transform: uppercase;
+}
+
+.world-tour p {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a9c9c1;
+}
+
+[data-motion-world="reduced"] .world-ask__privacy,
+[data-motion-world="reduced"] .world-ask__pill {
+  transition: none;
+}

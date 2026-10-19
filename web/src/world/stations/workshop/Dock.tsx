@@ -33,11 +33,18 @@ export function Dock({ children }: { children?: ReactNode }) {
   const refresh = () => {
     const f = store.frames.workshop;
     const c = store.getCoarse();
-    const on = f.current && f.t >= tOfStep(0) * 0.85 && c.ready && c.branch === null && spiral.selected < 0;
+    const on = f.current && f.t >= tOfStep(0) * 0.85 && c.ready && c.branch === null && c.override === null && spiral.selected < 0;
     if (dock.current && dock.current.dataset.on !== String(on)) dock.current.dataset.on = String(on);
   };
   useStationFrame("workshop", refresh);
-  useEffect(() => subscribeSpiral(refresh));
+  useEffect(() => {
+    const a = subscribeSpiral(refresh);
+    const b = store.subscribe(refresh);
+    return () => {
+      a();
+      b();
+    };
+  });
 
   // Escape clears the filter (the detail view takes Escape first while it is open).
   useEffect(() => {

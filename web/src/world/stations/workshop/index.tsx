@@ -12,9 +12,11 @@ import { HoverTip } from "../../ui/HoverTip";
 import { LENGTH_VH, tOfStep, workshopCamera } from "./camera";
 import { WorkshopScene } from "./Scene";
 import "./workshop.css";
+import { AskBox } from "../../ask/AskBox";
 import { Detail } from "./Detail";
 import { Dock } from "./Dock";
 import { useStepper } from "./stepper";
+import { TourCaption } from "./TourCaption";
 
 function Overlay(_: StationOverlayProps) {
   useStepper();
@@ -37,8 +39,11 @@ function Overlay(_: StationOverlayProps) {
       />
       <HoverTip />
       <h2 className="world-sr">Workshop</h2>
-      <Dock />
+      <Dock>
+        <AskBox />
+      </Dock>
       <Detail />
+      <TourCaption />
     </>
   );
 }

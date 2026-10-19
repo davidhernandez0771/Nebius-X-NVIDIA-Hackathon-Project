@@ -61,7 +61,7 @@ export function useStepper(): void {
     let lastStep = 0;
     let accAt = 0;
     let idle: ReturnType<typeof setTimeout> | undefined;
-    const busy = () => store.getCoarse().branch !== null || spiral.selected >= 0;
+    const busy = () => store.getCoarse().branch !== null || store.getCoarse().override !== null || spiral.selected >= 0;
     const go = (dir: 1 | -1, e: Event): boolean => {
       const g = stepGeometry(store);
       if (!g) return false;

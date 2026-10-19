@@ -160,4 +160,29 @@ describe("the spiral's filters (no WebGL)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Plug in →" }));
     expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
   });
+
+  it("asks SANT: runs the model's tool and shows the call line, or the keyword rules when it is down", async () => {
+    const { spiral } = await import("../scene/spiral");
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ tool: "show_cartridges_with_tag", arg: "results", reply: "Here is what the runs scored." }) }) as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+    renderWorld();
+    scrollTo(window.innerHeight * 8);
+    const input = screen.getByRole("textbox", { name: "Ask SANT" });
+    fireEvent.change(input, { target: { value: "how well does it work?" } });
+    await act(async () => {
+      fireEvent.submit(input.closest("form")!);
+    });
+    expect(spiral.filter).toBe("results");
+    expect(screen.getByText('› show_cartridges_with_tag("results")')).toBeTruthy();
+    expect(screen.getByText("Here is what the runs scored.")).toBeTruthy();
+
+    fetchMock.mockImplementation(async () => Promise.reject(new Error("offline")));
+    fireEvent.change(input, { target: { value: "open the grasp fix" } });
+    await act(async () => {
+      fireEvent.submit(input.closest("form")!);
+    });
+    expect(screen.getByText('› open_cartridge("grasp-fix") · rules')).toBeTruthy();
+    expect(spiral.selected).toBe(5);
+    vi.unstubAllGlobals();
+  });
 });
