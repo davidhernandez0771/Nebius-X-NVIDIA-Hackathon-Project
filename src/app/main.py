@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
-from .routers import candidates, chat, demos, items, organize, phone_scans, photos, results, rooms, scans, teleop
+from .routers import ask, candidates, chat, demos, items, organize, phone_scans, photos, results, review, robots, rooms, scans, teleop, twin
 
 
 @asynccontextmanager
@@ -24,7 +24,7 @@ app = FastAPI(title="Room assistant API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # the Vite dev server
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # the Vite dev server, by either name
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -37,10 +37,14 @@ app.include_router(candidates.router)
 app.include_router(items.router)
 app.include_router(organize.router)
 app.include_router(chat.router)
+app.include_router(ask.router)
 app.include_router(teleop.router)
 app.include_router(demos.router)
 app.include_router(demos.jobs_router)
+app.include_router(review.router)
 app.include_router(results.router)
+app.include_router(robots.router)
+app.include_router(twin.router)
 
 
 @app.get("/api/health")

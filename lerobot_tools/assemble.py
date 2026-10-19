@@ -8,6 +8,9 @@ its lineage, human root, repairs and diagnosis source, read from the episode's p
 Integrity checks, so a cell can't quietly use more human data than its label says:
 - the episodes may descend from at most `n_human` distinct human demos (fewer is fine: some may be discarded);
 - `raw` and `raw_multiply` episodes must carry no repairs.
+Recovery copies (sim_worker.recovery) have the lineage root "recovery-<policy cell>": the expert finishing from a
+policy's own rollout state, no human demo. They don't count toward `n_human`, the manifest lists them apart, and a
+cell needs at least one human demo.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from demo_pipeline.episode_io import load_episode
 MANIFEST_FILE = "manifest.json"
 Condition = Literal["raw", "raw_multiply", "perfected_multiply", "rules_multiply"]
 UNREPAIRED_CONDITIONS = ("raw", "raw_multiply")
+RECOVERY_ROOT_PREFIX = "recovery-"  # sim_worker.recovery.RECOVERY_ROOT_PREFIX
 
 
 class Cell(BaseModel):
@@ -64,7 +68,10 @@ def build_manifest(cell: Cell) -> dict:
             "diagnosis_source": pp.diagnosis_source if pp else None,
             "variant_seed": pp.variant_seed if pp else None,
         })
-    roots = sorted({r["human_root"] for r in rows})
+    recovery = sorted({r["human_root"] for r in rows if r["human_root"].startswith(RECOVERY_ROOT_PREFIX)})
+    roots = sorted({r["human_root"] for r in rows} - set(recovery))
+    if not roots:
+        raise ValueError(f"{cell.name}: no human demo among the episodes (only recovery copies {recovery})")
     if len(roots) > cell.n_human:
         raise ValueError(f"{cell.name}: episodes descend from {len(roots)} human demos {roots}, "
                          f"but the cell says n_human={cell.n_human}")
@@ -74,6 +81,8 @@ def build_manifest(cell: Cell) -> dict:
         "n_episodes": len(rows),
         "n_frames": sum(r["n_steps"] for r in rows),
         "human_roots": roots,
+        "recovery_roots": recovery,
+        "n_recovery_episodes": sum(r["human_root"] in recovery for r in rows),
         "diagnosis_sources": dict(Counter(r["diagnosis_source"] for r in rows if r["diagnosis_source"])),
         "episodes": rows,
     }

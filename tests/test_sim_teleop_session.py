@@ -44,6 +44,7 @@ class FakeDriver:
         self.tcp = np.array(START_TCP)
         self.cube = np.array(SCENE.cube_pose.pos)
         self.gripper = 0
+        self.reads = 0
 
     def reset(self, scene: Scene) -> None:
         self.resets.append(scene)
@@ -59,6 +60,7 @@ class FakeDriver:
             self.cube = self.tcp.copy()
 
     def read_state(self) -> StepState:
+        self.reads += 1
         return StepState(
             joint_pos=np.zeros(9), action=np.zeros(9), ee_pos=self.tcp.copy(), ee_quat=np.array(DOWN),
             cube_pos=self.cube.copy(), contact_gripper_cube=bool(self.gripper), contact_arm_bin=False,
@@ -290,6 +292,77 @@ def test_a_failing_save_is_reported_and_the_session_recovers(rig):
     assert session.state == "recording"
 
 
+def test_idle_steps_do_not_read_the_robot_state(rig):
+    # the state (and its camera frames) is only for the recording; reading it costs GPU syncs every step
+    session, driver, clock, _ = rig
+    driver.reads = 0
+    run(session, clock, 10, hand(u=0.3))
+    assert driver.reads == 0 and len(driver.applied) == 10
+
+
+def test_each_recorded_step_reads_the_state_once(rig):
+    session, driver, clock, _ = rig
+    session.on_control("record_start")
+    driver.reads = 0
+    run(session, clock, 7, hand())
+    assert driver.reads == 7 and session.status()["steps"] == 7
+
+
+def test_paused_steps_do_not_read_the_state(rig):
+    session, driver, clock, _ = rig
+    session.on_control("record_start")  # no hand yet: paused
+    driver.reads = 0
+    run(session, clock, 5)
+    assert session.paused and driver.reads == 0
+
+
+class CameraDriver(FakeDriver):
+    """A driver that can pause its recording cameras while nothing is recorded."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.recording_calls: list[bool] = []
+
+    def set_recording(self, on: bool) -> None:
+        self.recording_calls.append(on)
+
+
+def test_the_driver_is_told_when_recording_starts_and_ends():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_start")
+    assert driver.recording_calls == [True]
+    for _ in range(3):
+        session.on_hand(hand())
+        session.step()
+    session.on_control("record_stop")
+    assert driver.recording_calls == [True, False]
+
+
+def test_the_driver_is_told_recording_ended_even_when_the_save_fails():
+    driver = CameraDriver()
+
+    def fail(rec):
+        raise OSError("disk full")
+
+    session = TeleopSession(driver, SCENE, fail, clock=FakeClock())
+    session.on_control("record_start")
+    for _ in range(3):
+        session.on_hand(hand())
+        session.step()
+    session.on_control("record_stop")
+    assert driver.recording_calls == [True, False] and "save failed" in session.last_result
+
+
+def test_a_refused_start_or_stop_does_not_tell_the_driver():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_stop")  # not recording
+    session.on_control("record_start")
+    session.on_control("record_start")  # already recording
+    assert driver.recording_calls == [True]
+
+
 def test_start_while_recording_does_not_restart(rig):
     session, _, clock, _ = rig
     session.on_control("record_start")
@@ -388,6 +461,46 @@ def test_store_saver_writes_camera_frames(tmp_path):
     assert all(p.is_file() for p in images["front"])
 
 
+def _with_frames(rec: Recording) -> Recording:
+    return Recording(demo=rec.demo, states=[
+        StepState(**{**s.__dict__, "frames": {"front": np.full((8, 8, 3), k, np.uint8)}})
+        for k, s in enumerate(rec.states)
+    ])
+
+
+def test_store_saver_writes_camera_frames_concurrently(tmp_path, monkeypatch):
+    """PNG encoding is the whole save (~1 s for a 7.5 s demo, the sim loop blocked); it runs on a thread pool."""
+    pil = pytest.importorskip("PIL.Image")
+    import threading
+
+    meet, calls, original = threading.Barrier(2, timeout=5), [], pil.Image.save
+
+    def save(self, *args, **kwargs):
+        calls.append(None)
+        if len(calls) <= 2:
+            meet.wait()  # the first two writes must be in flight at once
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(pil.Image, "save", save)
+    rec = _with_frames(_recording(4))
+    store = DemoStore(tmp_path)
+    make_store_saver(store)(rec)
+    _, _, images = load_episode(store.episode_dir(rec.demo.id))
+    assert len(images["front"]) == 4
+    assert [int(np.asarray(pil.open(p))[0, 0, 0]) for p in images["front"]] == [0, 1, 2, 3]
+
+
+def test_a_failing_frame_write_fails_the_save(tmp_path, monkeypatch):
+    pil = pytest.importorskip("PIL.Image")
+
+    def save(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pil.Image, "save", save)
+    with pytest.raises(OSError, match="disk full"):
+        make_store_saver(DemoStore(tmp_path))(_with_frames(_recording(3)))
+
+
 # --- the scripted fake hand (Task 3 smoke input) --------------------------------------------
 
 from demo_pipeline.teleop import GripperLatch  # noqa: E402
@@ -446,7 +559,8 @@ import socket  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 
-from sim_worker.teleop_session import dispatch, relay_loop  # noqa: E402
+from sim_worker.teleop_session import apply_inbox, dispatch, relay_loop  # noqa: E402
+from sim_worker.teleop_trace import LatencyTrace  # noqa: E402
 
 
 def test_dispatch_routes_hand_and_control_messages(rig):
@@ -465,6 +579,51 @@ def test_dispatch_ignores_relay_chatter_and_reports_garbage(rig):
     assert "invalid" in dispatch(session, "not json")
     assert "invalid" in dispatch(session, json.dumps({"type": "control", "action": "self_destruct"}))
     assert session.state == "idle"
+
+
+def test_dispatch_takes_a_traced_hand_message(rig):
+    # the latency trace rides beside the HandPoseMsg fields; it must not make the hand invalid
+    session, driver, _, _ = rig
+    data = json.loads(hand(u=0.3).model_dump_json())
+    data["trace"] = {"cap": 1.0, "send": 2.0, "relay_in": 3.0, "relay_out": 4.0}
+    assert dispatch(session, json.dumps(data)) is None
+    session.step()
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+
+
+def _traced(u: float, **stamps) -> str:
+    data = json.loads(hand(u=u).model_dump_json())
+    if stamps:
+        data["trace"] = stamps
+    return json.dumps(data)
+
+
+def test_apply_inbox_uses_only_the_newest_hand_and_counts_the_stale_ones(rig):
+    session, driver, _, _ = rig
+    trace = LatencyTrace()
+    items = [(_traced(0.1, cap=1.0), 10.0), (_traced(0.2, cap=2.0), 11.0), (_traced(0.3, cap=3.0), 12.0)]
+    problems, stamps = apply_inbox(session, items, trace=trace)
+    assert problems == [] and stamps == {"cap": 3.0, "recv": 12.0}
+    session.step()
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+    assert trace.summary()["messages"]["stale_dropped"] == 2
+
+
+def test_apply_inbox_keeps_controls_in_order(rig):
+    session, driver, _, _ = rig
+    items = [(_traced(0.1), 1.0), (json.dumps({"type": "control", "action": "record_start"}), 2.0),
+             (_traced(0.2), 3.0), (_traced(0.3), 4.0)]
+    problems, stamps = apply_inbox(session, items)
+    assert problems == [] and session.state == "recording" and stamps == {"recv": 4.0}
+    session.step()
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+
+
+def test_apply_inbox_with_no_hand_applies_nothing_new(rig):
+    session, _, _, _ = rig
+    problems, stamps = apply_inbox(session, [("not json", 1.0)])
+    assert stamps is None and len(problems) == 1 and "invalid" in problems[0]
+    assert apply_inbox(session, []) == ([], None)
 
 
 def _free_port() -> int:
@@ -532,6 +691,33 @@ def test_relay_loop_records_a_demo_end_to_end_through_the_real_relay(relay_serve
     assert done["demo_id"] == "human_e2e" and done["last_result"] == "saved human_e2e"
     assert done["recording"] is False
     assert len(saved) == 1 and len(saved[0].demo.trajectory.t) == done["steps"] >= 10
+
+
+def test_relay_loop_traces_a_traced_hand_through_the_real_relay(relay_server):
+    from websockets.sync.client import connect
+
+    lines, stop = [], threading.Event()
+    trace = LatencyTrace(report_every_s=0.3, log=lines.append)
+    session = TeleopSession(FakeDriver(), SCENE, lambda r: "ok")
+    sink = threading.Thread(target=relay_loop, args=(session, relay_server + "?role=sim"),
+                            kwargs={"should_stop": stop.is_set, "trace": trace, "log": lambda m: None}, daemon=True)
+    sink.start()
+    try:
+        with connect(relay_server + "?role=browser") as browser:
+            while json.loads(browser.recv(timeout=10)) != {"type": "status", "sim_connected": True}:
+                pass
+            deadline = time.monotonic() + 10
+            while not any("to_sink" in line for line in lines) and time.monotonic() < deadline:
+                t = time.time() * 1000.0
+                browser.send(_traced(0.4, cap=t - 5.0, send=t))
+                time.sleep(0.03)
+    finally:
+        stop.set()
+        sink.join(timeout=10)
+    line = next(line for line in lines if "to_sink" in line)
+    for stage in ("browser", "to_relay", "relay", "to_sink", "wait", "step", "total"):
+        assert f" {stage} " in line
+    assert "steps/s" in line
 
 
 def test_relay_loop_keeps_stepping_while_the_relay_is_down():

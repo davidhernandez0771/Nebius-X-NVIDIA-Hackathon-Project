@@ -16,6 +16,10 @@ TeleopDriver. It follows the hand while idle too, so the person can line up befo
   whatever the wall-clock pace. human_seconds is the wall-clock time from start to stop.
 - On stop, the Demo (source "human") and the per-step StepStates go to an injected save_fn as a
   Recording. make_store_saver() writes them into a DemoStore with episode_io.
+- The robot twin (the Record page's 3D view): twin_scene() and twin() are the relay's sim_twin_scene and
+  sim_twin messages, the robot's joints, the gripper sent and the cube's pose. relay_loop sends them at most
+  TWIN_HZ times a second, only while the relay says a page is watching, and only when they change. A driver
+  without read_twin() sends none.
 
 Pure: numpy + pydantic + demo_pipeline only (no torch, no Isaac), so it tests anywhere.
 """
@@ -26,6 +30,7 @@ import json
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Literal, Protocol
@@ -40,10 +45,16 @@ from demo_pipeline.store import DemoStore
 from demo_pipeline.success import check_success
 from demo_pipeline.teleop import Calibration, GripperLatch, HandPoseMsg, to_ee_target
 
+from .robots import ROBOTS
+from .teleop_trace import LatencyTrace, coalesce_hands, now_ms, split_trace
+
 TELEOP_DT = 0.02  # s per control step; equals sim_worker.tracking.CONTROL_DT (that module imports torch)
 FPS = 50
 LOST_PAUSE_S = 0.3  # spec 8.1: tracking lost for longer than this pauses the recording
 MIN_STEPS = 2  # a Trajectory needs at least 2 steps
+PNG_WRITERS = 8  # threads writing an episode's camera frames (16 measured no faster)
+TWIN_HZ = 30  # at most this many sim_twin messages a second (at 50 Hz control steps: every second step, 25 Hz)
+TWIN_DECIMALS = 4  # 0.1 mm / 0.1 mrad: below what the twin can show, and it keeps the message small
 
 State = Literal["idle", "recording", "saving"]
 ACTIONS = ("record_start", "record_stop", "reset_scene")
@@ -65,6 +76,14 @@ class StepState:
     frames: dict[str, np.ndarray] = field(default_factory=dict)  # camera -> HxWx3 uint8
 
 
+@dataclass(frozen=True)
+class TwinState:
+    """The little the robot twin needs, read cheaply (no contacts, no cameras)."""
+
+    joint_pos: np.ndarray  # [J] all robot joints, in the driver's joint_names order
+    cube_pose: np.ndarray  # [7] position (env frame) + orientation (w, x, y, z)
+
+
 class TeleopDriver(Protocol):
     def reset(self, scene: Scene) -> None:
         """Place the scene and put the robot at its start pose."""
@@ -75,6 +94,11 @@ class TeleopDriver(Protocol):
     def read_state(self) -> StepState:
         """The robot and scene right now."""
 
+    # Optional: set_recording(on: bool) -> None. The session calls it when a recording starts (True) and when
+    # it ends, saved or not (False), so a driver can pause work only a recording needs (camera rendering).
+    # Optional, for the robot twin: joint_names (the robot's joints, in joint_pos order) and
+    # read_twin() -> TwinState.
+
 
 @dataclass(frozen=True)
 class Recording:
@@ -83,6 +107,10 @@ class Recording:
 
 
 SaveFn = Callable[[Recording], str]  # returns one human-readable line for the Record page
+
+
+def _rounded(values) -> list[float]:
+    return [round(float(v), TWIN_DECIMALS) + 0.0 for v in values]  # + 0.0 turns -0.0 into 0.0
 
 
 class TeleopSession:
@@ -101,6 +129,7 @@ class TeleopSession:
         self.state: State = "idle"
         self.last_result: str | None = None
         self.last_demo_id: str | None = None
+        self.twin_watchers = 0  # pages watching the twin, as the relay last said (relay_loop sends twins only then)
         self._steps = 0
         self._reset()
 
@@ -118,6 +147,7 @@ class TeleopSession:
             if self.state == "recording":
                 self.last_result = "already recording"
                 return
+            self._tell_driver_recording(True)
             self.state = "recording"
             self._started_at = self.clock()
             self._rec: dict[str, list] = {"pos": [], "quat": [], "gripper": [], "states": []}
@@ -152,8 +182,8 @@ class TeleopSession:
                 self._target = to_ee_target(msg, self.calib)
             self._gripper = gripper
         self.driver.apply(self._target, self._gripper)
-        state = self.driver.read_state()
         if self.state == "recording" and not self.paused:
+            state = self.driver.read_state()  # only recorded steps: it syncs the GPU and copies the cameras
             self._rec["pos"].append(self._target.pos)
             self._rec["quat"].append(self._target.quat_wxyz)
             self._rec["gripper"].append(self._gripper)
@@ -169,6 +199,38 @@ class TeleopSession:
             "demo_id": self.last_demo_id,
             "last_result": self.last_result,
             "paused": self.paused,
+        }
+
+    @property
+    def has_twin(self) -> bool:
+        return callable(getattr(self.driver, "read_twin", None)) and getattr(self.driver, "joint_names", None) is not None
+
+    def twin_scene(self) -> dict | None:
+        """The relay's SimTwinSceneMsg: what stays put while the twin moves (None if the driver can't read twins).
+        Poses are [x, y, z, qw, qx, qy, qz] in the env frame; base is the robot's root (sim_worker.robots)."""
+        if not self.has_twin:
+            return None
+        spec = ROBOTS.get(self.scene.robot)
+        base = spec.base_pos if spec is not None else (0.0, 0.0, 0.0)
+        return {
+            "type": "sim_twin_scene",
+            "robot": self.scene.robot,
+            "joint_names": [str(n) for n in self.driver.joint_names],
+            "base": _rounded([*base, 1.0, 0.0, 0.0, 0.0]),
+            "bin": _rounded([*self.scene.bin_pose.pos, *self.scene.bin_pose.quat_wxyz]),
+        }
+
+    def twin(self) -> dict | None:
+        """The relay's SimTwinMsg: the robot's joints now (joint_names order), the gripper sent (0 open, 1 closed),
+        and the cube's pose. None if the driver can't read twins."""
+        if not self.has_twin:
+            return None
+        state = self.driver.read_twin()
+        return {
+            "type": "sim_twin",
+            "q": _rounded(state.joint_pos),
+            "gripper": int(self._gripper),
+            "cube": _rounded(state.cube_pose),
         }
 
     # --- internals ----------------------------------------------------------------------
@@ -202,31 +264,116 @@ class TeleopSession:
             self.last_result = f"save failed: {type(e).__name__}: {e}"
         finally:
             self.state = "idle"
+            self._tell_driver_recording(False)
+
+    def _tell_driver_recording(self, on: bool) -> None:
+        hook = getattr(self.driver, "set_recording", None)
+        if hook is not None:
+            hook(on)
 
 
 # --- the sink's relay side --------------------------------------------------------------------
 
-def dispatch(session: TeleopSession, text: str) -> str | None:
-    """Apply one relay message to the session: a control, or a HandPoseMsg. The relay's own
-    "status" chatter is ignored. Returns a line to log for an "error" from the relay or for a
-    message that is invalid (dropped), else None."""
+def _parse(text: str):
     try:
-        data = json.loads(text)
+        return json.loads(text)
     except ValueError:
+        return None
+
+
+def _is_hand(data) -> bool:
+    return isinstance(data, dict) and "type" not in data
+
+
+def _dispatch_data(session: TeleopSession, data, text: str) -> str | None:
+    if data is None:
         return f"invalid message (not JSON): {text[:80]!r}"
     kind = data.get("type") if isinstance(data, dict) else None
     if kind == "error":
         return f"relay error: {data.get('detail')}"
     if kind == "status":
         return None
+    if kind == "twin_watchers":
+        count = data.get("count")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            return f"invalid message: twin_watchers count {count!r}"
+        session.twin_watchers = count
+        return None
     try:
         if kind == "control":
             session.on_control(str(data.get("action")))
         else:
-            session.on_hand(HandPoseMsg.model_validate(data))
+            session.on_hand(HandPoseMsg.model_validate(split_trace(data)[0] if isinstance(data, dict) else data))
     except (ValueError, ValidationError) as e:
         return f"invalid message: {e}"
     return None
+
+
+def dispatch(session: TeleopSession, text: str) -> str | None:
+    """Apply one relay message to the session: a control, or a HandPoseMsg (its latency "trace", if any, is
+    ignored here). The relay's own "status" chatter is ignored; its "twin_watchers" count is kept on the session
+    (TwinSender reads it). Returns a line to log for an "error" from the
+    relay or for a message that is invalid (dropped), else None."""
+    return _dispatch_data(session, _parse(text), text)
+
+
+def apply_inbox(
+    session: TeleopSession, items: list[tuple[str, float]], *, trace: LatencyTrace | None = None
+) -> tuple[list[str], dict | None]:
+    """Apply what arrived since the last tick, (text, received at epoch ms) in arrival order. Controls apply in
+    order; of each run of hand messages only the newest is validated and applied (the session only ever steps
+    with its latest hand, so the older ones are stale). Returns (lines to log, the applied hand's trace stamps
+    plus "recv", or None if no new hand applied)."""
+    parsed = [(_parse(text), text, recv) for text, recv in items]
+    kept, stale = coalesce_hands(parsed, lambda p: _is_hand(p[0]))
+    if trace is not None:
+        trace.stale(stale)
+    problems, stamps = [], None
+    for data, text, recv in kept:
+        problem = _dispatch_data(session, data, text)
+        if problem:
+            problems.append(problem)
+        elif _is_hand(data):
+            stamps = {**(split_trace(data)[1] or {}), "recv": recv}
+    return problems, stamps
+
+
+class TwinSender:
+    """What relay_loop sends for the robot twin on each tick: the sim_twin_scene once per connection (and again if
+    it changes), then a sim_twin at most `hz` times a second (wall clock), skipped when nothing moved since the last
+    one. The relay keeps the last of each for pages that open later. Nothing is read or sent while no page watches
+    (session.twin_watchers, from the relay), so the sink pays for the twin only while someone looks at it."""
+
+    def __init__(self, session: TeleopSession, *, hz: float = TWIN_HZ, clock: Callable[[], float] = time.monotonic):
+        self.session, self.period, self.clock = session, 1.0 / hz, clock
+        self._conn = None
+        self._scene: dict | None = None
+        self._last: dict | None = None
+        self._next_at = float("-inf")
+
+    def due(self, conn) -> list[str]:
+        """The messages to send on `conn` now (JSON texts, in order)."""
+        session = self.session
+        if session.twin_watchers <= 0 or not session.has_twin:
+            return []
+        out = []
+        scene = session.twin_scene()
+        if conn is not self._conn or scene != self._scene:
+            self._conn, self._scene, self._last = conn, scene, None
+            out.append(json.dumps(scene))
+        now = self.clock()
+        if now < self._next_at:
+            return out
+        self._next_at = now + self.period
+        twin = session.twin()
+        if twin != self._last:
+            self._last = twin
+            out.append(json.dumps(twin))
+        return out
+
+    def lost(self) -> None:
+        """A send failed: start over (scene first) on the next connection."""
+        self._conn = None
 
 
 def relay_loop(
@@ -238,18 +385,22 @@ def relay_loop(
     retry_s: float = 2.0,
     should_stop: Callable[[], bool] = lambda: False,
     log: Callable[[str], None] = print,
+    trace: LatencyTrace | None = None,
 ) -> None:
     """Run the session against the relay (src/app/routers/teleop.py, role=sim) until should_stop().
 
     The session and the robot stay on the calling thread (Isaac's main thread). A reader thread
     keeps a WebSocket open, reconnecting every retry_s while the relay is down, and queues what
-    arrives. Each tick drains the queue in order, then calls session.step(), at most once per
-    `period` of wall clock. A slower sim just runs slower; it never tries to catch up. The status
-    goes back to the relay whenever it changes apart from the step count, and every status_every
-    ticks. While the relay is down, the robot keeps holding its pose."""
+    arrives with its arrival time. Each tick applies the queue (apply_inbox: controls in order, the
+    newest hand only), then calls session.step(), at most once per `period` of wall clock. A slower
+    sim just runs slower; it never tries to catch up. The status goes back to the relay whenever it
+    changes apart from the step count, and every status_every ticks. The robot twin's messages follow it
+    (TwinSender: at most TWIN_HZ, only while a page watches). While the relay is down, the
+    robot keeps holding its pose. With a trace (sim_worker.teleop_trace), each tick is timed and a
+    summary is logged every trace.report_every_s."""
     from websockets.sync.client import connect  # lazy: only the live sink needs it
 
-    inbox: queue.SimpleQueue[str] = queue.SimpleQueue()
+    inbox: queue.SimpleQueue[tuple[str, float]] = queue.SimpleQueue()
     conn_box: list = [None]
 
     def reader() -> None:
@@ -259,7 +410,7 @@ def relay_loop(
                     conn_box[0] = conn
                     log(f"[teleop] connected to {url}")
                     for text in conn:
-                        inbox.put(text if isinstance(text, str) else text.decode())
+                        inbox.put((text if isinstance(text, str) else text.decode(), now_ms()))
             except Exception as e:  # refused, dropped, closed: retry while running
                 if conn_box[0] is not None:
                     log(f"[teleop] relay connection lost: {type(e).__name__}: {e}")
@@ -269,17 +420,23 @@ def relay_loop(
 
     threading.Thread(target=reader, name="teleop-relay-reader", daemon=True).start()
     next_tick, tick, last_sent = time.monotonic(), 0, None
+    twin = TwinSender(session)
     try:
         while not should_stop():
+            items = []
             while True:
                 try:
-                    text = inbox.get_nowait()
+                    items.append(inbox.get_nowait())
                 except queue.Empty:
                     break
-                problem = dispatch(session, text)
-                if problem:
-                    log(f"[teleop] {problem}")
+            problems, stamps = apply_inbox(session, items, trace=trace)
+            for problem in problems:
+                log(f"[teleop] {problem}")
+            t_start = now_ms()
+            if trace is not None and stamps is not None:
+                trace.hand_applied(stamps, applied=t_start)
             session.step()
+            t_end = now_ms()
             status = session.status()
             changed = last_sent is None or {**status, "steps": 0} != {**last_sent, "steps": 0}
             conn = conn_box[0]
@@ -289,6 +446,13 @@ def relay_loop(
                     last_sent = status
                 except Exception:
                     pass  # the reader thread notices the drop and reconnects
+            if conn is not None:
+                for text in twin.due(conn):
+                    try:
+                        conn.send(text)
+                    except Exception:
+                        twin.lost()
+                        break
             tick += 1
             next_tick += period
             delay = next_tick - time.monotonic()
@@ -296,6 +460,10 @@ def relay_loop(
                 time.sleep(delay)
             else:
                 next_tick = time.monotonic()  # behind real time: don't try to catch up
+            if trace is not None:
+                trace.step_done(start=t_start, end=t_end, sections=trace.sections.take(),
+                                sleep_ms=max(delay, 0.0) * 1000.0)
+                trace.maybe_report()
     finally:
         conn = conn_box[0]
         if conn is not None:
@@ -398,8 +566,13 @@ def make_store_saver(
 
 
 def _write_frames(ep_dir: Path, states: list[StepState], cameras: list[str]) -> None:
+    """PNG encoding was the whole save (0.93 s for 752 frames, with the sim loop blocked); zlib releases the GIL,
+    so a thread pool writes the same bytes in 0.14 s."""
     from PIL import Image  # only needed with cameras; Isaac's venv has it
 
-    for cam in cameras:
-        for k, s in enumerate(states):
-            Image.fromarray(s.frames[cam]).save(image_path(ep_dir, cam, k))
+    def write(job: tuple[str, int]) -> None:
+        cam, k = job
+        Image.fromarray(states[k].frames[cam]).save(image_path(ep_dir, cam, k))
+
+    with ThreadPoolExecutor(PNG_WRITERS) as pool:
+        list(pool.map(write, [(cam, k) for cam in cameras for k in range(len(states))]))  # re-raises a failed write

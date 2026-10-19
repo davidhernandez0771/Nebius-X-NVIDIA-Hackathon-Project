@@ -1,0 +1,37 @@
+# intent eval, phase test
+
+Labeler, 40 clips
+- task:
+  Nemotron 40/40 = 100.0% (95% CI 91.2-100.0%)
+  code     39/40 = 97.5% (95% CI 87.1-99.6%)
+  only Nemotron right: 1, only code right: 0, exact sign-test p = 1
+- color:
+  Nemotron 40/40 = 100.0% (95% CI 91.2-100.0%)
+  code     40/40 = 100.0% (95% CI 91.2-100.0%)
+  only Nemotron right: 0, only code right: 0, exact sign-test p = 1
+- destination:
+  Nemotron 40/40 = 100.0% (95% CI 91.2-100.0%)
+  code     39/40 = 97.5% (95% CI 87.1-99.6%)
+  only Nemotron right: 1, only code right: 0, exact sign-test p = 1
+- steps:
+  Nemotron 40/40 = 100.0% (95% CI 91.2-100.0%)
+  code     40/40 = 100.0% (95% CI 91.2-100.0%)
+  only Nemotron right: 0, only code right: 0, exact sign-test p = 1
+- task, unperturbed (20): Nemotron 20, code 20
+- task, +recolor (10): Nemotron 10, code 10
+- task, +reverse (10): Nemotron 10, code 9
+- invalid after 2 attempts: 0
+
+Judge, 60 pairs
+  Nemotron 59/60 = 98.3% (95% CI 91.1-99.7%)
+  code     60/60 = 100.0% (95% CI 94.0-100.0%)
+  only Nemotron right: 0, only code right: 1, exact sign-test p = 1
+- match (30): Nemotron 30/30 = 100.0% (95% CI 88.6-100.0%); code 30/30
+- object (10): Nemotron 10/10 = 100.0% (95% CI 72.2-100.0%); code 10/10
+- goal (10): Nemotron 10/10 = 100.0% (95% CI 72.2-100.0%); code 10/10
+- failed (10): Nemotron 9/10 = 90.0% (95% CI 59.6-98.2%); code 10/10
+- balanced accuracy, model: 0.983
+- balanced accuracy, code: 1.000
+- invalid after 2 attempts: 0
+
+Calls: 100, est. $0.0985, median latency 1.47 s, invalid replies 0; all phases $0.1064

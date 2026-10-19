@@ -1,0 +1,11 @@
+{
+ "id": "byor_3292d47ab6",
+ "name": "panda",
+ "created": true,
+ "urdf": "franka_description/robots/panda_arm_hand.urdf",
+ "sha256": "3292d47ab633d276d63f9c1a96115f9b2437962e46fef0c00f474a44055dac1a",
+ "n_links": 12,
+ "n_joints": 11,
+ "issues": [],
+ "parts": "/robots/byor_3292d47ab6/parts"
+}

@@ -73,3 +73,50 @@ export interface StoredDiagnosis {
   diagnosis: Diagnosis;
   gated: string[];
 }
+
+/** The Review card's Nemotron verdict, the contract in docs/design/nemotron-judge.md (on pm/nemotron-judge). */
+export type StepName = "reach" | "grasp" | "carry" | "release";
+export interface ReviewVerdict {
+  physics: { status: "verified" | "failed"; reasons: string[] };
+  label: {
+    status: "ok" | "unavailable";
+    task: string | null;
+    object: { name: string; color: string | null } | null;
+    destination: "bin" | "table" | "unknown" | null;
+    steps: { name: StepName; frames: [number, number] }[];
+    error: string | null;
+  };
+  match: {
+    status: "yes" | "no" | "not_checked" | "unavailable";
+    checks: { same_object: boolean; same_goal: boolean; same_order: boolean; copy_completes: boolean } | null;
+    reason: string | null;
+  };
+  conflict: string | null;
+}
+
+/** GET /demos/{id}/review (src/app/routers/review.py) */
+export interface DemoReview {
+  demo_id: string;
+  lineage: string[] | null;
+  physics: {
+    status: "verified" | "failed" | "unknown";
+    source: "passport" | "episode_passport" | "success_check" | null;
+    reasons: string[];
+    duration: number | null;
+    path_length: number | null;
+    max_contact_force: number | null;
+    settle_time: number | null;
+    detail: string | null;
+  };
+  fixes: {
+    source: "passport" | null;
+    diagnosis_source: "nemotron" | "rules" | "hybrid" | "none" | null;
+    model_id: string | null;
+    applied_to: string | null;
+    applied_at: string | null;
+    applied: RepairOp[];
+  };
+  verdict: ReviewVerdict | null;
+  verdict_source: string | null;
+  warnings: string[];
+}

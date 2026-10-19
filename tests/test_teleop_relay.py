@@ -1,6 +1,9 @@
 """/ws/teleop relay: browser hand-pose messages are validated and forwarded to the sim worker."""
 from __future__ import annotations
 
+import json
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -237,3 +240,37 @@ def test_a_new_sim_does_not_inherit_the_old_sims_status(client):
         assert browser.receive_json() == {"type": "status", "sim_connected": True}
         browser.send_text("bad")
         assert browser.receive_json()["type"] == "error"  # not the old sim's steps=99
+
+
+# --- latency trace (sim_worker/teleop_trace.py): an optional "trace" object beside the HandPoseMsg fields ---
+
+def _traced_text(**stamps) -> str:
+    data = json.loads(_msg_text())
+    data["trace"] = stamps
+    return json.dumps(data)
+
+
+def test_a_traced_message_is_forwarded_with_the_relays_stamps_added(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        before = time.time() * 1000.0
+        browser.send_text(_traced_text(cap=1.0, send=2.0))
+        got = json.loads(sim.receive_text())
+        after = time.time() * 1000.0
+
+        trace = got.pop("trace")
+        assert got == json.loads(_msg_text())  # the hand fields are untouched
+        assert trace["cap"] == 1.0 and trace["send"] == 2.0
+        assert before <= trace["relay_in"] <= trace["relay_out"] <= after
+        assert client.get("/teleop/status").json()["messages_forwarded"] == 1
+
+
+def test_a_traced_message_is_still_validated(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_text(json.dumps({"t_ms": 1, "tracking_ok": True, "trace": {"cap": 1.0}}))
+        error = browser.receive_json()
+        browser.send_text(_msg_text(2000.0))
+
+        assert error["type"] == "error" and "wrist_uv" in error["detail"]
+        assert sim.receive_text() == _msg_text(2000.0)

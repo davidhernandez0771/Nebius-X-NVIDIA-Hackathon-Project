@@ -1,4 +1,4 @@
-import Icon from "../../components/Icon";
+import Icon from "../../legacy/components/Icon";
 import type { TrackingStatus } from "../contracts";
 import "./handToggle.css";
 

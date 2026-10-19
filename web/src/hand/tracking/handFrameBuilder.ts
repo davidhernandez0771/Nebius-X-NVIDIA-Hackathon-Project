@@ -38,9 +38,13 @@ function toHandedness(category: RawHandednessCategory | undefined): Handedness |
 export function buildTrackedHands(
   landmarksPerHand: RawLandmark[][],
   handednessPerHand: RawHandednessCategory[][],
+  worldLandmarksPerHand: RawLandmark[][] = [],
 ): TrackedHand[] {
-  return landmarksPerHand.map((landmarks, i) => ({
-    landmarks: landmarks.map((l): HandLandmark => ({ x: l.x, y: l.y, z: l.z })),
-    handedness: toHandedness(handednessPerHand[i]?.[0]),
-  }));
+  const copy = (l: RawLandmark): HandLandmark => ({ x: l.x, y: l.y, z: l.z });
+  return landmarksPerHand.map((landmarks, i) => {
+    const hand: TrackedHand = { landmarks: landmarks.map(copy), handedness: toHandedness(handednessPerHand[i]?.[0]) };
+    const world = worldLandmarksPerHand[i];
+    if (world && world.length > 0) hand.worldLandmarks = world.map(copy);
+    return hand;
+  });
 }

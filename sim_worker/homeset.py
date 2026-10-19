@@ -11,6 +11,16 @@ variant of a home-start demo would start at home *moved with the cube* (measured
 2.2 rad apart), and the start state would encode the cube again. rehome() replaces the variant's first move with a
 fresh one from home to its above-cube pose, planned like the scripted expert's; from there on it is the variant.
 
+Neaten, centered approach (grasp fix, 2026-10-18): traced evals of the 10x10 policy showed every drop starts at
+the approach. The policy arrives above the cube ~2 cm off in a random direction, with its wrist yaw ~25 deg off,
+and corrects neither on the way down: the demos are always perfectly aligned, so they never show a correction.
+Off along the fingers' closing axis (> 15 mm of clearance), a finger lands on the cube top and the grasp closes 3 cm
+too high; off by ~45 deg in yaw, the fingers close on the cube's edges and squeeze it out.
+rehome(..., approach_offset=o, approach_yaw=y) makes the first move arrive at the above-cube pose shifted by o and
+turned by y about the vertical (seeded per episode, approach_misalignment()), hover, then center and align over
+the cube with one slow move. The descent, grasp, lift, carry and release are untouched, and every episode is still
+replayed and verified by the same physics check.
+
 Each episode gets a Passport (lineage = [source, variant]), so lerobot_tools.assemble traces every variant to its
 source and a cell can't count more human demos than its label. The manifest lists every episode dir, the yield,
 and a grid T3 can run as is: raw = the verified sources, raw_multiply = those plus every verified variant.
@@ -35,6 +45,11 @@ SOURCE_SEED0 = 3000
 VARIANT_SEED0 = 3100
 VARIANTS_PER_BLOCK = 10
 SOURCES_MAX = 10  # sources per block of 100 variant seeds
+APPROACH_OFFSET_MAX = 0.03  # m; the traced policy's error above the cube was ~2 cm (T3 grasp-fix note)
+APPROACH_YAW_MAX = math.radians(35)  # its wrist yaw error was 3-44 deg; past 45 the nearer cube face flips
+HOVER_S = 0.2  # still, off-center, before centering
+CENTER_SPEED = 0.05  # m/s, average over the centering move: a third of the expert's SPEED
+CENTER_MIN_S = 0.6
 
 
 def source_seeds(n: int) -> list[int]:
@@ -76,20 +91,54 @@ def first_move_steps(scene: Scene) -> int:
     return len(scripted_expert(scene, home_start=True).t) - len(scripted_expert(scene).t)
 
 
-def rehome(traj: Trajectory, k: int, start_pos=HOME_TCP, start_quat=DOWN_WXYZ, rate_hz: int = 50) -> Trajectory:
+def approach_misalignment(seed: int) -> tuple[np.ndarray, float]:
+    """(horizontal offset in m, yaw in rad) for the centered approach: the offset uniform over the disc of radius
+    APPROACH_OFFSET_MAX, the yaw uniform in +-APPROACH_YAW_MAX. Its own stream per episode seed, independent of the
+    scene drawn from that seed."""
+    rng = np.random.default_rng([seed, 0xA0])
+    r, ang = APPROACH_OFFSET_MAX * math.sqrt(rng.random()), rng.uniform(-math.pi, math.pi)
+    return np.array([r * math.cos(ang), r * math.sin(ang)]), float(rng.uniform(-APPROACH_YAW_MAX, APPROACH_YAW_MAX))
+
+
+def _turned(q_wxyz: np.ndarray, yaw: float) -> np.ndarray:
+    """q turned by yaw about the world vertical: (cos, 0, 0, sin) * q."""
+    w, x, y, z = q_wxyz
+    c, s = math.cos(yaw / 2), math.sin(yaw / 2)
+    return np.array([c * w - s * z, c * x - s * y, c * y + s * x, c * z + s * w])
+
+
+def _move(p0, p1, q0, q1, span: float, rate_hz: int) -> tuple[np.ndarray, np.ndarray]:
+    n = max(1, math.ceil(span * rate_hz - 1e-9))
+    s = _min_jerk(np.arange(1, n + 1) / n)
+    return p0 + s[:, None] * (p1 - p0), _slerp(q0, q1, s)
+
+
+def rehome(traj: Trajectory, k: int, start_pos=HOME_TCP, start_quat=DOWN_WXYZ, rate_hz: int = 50,
+           approach_offset=(0.0, 0.0), approach_yaw: float = 0.0) -> Trajectory:
     """traj with steps 0..k replaced by a min-jerk move from the start pose to traj's pose at step k, timed like
-    the scripted expert's moves (SPEED average, MIN_MOVE_S at least). Steps after k are kept; time is re-gridded."""
+    the scripted expert's moves (SPEED average, MIN_MOVE_S at least). Steps after k are kept; time is re-gridded.
+    approach_offset (x, y in m, world) / approach_yaw (rad, about the vertical): arrive at that pose shifted and
+    turned instead, hold HOVER_S, then center and align over it in one move (CENTER_SPEED average, CENTER_MIN_S at
+    least). Both zero is the plain move."""
     a = traj.to_arrays()
     if np.any(a["gripper"][: k + 1] != 0):
         raise ValueError(f"rehome: the gripper closes within the first {k + 1} steps; that is not a free move")
     p0, q0 = np.asarray(start_pos, dtype=float), np.asarray(start_quat, dtype=float)
     p1, q1 = a["ee_pos"][k], a["ee_quat"][k]
-    span = max(float(np.linalg.norm(p1 - p0)) / SPEED, MIN_MOVE_S)
-    n = max(1, math.ceil(span * rate_hz - 1e-9))
-    s = _min_jerk(np.arange(1, n + 1) / n)
-    pos = np.vstack([p0, p0 + s[:, None] * (p1 - p0), a["ee_pos"][k + 1:]])
-    quat = np.vstack([q0, _slerp(q0, q1, s), a["ee_quat"][k + 1:]])
+    off = np.array([*np.asarray(approach_offset, dtype=float), 0.0])
+    if not np.any(off) and approach_yaw == 0.0:
+        moves = [_move(p0, p1, q0, q1, max(float(np.linalg.norm(p1 - p0)) / SPEED, MIN_MOVE_S), rate_hz)]
+    else:
+        hover, q_hover = p1 + off, _turned(q1, approach_yaw)
+        n_hold = max(1, math.ceil(HOVER_S * rate_hz - 1e-9))
+        moves = [_move(p0, hover, q0, q_hover, max(float(np.linalg.norm(hover - p0)) / SPEED, MIN_MOVE_S), rate_hz),
+                 (np.tile(hover, (n_hold, 1)), np.tile(q_hover, (n_hold, 1))),
+                 _move(hover, p1, q_hover, q1, max(float(np.linalg.norm(off)) / CENTER_SPEED, CENTER_MIN_S),
+                       rate_hz)]
+    pos = np.vstack([p0, *(m[0] for m in moves), a["ee_pos"][k + 1:]])
+    quat = np.vstack([q0, *(m[1] for m in moves), a["ee_quat"][k + 1:]])
     quat /= np.linalg.norm(quat, axis=1, keepdims=True)
+    n = sum(len(m[0]) for m in moves)
     grip = np.concatenate([np.zeros(n + 1, dtype=int), a["gripper"][k + 1:]])
     return Trajectory.from_arrays(np.arange(len(pos)) / rate_hz, pos, quat, grip)
 

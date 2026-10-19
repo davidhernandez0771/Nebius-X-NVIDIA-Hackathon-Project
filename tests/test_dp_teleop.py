@@ -151,6 +151,28 @@ def test_latch_holds_when_tracking_lost():
     assert latch.update(_msg(tracking_ok=False, pinch_ratio=0.0, palm_width=0.0)) == 1
 
 
+# --- the optional grip field (hand v3: the browser's pinch latch, 3D thumb-index) ----------------
+
+def test_latch_follows_grip_when_present_whatever_the_2d_pinch_says():
+    latch = GripperLatch()
+    assert latch.update(_msg(pinch_ratio=0.1, grip=0)) == 0
+    assert latch.update(_msg(pinch_ratio=0.9, grip=1)) == 1
+    assert latch.update(_msg(pinch_ratio=0.9)) == 0  # without grip: the 2D pinch thresholds, as before
+
+
+def test_latch_holds_when_tracking_lost_even_with_grip():
+    latch = GripperLatch()
+    latch.update(_msg(grip=1))
+    assert latch.update(_msg(tracking_ok=False, grip=0)) == 1
+
+
+def test_msg_without_grip_has_none_and_round_trips_with_it():
+    assert _msg().grip is None
+    msg = _msg(grip=1)
+    assert json.loads(msg.model_dump_json(exclude_none=True))["grip"] == 1
+    assert HandPoseMsg.model_validate_json(msg.model_dump_json()) == msg
+
+
 # --- HandPoseMsg validation --------------------------------------------------------------------
 
 @pytest.mark.parametrize(
@@ -167,6 +189,9 @@ def test_latch_holds_when_tracking_lost():
         {"control": (-0.01, 0.5, 0.5)},
         {"control": (0.5, 0.5, float("nan"))},
         {"control": (0.5, 0.5)},
+        {"grip": 2},
+        {"grip": -1},
+        {"grip": 0.5},
     ],
 )
 def test_msg_rejects_out_of_range_uv_and_nonpositive_palm_when_tracking(overrides):
@@ -192,16 +217,17 @@ def test_msg_json_round_trip_uses_the_shared_field_names():
     assert HandPoseMsg.model_validate_json(with_control.model_dump_json()) == with_control
 
 
-TS_FIXTURE = Path(__file__).resolve().parents[1] / "web" / "src" / "teleop" / "__fixtures__" / "hand_pose_msg.json"
+TS_FIXTURE = Path(__file__).resolve().parents[1] / "web" / "src" / "record" / "teleop" / "__fixtures__" / "hand_pose_msg.json"
 
 
 def test_ts_fixture_validates_as_HandPoseMsg():
-    # Produced by web/src/teleop/handPoseMessage.test.ts's toHandPoseMsg() from fixed landmarks.
+    # Produced by web/src/record/teleop/handPoseMessage.test.ts's toHandPoseMsg() from fixed landmarks.
     msg = HandPoseMsg.model_validate_json(TS_FIXTURE.read_text(encoding="utf-8"))
 
     assert msg.tracking_ok is True
     assert msg.frame_w == 1280 and msg.frame_h == 720
     assert msg.control is not None and all(0.0 <= c <= 1.0 for c in msg.control)
+    assert msg.grip in (0, 1)
     pose = to_ee_target(msg)
     assert all(math.isfinite(c) for c in pose.pos)
 

@@ -3,6 +3,7 @@
 <root>/demos/<id>/demo.json        Demo
 <root>/demos/<id>/diagnosis.json   {"source", "model_id", "diagnosis", "gated"}, optional
 <root>/demos/<id>/passport.json    Passport, optional
+<root>/demos/<id>/review_verdict.json  the Review card's ReviewVerdict (docs/design/nemotron-judge.md), optional
 <root>/demos/<id>/episode/         the recorded episode (episode_io format), optional
 
 Every write goes to a temp file in the same folder, then os.replace, so a reader
@@ -12,6 +13,7 @@ allowed; any other id is "not found" on read and a ValueError on save.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -27,6 +29,8 @@ from .paths import data_dir
 from .schemas import Demo, Diagnosis, Passport
 
 log = logging.getLogger(__name__)
+
+REVIEW_VERDICT = "review_verdict.json"
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -158,6 +162,23 @@ class DemoStore:
         if not path.is_file():
             return None
         return Passport.model_validate_json(path.read_text(encoding="utf-8"))
+
+    # --- the Review card's Nemotron verdict --------------------------------------------
+
+    def save_review_verdict(self, id: str, verdict: dict) -> Path:
+        path = self._existing_dir(id) / REVIEW_VERDICT
+        write_atomic(path, json.dumps(verdict, indent=2))
+        return path
+
+    def get_review_verdict(self, id: str) -> dict | None:
+        """None if there is none yet; ValueError if the file isn't a JSON object. The shape is checked by the reader."""
+        path = self._existing_dir(id) / REVIEW_VERDICT
+        if not path.is_file():
+            return None
+        verdict = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(verdict, dict):
+            raise ValueError(f"{REVIEW_VERDICT} must be a JSON object, got {type(verdict).__name__}")
+        return verdict
 
     # --- lineage -------------------------------------------------------------------
 

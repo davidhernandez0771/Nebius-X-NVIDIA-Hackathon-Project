@@ -124,6 +124,7 @@ class IsaacEvalEnv:
         offset = torch.tensor([[0.0, 0.0, TCP_OFFSET]], device=self.sim.device)
         tcp = (hand[:, 0:3] + quat_apply(hand[:, 3:7], offset) - origin)[0].cpu().numpy().astype(np.float64)
         q = hand[0, 3:7].cpu().numpy().astype(np.float64)  # xyzw
+        cq = sc["cube"].data.root_quat_w.torch[0].cpu().numpy().astype(np.float64)  # xyzw
         forces = {group: max(_max_pair_force(sc[name]) for name in sensors)
                   for group, sensors in ARM_CONTACT_SENSORS.items()}
         return StepRecord(
@@ -135,6 +136,7 @@ class IsaacEvalEnv:
             contact_arm_bin=forces["bin"] > CONTACT_N,
             contact_arm_table=forces["table"] > CONTACT_N,
             max_contact_force=max(forces.values()),
+            cube_quat_wxyz=np.array([cq[3], cq[0], cq[1], cq[2]]),
         )
 
     # -- internals --------------------------------------------------------------------------------------------------

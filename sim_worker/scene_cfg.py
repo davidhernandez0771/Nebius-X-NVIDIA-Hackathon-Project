@@ -225,7 +225,13 @@ def make_scene_cfg(cameras: bool, robot: str = "franka") -> PickPlaceSceneCfg:
     elif robot == "flexiv":
         _use_flexiv(cfg)
     elif robot != "franka":
-        raise ValueError(f"no sim scene for robot {robot!r}")
+        try:
+            spec = robot_spec(robot)
+        except KeyError:
+            raise ValueError(f"no sim scene for robot {robot!r}") from None
+        from .byor_scene import use_uploaded  # an uploaded URDF ("Bring your robot"), registered by the caller
+
+        use_uploaded(cfg, spec, _contacts)
     if not cameras:
         cfg.front = None
         cfg.wrist = None

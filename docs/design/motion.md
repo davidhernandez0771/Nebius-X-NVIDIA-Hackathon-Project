@@ -20,7 +20,7 @@ moment. Everything else is feedback to the user's own action.
 | `--sant-dur-4` | 320 | toasts, panels, the step rail lighting a unit |
 | `--sant-dur-story` | 600 | a story reveal (headline words, chart frame) |
 | `--sant-dur-count` | 1100 | Stat counters, bar growth |
-| `--sant-dur-power` | 1400 | the whole power-on, dust included |
+| `--sant-dur-power` | 860 | the whole story ↔ app crossing, dust included (1400 before sprint 9) |
 
 Exits use the next shorter step: a toast enters in 320 ms and leaves in 200 ms.
 
@@ -41,7 +41,8 @@ Exits use the next shorter step: a toast enters in 320 ms and leaves in 200 ms.
 |---|---|---|
 | `--sant-stagger-list` | 30 | list rows, badges |
 | `--sant-stagger-text` | 70 | story headline words |
-| `--sant-stagger-sant` | 140 | the S·A·N·T units (logo, step rail, power-on) |
+| `--sant-stagger-sant` | 140 | the S·A·N·T units (logo, step rail) |
+| `--sant-stagger-cross` | 50 | the logo symbol's parts lighting in the crossing |
 
 ## 2. Choreography
 
@@ -53,8 +54,7 @@ Exits use the next shorter step: a toast enters in 320 ms and leaves in 200 ms.
 | Badge "live" dot | opacity pulse 1 → 0.35, 1.6 s loop | CSS keyframes | steady dot |
 | Toast in / out | `translateY(12px)` + opacity in; opacity out | dur-4 ease-out / dur-3 ease-in | appears and disappears |
 | Route, same mode | view-transition cross-fade of `main`; nav and rail stay (named) | dur-3, ease-out | instant |
-| Story → app | **power-on** (§4) | dur-power | instant route change, the rail already lit |
-| App → story | a plain cross-fade (leaving the instrument is not an event) | dur-3 | instant |
+| Story ↔ app, either way | **the crossing** (§4), on every link, back/forward and `navigate()` | dur-power | a quick cross-fade (160 ms) |
 | Story hero headline | words rise from a mask, once on load | dur-story, ease-emph, stagger-text | static |
 | Stat counter | 0 → value, once, on first view | dur-count, ease-out | final value |
 | Result bars | bars grow from 0 at the same speed; CI whiskers fade in after | dur-count ease-out; whiskers dur-3 after +150 ms | full bars and whiskers |
@@ -80,32 +80,42 @@ Exits use the next shorter step: a toast enters in 320 ms and leaves in 200 ms.
   `::view-transition-*` animations under `[data-motion="reduced"]` and
   `prefers-reduced-motion: reduce`.
 
-## 4. The power-on (story → app)
+## 4. The crossing, "power on" (story ↔ app)
 
-Total `--sant-dur-power` (1400 ms; it was 900 ms before the dust). The phases come from a pure
-function, `powerOnPlan(reduced)` in `web/src/sant/motion/powerOn.ts`, which is unit-tested.
+Sprint 9 feedback: going from the light story pages to the dark app pages (and back) was too abrupt.
+Every navigation that crosses between the two now plays one designed transition, in either
+direction, in `--sant-dur-power` (860 ms). The phases come from a pure function,
+`powerOnPlan(reduced)` in `web/src/sant/motion/powerOn.ts`; which pages are which, which clicks
+cross and how full each cover cell is come from `web/src/sant/motion/crossing.ts`. Both are
+unit-tested. `PowerOn.tsx` plays it.
 
 | t (ms) | Phase | What happens |
 |---|---|---|
-| 0 | cover | A Volt overlay grows from the clicked button: `clip-path: circle(0 at x y)` → `circle(150% at x y)`, ease-emph, 420 ms |
-| 100 | gather | Dust scattered over the screen starts to gather into the S·A·N·T mark. Unit u's dust lands at 700 + u × 140 ms (ease-emph, so no speck overshoots its target) |
-| 420 | navigate | The overlay now covers the screen; the route changes to the app page |
-| 700, 840, 980, 1120 | light | Each unit lights the moment its dust lands (stagger-sant 140 ms); the dust then fades over 200 ms |
-| 1220 | reveal | The overlay fades out over 180 ms, ease-in; the app shell's own rail is already lit |
-| 1400 | done | The overlay is removed; focus moves to the app page's `<h1>` |
+| 0 | cover | The page dissolves into a dot matrix (18 px square cells) of the **other** mode's ground, in a wave from the clicked link (each cell grows over 160 ms, ease-out, with a little jitter) |
+| 80 | gather | Dust in the other mode's text colour starts to gather into the logo symbol (`logoSymbol.ts`). Step u's dust lands at 340 + u × 50 ms |
+| 340 | navigate | The cover is solid; the route changes under it and the page scrolls to the top |
+| 340–490 | light | Each part of the symbol lights as its dust lands (stagger-cross); the original in the accent |
+| 560 | reveal | The cover powers off: it breaks into the same dot matrix and the dots shrink away over the new page, 300 ms. With the View Transitions API this is a CSS mask on the old snapshot (`:root[data-crossing="reveal"]`); without it the canvas shrinks its own cells in a wave from the centre |
+| 860 | done | The overlay is gone; focus moves to the new page's `<h1>` |
 
-- **The dust** (`web/src/sant/motion/dust.ts`, pure and unit-tested; drawn by `PowerOn.tsx`):
-  - targets are sampled from each unit's letter, drawn off-screen in its own font at its own place;
-  - at most 900 specks, on a canvas 2D with the pixel ratio capped at 1.5;
-  - each speck drifts, then curls in along a slight arc, and turns teal as it settles.
-- **No 2D canvas:** the overlay says `data-dust="off"` and the units light on the same timeline
-  without dust.
-- **Repeated clicks:** a second click, a click on the overlay, or Escape jumps to `navigate` and
-  `done`.
-- **Reduced motion or Effects off:** the plan is `[{ phase: "navigate", at: 0 }, { phase: "done",
-  at: 0 }]`, with no overlay and no dust.
-- **Cost:** `clip-path` and `opacity` on the overlay, plus one canvas for 1.4 s. Nothing else on
-  the page animates during it.
+- **Which pages:** paper = `/site`, `/site/results`, `/design`; volt = `/robots`, `/review2`,
+  `/site/record-hud`, `/design/app` (`siteModeOf`). Other routes are left alone.
+- **Links need nothing special.** `PowerOnProvider` (in `SantRoot`) catches, in the capture phase, any
+  plain left click on a same-origin, same-tab link whose target is on the other side. React Router's
+  `<Link>` skips a click that was already handled.
+- **Crossings it didn't start** (back/forward, or code calling `navigate()`) get the second half: a
+  layout effect puts the full cover up before the new page paints, then reveals it.
+- **`usePowerOn().start(to, from)`** still works for buttons. A target outside the new site (e.g.
+  `/pm/record`) unmounts the provider, so the route changes at `done`, behind the full cover.
+- **The dust** (`dust.ts`): targets are sampled from the symbol's paths with `Path2D`, at most 900
+  specks.
+- **No 2D canvas:** `data-dust="off"`; a plain cover grows from the click with `clip-path`, then fades.
+- **Repeated clicks:** a second click, a click on the overlay, or Escape jumps to the end.
+- **Reduced motion or Effects off:** a 160 ms cross-fade, as a view transition where supported
+  (`:root[data-crossing="fade"]`, deliberately overriding the reduced-motion rule that turns view
+  transitions off), else a fade from the new page's ground (`.sant-crossfade`).
+- **Cost:** one 2D canvas (pixel ratio capped at 1.5), about 3,000 `fillRect`s a frame, for 0.86 s;
+  the view-transition mask is composited. No WebGL context.
 
 ## 5. Implementation notes
 

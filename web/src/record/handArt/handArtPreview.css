@@ -1,0 +1,359 @@
+/* /pm/hand-art preview, in the Volt app look. Local tokens until T5's sant/tokens.css lands. */
+.ha-page {
+  --ha-bg: #07090c;
+  --ha-text: #e6edf3;
+  --ha-muted: #8b95a1;
+  --ha-line: rgba(230, 237, 243, 0.1);
+  --ha-teal: #19f5c2;
+  --ha-amber: #ffb000;
+  --ha-violet: #a78bfa;
+  --ha-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --ha-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --ha-display: "Instrument Serif", Georgia, serif;
+
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 2rem clamp(1rem, 4vw, 3rem) 3rem;
+  background: var(--ha-bg);
+  color: var(--ha-text);
+  font-family: var(--ha-sans);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.ha-page *,
+.ha-page *::before,
+.ha-page *::after {
+  box-sizing: inherit;
+}
+
+.ha-head {
+  max-width: 62ch;
+  margin-bottom: 1.75rem;
+}
+
+.ha-head h1 {
+  margin: 0 0 0.25rem;
+  font-family: var(--ha-display);
+  font-weight: 400;
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+.ha-head p {
+  margin: 0;
+  color: var(--ha-muted);
+}
+
+.ha-body {
+  display: grid;
+  grid-template-columns: minmax(0, calc((100vh - 15rem) * 4 / 3)) 17rem;
+  justify-content: start;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+/* The stage stands in for the webcam view: the overlay's background is transparent. */
+.ha-stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  max-width: calc((100vh - 15rem) * 4 / 3);
+  min-width: min(100%, 18rem);
+  overflow: hidden;
+  border: 1px solid var(--ha-line);
+  border-radius: 6px;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 62%, #131a22 0%, rgba(19, 26, 34, 0) 70%),
+    var(--ha-bg);
+}
+
+.ha-timeline {
+  position: relative;
+  height: 1.75rem;
+  max-width: calc((100vh - 15rem) * 4 / 3);
+  margin-top: 0.5rem;
+}
+
+.ha-spans {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: var(--ha-line);
+}
+
+.ha-span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.ha-span-closed {
+  background: var(--ha-amber);
+}
+
+.ha-span-lost {
+  background: var(--ha-muted);
+}
+
+.ha-timeline input[type="range"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.ha-timeline input[type="range"]::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.ha-timeline input[type="range"]::-moz-range-track {
+  background: transparent;
+}
+
+.ha-timeline input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 3px;
+  height: 1.25rem;
+  margin-top: 0.25rem;
+  border: 0;
+  border-radius: 1px;
+  background: var(--ha-teal);
+}
+
+.ha-timeline input[type="range"]::-moz-range-thumb {
+  width: 3px;
+  height: 1.25rem;
+  border: 0;
+  border-radius: 1px;
+  background: var(--ha-teal);
+}
+
+.ha-caption {
+  max-width: 70ch;
+  margin: 0.5rem 0 0;
+  color: var(--ha-muted);
+  font-size: 0.8125rem;
+}
+
+.ha-controls {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.ha-styles {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ha-styles legend {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  color: var(--ha-muted);
+  font-size: 0.8125rem;
+}
+
+.ha-style {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  color: var(--ha-muted);
+  cursor: pointer;
+}
+
+.ha-style:hover {
+  color: var(--ha-text);
+}
+
+.ha-style input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ha-style:has(input:checked) {
+  color: var(--ha-text);
+  background: rgba(25, 245, 194, 0.07);
+  box-shadow: inset 2px 0 0 var(--ha-teal);
+}
+
+.ha-style:has(input:focus-visible) {
+  outline: 2px solid var(--ha-teal);
+  outline-offset: 2px;
+}
+
+/* A teal dot marks the style on screen right now. */
+.ha-style[data-showing]::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--ha-teal);
+  box-shadow: 0 0 8px var(--ha-teal);
+}
+
+/* Small drawn hints of each style. */
+.ha-swatch {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 3px;
+  background-color: rgba(230, 237, 243, 0.04);
+  outline: 1px solid var(--ha-line);
+}
+
+.ha-swatch-auto {
+  background: conic-gradient(var(--ha-teal) 0 25%, transparent 0 50%, var(--ha-violet) 0 75%, transparent 0);
+  opacity: 0.85;
+}
+
+.ha-swatch-ascii {
+  background:
+    linear-gradient(var(--ha-teal), var(--ha-teal)) center / 60% 2px no-repeat,
+    linear-gradient(var(--ha-teal), var(--ha-teal)) center / 2px 60% no-repeat;
+}
+
+.ha-swatch-bayer {
+  background: repeating-conic-gradient(var(--ha-teal) 0 25%, transparent 0 50%) 0 0 / 4px 4px;
+}
+
+.ha-swatch-halftone {
+  background: radial-gradient(circle, var(--ha-teal) 0 1.6px, transparent 2px) 0 0 / 6px 6px;
+}
+
+.ha-swatch-particles {
+  background:
+    radial-gradient(circle at 25% 30%, var(--ha-teal) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 25%, var(--ha-violet) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 55% 70%, var(--ha-teal) 0 1.4px, transparent 2px),
+    radial-gradient(circle at 20% 80%, var(--ha-teal) 0 0.8px, transparent 1.3px);
+}
+
+.ha-swatch-lines {
+  background: linear-gradient(135deg, transparent 44%, var(--ha-teal) 46% 54%, transparent 56%);
+  filter: drop-shadow(0 0 3px rgba(25, 245, 194, 0.7));
+}
+
+.ha-actions {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
+.ha-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--ha-line);
+  border-radius: 4px;
+  background: rgba(230, 237, 243, 0.04);
+  color: var(--ha-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ha-btn:hover {
+  border-color: rgba(25, 245, 194, 0.5);
+}
+
+.ha-btn:focus-visible,
+.ha-file:has(input:focus-visible) {
+  outline: 2px solid var(--ha-teal);
+  outline-offset: 2px;
+}
+
+.ha-btn-quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--ha-muted);
+  padding: 0;
+  min-height: 1.75rem;
+}
+
+.ha-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.ha-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  cursor: pointer;
+}
+
+.ha-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--ha-teal);
+}
+
+.ha-error {
+  margin: 0;
+  color: var(--ha-amber);
+  font-size: 0.8125rem;
+}
+
+.ha-readout {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--ha-line);
+}
+
+.ha-readout dt {
+  color: var(--ha-muted);
+  font-size: 0.8125rem;
+}
+
+.ha-readout dd {
+  margin: 0;
+}
+
+.ha-num {
+  font-family: var(--ha-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ha-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .ha-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ha-stage,
+  .ha-timeline {
+    max-width: none;
+  }
+}

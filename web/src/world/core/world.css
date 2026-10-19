@@ -1,0 +1,365 @@
+/* The world (docs/design/world-core.md). Volt tokens (data-mode="volt" on .world); the canvas,
+   veil and overlays are fixed, and the only thing in the page flow is the scroll track. Fades use
+   fixed 160/240 ms rather than the --sant-dur tokens, because those collapse to 0 when motion is
+   reduced and the reduced fallback here is the fade itself. Only opacity animates. */
+
+.sant.world {
+  position: relative;
+  min-height: 100vh;
+  background: var(--sant-bg);
+  color: var(--sant-text);
+}
+
+.world-ground {
+  position: fixed;
+  inset: 0;
+  background: var(--sant-bg);
+  display: grid;
+  place-items: center;
+}
+
+.world-ground__name {
+  font-family: var(--sant-font-display);
+  font-size: clamp(4rem, 3rem + 8vw, 11rem);
+  line-height: 1;
+  color: var(--sant-surface-2);
+  animation: world-fade-in 240ms var(--sant-ease-out);
+}
+
+/* No usable GPU: the stations' stills, stacked; the current one fades up. Dimmed a little so the
+   overlay copy reads over the brightest renders. */
+.world-stills__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 240ms var(--sant-ease-out);
+}
+
+.world-stills__img[data-on="true"] {
+  opacity: 0.82;
+}
+
+[data-motion-world="reduced"] .world-stills__img {
+  transition-duration: 160ms;
+}
+
+.world-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  background: var(--sant-bg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The reduced-motion cut: up in 160 ms, the camera jumps while it is opaque, down in 160 ms
+   (CameraRig CUT_S). */
+.world-veil.is-cut {
+  animation: world-veil 320ms linear;
+}
+
+@keyframes world-veil {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The journey rail's jump (iris.ts): the dark closes from the edges onto a teal rim and opens from
+   the centre. --iris is the open radius, set per frame; above the overlays, under the rail. */
+.world-iris {
+  --iris: 72vmax;
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: none;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent calc(var(--iris) - 1.5px),
+    rgba(25, 245, 194, 0.95) var(--iris),
+    rgba(25, 245, 194, 0.22) calc(var(--iris) + 4px),
+    #04070a calc(var(--iris) + 18px)
+  );
+}
+
+.world-iris.is-on {
+  display: block;
+}
+
+@keyframes world-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.world-overlays {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.world-station {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 240ms var(--sant-ease-out), visibility 0s linear 240ms;
+}
+
+.world-station[data-current="true"] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 240ms var(--sant-ease-out), visibility 0s;
+}
+
+.world-station:focus {
+  outline: none;
+}
+
+[data-motion-world="reduced"] .world-station,
+[data-motion-world="reduced"] .world-station[data-current="true"] {
+  transition-duration: 160ms, 0s;
+}
+
+.world-panel {
+  position: absolute;
+  left: clamp(16px, 5vw, 72px);
+  bottom: clamp(24px, 9vh, 96px);
+  width: min(32rem, calc(100vw - 32px - 56px));
+  display: grid;
+  gap: var(--sant-space-4);
+  justify-items: start;
+  /* Only the controls take the pointer: the empty box around the copy lets clicks through to the 3D
+     behind it (the workshop's cartridges sit right there). */
+  pointer-events: none;
+}
+
+.world-panel :is(a, button, input, select, textarea, label, [role="button"], [tabindex]) {
+  pointer-events: auto;
+}
+
+/* A soft pool of the ground colour behind the copy, so it reads over a busy 3D shot. Static (no
+   animation), behind the panel's own text. Not behind the zoom's single button. */
+.world-panel:not(.world-panel--zoom)::before {
+  content: "";
+  position: absolute;
+  inset: -56px -72px -56px -96px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgb(7 9 12 / 0.78), rgb(7 9 12 / 0.5) 55%, rgb(7 9 12 / 0));
+  pointer-events: none;
+}
+
+.world-panel--story {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  width: min(44rem, calc(100vw - 32px - 56px));
+}
+
+.world-panel--quiet {
+  bottom: clamp(24px, 12vh, 128px);
+}
+
+.world-panel--zoom {
+  left: 50%;
+  bottom: clamp(24px, 8vh, 80px);
+  width: auto;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.sant .world-title {
+  font-family: var(--sant-font-display);
+  font-weight: 400;
+  font-size: clamp(2.5rem, 1.4rem + 4.4vw, 5.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.sant .world-h {
+  font-family: var(--sant-font-display);
+  font-weight: 400;
+  font-size: var(--sant-fs-2);
+  line-height: 1.05;
+}
+
+.sant .world-lede {
+  max-width: 52ch;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-body-paper);
+  line-height: 1.5;
+}
+
+.world-beats {
+  list-style: none;
+  margin: var(--sant-space-4) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sant-space-3);
+  max-width: 52ch;
+}
+
+.world-beats li {
+  opacity: 0.3;
+  transition: opacity 200ms var(--sant-ease-out);
+}
+
+.world-beats li[data-on="true"] {
+  opacity: 1;
+}
+
+.world-panel--workshop {
+  gap: var(--sant-space-3);
+}
+
+/* The workshop's three steps (a real sequence, so numbered). */
+.world-steps {
+  margin: 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: var(--sant-space-2);
+  max-width: 46ch;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+  line-height: 1.45;
+}
+
+.world-steps strong {
+  color: var(--sant-text);
+  font-weight: 500;
+}
+
+.world-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-2);
+}
+
+.sant .world-choice[aria-pressed="true"] {
+  border-color: var(--sant-accent);
+  color: var(--sant-accent);
+}
+
+/* The handoff screen: the app's ground, rising over the projection as the camera reaches it. */
+.world-handoff {
+  position: fixed;
+  inset: 0;
+  background: var(--sant-bg);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.world-handoff__title {
+  font-family: var(--sant-font-ui);
+  font-weight: 600;
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3.5rem);
+  color: var(--sant-text);
+}
+
+/* The journey rail: where you are on the way down, and a jump to any station. */
+.world-rail {
+  position: fixed;
+  z-index: 4;
+  right: clamp(8px, 2vw, 28px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  gap: var(--sant-space-3);
+}
+
+.world-rail ol,
+.world-rail ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  border-left: 1px solid var(--sant-line);
+}
+
+.world-rail ul {
+  border-left-style: dashed;
+}
+
+.sant .world-rail button {
+  appearance: none;
+  border: 0;
+  background: none;
+  margin: 0;
+  padding: 6px 10px 6px 14px;
+  position: relative;
+  color: var(--sant-muted);
+  font: 500 var(--sant-fs-caption) / 1.2 var(--sant-font-ui);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0 var(--sant-radius-xs) var(--sant-radius-xs) 0;
+}
+
+.sant .world-rail button::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: transparent;
+}
+
+.sant .world-rail button:hover:not(:disabled) {
+  color: var(--sant-text);
+  background: var(--sant-surface);
+}
+
+.sant .world-rail button[aria-current="step"] {
+  color: var(--sant-text);
+}
+
+.sant .world-rail button[aria-current="step"]::before {
+  background: var(--sant-accent);
+}
+
+.sant .world-rail button:focus-visible {
+  outline: 2px solid var(--sant-accent);
+  outline-offset: 1px;
+}
+
+.world-track {
+  width: 1px;
+}
+
+/* A phone: the rail keeps its marks and loses the words (each button keeps its name for AT). */
+@media (max-width: 720px) {
+  .world-rail__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .sant .world-rail button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+  }
+
+  .world-panel,
+  .world-panel--story {
+    width: calc(100vw - 32px - 36px);
+    left: 16px;
+  }
+}

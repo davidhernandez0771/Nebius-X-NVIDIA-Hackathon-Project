@@ -25,7 +25,7 @@ from demo_pipeline.success import check_success
 
 from .placement import place_scene, xyzw
 from .scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, make_scene_cfg
-from .robots import RobotSpec, hand_from_tool, robot_spec, tool_from_hand
+from .robots import RobotSpec, finger_targets, hand_from_tool, robot_spec, tool_from_hand
 from .tracking import CONTROL_DT, TrackingOptions, dls_iterate, gate_hold, lookahead_index, tracking_stats
 
 TASK_TEXT = "pick up the red cube and place it in the blue bin"
@@ -95,9 +95,12 @@ def _session(record_cameras: bool, robot_name: str = "franka") -> _Session:
     return _SESSION
 
 
-def _place_scene(s: _Session, scene_spec: Scene) -> None:
-    place_scene(s.scene, scene_spec, aim_front_camera=s.cameras)
+def _place_scene(s: _Session, scene_spec: Scene, joint_pos=None) -> None:
+    place_scene(s.scene, scene_spec, aim_front_camera=s.cameras, joint_pos=joint_pos)
     s.ik.reset()
+    if joint_pos is not None:  # hold the restored pose until the pre-roll commands its own targets
+        q = torch.tensor(np.asarray(joint_pos, dtype=np.float32).reshape(1, -1), device=s.sim.device)
+        s.scene["robot"].set_joint_position_target_index(target=q)
 
 
 def _hand_target(s: _Session, tcp_pos: np.ndarray, quat_wxyz) -> torch.Tensor:
@@ -145,9 +148,7 @@ def _physics_step(
         else:
             task_jacobian, task_error = s.ik._compute_pose_task(ee_pos_b, ee_quat_b, jacobian)
             arm_target = joint_pos + dls_iterate(task_jacobian, task_error, IK_LAMBDA, ik_iters)
-        finger = torch.full(
-            (1, len(s.finger_ids)), s.spec.gripper_closed if gripper else s.spec.gripper_open, device=s.sim.device
-        )
+        finger = torch.tensor([finger_targets(s.spec, bool(gripper))], dtype=torch.float32, device=s.sim.device)
         robot.set_joint_position_target_index(target=arm_target, joint_ids=s.arm.joint_ids)
         robot.set_joint_velocity_target_index(target=vel, joint_ids=s.arm.joint_ids)
         robot.set_joint_position_target_index(target=finger, joint_ids=s.finger_ids)
@@ -182,13 +183,19 @@ def replay(
     record_cameras: bool,
     tracking: TrackingOptions | None = None,
     stats: dict | None = None,
+    robot: str | None = None,
+    start_joint_pos=None,
 ) -> tuple[VerificationResult, SimSignals]:
     """Replay and verify. If `stats` is given it is filled with tracking errors (mm), the gate's hold
-    steps, and "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
-    change). SimSignals and the episode follow the executed trajectory."""
+    steps, "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
+    change), and the recorded "joint_pos" [steps, joints] with their "joint_names". SimSignals and the
+    episode follow the executed trajectory. `robot` runs another robot than scene.robot in the scene
+    (an uploaded one: the scene then only says whose workspace it is).
+    start_joint_pos: all joints to start from instead of the default pose (a recovery state, sim_worker.recovery);
+    the pre-roll then only settles onto traj's first pose, which should be the TCP pose of those joints."""
     opts = tracking or TrackingOptions()
-    s = _session(record_cameras, scene.robot)
-    _place_scene(s, scene)
+    s = _session(record_cameras, robot or scene.robot)
+    _place_scene(s, scene, start_joint_pos)
     arr = traj.to_arrays()
     n = len(arr["t"])
 
@@ -269,7 +276,8 @@ def replay(
     reach = np.asarray(ik_residual) if opts.residual_is_reach_signal else None
     result = check_success(executed, signals, scene.bin_pose, bin_inner=BIN_INNER, tcp_error=reach)
     if stats is not None:
-        stats.update(track, hold_steps=hold_steps, preroll_mm=preroll_err * 1000, trajectory=executed)
+        stats.update(track, hold_steps=hold_steps, preroll_mm=preroll_err * 1000, trajectory=executed,
+                     joint_pos=np.asarray(rec["joint_pos"]), joint_names=list(s.scene["robot"].joint_names))
 
     if ep_dir is not None:
         ep_dir = Path(ep_dir)

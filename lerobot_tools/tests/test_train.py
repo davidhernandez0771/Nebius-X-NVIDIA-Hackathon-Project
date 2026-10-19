@@ -76,7 +76,7 @@ def test_argv_resume_last_points_config_path_at_resolved_checkpoint(tmp_path):
     assert f"--config_path={step / 'pretrained_model'}" in argv
 
 
-@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=30001"], ["--batch_size", "9"]])
+@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=60001"], ["--batch_size", "9"]])
 def test_argv_enforces_sprint_gpu_budget(bad):
     with pytest.raises(ValueError, match="budget"):
         build_lerobot_argv(bad)
@@ -155,3 +155,8 @@ def test_resume_last_continues_from_pointer(tmp_path):
     ckpts = sorted(p.name for p in (out / "checkpoints").iterdir() if p.is_dir())
     assert ckpts == ["000150", "000300", "000450"]
     assert resolve_last_checkpoint(out).name == "000450"
+
+
+def test_grasp_fix_run2_budget_allows_60k_steps_at_batch_8():
+    # T3 grasp-fix run 2 (recovery copies + longer training) trains to 60k; the step count is chosen on practice seeds
+    assert build_lerobot_argv(["--steps=60000", "--batch_size=8"])[:2] == ["--steps=60000", "--batch_size=8"]

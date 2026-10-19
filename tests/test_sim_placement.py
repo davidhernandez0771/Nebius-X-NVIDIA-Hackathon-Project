@@ -38,6 +38,7 @@ class _Robot:
         self.data = SimpleNamespace(default_joint_pos=SimpleNamespace(torch=torch.arange(9.0)[None]),
                                     default_joint_vel=SimpleNamespace(torch=torch.zeros(1, 9)))
         self.q = self.qd = None
+        self.num_joints = 9
 
     def write_joint_position_to_sim_index(self, *, position):
         self.q = position.clone()
@@ -120,3 +121,19 @@ def test_sim_eval_isaac_env_imports():
     import importlib
 
     importlib.import_module("sim_eval.isaac_env")
+
+
+def test_a_recovery_state_starts_the_robot_at_its_own_joints_at_rest():
+    # grasp fix run 2: recovery copies restore a traced policy state (sim_worker.recovery)
+    sc = _Scene()
+    q = [0.1, -0.3, 0.0, -2.4, 0.0, 2.1, 0.8, 0.0, 0.0]
+    place_scene(sc, _spec(), aim_front_camera=False, joint_pos=q)
+    np.testing.assert_allclose(sc["robot"].q.numpy(), [q], rtol=1e-6)
+    assert torch.equal(sc["robot"].qd, torch.zeros(1, 9)) and sc.resets == 1
+
+
+def test_a_recovery_state_with_the_wrong_joint_count_is_refused():
+    with pytest.raises(ValueError, match="9 finite"):
+        place_scene(_Scene(), _spec(), aim_front_camera=False, joint_pos=[0.0] * 7)
+    with pytest.raises(ValueError, match="9 finite"):
+        place_scene(_Scene(), _spec(), aim_front_camera=False, joint_pos=[float("nan")] * 9)

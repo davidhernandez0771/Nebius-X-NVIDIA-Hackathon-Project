@@ -46,7 +46,7 @@
   --sant-dur-4: 320ms;
   --sant-dur-story: 600ms;
   --sant-dur-count: 1100ms;
-  --sant-dur-power: 1400ms;
+  --sant-dur-power: 860ms;
 
   --sant-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --sant-ease-in: cubic-bezier(0.3, 0, 1, 1);
@@ -56,6 +56,7 @@
   --sant-stagger-list: 30ms;
   --sant-stagger-text: 70ms;
   --sant-stagger-sant: 140ms;
+  --sant-stagger-cross: 50ms;
 }
 
 /* Effects off, or the OS asks for reduced motion (MotionProvider sets data-motion on <html>). */

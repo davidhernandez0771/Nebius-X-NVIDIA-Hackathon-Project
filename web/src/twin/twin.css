@@ -1,0 +1,48 @@
+/* The robot twin fills whatever box its page gives it, and never sets that box's size: the page decides (on
+   /record, the fit-the-window grid). Colours come from the hologram's .rg tokens, with their values as fallbacks
+   for a page outside .rg. */
+
+.twin3d {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--rg-void, #040607);
+  color: var(--rg-ink-2, #8fa3a0);
+  font: 11px/1.35 var(--rg-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
+}
+
+.twin3d__canvas {
+  position: absolute !important;
+  inset: 0;
+  touch-action: none;
+}
+
+.twin3d__wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+  color: var(--rg-ink-3, #53625f);
+}
+
+.twin3d__caption {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  pointer-events: none;
+  text-wrap: pretty;
+}
+
+.twin3d__note {
+  color: var(--rg-hold, #ffb000);
+}

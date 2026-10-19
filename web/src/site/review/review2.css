@@ -1,0 +1,574 @@
+/* Review (/review2). Volt, in the robot-shelf HUD's language: a black stage, thin ink frames, crosshair
+   corners, amber for issues and teal for what physics verified. Every rule sits under .rv2 or .rv2-*
+   inside the SANT app shell, so nothing leaks. Colours and type come from web/src/sant/tokens.css. */
+
+.sant .rv2 {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+  gap: var(--sant-space-6);
+  align-items: start;
+}
+
+/* ------------------------------------------------------------ picker */
+
+.sant .rv2-picker {
+  position: sticky;
+  top: var(--sant-space-5);
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .rv2-picker ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant .rv2-picker a {
+  display: block;
+  padding: 2px 0;
+  color: var(--sant-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sant .rv2-picker a em {
+  margin-left: 6px;
+  font-style: normal;
+  color: #4f5965;
+}
+
+.sant .rv2-picker a:hover {
+  color: var(--sant-text);
+}
+
+.sant .rv2-picker a[aria-current="page"] {
+  color: var(--sant-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ------------------------------------------------------------ stage */
+
+.sant .rv2-main {
+  display: grid;
+  gap: var(--sant-space-4);
+  min-width: 0;
+}
+
+.sant .rv2-stage {
+  position: relative;
+  height: clamp(460px, 62vh, 640px);
+  background: #07090c;
+  border: 1px solid var(--sant-line);
+  overflow: hidden;
+}
+
+.sant .rv2-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sant .rv2-note,
+.sant .rv2-warn {
+  margin: 0;
+  max-width: 78ch;
+  font-size: var(--sant-fs-small);
+  color: var(--sant-muted);
+}
+
+.sant .rv2-note strong {
+  color: var(--sant-text);
+  font-weight: 600;
+}
+
+.sant .rv2-warn {
+  color: var(--sant-issue);
+}
+
+.sant .rv2-quiet {
+  margin: 0;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+}
+
+.sant .rv2-dim {
+  color: var(--sant-muted);
+}
+
+/* ------------------------------------------------------------ transport */
+
+.sant .rv2-transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sant-space-2) var(--sant-space-3);
+}
+
+.sant .rv2-btn {
+  min-height: 34px;
+  padding: 0 var(--sant-space-3);
+  border: 1px solid var(--sant-line);
+  color: var(--sant-text);
+  font-size: var(--sant-fs-small);
+}
+
+.sant .rv2-btn:hover:not(:disabled) {
+  border-color: var(--sant-muted);
+}
+
+.sant .rv2-btn--primary {
+  background: var(--sant-accent);
+  border-color: var(--sant-accent);
+  color: var(--sant-on-accent);
+  font-weight: 600;
+}
+
+.sant .rv2-btn--primary:hover:not(:disabled) {
+  border-color: var(--sant-text);
+}
+
+.sant .rv2-btn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.sant .rv2-seg-toggle {
+  display: inline-flex;
+  border: 1px solid var(--sant-line);
+}
+
+.sant .rv2-seg-toggle button {
+  min-height: 34px;
+  padding: 0 var(--sant-space-3);
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+}
+
+.sant .rv2-seg-toggle button + button {
+  border-left: 1px solid var(--sant-line);
+}
+
+.sant .rv2-seg-toggle button[aria-pressed="true"] {
+  color: var(--sant-text);
+  box-shadow: inset 0 -2px 0 var(--sant-issue);
+}
+
+.sant .rv2-seg-toggle button[aria-pressed="true"]:last-child {
+  box-shadow: inset 0 -2px 0 var(--sant-accent);
+}
+
+.sant .rv2-speed {
+  margin-left: auto;
+  font-size: var(--sant-fs-caption);
+}
+
+/* ------------------------------------------------------------ timeline */
+
+.sant .rv2-timeline {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 6px var(--sant-space-3);
+  align-items: center;
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .rv2-lane-name {
+  color: var(--sant-muted);
+}
+
+.sant .rv2-lane-name--teal {
+  color: var(--sant-accent);
+}
+
+.sant .rv2-lane {
+  position: relative;
+  height: 18px;
+  border-bottom: 1px solid var(--sant-line);
+  cursor: crosshair;
+}
+
+.sant .rv2-lane--phases {
+  height: 20px;
+}
+
+.sant .rv2-mark {
+  position: absolute;
+  top: 5px;
+  height: 8px;
+  min-width: 2px;
+}
+
+.sant .rv2-mark--issue {
+  background: color-mix(in srgb, var(--sant-issue) 70%, transparent);
+  outline: 1px solid var(--sant-issue);
+}
+
+.sant .rv2-mark--fix {
+  background: repeating-linear-gradient(90deg, var(--sant-accent) 0 2px, transparent 2px 5px);
+}
+
+.sant .rv2-mark.rv2-mark--whole {
+  top: auto;
+  bottom: 1px;
+  height: 2px;
+  outline: 0;
+  opacity: 0.7;
+}
+
+.sant .rv2-mark--perfected {
+  background: color-mix(in srgb, var(--sant-accent) 45%, transparent);
+  outline: 1px solid var(--sant-accent);
+}
+
+.sant .rv2-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--sant-line);
+  color: var(--sant-muted);
+  font-size: 11px;
+  line-height: 20px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sant .rv2-head {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--sant-issue);
+  pointer-events: none;
+}
+
+.sant .rv2-head--teal {
+  background: var(--sant-accent);
+}
+
+.sant .rv2-axis {
+  grid-column: 2;
+  position: relative;
+  height: 14px;
+  color: var(--sant-muted);
+  font-size: 11px;
+}
+
+.sant .rv2-axis span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.sant .rv2-axis span:first-child {
+  left: 0;
+  transform: none;
+}
+
+.sant .rv2-axis span:last-child {
+  right: 0;
+  transform: none;
+}
+
+/* ------------------------------------------------------------ issues + verdict */
+
+.sant .rv2-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--sant-space-6);
+  align-items: start;
+  margin-top: var(--sant-space-3);
+}
+
+.sant .rv2-h {
+  margin: 0 0 var(--sant-space-3);
+  font-family: var(--sant-font-ui);
+  font-size: var(--sant-fs-body);
+  font-weight: 600;
+}
+
+.sant .rv2-review {
+  display: grid;
+  gap: var(--sant-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant .rv2-hunk {
+  border: 1px solid var(--sant-line);
+  border-left: 2px solid var(--sant-issue);
+  background: var(--sant-surface);
+}
+
+.sant .rv2-hunk--fix-only {
+  border-left-color: var(--sant-accent);
+}
+
+.sant .rv2-hunk--gated {
+  border-left-color: var(--sant-muted);
+}
+
+.sant .rv2-hunk.is-live {
+  border-color: var(--sant-issue);
+  box-shadow: 0 0 0 1px var(--sant-issue);
+}
+
+.sant .rv2-hunk__head {
+  display: flex;
+  width: 100%;
+  gap: var(--sant-space-3);
+  align-items: baseline;
+  padding: 6px var(--sant-space-3);
+  border-bottom: 1px solid var(--sant-line);
+  text-align: left;
+}
+
+.sant .rv2-hunk__head:disabled {
+  cursor: default;
+}
+
+.sant .rv2-hunk__when {
+  min-width: 9.5em;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .rv2-hunk__tag {
+  font-weight: 600;
+  font-size: var(--sant-fs-small);
+}
+
+.sant .rv2-line {
+  display: grid;
+  grid-template-columns: 1.5em minmax(0, 1fr);
+  margin: 0;
+  padding: 4px var(--sant-space-3) 4px var(--sant-space-2);
+  font-size: var(--sant-fs-caption);
+  line-height: 1.5;
+}
+
+.sant .rv2-line--minus {
+  background: color-mix(in srgb, var(--sant-issue) 9%, transparent);
+}
+
+.sant .rv2-line--minus > span:first-child {
+  color: var(--sant-issue);
+}
+
+.sant .rv2-line--plus {
+  background: color-mix(in srgb, var(--sant-accent) 8%, transparent);
+}
+
+.sant .rv2-line--plus > span:first-child {
+  color: var(--sant-accent);
+}
+
+.sant .rv2-line code {
+  font-family: var(--sant-font-data);
+  color: var(--sant-accent);
+}
+
+.sant .rv2-struck {
+  text-decoration: line-through;
+  color: var(--sant-muted);
+}
+
+.sant .rv2-why {
+  grid-column: 2;
+  color: var(--sant-muted);
+}
+
+.sant .rv2-verdict {
+  position: relative;
+  padding: var(--sant-space-5);
+  border: 1px solid var(--sant-line);
+  font-size: var(--sant-fs-small);
+}
+
+.sant .rv2-corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--sant-text);
+  border-style: solid;
+  border-width: 0;
+}
+
+.sant .rv2-corner--tl { top: -1px; left: -1px; border-top-width: 1px; border-left-width: 1px; }
+.sant .rv2-corner--tr { top: -1px; right: -1px; border-top-width: 1px; border-right-width: 1px; }
+.sant .rv2-corner--bl { bottom: -1px; left: -1px; border-bottom-width: 1px; border-left-width: 1px; }
+.sant .rv2-corner--br { bottom: -1px; right: -1px; border-bottom-width: 1px; border-right-width: 1px; }
+
+.sant .rv2-verdict__title {
+  margin: 0 0 var(--sant-space-4);
+  font-family: var(--sant-font-display);
+  font-weight: 400;
+  font-size: var(--sant-fs-4);
+  line-height: 1.1;
+}
+
+.sant .rv2-verdict__rows {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr);
+  gap: var(--sant-space-3) var(--sant-space-3);
+  margin: 0;
+}
+
+.sant .rv2-verdict__rows dt {
+  color: var(--sant-muted);
+}
+
+.sant .rv2-verdict__rows dd {
+  margin: 0;
+}
+
+.sant .rv2-ok {
+  color: var(--sant-accent);
+  font-weight: 600;
+}
+
+.sant .rv2-bad {
+  color: var(--sant-issue);
+  font-weight: 600;
+}
+
+.sant .rv2-delta {
+  width: 100%;
+  margin-top: var(--sant-space-5);
+  border-collapse: collapse;
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .rv2-delta th,
+.sant .rv2-delta td {
+  padding: 5px 0;
+  border-top: 1px solid var(--sant-line);
+  text-align: right;
+  font-weight: 400;
+}
+
+.sant .rv2-delta th[scope="row"],
+.sant .rv2-delta thead th:first-child {
+  text-align: left;
+  color: var(--sant-muted);
+}
+
+.sant .rv2-delta thead th {
+  color: var(--sant-muted);
+}
+
+.sant .rv2-delta td:last-child {
+  color: var(--sant-accent);
+}
+
+.sant .rv2-second {
+  margin: var(--sant-space-5) 0 0;
+  padding-top: var(--sant-space-3);
+  border-top: 1px dashed var(--sant-line);
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+  line-height: 1.55;
+}
+
+.sant .rv2-second strong {
+  color: var(--sant-text);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ perfect */
+
+.sant .rv2-perfect {
+  display: grid;
+  gap: var(--sant-space-3);
+  justify-items: start;
+  max-width: 64ch;
+  padding-top: var(--sant-space-5);
+  border-top: 1px solid var(--sant-line);
+}
+
+.sant .rv2-choice {
+  display: grid;
+  gap: var(--sant-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--sant-fs-small);
+}
+
+.sant .rv2-job p {
+  margin: 0;
+  font-size: var(--sant-fs-small);
+}
+
+/* ------------------------------------------------------------ small screens */
+
+@media (max-width: 900px) {
+  .sant .rv2 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sant-space-4);
+  }
+
+  .sant .rv2-picker {
+    position: static;
+  }
+
+  .sant .rv2-picker ul {
+    display: flex;
+    gap: var(--sant-space-2) var(--sant-space-4);
+    overflow-x: auto;
+    padding-bottom: var(--sant-space-1);
+  }
+
+  .sant .rv2-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .sant .rv2-stage {
+    height: auto;
+    aspect-ratio: 1 / 1.22;
+  }
+
+  .sant .rv2-speed {
+    margin-left: 0;
+  }
+
+  .sant .rv2-verdict__rows {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .sant .rv2-verdict__rows dd {
+    margin-bottom: var(--sant-space-3);
+  }
+
+  .sant .rv2-hunk__head {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+/* ------------------------------------------------------------ verdict: fixes applied, conflict */
+
+.sant .rv2-applied {
+  margin: var(--sant-space-2) 0;
+  padding-left: 1.4em;
+  font-size: var(--sant-fs-caption);
+}
+
+.sant .rv2-applied li + li {
+  margin-top: 2px;
+}
+
+.sant .rv2-conflict {
+  margin: var(--sant-space-2) 0 0;
+}

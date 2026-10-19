@@ -10,7 +10,7 @@ export const DURATIONS = {
   "4": 320,
   story: 600,
   count: 1100,
-  power: 1400,
+  power: 860,
 } as const;
 
 export const EASINGS = {
@@ -24,6 +24,7 @@ export const STAGGER = {
   list: 30,
   text: 70,
   sant: 140,
+  cross: 50,
 } as const;
 
 export type EasingName = keyof typeof EASINGS;

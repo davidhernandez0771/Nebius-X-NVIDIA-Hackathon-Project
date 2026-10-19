@@ -1,0 +1,531 @@
+/* Results page (Field Notes). Tokens only, from web/src/sant/tokens.css; everything is scoped
+   under .sant-results, inside StoryShell's .sant root. The one orchestrated moment is the copies
+   chart replay; everything else is still. */
+
+.sant-results {
+  display: grid;
+  gap: var(--sant-space-9);
+  /* The three arms: raw is the plain control grey, both multiplied arms are teal. */
+  --arm-raw: var(--sant-control);
+  --arm-mult: var(--sant-accent);
+}
+
+.sant-results [data-arm="raw"] { --arm: var(--arm-raw); }
+.sant-results [data-arm="x100"],
+.sant-results [data-arm="x300"] { --arm: var(--arm-mult); }
+
+.sant-cite {
+  display: block;
+  font-style: normal;
+  font-size: var(--sant-fs-caption);
+  line-height: 1.4;
+  color: var(--sant-muted);
+}
+
+.sant-results .sant-num {
+  white-space: nowrap;
+}
+
+.sant-results .sant-margin-note > * + * {
+  margin-top: var(--sant-space-2);
+}
+
+.sant-results .sant-margin-note p + .sant-cite {
+  margin-top: var(--sant-space-1);
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.sant-results__hero {
+  display: grid;
+  gap: var(--sant-space-7);
+}
+
+/* Two sentences, so a step below the display size: the claim, then its honest limit. */
+.sant .sant-results__title {
+  max-width: 19ch;
+  font-size: clamp(2.75rem, 1.6rem + 4vw, 5.25rem);
+  text-wrap: balance;
+}
+
+.sant-results__sub {
+  display: grid;
+  gap: var(--sant-space-3);
+  max-width: var(--sant-measure);
+  margin-top: calc(-1 * var(--sant-space-4));
+}
+
+.sant .sant-results__sub .sant-lede {
+  margin-top: 0;
+}
+
+/* Never a footnote: the proof is on scripted demos, said in ink beside the claim. */
+.sant-results__so-far {
+  padding-left: var(--sant-space-3);
+  border-left: 2px solid var(--sant-issue);
+  font-size: var(--sant-fs-body);
+  font-weight: 500;
+}
+
+.sant-results__proof {
+  display: grid;
+  gap: var(--sant-space-6);
+  justify-items: start;
+}
+
+.sant-results__ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--sant-fs-small);
+}
+
+.sant-results__ledger th,
+.sant-results__ledger td {
+  padding: var(--sant-space-2) 0;
+  border-bottom: 1px solid var(--sant-line);
+  text-align: right;
+  font-weight: 400;
+}
+
+.sant-results__ledger thead th {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.sant-results__ledger th:first-child {
+  text-align: left;
+}
+
+.sant-results__ledger th + th,
+.sant-results__ledger th + td,
+.sant-results__ledger td + td {
+  padding-left: var(--sant-space-3);
+}
+
+.sant-results__ledger tbody th::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--sant-space-2);
+  border-radius: 2px;
+  background: var(--arm);
+  vertical-align: -1px;
+}
+
+.sant-results__ledger tbody tr[data-arm="x100"] td {
+  font-weight: 600;
+}
+
+.sant-results__ledger tfoot td {
+  border-bottom: 0;
+  text-align: left;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+/* ---------------------------------------------------------------- limits */
+
+.sant-results__section {
+  display: grid;
+  gap: var(--sant-space-6);
+}
+
+.sant-results__limits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sant-space-5) var(--sant-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant-results__limits li {
+  display: grid;
+  gap: var(--sant-space-2);
+  align-content: start;
+  padding-top: var(--sant-space-3);
+  border-top: 1px solid var(--sant-text);
+}
+
+.sant-results__limits p {
+  font-size: var(--sant-fs-body);
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------- copies chart */
+
+.sant-copies {
+  --plot-h: 280px;
+  --axis-w: 3rem;
+  --cell: 10px;
+  --cell-gap: 3px;
+  display: grid;
+  gap: var(--sant-space-4);
+}
+
+.sant-copies__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sant-space-3);
+  min-height: 32px;
+}
+
+.sant-copies__progress {
+  font-size: var(--sant-fs-small);
+  color: var(--sant-muted);
+}
+
+.sant-copies__plot {
+  display: grid;
+  grid-template-columns: var(--axis-w) minmax(0, 1fr);
+  height: var(--plot-h);
+  margin: var(--sant-space-2) 0;
+}
+
+.sant-copies__axis {
+  position: relative;
+}
+
+.sant-copies__tick {
+  position: absolute;
+  right: var(--sant-space-3);
+  transform: translateY(-50%);
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant-copies__field {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sant-copies__grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--sant-line);
+}
+
+.sant-copies__line {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.sant-copies__line polyline {
+  fill: none;
+  stroke: var(--sant-text);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 4;
+  opacity: 0.55;
+}
+
+.sant-copies__col {
+  position: relative;
+}
+
+/* The running 95% CI: a whisker with caps that narrows as scenes arrive. */
+.sant-copies__ci {
+  position: absolute;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--arm);
+  transition: top var(--sant-dur-2) linear, bottom var(--sant-dur-2) linear;
+}
+
+.sant-copies__ci::before,
+.sant-copies__ci::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  width: 14px;
+  height: 2px;
+  background: var(--arm);
+}
+
+.sant-copies__ci::before { top: 0; }
+.sant-copies__ci::after { bottom: 0; }
+
+.sant-copies__dot {
+  position: absolute;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--arm);
+  box-shadow: 0 0 0 3px var(--sant-bg);
+  transform: translate(-50%, -50%);
+  transition: top var(--sant-dur-2) linear;
+}
+
+.sant-copies__value {
+  position: absolute;
+  left: calc(50% + 16px);
+  transform: translateY(-50%);
+  padding: 0 var(--sant-space-1);
+  background: var(--sant-bg);
+  font-size: var(--sant-fs-small);
+  font-weight: 500;
+  transition: top var(--sant-dur-2) linear;
+}
+
+.sant-copies__keys {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-left: var(--axis-w);
+  text-align: center;
+}
+
+.sant-copies__key {
+  display: grid;
+  gap: var(--sant-space-2);
+  justify-items: center;
+  align-content: start;
+  padding: 0 var(--sant-space-1);
+}
+
+.sant-copies__copies {
+  font-size: var(--sant-fs-body);
+  font-weight: 600;
+}
+
+.sant-copies__label {
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant-copies__tally {
+  display: grid;
+  grid-template-columns: repeat(8, var(--cell));
+  gap: var(--cell-gap);
+  margin: var(--sant-space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant-copies__scene {
+  width: var(--cell);
+  height: var(--cell);
+  box-sizing: border-box;
+  border-radius: 2px;
+  border: 1px solid var(--sant-line);
+}
+
+.sant-copies__scene[data-state="failure"] {
+  border-color: var(--sant-control);
+}
+
+.sant-copies__scene[data-state="success"] {
+  border-color: var(--arm);
+  background: var(--arm);
+}
+
+.sant-copies__scene[data-latest="true"] {
+  outline: 1px solid var(--sant-text);
+  outline-offset: 1px;
+}
+
+.sant-copies__final {
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+  opacity: 0;
+  transition: opacity var(--sant-dur-3) var(--sant-ease-out);
+}
+
+.sant-copies__final[data-shown="true"] {
+  opacity: 1;
+}
+
+.sant-results__tests {
+  display: grid;
+  gap: var(--sant-space-1);
+  margin: var(--sant-space-3) 0 0;
+}
+
+.sant-results__tests > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sant-space-3);
+}
+
+.sant-results__tests dd {
+  margin: 0;
+  color: var(--sant-text);
+}
+
+/* ----------------------------------------------------------- report card */
+
+.sant-results__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sant-space-4);
+  align-items: start;
+}
+
+.sant-report {
+  display: grid;
+  gap: var(--sant-space-4);
+}
+
+.sant-results .sant-report .sant-card__head {
+  margin-bottom: 0;
+}
+
+.sant-report--pending {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--sant-control);
+}
+
+.sant-report__summary {
+  font-size: var(--sant-fs-small);
+  color: var(--sant-muted);
+}
+
+.sant-report__rows {
+  display: grid;
+  margin: 0;
+}
+
+.sant-report__row {
+  display: grid;
+  gap: var(--sant-space-2);
+  padding: var(--sant-space-3) 0;
+  border-top: 1px solid var(--sant-line);
+}
+
+.sant-report__row dt {
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant-report__row dd {
+  display: grid;
+  gap: var(--sant-space-1);
+  margin: 0;
+}
+
+.sant-report__big {
+  font-size: var(--sant-fs-4);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.sant-report__pct {
+  margin-left: var(--sant-space-1);
+  font-size: var(--sant-fs-small);
+  font-weight: 400;
+  color: var(--sant-muted);
+}
+
+.sant-report__what {
+  font-size: var(--sant-fs-small);
+}
+
+.sant-report__reasons {
+  display: grid;
+  gap: var(--sant-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant-report__reasons li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sant-space-1) var(--sant-space-3);
+  font-size: var(--sant-fs-small);
+}
+
+.sant-report__count {
+  color: var(--sant-muted);
+}
+
+.sant-report__track {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sant-surface-2);
+  overflow: hidden;
+}
+
+.sant-report__fill {
+  display: block;
+  height: 100%;
+  width: calc(var(--f) * 100%);
+  background: var(--sant-issue);
+}
+
+.sant-report__reasons {
+  margin-top: var(--sant-space-1);
+}
+
+.sant-report__aside {
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant-report__pending {
+  font-family: var(--sant-font-display);
+  font-style: italic;
+  font-size: var(--sant-fs-5);
+  color: var(--sant-muted);
+}
+
+.sant-report__sources {
+  display: grid;
+  gap: 2px;
+}
+
+/* --------------------------------------------------------------- sources */
+
+.sant-results__sources ul {
+  display: grid;
+  gap: var(--sant-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--sant-fs-small);
+}
+
+.sant-results__sources code {
+  font-family: var(--sant-font-data);
+  font-size: var(--sant-fs-caption);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- narrow */
+
+.sant-results__passes {
+  padding-top: var(--sant-space-3);
+}
+
+@media (max-width: 640px) {
+  .sant-results {
+    gap: var(--sant-space-8);
+  }
+
+  .sant-results__limits,
+  .sant-results__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sant-copies {
+    --plot-h: 220px;
+    --axis-w: 2.5rem;
+    --cell: 7px;
+    --cell-gap: 2px;
+  }
+
+  .sant-copies__value {
+    left: calc(50% + 11px);
+    font-size: var(--sant-fs-caption);
+  }
+}

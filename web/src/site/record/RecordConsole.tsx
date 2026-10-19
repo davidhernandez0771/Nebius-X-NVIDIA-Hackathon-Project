@@ -1,0 +1,422 @@
+// /record, "inside the hologram" (docs/design/prototypes/record-hologram.html): you zoomed into the
+// machine's projection, so the page is that projection. The cutting-mat grid, the plugged-in robot
+// cartridge and the S/A/N/T rail on top, the camera pane with the hand art and the control region,
+// the 3D robot twin (live from the sim, else a replay of a verified copy: robotTwin.ts), the gripper
+// dial and height gauge, the bottom strip, and the settings drawer.
+// Everything is fed by the same teleop session as /legacy/pm/record (useRecordSession: hand v4's
+// simple pinch, reset gesture, original hand art, control region, break-through). The page fits the
+// window: a 100dvh grid, no page scrollbar, nothing scrolls inside a pane.
+
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import type { TrackingStatus } from "../../hand/contracts";
+import { LazyHandArtOverlay } from "../../record/handArt";
+import ResetGestureRing from "../../record/ResetGestureRing";
+import type { StagePalette } from "../../record/stageDraw";
+import { ART_COOLDOWN_MS, ART_MORPH_MS, SINK_COMMAND, STEP_S, useRecordSession, type PoseUi, type RecordSession } from "../../record/useRecordSession";
+import { useMotion } from "../../sant/motion/MotionProvider";
+import { RobotTwin } from "../../twin";
+import { formatClock } from "../record-hud";
+import { GripDial, HeightGauge, Trace } from "./instruments";
+import { RecordSettings } from "./RecordSettings";
+import { useRecordTwin } from "./robotTwin";
+import { LIVE_ROBOT, initialLive, stepLive, type LiveState } from "./twin";
+import "./record-hologram.css";
+
+const DRAWER_ID = "rg-settings";
+const BOOT_MS = 1600; // the plug-in: panes draw in and one scanline sweeps, then it's gone
+const STEPS = ["S · show", "A · check", "N · neaten", "T · train"];
+const TRACK_DETAIL: Partial<Record<TrackingStatus, string>> = { loading: "starting", "no-hand": "no hand", error: "frames stopped" };
+
+type Tone = "ok" | "wait" | "off" | "rec";
+type ChipView = { label: string; state: Tone; detail?: string };
+
+/** The stage canvas in the hologram's colours, read from the page's own tokens. */
+function stagePalette(el: HTMLElement): StagePalette {
+  const css = getComputedStyle(el);
+  const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+  return {
+    line: v("--rg-region", "rgba(25,245,194,.45)"),
+    edge: v("--rg-hold", "#ffb000"),
+    label: v("--rg-ink-3", "#53625f"),
+    bones: v("--rg-bones", "rgba(25,245,194,.55)"),
+    joints: v("--rg-live", "#19f5c2"),
+    dot: v("--rg-needle", "#ff5a1f"),
+    font: v("--rg-mono", "monospace"),
+  };
+}
+
+function chipsFor(s: RecordSession): ChipView[] {
+  const { phase, track, relay, streaming } = s;
+  const hand: ChipView =
+    phase.state === "starting"
+      ? { label: "hand", state: "wait", detail: "starting" }
+      : phase.state === "error"
+        ? { label: "hand", state: "wait", detail: "no camera" }
+        : !streaming
+          ? { label: "hand", state: "off", detail: "camera off" }
+          : track === "tracking"
+            ? { label: "hand", state: "ok" }
+            : { label: "hand", state: "wait", detail: TRACK_DETAIL[track] ?? track };
+  const link: ChipView = !streaming
+    ? { label: "relay", state: "off", detail: "camera off" }
+    : relay.socketOpen
+      ? { label: "relay", state: "ok" }
+      : { label: "relay", state: "wait", detail: "not connected" };
+  const sim: ChipView = relay.simConnected
+    ? { label: "sim", state: "ok" }
+    : relay.socketOpen
+      ? { label: "sim", state: "wait", detail: "not connected" }
+      : { label: "sim", state: "off", detail: "no relay" };
+  return [hand, link, sim];
+}
+
+/** The episode cell: what the session is doing right now. */
+function episodeOf(s: RecordSession): { text: string; tone: Tone } {
+  if (s.phase.state === "starting") return { text: "starting", tone: "wait" };
+  if (s.phase.state === "error") return { text: "camera error", tone: "wait" };
+  if (!s.streaming) return { text: "camera off", tone: "off" };
+  if (s.recording) return s.sim?.paused ? { text: "paused", tone: "wait" } : { text: "recording", tone: "rec" };
+  if (s.lost) return { text: "no hand", tone: "wait" };
+  return s.track === "tracking" ? { text: "tracking", tone: "ok" } : { text: "waiting", tone: "wait" };
+}
+
+/** The live state for the latest pose, stepped once per pose (idempotent across re-renders). */
+function useLive(pose: PoseUi | null): LiveState {
+  const last = useRef<{ pose: PoseUi | null; live: LiveState }>({ pose: null, live: initialLive() });
+  if (last.current.pose !== pose) last.current = { pose, live: stepLive(last.current.live, pose) };
+  return last.current.live;
+}
+
+/** Saved demos seen this visit (each sim_status names the last one saved). */
+function useSavedDemos(demoId: string | null | undefined): number {
+  const [ids, setIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (demoId) setIds((list) => (list.includes(demoId) ? list : [...list, demoId]));
+  }, [demoId]);
+  return ids.length;
+}
+
+export function RecordConsole() {
+  const [palette, setPalette] = useState<StagePalette | undefined>(undefined);
+  const session = useRecordSession({ palette });
+  return <RecordView session={session} onPalette={setPalette} />;
+}
+
+export default RecordConsole;
+
+/** The page for a session: the live one above, or a stand-in when checking the layout. */
+export function RecordView({ session, onPalette }: { session: RecordSession; onPalette: (p: StagePalette) => void }) {
+  const { phase, relay, sim, pose, settings, streaming, lost, simReady, recording, resetToast } = session;
+  const live = useLive(pose);
+  const twin = useRecordTwin();
+  const saved = useSavedDemos(sim?.demoId);
+  const { reduced } = useMotion();
+  const [boot, setBoot] = useState(!reduced);
+  const [drawer, setDrawer] = useState(false);
+  const settingsButton = useRef<HTMLButtonElement>(null);
+  const root = useCallback((el: HTMLDivElement | null) => {
+    if (el) onPalette(stagePalette(el));
+  }, [onPalette]);
+
+  useEffect(() => {
+    if (!boot) return;
+    const id = window.setTimeout(() => setBoot(false), BOOT_MS);
+    return () => window.clearTimeout(id);
+  }, [boot]);
+  useEffect(() => {
+    if (reduced) setBoot(false);
+  }, [reduced]);
+
+  const closeDrawer = () => {
+    setDrawer(false);
+    settingsButton.current?.focus();
+  };
+
+  const rec = recording ? (sim?.paused ? "paused" : "recording") : "idle";
+  const { hud } = live;
+  const t = hud.target;
+  const stale = t !== null && !hud.tracking;
+  const noSim = streaming && relay.socketOpen && !relay.simConnected;
+  const episode = episodeOf(session);
+  const fps = streaming && pose?.fps ? `${Math.round(pose.fps)} fps` : null;
+  const footStatus = streaming ? (lost ? "hand lost: the arm holds still" : simReady && sim?.lastResult ? sim.lastResult : null) : null;
+
+  const message =
+    phase.state === "error" ? (
+      <div className="rg-message">
+        <p className="rg-message__title">Can't start the camera</p>
+        <p role="alert">{phase.message}</p>
+        <button type="button" className="rg-btn rg-btn--primary" onClick={session.start}>
+          Start camera
+        </button>
+      </div>
+    ) : phase.state === "starting" ? (
+      <p className="rg-message">Starting the camera…</p>
+    ) : !streaming ? (
+      <div className="rg-message">
+        <p>The camera is off. Nothing is sent until you start.</p>
+        <button type="button" className="rg-btn rg-btn--primary" onClick={session.start}>
+          Start camera
+        </button>
+      </div>
+    ) : null;
+
+  return (
+    <div className="rg" data-boot={boot || undefined} ref={root}>
+      <div className="rg-mat" aria-hidden="true" />
+      {boot && <div className="rg-scan" aria-hidden="true" />}
+
+      <header className="rg-top">
+        <div className="rg-crumb">
+          <Link className="rg-btn rg-eject" to="/" title="Eject the cartridge and go back to the workshop">
+            <span aria-hidden="true">⏏</span> workshop
+          </Link>
+          <span className="rg-cart" title="The robot plugged in: the arm the live sim drives">
+            <i aria-hidden="true" />
+            <b>{LIVE_ROBOT.code}</b>
+            <span>{LIVE_ROBOT.name}</span>
+          </span>
+          <h1 className="rg-title">Record</h1>
+        </div>
+        <nav className="rg-steps" aria-label="SANT steps">
+          {STEPS.map((step, i) => (
+            <span key={step} className="rg-steps__item">
+              {i > 0 && <em aria-hidden="true" />}
+              <span className="rg-step" aria-current={i === 0 ? "step" : undefined}>
+                {step}
+              </span>
+            </span>
+          ))}
+        </nav>
+        <div className="rg-right">
+          <div className="rg-chips" role="group" aria-label="Status">
+            {chipsFor(session).map((c) => (
+              <span key={c.label} className="rg-chip" data-state={c.state} title={c.detail}>
+                <span className="rg-dot" aria-hidden="true" />
+                {c.label}
+                {c.detail && <span className="rg-sr">: {c.detail}</span>}
+              </span>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="rg-rec"
+            aria-pressed={recording}
+            data-state={rec}
+            disabled={!simReady}
+            title={simReady ? undefined : "Connect the sim to record"}
+            onClick={() => session.control(recording ? "record_stop" : "record_start")}
+          >
+            <i aria-hidden="true" />
+            <span>Record</span>
+          </button>
+          <span className="rg-time" role="timer" aria-label="Recording time" data-state={rec}>
+            {formatClock(sim ? sim.steps * STEP_S * 1000 : 0)}
+          </span>
+          <button
+            ref={settingsButton}
+            type="button"
+            className="rg-gear"
+            aria-label="Settings"
+            aria-expanded={drawer}
+            aria-controls={DRAWER_ID}
+            onClick={() => (drawer ? closeDrawer() : setDrawer(true))}
+          >
+            <GearIcon />
+          </button>
+        </div>
+      </header>
+
+      <main className="rg-stage">
+        <section className="rg-pane rg-cam" aria-label="camera">
+          <div className="rg-hd">
+            <span>webcam_0 · hand</span>
+            <span className="rg-hd__tools">
+              {streaming && (
+                <>
+                  <button type="button" className="rg-btn rg-btn--small" onClick={() => session.control("reset_scene")} disabled={!simReady || recording}>
+                    Reset scene
+                  </button>
+                  <button type="button" className="rg-btn rg-btn--small" onClick={session.stop}>
+                    Stop camera
+                  </button>
+                </>
+              )}
+              <span className="rg-hd__tag">mirror</span>
+            </span>
+          </div>
+          <div className="rg-cam__media">
+            <div className="rg-cam__frame">
+              <canvas ref={session.canvas} aria-label="Your hand, mirrored, with the control region" />
+              {settings.showHandArt && streaming && (
+                <LazyHandArtOverlay
+                  source={() => session.artHand.current}
+                  trigger="events"
+                  morphMs={ART_MORPH_MS}
+                  cooldownMs={ART_COOLDOWN_MS}
+                  onActiveChange={(active) => (session.artActive.current = active)}
+                />
+              )}
+              {message && <div className="rg-cam__message">{message}</div>}
+            </div>
+          </div>
+          {streaming && (
+            <>
+              <div className="rg-ring">
+                <ResetGestureRing status={pose?.reset ?? null} showHint={false} size={32} />
+              </div>
+              <div className="rg-captions" aria-live="polite">
+                {lost && <Caption tone="wait">Hand tracking lost. The arm holds still until your hand is back.</Caption>}
+                {pose?.framing.hints.map((hint) => (
+                  <Caption key={hint} tone="wait">
+                    {hint}
+                  </Caption>
+                ))}
+                {pose?.framing.state === "ok" && !lost && <Caption tone="ok">In the workspace</Caption>}
+                {resetToast && <ResetFired notSent={resetToast.notSent} />}
+              </div>
+            </>
+          )}
+          {(noSim || relay.lastError) && (
+            <div className="rg-notice" role={relay.lastError ? "alert" : undefined}>
+              {noSim && (
+                <>
+                  <p>The sim isn't connected. Start the Isaac sink in a terminal, then wait for the arm to appear:</p>
+                  <code>{SINK_COMMAND}</code>
+                </>
+              )}
+              {relay.lastError && <p>The relay rejected a message: {relay.lastError}</p>}
+            </div>
+          )}
+          <Brackets />
+          <div className="rg-camfoot">
+            <span>pinch = grip · ✌ hold 1.5 s = reset scene</span>
+            <span className="rg-camfoot__status">
+              {footStatus && <span>{footStatus}</span>}
+              {fps && <span>{fps}</span>}
+            </span>
+          </div>
+        </section>
+
+        <div className="rg-side">
+          <section className="rg-pane" aria-label="workspace">
+            <div className="rg-hd">
+              <span>workspace · robot twin</span>
+              <span className="rg-hd__tag" data-mode={twin.mode}>
+                {twin.mode}
+              </span>
+            </div>
+            <div className="rg-twin3d">
+              <RobotTwin {...twin.view} caption={twin.caption} />
+            </div>
+            <Brackets diagonal />
+          </section>
+          <div className="rg-duo">
+            <section className="rg-pane" aria-label="gripper_cmd">
+              <div className="rg-hd">
+                <span>gripper_cmd</span>
+                <span className="rg-hd__tag">pinch gap</span>
+              </div>
+              <GripDial pinch={hud.tracking ? hud.pinch : null} gripper={t ? hud.gripper : null} stale={stale} />
+              <p className="rg-big" data-stale={stale || undefined}>
+                {t ? (hud.gripper ? "closed" : "open") : "—"}
+              </p>
+            </section>
+            <section className="rg-pane" aria-label="ee_target_z">
+              <div className="rg-hd">
+                <span>ee_target_z</span>
+                <span className="rg-hd__tag">m</span>
+              </div>
+              <HeightGauge z={t?.ee[2] ?? null} stale={stale} />
+              <p className="rg-big" data-stale={stale || undefined}>
+                {t ? t.ee[2].toFixed(2) : "—"}
+                <small>m</small>
+              </p>
+            </section>
+          </div>
+        </div>
+      </main>
+
+      <footer className="rg-bottom">
+        <section className="rg-cell rg-cell--trace" aria-label="trace">
+          <Key label="trace · height / reach / grip" unit="last 8 s" />
+          <div className="rg-cell__plot">
+            <Trace live={live} />
+          </div>
+        </section>
+        <Cell label="ee_x" unit="m" value={t ? t.ee[0].toFixed(2) : "—"} stale={stale} />
+        <Cell label="ee_y" unit="m" value={t ? t.ee[1].toFixed(2) : "—"} stale={stale} />
+        <Cell label="recorded" unit="demos" value={String(saved)} />
+        <section className="rg-cell" aria-label="episode">
+          <Key label="episode" unit="state" />
+          <p className="rg-state" data-state={episode.tone}>
+            <span className="rg-dot" aria-hidden="true" />
+            {episode.text}
+          </p>
+          {sim?.demoId && (
+            <Link className="rg-review" to={`/legacy/pm/review?id=${encodeURIComponent(sim.demoId)}`}>
+              Review {sim.demoId}
+            </Link>
+          )}
+        </section>
+      </footer>
+
+      <RecordSettings id={DRAWER_ID} open={drawer} onClose={closeDrawer} session={session} />
+    </div>
+  );
+}
+
+function Key({ label, unit }: { label: string; unit: string }) {
+  return (
+    <p className="rg-key">
+      <span>{label}</span>
+      <span>{unit}</span>
+    </p>
+  );
+}
+
+function Cell({ label, unit, value, stale }: { label: string; unit: string; value: string; stale?: boolean }) {
+  return (
+    <section className="rg-cell" aria-label={label}>
+      <Key label={label} unit={unit} />
+      <p className="rg-value" data-stale={stale || undefined}>
+        {value}
+      </p>
+    </section>
+  );
+}
+
+/** Corner brackets, as on the workbench selection frame: all four, or top-left and bottom-right. */
+function Brackets({ diagonal = false }: { diagonal?: boolean }) {
+  return <i className={diagonal ? "rg-br rg-br--diagonal" : "rg-br"} aria-hidden="true" />;
+}
+
+function GearIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
+  );
+}
+
+/** A caption over the camera view: the chip look, with the text as the whole message. */
+function Caption({ tone, children }: { tone: "ok" | "wait"; children: ReactNode }) {
+  return (
+    <span className="rg-chip rg-caption" data-state={tone}>
+      <span className="rg-dot" aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
+/** "Reset fired", shown every time the reset gesture fires, so an accidental reset is visible. */
+function ResetFired({ notSent }: { notSent: string | null }) {
+  const text = notSent ? `Reset fired (not sent: ${notSent})` : "Reset fired";
+  return (
+    <span role="status" aria-label={text}>
+      <Caption tone={notSent ? "wait" : "ok"}>{text}</Caption>
+    </span>
+  );
+}
