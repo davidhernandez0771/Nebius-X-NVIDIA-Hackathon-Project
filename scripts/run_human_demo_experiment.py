@@ -190,6 +190,12 @@ class Experiment:
         config["replay_path"] = settings.get("replay_path", "achieved")
         if config["replay_path"] not in REPLAY_PATHS:
             raise Refused(f"replay_path must be one of {REPLAY_PATHS}, got {config['replay_path']!r}")
+        # The achieved path is where the arm was at the end of each step: commanding pose k at step k reaches it a
+        # step late (~0.5 cm at a grasp in live test #10, enough to turn edge grasps into misses), so command k+1.
+        config["replay_lookahead"] = int(settings.get("replay_lookahead",
+                                                      1 if config["replay_path"] == "achieved" else 0))
+        if config["replay_lookahead"] < 0:
+            raise Refused(f"replay_lookahead must be >= 0, got {config['replay_lookahead']}")
         if config["replay_path"] == "achieved":
             config["steps_sha256"] = {id: self._live_steps_sha256(id) for id in chosen}
         if old is not None:
@@ -634,7 +640,7 @@ trained on the same {n} demos as recorded?
 **Demos** ({n}, frozen by content hash):
 {ids}
 
-**What is replayed** (`replay_path = {config.get('replay_path', 'commanded')}`): {"the tool pose the arm reached each step, from each demo's live episode (steps.npz, 50 Hz, hashes in config.json); the hand targets the arm lagged are kept as `commanded`, for diagnostics only." if config.get('replay_path') == 'achieved' else "each demo's stored trajectory, as is."}
+**What is replayed** (`replay_path = {config.get('replay_path', 'commanded')}`): {"the tool pose the arm reached each step, from each demo's live episode (steps.npz, 50 Hz, hashes in config.json); the hand targets the arm lagged are kept as `commanded`, for diagnostics only." if config.get('replay_path') == 'achieved' else "each demo's stored trajectory, as is."} Every replay in this experiment (physics, repair, alignment, variants) tracks with lookahead {config.get('replay_lookahead', 0)} (the sim worker's `--lookahead`).
 
 **Arms.** Both arms use ACT, {config['steps']} steps, batch {config['batch_size']}, the same recipe and seed.
 - **raw_{n}:** every demo as recorded, start-aligned
@@ -721,7 +727,14 @@ def make_gpu_stage(log: Callable[[str], None], *, poll_s: float = 300, max_wait_
     return stage
 
 
-def make_sim_session(data: Path, name: str, gpu_stage, log: Callable[[str], None], port: int, logs: Path):
+def sim_worker_cmd(port: int, *, lookahead: int) -> list[str]:
+    """The sim worker for this experiment: Franka, cameras, tracking with the frozen replay_lookahead."""
+    return [str(ISAAC_PY), "-m", "sim_worker.server", "--port", str(port), "--robot", ROBOT, "--cameras",
+            "--lookahead", str(lookahead)]
+
+
+def make_sim_session(data: Path, name: str, gpu_stage, log: Callable[[str], None], port: int, logs: Path, *,
+                     lookahead: int):
     @contextmanager
     def session() -> Iterator[SimWorkerClient]:
         with gpu_stage(f"human-exp:{name}:sim"):
@@ -734,7 +747,7 @@ def make_sim_session(data: Path, name: str, gpu_stage, log: Callable[[str], None
                 pass
             logs.mkdir(parents=True, exist_ok=True)
             f = (logs / "sim_worker.log").open("a", encoding="utf-8")
-            cmd = [str(ISAAC_PY), "-m", "sim_worker.server", "--port", str(port), "--robot", ROBOT, "--cameras"]
+            cmd = sim_worker_cmd(port, lookahead=lookahead)
             log(f"sim: starting {' '.join(cmd)} (DATA_DIR={data})")
             proc = subprocess.Popen(cmd, cwd=REPO, env=child_env(data), stdout=f, stderr=subprocess.STDOUT)
             try:
@@ -831,6 +844,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--replay-path", choices=REPLAY_PATHS, default=None,
                    help="achieved: the pose the arm reached (live episode); commanded: demo.json as stored "
                         "(default: achieved, or commanded with --smoke)")
+    p.add_argument("--replay-lookahead", type=int, default=None,
+                   help="the sim worker's --lookahead for every replay (default: 1 for the achieved path, else 0)")
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)
@@ -842,6 +857,8 @@ def main(argv: list[str] | None = None) -> int:
     settings.update(smoke=args.smoke, raw_arm=args.raw_arm, judge_copies=args.judge_copies,
                     nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd,
                     replay_path=args.replay_path or ("commanded" if args.smoke else "achieved"))
+    settings["replay_lookahead"] = (args.replay_lookahead if args.replay_lookahead is not None
+                                    else 1 if settings["replay_path"] == "achieved" else 0)
     if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
         p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")
@@ -875,7 +892,8 @@ def main(argv: list[str] | None = None) -> int:
         clip = episode_clip
     exp = Experiment(data, args.name, Deps(
         user_store=DemoStore(data), gpu_stage=gpu_stage, run=make_runner(data, log), judge=judge, clip=clip, log=log,
-        sim_session=make_sim_session(data, args.name, gpu_stage, log, args.sim_port, data / "human_exp" / args.name / "logs")))
+        sim_session=make_sim_session(data, args.name, gpu_stage, log, args.sim_port, data / "human_exp" / args.name / "logs",
+                                     lookahead=settings["replay_lookahead"])))
     try:
         try:
             exp.select(ids=args.ids.split(",") if args.ids else None, tag=args.tag, settings=settings,

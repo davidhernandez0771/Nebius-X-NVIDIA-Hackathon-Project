@@ -343,3 +343,24 @@ def test_sim_until_stops_before_multiply_and_a_later_run_carries_on(hx, tmp_path
     names = [r.out_name for r in sim.requests]
     assert sum(n.endswith("_home") for n in names) == 6 and sum("_m3" in n for n in names) == 6
     assert (root / "grid.json").is_file()
+
+
+def test_sim_worker_tracks_with_the_frozen_lookahead(hx):
+    # The achieved path is where the arm was at the END of each step; commanding pose k at step k reaches it one
+    # step late (~0.5 cm at a grasp: live test #10's edge grasps closed on air). lookahead 1 commands k+1.
+    cmd = hx.sim_worker_cmd(8770, lookahead=1)
+    assert cmd[cmd.index("--lookahead") + 1] == "1" and "--cameras" in cmd and cmd[cmd.index("--port") + 1] == "8770"
+
+
+def test_replay_lookahead_is_frozen_with_the_replay_path(hx, tmp_path):
+    _store_with_9f47(tmp_path)
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=["human_20261019185258_9f47"], tag=None, settings={**SMOKE, "replay_path": "achieved"})
+    assert exp.config["replay_lookahead"] == 1  # the achieved path's default
+    assert "lookahead 1" in (tmp_path / "human_exp" / "smoke1" / "preregistration.md").read_text(encoding="utf-8")
+    with pytest.raises(hx.Refused, match="replay_lookahead"):
+        exp.select(ids=["human_20261019185258_9f47"], tag=None,
+                   settings={**SMOKE, "replay_path": "achieved", "replay_lookahead": 0})
+    exp2, _, _ = _exp(hx, tmp_path / "standins")
+    exp2.select(ids=None, tag="standin_*", settings=SMOKE)
+    assert exp2.config["replay_lookahead"] == 0  # commanded targets: as before
