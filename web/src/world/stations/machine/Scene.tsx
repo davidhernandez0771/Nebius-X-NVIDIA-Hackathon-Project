@@ -13,14 +13,12 @@ import { MACHINE_ANCHOR } from "../../core/layout";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL } from "../../scene/assets";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
-import { GRAPHITE } from "../../scene/Helix";
+import { slotLook } from "../../scene/Helix";
 import { tileUv } from "../../scene/labels";
-import { HELIX } from "../../scene/layout";
 import { liveMaterial, trackLive } from "../../scene/materials";
 import { plug } from "../../scene/plug";
 import { cartridgePose, projection, scrollU, slotGlow, timeU, type CartridgePose } from "../../scene/plugSequence";
 import { addGlow, markLoaded, power, setGlowGain } from "../../scene/power";
-import { ROBOTS } from "../../scene/robots";
 
 const FAN_RPS = 0.9;
 /** The projector's lens before it projects: a faint ready light. */
@@ -147,15 +145,14 @@ function useHero(tier: StationSceneProps["quality"]) {
       group.add(mesh);
     }
     group.visible = false;
-    const c = new THREE.Color();
-    /** Show `slot`'s label and shell. */
+    /** Show the label and shell of whatever is in `slot` (a job or a robot, Helix.slotLook). */
     const dress = (slot: number) => {
-      const s = HELIX[slot];
-      const r = tileUv(ROBOTS.findIndex((x) => x.code === s.code));
+      const look = slotLook(slot);
+      const r = tileUv(look.tile);
       // The label mesh's v runs downward: flip it into the tile (as materials.ts withTiles does).
       label.offset.set(r.u, r.v + r.sv);
       label.repeat.set(r.su, -r.sv);
-      tinted.shell?.color.copy(c.setRGB(...(s.shell ?? GRAPHITE), THREE.LinearSRGBColorSpace));
+      tinted.shell?.color.copy(look.shell);
     };
     return { group, dress, releases: [...releases, () => label.dispose()] };
   }, [gltf, tier]);
@@ -184,6 +181,8 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
       plug.requested = false;
       s.clicked = true;
       s.startedAt = now;
+      // The slot's contents may have changed since (a filter reorders the jobs): dress it again.
+      s.dressed = -1;
     }
     const u = s.clicked ? timeU(s.startedAt, now, reduced) : scrollU(frame.t);
     plug.progress = u;

@@ -132,3 +132,27 @@
 [data-motion-world="reduced"] .world-beat {
   transition: none;
 }
+
+.world-tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  pointer-events: none;
+  padding: 7px 10px;
+  border: 1px solid var(--w-line);
+  background: rgba(4, 8, 9, 0.8);
+  color: var(--w-ink);
+  opacity: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.world-tip[data-on="true"] {
+  opacity: 1;
+}
+
+.world-tip em {
+  font-style: normal;
+  color: var(--w-dim);
+}

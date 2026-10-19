@@ -24,6 +24,19 @@ export const ROBOTS: readonly Robot[] = [
 
 const BY_CODE = new Map(ROBOTS.map((r) => [r.code, r]));
 
+/**
+ * The robots' own slots on the spiral, one each (the jobs take the rest, spiral.ts): the two lowest
+ * and the three that reach up through the ceiling. The SO-101 keeps slot 0, which the machine plugs
+ * in by itself when nobody chose.
+ */
+export const ROBOT_SLOT: Readonly<Record<string, number>> = { S101: 0, FR3: 1, PPR: 26, RZ4: 27, OPN: 28 };
+
+/** The robot whose cartridge sits in a slot, or null (a job's slot). */
+export function robotInSlot(slot: number): Robot | null {
+  const code = Object.keys(ROBOT_SLOT).find((c) => ROBOT_SLOT[c] === slot);
+  return code ? robotFor(code) : null;
+}
+
 export function robotFor(code: string): Robot {
   const r = BY_CODE.get(code);
   if (!r) throw new Error(`world: no robot for label code "${code}"`);
@@ -32,16 +45,13 @@ export function robotFor(code: string): Robot {
 
 /** The cartridge in a spiral slot: what the machine projects and the route the zoom opens. */
 export function cartridgeAt(slot: HelixSlot): Cartridge {
-  const r = robotFor(slot.code);
+  const r = robotInSlot(slot.index) ?? robotFor(slot.code);
   return { id: r.id, label: r.name, route: "/pm/record", slot: slot.index };
 }
 
-/**
- * The slot each robot's button sends (the keyboard path): the lowest one, so its flight to the
- * machine is short and stays in view.
- */
+/** The slot each robot's button sends (the keyboard path): its own. */
 export function slotForRobot(code: string): HelixSlot {
-  const slots = HELIX.filter((s) => s.code === code);
-  if (slots.length === 0) throw new Error(`world: no spiral slot carries "${code}"`);
-  return slots.reduce((a, b) => (b.position[1] < a.position[1] ? b : a));
+  const slot = ROBOT_SLOT[code];
+  if (slot === undefined) throw new Error(`world: no spiral slot carries "${code}"`);
+  return HELIX[slot];
 }

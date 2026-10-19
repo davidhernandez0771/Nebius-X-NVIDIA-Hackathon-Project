@@ -15,11 +15,9 @@ describe("robots", () => {
     expect(DEFAULT_CARTRIDGE).toEqual(cartridgeAt(HELIX[0]));
   });
 
-  it("sends each robot's lowest slot from its button", () => {
-    for (const r of ROBOTS) {
-      const s = slotForRobot(r.code);
-      expect(s.code).toBe(r.code);
-      for (const o of HELIX) if (o.code === r.code) expect(o.position[1]).toBeGreaterThanOrEqual(s.position[1]);
-    }
+  it("gives each robot its own slot, the ones the jobs leave free", async () => {
+    const { ROBOT_SLOTS } = await import("./spiral");
+    expect(ROBOTS.map((r) => slotForRobot(r.code).index).sort((a, b) => a - b)).toEqual(ROBOT_SLOTS);
+    for (const r of ROBOTS) expect(cartridgeAt(slotForRobot(r.code)).id).toBe(r.id);
   });
 });

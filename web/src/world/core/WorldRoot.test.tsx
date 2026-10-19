@@ -70,7 +70,8 @@ describe("WorldRoot (no WebGL)", () => {
     // The journey follows it to the machine.
     expect(window.scrollTo).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Open PiPER" })).toBeTruthy();
-    scrollTo(h * 11);
+    // intro 3, descent 2.5, workshop 0.6 + 7.6, machine 0.8 + 1.6, zoom 1.4 viewport heights
+    scrollTo(h * 17.5);
     expect(current()).toBe("zoom");
     scrollTo(h * 100);
     act(() => vi.runAllTimers());

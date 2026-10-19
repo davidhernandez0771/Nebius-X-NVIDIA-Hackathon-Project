@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { PerspectiveCamera } from "three";
-import { mixPose, poseAt, restIndexAt, restPose, smoother } from "./rail";
+import { mixPose, poseAt, reducedPoseAt, restPose, smoother } from "./rail";
 import type { WorldStore } from "./store";
 import type { CameraPose, StationModule } from "./types";
 
@@ -74,9 +74,9 @@ export function CameraRig({
       dest = restPose(open);
       key = open.id;
     } else if (reduced) {
-      const i = restIndexAt(store.rail, s.shown);
-      dest = restPose(store.rails[i]);
-      key = store.rails[i].id;
+      const r = reducedPoseAt(store.rails, store.rail, s.shown);
+      dest = r.pose;
+      key = store.rails[r.index].id;
     } else {
       dest = poseAt(store.rails, store.rail, s.shown);
       key = "rail";

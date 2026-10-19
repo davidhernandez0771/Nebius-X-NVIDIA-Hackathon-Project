@@ -4,7 +4,7 @@
 // Pure, so continuity at every boundary is tested.
 import type { CameraPose, StationFrame, StationId, StationModule, Vec3 } from "./types";
 
-export type RailStation = Pick<StationModule, "id" | "anchor" | "travel" | "length" | "camera" | "rest" | "reach">;
+export type RailStation = Pick<StationModule, "id" | "anchor" | "travel" | "length" | "camera" | "rest" | "reach" | "follow">;
 
 export interface RailSpan {
   id: StationId;
@@ -105,6 +105,17 @@ export function poseAt(stations: readonly RailStation[], rail: Rail, y: number):
 /** With reduced motion the camera never travels: it cuts between rest poses. */
 export function restIndexAt(rail: Rail, y: number): number {
   return locate(rail, y).current;
+}
+
+/**
+ * The pose with reduced motion at scroll y: the current station's rest pose, or for a `follow`
+ * station in its dwell, its camera right there (it jumps from step to step, never eases).
+ */
+export function reducedPoseAt(stations: readonly RailStation[], rail: Rail, y: number): { pose: CameraPose; index: number } {
+  const p = locate(rail, y);
+  const s = stations[p.current];
+  if (s.follow && p.index === p.current && p.phase === "dwell") return { pose: stationPose(s, p.t), index: p.current };
+  return { pose: restPose(s), index: p.current };
 }
 
 /** Fill each rail station's frame for scroll y (mutates `frames`, which modules hold on to). */

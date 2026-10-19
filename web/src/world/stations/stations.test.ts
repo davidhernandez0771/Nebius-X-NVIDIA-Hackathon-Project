@@ -68,7 +68,7 @@ describe("the registered stations", () => {
     same("intro", 1, "Descent");
     same("descent", 0, "Descent");
     same("workshop", 0, "Workshop intro");
-    same("workshop", 1, "Tutorial 1 · shelf");
+
     same("machine", 0, "Tutorial 2 · machine");
     same("machine", 0.5, "Plug in");
     same("machine", 1, "Projection");

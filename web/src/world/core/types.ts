@@ -81,6 +81,11 @@ export interface StationModule {
    * workshop's room uses 2, so it stays behind the machine and the zoom.
    */
   reach?: number;
+  /**
+   * With reduced motion the camera normally holds `rest`. A station that is browsed by steps (the
+   * spiral) sets this so the camera jumps to each step instead (no easing, no travel).
+   */
+  follow?: boolean;
   /** A pre-rendered still of the station, shown instead of the canvas when there is no usable GPU. */
   still?: string;
 }

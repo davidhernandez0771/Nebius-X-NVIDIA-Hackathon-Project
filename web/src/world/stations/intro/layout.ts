@@ -13,8 +13,8 @@ export const LOGO: Vec3 = stop("Title").target;
 /** The roof lattice: a shallow dome over the ceiling, centred on the spiral's axis. */
 export const ROOF = { y: 14.55, rise: 2.4, radius: 12, ringStep: 2.4, spokes: 18 } as const;
 
-/** The ceiling's opening over the spiral, where the ring ends as the skylight's rim. */
-export const SKYLIGHT = { center: [0, 14.32, 0] as Vec3, radius: 4.75 } as const;
+/** The ceiling's opening over the spiral (room.glb: radius 5.2), where the ring ends as the skylight's rim. */
+export const SKYLIGHT = { center: [0, 14.32, 0] as Vec3, radius: 5.2 } as const;
 
 /** The logo ring in the prototype's units (scaled by LOGO_SCALE in the logo). */
 export const RING = { radius: 4.2, tube: 0.3 } as const;

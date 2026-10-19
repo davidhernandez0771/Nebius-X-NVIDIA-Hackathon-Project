@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillFrames, layoutRail, locate, mixPose, poseAt, restIndexAt, smoother, through, type RailStation } from "./rail";
+import { fillFrames, layoutRail, locate, mixPose, poseAt, reducedPoseAt, restIndexAt, smoother, through, type RailStation } from "./rail";
 import type { CameraPose, StationFrame } from "./types";
 
 const pose = (x: number): CameraPose => ({ position: [x, 0, 10], target: [x, 0, 0], fov: 40 });
@@ -111,5 +111,16 @@ describe("smoother and mixPose", () => {
   it("mixes position, target and fov", () => {
     const m = mixPose(pose(0), { position: [10, 10, 10], target: [10, 0, 0], fov: 60 }, 0.5);
     expect(m).toEqual({ position: [5, 5, 10], target: [5, 0, 0], fov: 50 });
+  });
+});
+
+describe("reducedPoseAt", () => {
+  it("holds the rest pose, but follows a `follow` station's dwell step by step", () => {
+    const still = (x: number) => ({ position: [x, 0, 0] as const, target: [x, 0, -1] as const, fov: 40 });
+    const a = { id: "intro" as const, anchor: [0, 0, 0] as const, travel: 0, length: 1, camera: () => still(0), rest: still(9) };
+    const b = { id: "descent" as const, anchor: [0, 0, 0] as const, travel: 0.5, length: 1, camera: (t: number) => still(10 + t), follow: true };
+    const rail = layoutRail([a, b], 100);
+    expect(reducedPoseAt([a, b], rail, 50).pose.position[0]).toBe(9);
+    expect(reducedPoseAt([a, b], rail, 200).pose.position[0]).toBeCloseTo(10.5, 6);
   });
 });
