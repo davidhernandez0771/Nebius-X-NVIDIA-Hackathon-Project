@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, REPORT_CARDS, cite, type Source } from "./facts";
+import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, PLATEAU, REPORT_CARDS, VERIFIED, cite, type Source } from "./facts";
 import { wilson } from "./stats";
 
 const one = (x: number) => (Math.round(x * 1000) / 10).toFixed(1);
@@ -41,6 +41,25 @@ describe("the arms", () => {
   });
 });
 
+describe("the sentences", () => {
+  const [raw, x100, x300] = ARMS;
+  const kn = (a: { k: number; n: number }) => `${a.k}/${a.n}`;
+
+  it("quote the same counts and p as results.json", () => {
+    expect(HEADLINE.text).toContain(`${kn(x100)} `);
+    expect(HEADLINE.text).toContain(`vs ${kn(raw)} `);
+    expect(HEADLINE.replicates).toContain(`scored ${kn(x300)} against the same ${kn(raw)} (p = ${COMPARISONS.rawVs300.p})`);
+    expect(PLATEAU.text).toContain(`${kn(x100)} against ${kn(x300)}`);
+    expect(PLATEAU.text).toContain(`${x300.epochs.text} times, against ${x100.epochs.text}`);
+    expect(LIMITS[3].text).toContain(`${x100.drops.k} of ${x100.drops.of} failures with 100 copies, ${x300.drops.k} of ${x300.drops.of} with 300`);
+  });
+
+  it("read the p values and verified copies from results.json", () => {
+    expect([COMPARISONS.rawVs100.p, COMPARISONS.rawVs300.p, COMPARISONS.x100Vs300.p]).toEqual(["0.0005", "0.0012", "1.0"]);
+    expect([kn(VERIFIED.x100), kn(VERIFIED.x300)]).toEqual(["100/100", "300/300"]);
+  });
+});
+
 describe("sources", () => {
   const all = sources({ ARMS, COMPARISONS, HEADLINE, LIMITS, REPORT_CARDS });
 
@@ -70,7 +89,9 @@ describe("report cards", () => {
 
   it("compare copies on the same 30 scenes (B2, B3, Y3)", () => {
     const copies = ["franka", "openarm", "flexiv"].map((k) => card(k).copies!);
-    expect(copies.map((c) => `${c.k}/${c.n}`)).toEqual(["27/30", "0/30", "9/30"]);
+    expect(copies.map((c) => `${c.k}/${c.n}`)).toEqual(["30/30", "0/30", "9/30"]);
+    expect(card("franka").copies!.also).toMatch(/^27\/30 in the first run.*30\/30 again through the bring-your-own-robot upload/);
+    expect(card("openarm").copies!.also).toMatch(/^0\/30 again through the bring-your-own-robot upload/);
     expect(new Set(copies.map((c) => c.what)).size).toBe(1);
   });
 

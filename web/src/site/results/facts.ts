@@ -1,19 +1,16 @@
-// Every number on the Results page, each with the note and lines it comes from.
+// The Results page's wording, each fact with the note and lines it comes from. Every count, CI
+// and p comes from ./results.json (read by ./data.ts); this file only names and phrases them.
 //
-// Why static: results.json (GET /results) holds the pooled 4/60 vs 24/60 for the 30k pair and
-// has no 300-copy cell, so the confirmatory 40-scene numbers live here, cited, as
-// docs/design/content-spec.md §4 ("Data note") says. Nothing is derived from pooled counts.
-// The facts and wording follow the spec's fact registry (sprint 9: R1–R18, C1–C4, B1–B5, A2, Y3).
-// facts.test.ts checks that the outcome strings add up to k and that every printed CI is the
-// Wilson CI of k/n. Line numbers are from the notes as of sprint 9; the notes are append-only.
+// The confirmatory 40-scene numbers are used, never the pooled 4/60 vs 24/60, as
+// docs/design/content-spec.md §4 ("Data note") says. The facts and wording follow the spec's fact
+// registry (sprint 9: R1–R18, C1–C4, B1–B5, A2, Y3). facts.test.ts checks that the sentences here
+// quote the same numbers as results.json. Line numbers are from the notes as of sprint 9; the
+// notes are append-only.
+import { RESULTS, experiment, formatP, measured, type Source } from "./data";
 
-export const NOTES = {
-  t2: { name: "T2 status note", path: "docs/superpowers/notes/2026-10-15-t2-status.md" },
-  t3: { name: "T3 status note", path: "docs/superpowers/notes/2026-10-15-t3-status.md" },
-  web: { name: "Web pages note", path: "docs/superpowers/notes/2026-10-16-web-pages.md" },
-} as const;
+export type { Source };
 
-export type Source = { note: keyof typeof NOTES; lines: string };
+export const NOTES = RESULTS.notes;
 
 const t2 = (lines: string): Source => ({ note: "t2", lines });
 const t3 = (lines: string): Source => ({ note: "t3", lines });
@@ -40,66 +37,60 @@ export type Arm = {
   drops: { k: number; of: number; source: Source };
 };
 
-export const ARMS: Arm[] = [
-  {
-    key: "raw",
-    cell: "raw_10_30k",
-    copies: 0,
-    label: "The 10 demos alone",
-    k: 3,
-    n: 40,
-    count: t3("1156"),
-    outcomes: "0000000000001000000000000000000000010001",
-    outcomesSource: t3("1369"),
-    ci: { text: "2.6–19.9%", source: t3("1156") },
-    epochs: { text: "about 49", source: t3("1167") },
-    drops: { k: 15, of: 37, source: t3("1179") },
-  },
-  {
-    key: "x100",
-    cell: "raw_multiply_10_30k",
-    copies: 100,
-    label: "+ 100 verified copies",
-    k: 17,
-    n: 40,
-    count: t3("1156"),
-    outcomes: "0010100110110010010101001011001111000000",
-    outcomesSource: t3("1370"),
-    ci: { text: "28.5–57.8%", source: t3("1156") },
-    epochs: { text: "about 4.5", source: t3("1167") },
-    drops: { k: 22, of: 23, source: t3("1176") },
-  },
-  {
-    key: "x300",
-    cell: "raw_multiply_10x30",
-    copies: 300,
-    label: "+ 300 verified copies",
-    k: 16,
-    n: 40,
-    count: t3("1307"),
-    outcomes: "0100110100110000100001100101010100111000",
-    outcomesSource: t3("1371"),
-    ci: { text: "26.3–55.4%", source: t3("1307") },
-    epochs: { text: "about 1.6", source: t3("1257") },
-    drops: { k: 23, of: 24, source: t3("1325") },
-  },
-];
+const one = (x: number) => (Math.round(x * 1000) / 10).toFixed(1);
+
+/** The three policies of the multiply result, from results.json's "multiply" experiment. */
+const CELLS = [
+  { key: "raw", cell: "raw_10_30k", copies: 0 },
+  { key: "x100", cell: "raw_multiply_10_30k", copies: 100 },
+  { key: "x300", cell: "raw_multiply_10x30", copies: 300 },
+] as const;
+
+export const ARMS: Arm[] = CELLS.map(({ key, cell, copies }) => {
+  const a = measured("multiply", cell);
+  if (!a.ci || !a.outcomes || !a.outcomesSource || a.passes === null || !a.passesSource || !a.drops)
+    throw new Error(`results.json's multiply.${cell} needs ci, outcomes, passes and drops`);
+  return {
+    key,
+    cell,
+    copies,
+    label: a.label,
+    k: a.k,
+    n: a.n,
+    count: a.source,
+    outcomes: a.outcomes,
+    outcomesSource: a.outcomesSource,
+    ci: { text: `${one(a.ci[0])}–${one(a.ci[1])}%`, source: a.source },
+    epochs: { text: `about ${a.passes}`, source: a.passesSource },
+    drops: a.drops,
+  };
+});
+
+const [RAW, X100, X300] = ARMS;
+
+function comparison(a: Arm, b: Arm) {
+  const c = experiment("multiply").groups[0].comparisons.find((x) => x.a === a.cell && x.b === b.cell);
+  if (!c || c.p === null || !c.source) throw new Error(`results.json has no measured p for ${a.cell} vs ${b.cell}`);
+  return { p: formatP(c.p), source: c.source };
+}
 
 /** Two-sided Fisher exact tests (T1's demo_pipeline.stats), as the notes print them. */
 export const COMPARISONS = {
-  rawVs100: { p: "0.0005", source: t3("1131, 1156") },
-  rawVs300: { p: "0.0012", source: t3("1313") },
-  x100Vs300: { p: "1.0", source: t3("1314") },
+  rawVs100: comparison(RAW, X100),
+  rawVs300: comparison(RAW, X300),
+  x100Vs300: comparison(X100, X300),
+};
+
+const verified = (key: string) => {
+  const a = measured("copies", key);
+  return { k: a.k, n: a.n, source: a.source };
 };
 
 /** The copies themselves: every one passed the physics check before training. */
-export const VERIFIED = {
-  x100: { k: 100, n: 100, source: t2("892, 898") },
-  x300: { k: 300, n: 300, source: t2("1109, 1119") },
-};
+export const VERIFIED = { x100: verified("copies_10x10"), x300: verified("copies_10x30") };
 
 /** The scenes: new, fixed before the run, never used to choose anything. */
-export const SCENES = { seeds: "5020–5059", source: t3("1112–1114, 1160–1161") };
+export const SCENES = { seeds: experiment("multiply").seeds.match(/^\d+–\d+/)![0], source: t3("1112–1114, 1160–1161") };
 
 /** The H1 (spec §4), T3's own sentence for the result (R14), and the replication in one sentence (R18). */
 export const HEADLINE = {
@@ -130,7 +121,7 @@ export const PLATEAU = {
   source: t3("1321–1323, 1257"),
 };
 
-type Measure = { k: number; n: number; what: string; ci?: string; also?: string; source: Source };
+type Measure = { k: number; n: number; what: string; ci?: string; also?: string; source: Source; alsoSource?: Source };
 
 export type ReportCard = {
   key: "franka" | "openarm" | "flexiv" | "yours";
@@ -150,26 +141,38 @@ export type ReportCard = {
 const SAME_SCENES = "copies that passed the physics check, on the same 30 scenes (seeds 100–129)";
 const NO_POLICY = "No policy trained on it yet.";
 
+const copies = (key: string, also?: { text: string; source: Source }): Measure => {
+  const a = measured("copies", key);
+  return { k: a.k, n: a.n, what: SAME_SCENES, also: also?.text, source: a.source, alsoSource: also?.source };
+};
+const FIRST = measured("copies", "franka_first");
+const BYOR_FRANKA = measured("byor", "franka");
+const BYOR_OPENARM = measured("byor", "openarm");
+const upload = (a: { k: number; n: number; source: Source }) => ({ text: `${a.k}/${a.n} again through the bring-your-own-robot upload.`, source: a.source });
+
 export const REPORT_CARDS: ReportCard[] = [
   {
     key: "franka",
     robot: "Franka Panda",
     status: { label: "Ready", tone: "live" },
     summary: "Our main robot. Every result on this page is on it.",
-    copies: { k: 27, n: 30, what: SAME_SCENES, also: "30/30 after a later fix to how copies are planned.", source: t2("513, 639–640") },
+    copies: {
+      ...copies("franka_fixed", { ...upload(BYOR_FRANKA), text: `${FIRST.k}/${FIRST.n} in the first run, before a fix to how copies are planned. ${upload(BYOR_FRANKA).text}` }),
+      source: t2("513, 639–640"),
+    },
     policy: {
-      k: 17,
-      n: 40,
+      k: X100.k,
+      n: X100.n,
       what: "new scenes completed by the policy trained on 10 demos + 100 copies",
-      ci: "28.5–57.8%",
-      also: "16/40 with 300 copies (95% CI 26.3–55.4%).",
+      ci: X100.ci.text,
+      also: `${X300.k}/${X300.n} with 300 copies (95% CI ${X300.ci.text}).`,
       source: t3("1156, 1307"),
     },
     failures: {
       why: "Picks the cube up, then drops it.",
       counts: [
-        { label: "Policy with 100 copies", k: 22, of: 23 },
-        { label: "Policy with 300 copies", k: 23, of: 24 },
+        { label: "Policy with 100 copies", k: X100.drops.k, of: X100.drops.of },
+        { label: "Policy with 300 copies", k: X300.drops.k, of: X300.drops.of },
       ],
       source: t3("1176, 1325"),
     },
@@ -181,7 +184,7 @@ export const REPORT_CARDS: ReportCard[] = [
     robot: "OpenArm",
     status: { label: "Design flaw found", tone: "issue" },
     summary: "Same source demo, same scenes. A design limit found in simulation, before anyone built a cell around it.",
-    copies: { k: 0, n: 30, what: SAME_SCENES, source: t2("310–311, 513") },
+    copies: copies("openarm", upload(BYOR_OPENARM)),
     policy: null,
     failures: { why: "The arm itself: it can't keep the gripper pointing down across the workspace.", source: t2("301–304, 528–529") },
     reach: { value: "±45° wrist", detail: "confines a vertical grasp to a ~0.2 m height band", source: t2("368") },
@@ -192,7 +195,7 @@ export const REPORT_CARDS: ReportCard[] = [
     robot: "Flexiv Rizon 4s",
     status: { label: "Tested", tone: "neutral" },
     summary: "Same source demo, same scenes. The arm reaches; the gripper model is the problem.",
-    copies: { k: 9, n: 30, what: SAME_SCENES, source: t2("513, 592") },
+    copies: copies("flexiv"),
     policy: null,
     failures: { why: "The gripper model's near-massless fingers slip or drag the cube.", source: t2("529, 592") },
     reach: { value: "Fine", detail: "its failures are grip, not reach", source: t2("540") },
@@ -202,7 +205,7 @@ export const REPORT_CARDS: ReportCard[] = [
     key: "yours",
     robot: "Your robot",
     status: { label: "Preview", tone: "neutral" },
-    summary: "Coming next: upload a URDF, mark the base, the hand and the gripper, and run the same workflow to get this card.",
+    summary: "Upload a URDF, mark the base, the hand and the gripper, and run the same workflow to get this card.",
     copies: null,
     policy: null,
     failures: null,

@@ -87,8 +87,9 @@ describe("Results page", () => {
       expect(within(table).getByText(`${a.k} of ${a.n}`)).toBeTruthy();
       expect(within(table).getByText(a.ci.text)).toBeTruthy();
     }
-    expect(screen.getByText(/no detectable difference/)).toBeTruthy();
-    expect(screen.getByText(/about 1\.6 times/)).toBeTruthy();
+    const copies = screen.getByRole("region", { name: /Did 300 copies beat 100/ });
+    expect(within(copies).getByText(/no detectable difference/)).toBeTruthy();
+    expect(within(copies).getByText(/about 1\.6 times/)).toBeTruthy();
   });
 
   it("cites a source for every figure and card", () => {
@@ -132,7 +133,8 @@ describe("Results page", () => {
     const franka = screen.getByRole("region", { name: "Franka Panda" });
     expect(franka.textContent).toMatch(/22 of 23/);
     expect(franka.textContent).toMatch(/23 of 24/);
-    expect(franka.textContent).toMatch(/27\/30/);
+    expect(franka.textContent).toMatch(/30\/30/);
+    expect(franka.textContent).toMatch(/27\/30 in the first run/);
     expect(within(franka).getAllByText("Pending")).toHaveLength(1);
     expect(franka.textContent).toMatch(/No reach map measured yet/);
     const openarm = screen.getByRole("region", { name: "OpenArm" });
@@ -142,5 +144,58 @@ describe("Results page", () => {
     expect(screen.getByRole("region", { name: "Flexiv Rizon 4s" }).textContent).toMatch(/9\/30/);
     const yours = screen.getByRole("region", { name: "Your robot" });
     expect(within(yours).getAllByText("Pending")).toHaveLength(4);
+  });
+
+  it("shows no sample data, and says where the numbers come from", () => {
+    stubReducedMotion(true);
+    const { container } = page();
+    expect(container.textContent).not.toMatch(/sample/i);
+    expect(screen.getByRole("region", { name: "Where the numbers come from" }).textContent).toMatch(/web\/src\/site\/results\/results\.json/);
+  });
+
+  it("shows the grasp fix as no detectable difference, with its seeds and pre-registered test", () => {
+    stubReducedMotion(true);
+    page();
+    const s = screen.getByRole("region", { name: "Does a centered approach stop the drops?" });
+    expect(within(s).getByTestId("arm-centered_10x10").textContent).toMatch(/20\/40.*50%.*35\.2–64\.8%/);
+    expect(within(s).getByTestId("comparison").textContent).toBe("20/40 vs 17/40: p = 0.65, no detectable difference");
+    expect(s.textContent).toMatch(/5020–5059/);
+    expect(s.textContent).toMatch(/Pre-registered two-sided Fisher exact/);
+  });
+
+  it("shows Nemotron against the code baseline as labeler and judge", () => {
+    stubReducedMotion(true);
+    page();
+    const s = screen.getByRole("region", { name: "Can Nemotron label and judge demos?" });
+    const at = (key: string) => within(within(s).getByTestId(`arm-${key}`)).getAllByRole("cell")[0].textContent;
+    expect(["labeler_nemotron", "labeler_code", "judge_nemotron", "judge_code"].map(at)).toEqual(["40/40", "39/40", "59/60", "60/60"]);
+    expect(within(s).getAllByTestId("comparison").map((c) => c.textContent)).toEqual([
+      "40/40 vs 39/40: p = 1.0, no detectable difference",
+      "59/60 vs 60/60: p = 1.0, no detectable difference",
+    ]);
+    expect(s.textContent).toMatch(/sign test \(McNemar\)/);
+  });
+
+  it("shows the bring-your-own-robot runs on seeds 100–129", () => {
+    stubReducedMotion(true);
+    page();
+    const s = screen.getByRole("region", { name: "Does the pipeline work on another robot?" });
+    expect(within(s).getByTestId("arm-franka").textContent).toMatch(/30\/30/);
+    expect(within(s).getByTestId("arm-openarm").textContent).toMatch(/0\/30/);
+    expect(s.textContent).toMatch(/100–129/);
+  });
+
+  it("marks what hasn't run as pending, never 0%", () => {
+    stubReducedMotion(true);
+    page();
+    const pending = screen.getByRole("region", { name: "Not measured yet" });
+    const human = within(pending).getByRole("region", { name: "Does perfecting human demos before multiplying help more?" });
+    expect(within(human).getAllByText("Pending").length).toBeGreaterThanOrEqual(3);
+    expect(within(human).getByTestId("arm-perfected_multiply").textContent).not.toMatch(/\d%/);
+    expect(within(human).getByTestId("comparison").textContent).toMatch(/: pending$/);
+    const run2 = within(pending).getByRole("region", { name: "Grasp fix, run 2: recovery copies and longer training" });
+    expect(within(run2).getByTestId("arm-recovery_60k").textContent).toMatch(/Pending/);
+    expect(within(run2).getByTestId("arm-centered_10x10").textContent).toMatch(/20\/40/);
+    expect(within(run2).getByTestId("comparison").textContent).toBe("+ recovery copies, 60k vs 20/40: pending");
   });
 });
