@@ -46,3 +46,141 @@
 .twin3d__note {
   color: var(--rg-hold, #ffb000);
 }
+
+/* The recording aids (AidViews.tsx): the views' tags, the front view's drag area and the alignment grid, laid over
+   the one canvas at the rects aids.ts viewLayout gives. Subtle on purpose: lined up, a marker brightens; no banners. */
+.twin3d__cell {
+  position: absolute;
+  pointer-events: none;
+}
+
+.twin3d__front {
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.twin3d__tag {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 1;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rg-ink-3, #53625f);
+}
+
+.twin3d__align {
+  background: var(--rg-void, #040607);
+}
+
+.twin3d__grid {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+}
+
+.twin3d__gl line {
+  stroke: var(--rg-hair, rgba(25, 245, 194, 0.16));
+}
+
+.twin3d__gl--axis line {
+  stroke: var(--rg-hair-hi, rgba(25, 245, 194, 0.42));
+  stroke-dasharray: 2 3;
+}
+
+.twin3d__zone {
+  fill: none;
+  stroke: var(--rg-live, #19f5c2);
+  stroke-opacity: 0.35;
+  stroke-dasharray: 2 2;
+}
+
+.twin3d__cube {
+  fill: var(--rg-cube, #d9d8d2);
+  fill-opacity: 0.12;
+  stroke: var(--rg-cube, #d9d8d2);
+  stroke-opacity: 0.55;
+  transition: fill-opacity 160ms ease-out, stroke-opacity 160ms ease-out;
+}
+
+.twin3d__cube--carried {
+  fill-opacity: 0.08;
+  stroke-opacity: 0.35;
+  stroke-dasharray: 2 2;
+}
+
+.twin3d__bin {
+  fill: var(--rg-hold, #ffb000);
+  fill-opacity: 0.04;
+  stroke: var(--rg-hold, #ffb000);
+  stroke-opacity: 0.5;
+  transition: fill-opacity 160ms ease-out, stroke-opacity 160ms ease-out;
+}
+
+/* lined up: the target brightens */
+.twin3d__cube[data-on] {
+  fill-opacity: 0.45;
+  stroke: var(--rg-live, #19f5c2);
+  stroke-opacity: 1;
+}
+
+.twin3d__zone[data-on] {
+  stroke-opacity: 0.9;
+}
+
+.twin3d__bin[data-on] {
+  fill-opacity: 0.16;
+  stroke-opacity: 1;
+}
+
+.twin3d__tool circle {
+  fill: var(--rg-live, #19f5c2);
+}
+
+.twin3d__tool line {
+  stroke: var(--rg-live, #19f5c2);
+}
+
+.twin3d__tool[data-closed] circle {
+  fill: var(--rg-needle, #ff5a1f);
+}
+
+.twin3d__tool[data-closed] line {
+  stroke: var(--rg-needle, #ff5a1f);
+}
+
+/* off the grid: pinned to its edge, dimmed, still pointing the way */
+.twin3d__tool[data-far] {
+  opacity: 0.5;
+}
+
+.twin3d__delta {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--rg-ink-2, #8fa3a0);
+}
+
+.twin3d__align[data-aligned] .twin3d__delta {
+  color: var(--rg-ink, #e6eeec);
+}
+
+.twin3d__delta small {
+  font-size: inherit;
+  color: var(--rg-ink-3, #53625f);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .twin3d__cube,
+  .twin3d__bin {
+    transition: none;
+  }
+}

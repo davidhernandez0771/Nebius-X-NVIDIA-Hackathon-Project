@@ -1,8 +1,9 @@
 // /record, "inside the hologram" (docs/design/prototypes/record-hologram.html): you zoomed into the
 // machine's projection, so the page is that projection. The cutting-mat grid, the plugged-in robot
 // cartridge and the S/A/N/T rail on top, the camera pane with the hand art and the control region,
-// the 3D robot twin (live from the sim, else a replay of a verified copy: robotTwin.ts), the gripper
-// dial and height gauge, the bottom strip, and the settings drawer.
+// the 3D robot twin (live from the sim, else a replay of a verified copy: robotTwin.ts) in three views with
+// the alignment grid, the gripper dial and the height and left/right gauges, the bottom strip, and the
+// settings drawer.
 // Everything is fed by the same teleop session as /legacy/pm/record (useRecordSession: hand v4's
 // simple pinch, reset gesture, original hand art, control region, break-through). The page fits the
 // window: a 100dvh grid, no page scrollbar, nothing scrolls inside a pane.
@@ -17,7 +18,7 @@ import { ART_COOLDOWN_MS, ART_MORPH_MS, SINK_COMMAND, STEP_S, useRecordSession, 
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { RobotTwin } from "../../twin";
 import { formatClock } from "../record-hud";
-import { GripDial, HeightGauge, Trace } from "./instruments";
+import { GripDial, HeightGauge, SideGauge, Trace } from "./instruments";
 import { RecordSettings } from "./RecordSettings";
 import { useRecordTwin } from "./robotTwin";
 import { LIVE_ROBOT, initialLive, stepLive, type LiveState } from "./twin";
@@ -308,11 +309,11 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               </span>
             </div>
             <div className="rg-twin3d">
-              <RobotTwin {...twin.view} caption={twin.caption} />
+              <RobotTwin {...twin.view} caption={twin.caption} aids />
             </div>
             <Brackets diagonal />
           </section>
-          <div className="rg-duo">
+          <div className="rg-trio">
             <section className="rg-pane" aria-label="gripper_cmd">
               <div className="rg-hd">
                 <span>gripper_cmd</span>
@@ -331,6 +332,17 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               <HeightGauge z={t?.ee[2] ?? null} stale={stale} />
               <p className="rg-big" data-stale={stale || undefined}>
                 {t ? t.ee[2].toFixed(2) : "—"}
+                <small>m</small>
+              </p>
+            </section>
+            <section className="rg-pane" aria-label="ee_target_y">
+              <div className="rg-hd">
+                <span>ee_target_y</span>
+                <span className="rg-hd__tag">m</span>
+              </div>
+              <SideGauge y={t?.ee[1] ?? null} stale={stale} />
+              <p className="rg-big" data-stale={stale || undefined}>
+                {t ? t.ee[1].toFixed(2) : "—"}
                 <small>m</small>
               </p>
             </section>

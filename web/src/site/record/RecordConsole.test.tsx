@@ -54,8 +54,8 @@ const twin = vi.hoisted(() => ({
   replayUrl: undefined as string | null | undefined,
 }));
 vi.mock("../../twin", () => ({
-  RobotTwin: ({ caption, joints }: { caption?: string; joints: Record<string, number> | null }) => (
-    <div data-testid="twin3d" data-joints={JSON.stringify(joints)}>
+  RobotTwin: ({ caption, joints, aids }: { caption?: string; joints: Record<string, number> | null; aids?: boolean }) => (
+    <div data-testid="twin3d" data-joints={JSON.stringify(joints)} data-aids={aids}>
       {caption}
     </div>
   ),
@@ -346,6 +346,7 @@ describe("/record: the hologram's top bar and boot", () => {
     const view = screen.getByTestId("twin3d");
     expect(view.textContent).toBe("replay · verified copy s1_0004_nemotron_m104003");
     expect(view.getAttribute("data-joints")).toBe(JSON.stringify({ panda_joint1: 0.6 }));
+    expect(view.getAttribute("data-aids")).toBe("true"); // front, side and top views and the alignment grid
     expect(within(tile("workspace")).getByText("replay")).toBeTruthy();
   });
 
@@ -362,11 +363,14 @@ describe("/record: the hologram's top bar and boot", () => {
     }
   });
 
-  it("shows the dial and the gauge empty until a hand is tracked", async () => {
+  it("shows the dial and the gauges empty until a hand is tracked", async () => {
     await startCamera();
     expect(screen.getByRole("meter", { name: "Arm height" }).getAttribute("aria-valuetext")).toBe("no target");
+    expect(screen.getByRole("meter", { name: "Arm left/right" }).getAttribute("aria-valuetext")).toBe("no target");
     holdFor(0, 200, hand());
     expect(screen.getByRole("meter", { name: "Arm height" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m$/);
+    expect(screen.getByRole("meter", { name: "Arm left/right" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m (left|right)$/);
     expect(within(tile("ee_target_z")).queryByText("—")).toBeNull();
+    expect(within(tile("ee_target_y")).queryByText("—")).toBeNull();
   });
 });

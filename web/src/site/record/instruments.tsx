@@ -1,5 +1,5 @@
 // /record's instruments, after docs/design/prototypes/record-hologram.html: the gripper dial with its
-// orange needle, the height gauge and the bottom trace (the robot twin is the 3D one, web/src/twin).
+// orange needle, the height and left/right gauges and the bottom trace (the robot twin is the 3D one, web/src/twin).
 // Each is an SVG drawn at its pane's pixel size (measured), so lines stay 1 px and text never scales.
 
 import { useCallback, useEffect, useRef, useState, type RefCallback } from "react";
@@ -123,6 +123,50 @@ export function HeightGauge({ z, stale }: { z: number | null; stale: boolean }) 
             return <line key={k} className={k % 5 ? "rg-tick" : "rg-tick rg-tick--major"} x1={bx} y1={y} x2={bx + (k % 5 ? 6 : 12)} y2={y} />;
           })}
           {f !== null && <rect className="rg-level" x={bx - 10} y={bot - (bot - top) * f - 1} width={22} height={2} />}
+        </>
+      )}
+    </svg>
+  );
+}
+
+/**
+ * The left/right gauge, the height gauge's ladder laid on its side: the arm target's y on a 10-step scale of the
+ * workspace's y range, the robot's left (+y) on the left, as the operator stands and the mirrored camera shows.
+ */
+export function SideGauge({ y, stale }: { y: number | null; stale: boolean }) {
+  const [ref, { w, h }] = useSize<SVGSVGElement>();
+  const [lo, hi] = WORKSPACE.y;
+  const by = Math.round(h * 0.42);
+  const left = 22;
+  const right = w - 22;
+  const f = y === null ? null : Math.min(1, Math.max(0, (hi - y) / (hi - lo)));
+  return (
+    <svg
+      ref={ref}
+      className="rg-svg"
+      role="meter"
+      aria-label="Arm left/right"
+      aria-valuemin={lo}
+      aria-valuemax={hi}
+      aria-valuenow={y ?? undefined}
+      aria-valuetext={y === null ? "no target" : `${Math.abs(y).toFixed(2)} m ${y >= 0 ? "left" : "right"}`}
+      width={w || undefined}
+      height={h || undefined}
+      data-stale={stale || undefined}
+    >
+      {right > left && by > 30 && (
+        <>
+          {Array.from({ length: 11 }, (_, k) => {
+            const x = left + ((right - left) * k) / 10;
+            return <line key={k} className={k % 5 ? "rg-tick" : "rg-tick rg-tick--major"} x1={x} y1={by} x2={x} y2={by + (k % 5 ? 6 : 12)} />;
+          })}
+          <text className="rg-svg-label" x={left} y={by + 26} textAnchor="middle">
+            L
+          </text>
+          <text className="rg-svg-label" x={right} y={by + 26} textAnchor="middle">
+            R
+          </text>
+          {f !== null && <rect className="rg-level" x={left + (right - left) * f - 1} y={by - 10} width={2} height={22} />}
         </>
       )}
     </svg>

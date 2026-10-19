@@ -437,6 +437,9 @@
 }
 
 .rg-hd__tag {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--rg-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -610,18 +613,19 @@
   color: var(--rg-ink-2);
 }
 
-/* ------------------------------------------------------------------ side: twin, dial, gauge */
+/* ------------------------------------------------------------------ side: twin, dial, gauges */
 
+/* The twin's pane holds its three views and the alignment grid, so it takes more of the column than the gauges. */
 .rg-side {
   display: grid;
-  grid-template-rows: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: 10px;
   min-height: 0;
 }
 
-.rg-duo {
+.rg-trio {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   min-height: 0;
 }
@@ -1074,12 +1078,16 @@
   animation-delay: 0.18s;
 }
 
-.rg[data-boot] .rg-duo > .rg-pane:nth-child(1) {
+.rg[data-boot] .rg-trio > .rg-pane:nth-child(1) {
   animation-delay: 0.26s;
 }
 
-.rg[data-boot] .rg-duo > .rg-pane:nth-child(2) {
+.rg[data-boot] .rg-trio > .rg-pane:nth-child(2) {
   animation-delay: 0.32s;
+}
+
+.rg[data-boot] .rg-trio > .rg-pane:nth-child(3) {
+  animation-delay: 0.38s;
 }
 
 .rg[data-boot] .rg-cell {
@@ -1150,7 +1158,7 @@
   }
 
   .rg-side {
-    grid-template-rows: 240px 200px;
+    grid-template-rows: 400px 180px;
   }
 
   .rg-bottom {
