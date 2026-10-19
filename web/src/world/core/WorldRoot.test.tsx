@@ -143,4 +143,21 @@ describe("the spiral's filters (no WebGL)", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(spiral.filter).toBeNull();
   });
+
+  it("opens the front cartridge's detail on Enter, closes it on Escape, and plugs it in", async () => {
+    const { spiral } = await import("../scene/spiral");
+    renderWorld();
+    scrollTo(window.innerHeight * 7);
+    fireEvent.keyDown(window, { key: "Enter" });
+    const dialog = screen.getByRole("dialog", { name: "RECORD, cartridge" });
+    expect(within(dialog).getByText("2026 / FR3 / record a demo")).toBeTruthy();
+    expect(document.documentElement.style.overflow).toBe("hidden");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(spiral.selected).toBe(-1);
+    expect(document.documentElement.style.overflow).toBe("");
+    fireEvent.keyDown(window, { key: "Enter" });
+    // Without the canvas there is no plug-in to watch: Plug in opens the page.
+    fireEvent.click(screen.getByRole("button", { name: "Plug in →" }));
+    expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
+  });
 });

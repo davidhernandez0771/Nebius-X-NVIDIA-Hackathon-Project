@@ -19,7 +19,9 @@ export const stepOfT = (t: number) => (t * LENGTH_VH - ENTER_VH) / STEP_VH;
 
 /** How far out the camera stands from a cartridge, browsing and in the detail view. */
 const DIST = 7;
-const DETAIL_DIST = 3.7;
+const DETAIL_DIST = 4.8;
+/** In the detail view the cartridge sits right of centre, clear of the info block bottom left. */
+const DETAIL_SIDE = 0.9;
 /** Under the 14.4 m ceiling, and over the desks (the machine's body tops out at 4.4 m). */
 const CAM_MAX_Y = 13.5;
 const CAM_MIN_Y = 4.6;
@@ -35,12 +37,17 @@ export function faceAt(d: number): { center: THREE.Vector3; out: THREE.Vector3 }
   return { center: _p.clone(), out: _o.clone() };
 }
 
-function view(d: number, dist: number, rise: number): CameraPose {
+function view(d: number, dist: number, rise: number, side = 0): CameraPose {
   const { center, out } = faceAt(d);
+  // The view's right, looking in along -out: shifting both ends left puts the cartridge right.
+  const rx = out.z;
+  const rz = -out.x;
+  const cx = center.x - rx * side;
+  const cz = center.z - rz * side;
   const y = Math.min(CAM_MAX_Y, Math.max(CAM_MIN_Y, center.y + rise));
   return {
-    position: [center.x + out.x * dist, y, center.z + out.z * dist],
-    target: [center.x, center.y - 0.15, center.z],
+    position: [cx + out.x * dist, y, cz + out.z * dist],
+    target: [cx, center.y - 0.15, cz],
     fov: 40,
   };
 }
@@ -48,7 +55,7 @@ function view(d: number, dist: number, rise: number): CameraPose {
 /** Browsing: the cartridge at step d, with its neighbours in view. */
 export const stepView = (d: number) => view(d, DIST, 0.5);
 /** The detail view: close on the cartridge at step d. */
-export const detailView = (d: number) => view(d, DETAIL_DIST, 0.15);
+export const detailView = (d: number) => view(d, DETAIL_DIST, 0.15, DETAIL_SIDE);
 
 const INTRO = stop("Workshop intro");
 const T0 = tOfStep(0);

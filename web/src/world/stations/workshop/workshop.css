@@ -100,3 +100,95 @@
 [data-motion-world="reduced"] .world-dock__filters button {
   transition: none;
 }
+
+/* The detail view (after a cartridge click). */
+.world-detail {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 7;
+  width: min(380px, calc(100vw - 48px));
+  font-family: var(--w-mono);
+  color: var(--w-ink);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.45s, transform 0.45s;
+  pointer-events: none;
+  visibility: hidden;
+  outline: none;
+}
+
+.world-detail[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.world-detail__t {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+}
+
+.world-detail__m {
+  color: var(--w-dim);
+  margin-bottom: 14px;
+}
+
+.world-detail__p {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #b9d6cf;
+}
+
+.world-detail__row {
+  display: flex;
+  gap: 22px;
+}
+
+.world-detail button {
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  color: var(--w-teal);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.world-detail button.world-detail__x {
+  color: var(--w-dim);
+  text-decoration: none;
+}
+
+.world-detail button:focus-visible {
+  outline: 1px solid var(--w-teal);
+  outline-offset: 3px;
+}
+
+.world-detail-hint {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  margin: 0;
+  color: #9bb;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.world-detail-hint[data-on="true"] {
+  opacity: 1;
+}
+
+[data-motion-world="reduced"] .world-detail,
+[data-motion-world="reduced"] .world-detail-hint {
+  transition: none;
+}

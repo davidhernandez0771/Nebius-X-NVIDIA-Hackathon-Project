@@ -10,6 +10,8 @@ import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { MACHINE_ANCHOR } from "../../core/layout";
+import { glideTo } from "../../core/scroll";
+import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL } from "../../scene/assets";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
@@ -160,7 +162,12 @@ function useHero(tier: StationSceneProps["quality"]) {
 
 const ANCHOR = new THREE.Vector3(...MACHINE_ANCHOR);
 
+/** After PLUG IN: a breath with the projection up, then the glide into it (the zoom) to the page. */
+const AUTOPLAY_PAUSE_MS = 450;
+const AUTOPLAY_GLIDE_MS = 2600;
+
 export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
+  const { store } = useWorld();
   const gltf = useGLTF(MACHINE_URL, false);
   const invalidate = useThree((s) => s.invalidate);
   const built = useMemo(() => build(gltf.scene, quality), [gltf, quality]);
@@ -186,6 +193,12 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     }
     const u = s.clicked ? timeU(s.startedAt, now, reduced) : scrollU(frame.t);
     plug.progress = u;
+    // PLUG IN: once it is in and projecting, glide on through the zoom; the handoff opens the page.
+    if (s.clicked && u >= 1 && plug.autoplay) {
+      plug.autoplay = false;
+      const end = store.rail.spans.find((x) => x.id === "zoom")?.end;
+      if (end !== undefined) setTimeout(() => glideTo(end, reduced ? 0 : AUTOPLAY_GLIDE_MS), reduced ? 0 : AUTOPLAY_PAUSE_MS);
+    }
 
     if (s.dressed !== plug.slot) {
       hero.dress(plug.slot);

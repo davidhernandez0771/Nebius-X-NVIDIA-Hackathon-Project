@@ -212,6 +212,17 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     });
   }, [store]);
 
+  // A held shot (the detail view, the tour) holds the page still too; its owner handles Escape.
+  useEffect(() => {
+    if (!coarse.override) return;
+    const root = document.documentElement;
+    const before = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = before;
+    };
+  }, [coarse.override]);
+
   // An open branch holds the page still, closes on Escape, and takes focus; closing gives it back.
   const lastBranch = useRef(coarse.branch);
   useEffect(() => {

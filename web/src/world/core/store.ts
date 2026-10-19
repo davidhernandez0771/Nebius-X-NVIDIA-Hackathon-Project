@@ -4,7 +4,7 @@
 // - per-frame state (the damped scroll, each station's StationFrame) is mutated in place and pushed
 //   to frame listeners, never through React.
 import { fillFrames, layoutRail, locate, type Place, type Rail } from "./rail";
-import { RAIL_ORDER, type Cartridge, type StationFrame, type StationId, type StationModule } from "./types";
+import { RAIL_ORDER, type CameraPose, type Cartridge, type StationFrame, type StationId, type StationModule } from "./types";
 
 export interface Coarse {
   current: StationId;
@@ -17,6 +17,11 @@ export interface Coarse {
    * so the workshop's files stream after the first frame instead of before it.
    */
   ready: boolean;
+  /**
+   * A shot the camera holds instead of the rail (the detail view, the tour), or null. The rail's
+   * stations stay current under it; the page scroll is held while it is set.
+   */
+  override: CameraPose | null;
 }
 
 type FrameListener = () => void;
@@ -42,6 +47,7 @@ export interface WorldStore {
   setBranch(id: StationId | null): void;
   setCartridge(c: Cartridge | null): void;
   setReady(): void;
+  setOverride(pose: CameraPose | null): void;
 }
 
 const blankFrame = (): StationFrame => ({ t: 0, arrive: 0, current: false, near: false });
@@ -60,7 +66,7 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
   let viewport = vh;
   let targetY = y;
   let shownY = y;
-  let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh, ready: false };
+  let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh, ready: false, override: null };
   const listeners = new Set<() => void>();
   const frameListeners = new Set<FrameListener>();
   const targetListeners = new Set<() => void>();
@@ -146,6 +152,10 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
     },
     setReady() {
       set({ ready: true });
+      targetListeners.forEach((fn) => fn());
+    },
+    setOverride(pose) {
+      set({ override: pose });
       targetListeners.forEach((fn) => fn());
     },
   };

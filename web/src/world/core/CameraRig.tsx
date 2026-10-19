@@ -66,13 +66,17 @@ export function CameraRig({
     }
     store.setShown(s.shown);
 
-    const branch = store.getCoarse().branch;
+    const { branch, override } = store.getCoarse();
     const open = branch ? stations.find((m) => m.id === branch) : undefined;
     let dest: CameraPose;
     let key: string;
     if (open) {
       dest = restPose(open);
       key = open.id;
+    } else if (override) {
+      dest = override;
+      // A new shot (the tour's next stop) tweens again.
+      key = `override:${override.position.join(",")}`;
     } else if (reduced) {
       const r = reducedPoseAt(store.rails, store.rail, s.shown);
       dest = r.pose;
