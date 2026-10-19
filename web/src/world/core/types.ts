@@ -39,6 +39,8 @@ export interface Cartridge {
   id: string;
   label: string;
   route: string;
+  /** Which spiral slot (layout.json `helix`) it came from, so the machine flies that one in. */
+  slot?: number;
 }
 
 export interface StationSceneProps {
