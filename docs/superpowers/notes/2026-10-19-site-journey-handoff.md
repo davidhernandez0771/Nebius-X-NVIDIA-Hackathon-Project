@@ -44,12 +44,12 @@ one with `scrollTo(0, innerHeight * VH)` in the console.
 | vh | Stop | Files (under `web/src/world`) |
 |---|---|---|
 | 0 | Loader, then the logo's particles and ring | `stations/intro/*` |
-| 1.6 | The story beats | `stations/intro/index.tsx`, `ui/Beats.tsx` |
-| 4.3 | The stats over the skylight well | `stations/descent/index.tsx`, `stations/workshop/Well.tsx` |
-| 6.05 | The dive into the workshop | `stations/workshop/dive.ts`, `Portal.tsx`, `scene/BelowRoof.tsx` |
-| 7.3–14.2 | The spiral of 24 cartridges, the dock, the filters, the detail view | `stations/workshop/*`, `scene/Helix.tsx`, `scene/spiral.ts` |
-| 15.8 | The machine: plug in | `stations/machine/Scene.tsx`, `scene/plugSequence.ts` |
-| 16.6–17.9 | The projection, then the zoom that opens Record | `stations/zoom/index.tsx`, `core/handoff.ts` |
+| 1–8 | The breaks: slabs with a slanted edge uncover the problem (2), S·A·N·T (3.5), the proof (5), what you can do (6.5), then hand the 3D back (7–8) | `stations/intro/sections.tsx`, `ui/Breaks.tsx`, `ui/wipe.ts`, `stations/intro/storyline.ts` |
+| 8–10.5 | The descent over the skylight well (no copy: the stats are the third break) | `stations/descent/index.tsx`, `stations/workshop/Well.tsx` |
+| 11.05 | The dive into the workshop | `stations/workshop/dive.ts`, `Portal.tsx`, `scene/BelowRoof.tsx` |
+| 12.3–19.2 | The spiral of 24 cartridges, the dock, the filters, the detail view | `stations/workshop/*`, `scene/Helix.tsx`, `scene/spiral.ts` |
+| 20.8 | The machine: plug in | `stations/machine/Scene.tsx`, `scene/plugSequence.ts` |
+| 21.6–22.9 | The projection, then the zoom that opens Record | `stations/zoom/index.tsx`, `core/handoff.ts` |
 | (branch) | The workbench | `stations/workbench/index.tsx` |
 
 The core is `core/`:
