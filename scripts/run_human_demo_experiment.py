@@ -190,10 +190,9 @@ class Experiment:
         config["replay_path"] = settings.get("replay_path", "achieved")
         if config["replay_path"] not in REPLAY_PATHS:
             raise Refused(f"replay_path must be one of {REPLAY_PATHS}, got {config['replay_path']!r}")
-        # The achieved path is where the arm was at the end of each step: commanding pose k at step k reaches it a
-        # step late (~0.5 cm at a grasp in live test #10, enough to turn edge grasps into misses), so command k+1.
-        config["replay_lookahead"] = int(settings.get("replay_lookahead",
-                                                      1 if config["replay_path"] == "achieved" else 0))
+        # Frozen, so a run states how it tracked. Measured on live test #10's demos: lookahead 0 replays the achieved
+        # path with no time shift (4.9-6.4 mm); 1 leads it by a step (9.6-12 mm) and reproduced fewer live outcomes.
+        config["replay_lookahead"] = int(settings.get("replay_lookahead", 0))
         if config["replay_lookahead"] < 0:
             raise Refused(f"replay_lookahead must be >= 0, got {config['replay_lookahead']}")
         if config["replay_path"] == "achieved":
@@ -845,7 +844,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="achieved: the pose the arm reached (live episode); commanded: demo.json as stored "
                         "(default: achieved, or commanded with --smoke)")
     p.add_argument("--replay-lookahead", type=int, default=None,
-                   help="the sim worker's --lookahead for every replay (default: 1 for the achieved path, else 0)")
+                   help="the sim worker's --lookahead for every replay (default 0: measured best on live test #10)")
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)
@@ -857,8 +856,7 @@ def main(argv: list[str] | None = None) -> int:
     settings.update(smoke=args.smoke, raw_arm=args.raw_arm, judge_copies=args.judge_copies,
                     nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd,
                     replay_path=args.replay_path or ("commanded" if args.smoke else "achieved"))
-    settings["replay_lookahead"] = (args.replay_lookahead if args.replay_lookahead is not None
-                                    else 1 if settings["replay_path"] == "achieved" else 0)
+    settings["replay_lookahead"] = args.replay_lookahead if args.replay_lookahead is not None else 0
     if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
         p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")
