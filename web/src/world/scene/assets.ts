@@ -15,7 +15,7 @@ export const CARTRIDGE_LOD_URL = `${BASE}models/cartridge_lod.glb`;
 export const MACHINE_URL = `${BASE}models/machine.glb`;
 
 /** Everything the workshop and the machine load, so the lamps can count it in. */
-export const ALL_MODELS = [...BAKED.map(bakedUrl), CARTRIDGE_URL, CARTRIDGE_LOD_URL, MACHINE_URL];
+export const ALL_MODELS = [...BAKED.map(bakedUrl)];
 
 export const STILLS: Record<StationId, string> = {
   story: `${BASE}stills/story.webp`,

@@ -32,7 +32,7 @@ function Scene({ frame }: StationSceneProps) {
     <group position={[0, 17.6, 0]}>
       {Array.from({ length: BARS }, (_, i) => (
         <group key={i} ref={(g) => (bars.current[i] = g)} position={[(i - (BARS - 1) / 2) * 1.1, 0, 0]}>
-          <Box size={[0.7, 1, 0.7]} position={[0, 0.5, 0]} color={i === BARS - 1 ? PALETTE.accent : PALETTE.raised} emissive={i === BARS - 1 ? 0.4 : 0} />
+          <Box size={[0.7, 1, 0.7]} position={[0, 0.5, 0]} color={i === BARS - 1 ? PALETTE.accent : PALETTE.edge} emissive={i === BARS - 1 ? 0.6 : 0.35} />
         </group>
       ))}
     </group>
