@@ -1,5 +1,26 @@
 # Live test #10 results (2026-10-19)
 
+## Latest (19:45): `human10c` ran through grid: 3/10 demos perfected, 24/30 variants, grid written (no training)
+
+- **Neaten now has repairs for the two failures these demos have** (`pm/achieved-path` `5363404`, tests first;
+  1836 passed, 0 failed):
+  - `release_above_bin`: rewrites the place to stop over the bin's inside, with the cube 2 cm above the rim, then
+    open and lift. It is emitted by rules on a placing collision.
+  - The existing `recenter_grasp`: emitted by rules on a dropped or never-lifted grasp that was off-centre.
+  - Grid refuses an empty cell (exit 1).
+  - The success check is unchanged.
+- **human10c** (achieved path, lookahead 0):
+  - raw 0/10;
+  - Neaten **3/10 perfected** (9f47, c045, a029);
+  - multiply **24/30** (6, 9, 9);
+  - grid: raw 10 episodes, perfected_multiply 27. Details are in "Neaten for the human demos' failures" below.
+- **Caveat: replay fidelity is still not there.**
+  - The best replay reproduces 2–4/10 live outcomes, and the same replay can differ between runs on marginal
+    grasps (see "Replay fidelity" below).
+  - So a raw verdict here is partly the simulator's luck, and the raw arm's 10 training episodes are 10 failed
+    replays.
+- **Stopped before training,** as asked.
+
 ## Summary (16:10): stopped at the user's gate, 0/10 raw physics passes (needed ≥ 6)
 
 - **The scene was fine** (code + frames). The first physics check replayed `demo.json`'s *commanded hand
@@ -324,3 +345,115 @@ uv run --with pillow python scripts/run_human_demo_experiment.py --name human10a
 
 **Not done (stopped at the gate):** repair, align, multiply, grid, Nemotron, training and eval. `human10a`'s
 `preregistration.md` is frozen in its data dir. It is not committed, since nothing was trained.
+
+# Replay fidelity: lookahead and joint-space probes (2026-10-19, 16:40–19:10)
+
+**Lookahead 1 (option 1), as `human10b`, physics only:** it is worse.
+
+| | Best time shift vs live tool path | Mean error at shift 0 | Live outcomes reproduced |
+|---|---|---|---|
+| lookahead 0 (`human10a`) | 0 (all 10) | 4.9–6.4 mm | 3/10 |
+| lookahead 1 (`human10b`) | +1: it leads (all 10) | 9.6–12 mm | 2/10 |
+
+- My "one step behind" was wrong. The 0.5 cm at the grasps is non-systematic scatter.
+- `replay_lookahead` stays a frozen experiment setting with default 0 (`9634c22`). Other pipelines were never
+  changed.
+
+**Joint-space probe** (the user's choice). A standalone Isaac script ran 3 replays per demo in one session, no
+cameras, scored with the same `check_success`. "Reproduces" means cube in bin and lifted, as live.
+
+| Mode | Reproduces live |
+|---|---|
+| C: achieved tool path, ee tracking, default start (today) | 2/10 (it was 3/10 in `human10a`: 66bc flipped between runs) |
+| A: same, from the live run's first joint state | 4/10 |
+| B: the live run's stored joint targets (`action`), with achieved joint velocity | 2/10; the tool drifts 16–34 mm (live also had per-substep IK and velocity targets that aren't stored) |
+
+**Conclusion:**
+- No replay mode reproduces these runs reliably.
+- The live grasps were marginal (edge grasps, regrasps, cubes pushed before the grasp), and PhysX here runs
+  without enhanced determinism, so the same replay can land differently.
+- **Fidelity is limited by the demos' marginal contacts as much as by the replay.**
+- Not built into the pipeline: no joint-space mode was added.
+
+# Neaten for the human demos' failures + `human10c` (2026-10-19, 19:10–19:45)
+
+**Code** (`pm/achieved-path` `5363404`; tests written first and failing first; full suite 1836 passed, 20
+skipped, 0 failed):
+
+- **`demo_pipeline.scene_geometry`:** the one copy of the cube/bin sizes.
+  - `sim_worker/scene_cfg.py` now builds the Isaac bodies from it.
+  - `app.jobs` and `app.ai.diagnose` read it (same values).
+  - The sim worker started fine with it in this run.
+- **`release_above_bin(t)`** (new op, runs last):
+  - From where the tool nears the bin after the final grasp (footprint + 5 cm), it rises if low, crosses over,
+    and stops at the person's release point clamped to the bin's inside (cube half + 1 cm from the walls).
+  - The held cube's bottom stops `RELEASE_CLEARANCE` = 2 cm above the rim, i.e. a TCP z of 0.135 m. That is under
+    the success check's 0.18 m `high_release` limit.
+  - Then it holds closed 0.2 s, opens and holds 0.5 s, lifts 10 cm, and holds 0.5 s.
+  - Sizes come from `scene_geometry` and the scene's bin pose. It is tested with a moved, 90°-turned bin too.
+    Nothing is per demo.
+- **Rules** (`detect_rules(..., reasons=, signals=, scene=)`):
+  - **`release_above_bin`:** emitted when the verdict has `collision` and the success check's own predicate (arm or
+    gripper contact with the bin or table above 5 N) fires after the final grasp.
+  - **`recenter_grasp`:** emitted when the verdict has `dropped`, or `not_in_bin` with the cube never lifted, at each
+    close more than 3.3 mm (the IK tracking error) off the cube's centre while the cube still sat within 1 cm of
+    its scene pose. That pose is what the existing op aims at.
+  - Without those arguments the rules behave as before.
+- **`perfect_stored_demo`:** gives the rules the verdict, the replay signals and the scene. In round 1 the rules
+  see the raw replay's verdict.
+  - Nemotron/hybrid rounds are unchanged.
+  - `release_above_bin` is rules-only, left out of the model's op menu, so the diagnose prompt is byte-identical.
+- **Grid:** an empty cell is `Refused: empty cell ...` (exit 1), not a traceback.
+- **`success.py`:** `COLLISION_FORCE_N` names the existing 5 N. The check is unchanged.
+
+**Run:**
+
+```
+uv run --with pillow python scripts/run_human_demo_experiment.py --name human10c --tag "human_20261019*" --data-dir C:\dev\pm-t6\data --until grid
+```
+
+- It ran 19:22:59–19:45:05 under the script's own `gpu.lock` + KeepAwake, released at the end.
+- Frozen config: `replay_path=achieved`, `replay_lookahead=0`, 10 variants, `raw_arm=all`.
+- Everything is in `C:\dev\pm-t6\data\human_exp\human10c\`. `preregistration.md` is frozen there, not committed.
+
+| Demo | Raw (achieved path) | Neaten rounds: ops → verdict | Repair | Multiply |
+|---|---|---|---|---|
+| 7b1f | not_in_bin, collision, dropped | 1: remove_pause, smooth, **release_above_bin** → not_in_bin, dropped · 2: trim, smooth → same · 3: smooth ×3 → same | discarded | — |
+| 66bc | collision, dropped | 1: smooth, **release_above_bin**, **recenter_grasp** → not_in_bin · 2: trim, smooth ×4, recenter_grasp → not_in_bin, dropped · 3: smooth ×5, recenter_grasp → same | discarded | — |
+| 9f47 | collision | 1: trim, smooth, **release_above_bin** → **PASS** | **perfected** | **6/10** |
+| 0576 | not_in_bin, dropped | 1: remove_pause, smooth → not_in_bin, dropped · 2: smooth ×3 → not_in_bin · 3: smooth ×4 → not_in_bin | discarded | — |
+| a029 | not_in_bin, dropped | 1: smooth, **recenter_grasp** → collision · 2: smooth ×3, **release_above_bin** → **PASS** | **perfected** | **9/10** |
+| 87bd | not_in_bin, collision | 1: smooth, release_above_bin, recenter_grasp → not_in_bin, dropped · 2: trim, smooth ×2, recenter_grasp → not_in_bin · 3: smooth → not_in_bin | discarded | — |
+| fb12 | not_in_bin, collision | 1: smooth, release_above_bin → dropped · 2: trim, smooth ×2, recenter_grasp → not_in_bin, dropped · 3: smooth ×2 → same | discarded | — |
+| a67b | not_in_bin, collision, dropped | 1: smooth, release_above_bin, recenter_grasp → not_in_bin, collision · 2: trim, smooth ×6 → not_in_bin, collision, dropped · 3: smooth ×9 → same | discarded | — |
+| c045 | collision | 1: remove_pause, smooth, **release_above_bin** → **PASS** | **perfected** | **9/10** |
+| 3997 | not_in_bin, collision | 1: remove_pause, smooth, release_above_bin → not_in_bin, dropped · 2: trim, smooth ×4 → same · 3: smooth ×3 → same | discarded | — |
+
+**Totals:**
+- Raw: 0/10.
+- Perfected: **3/10**. All 3 also verify start-aligned from home.
+- Multiply yield: **24/30 = 0.80**.
+- **Grid written:** `raw_10` 10 episodes / 5,809 frames (10 human roots); `perfected_multiply_10` 27 episodes /
+  11,313 frames (3 human roots).
+
+**What the ops did:**
+- **`release_above_bin` removed the collision every time it ran in round 1** (8 demos: no `collision` in the next
+  verdict, except a67b).
+  - Alone, it fixed the 2 demos whose only failure was the placing collision (9f47, c045).
+  - With `recenter_grasp` first, it fixed a029: the recentre made it grasp and carry, and the release then cleared
+    the rim.
+- **`recenter_grasp` fixed 1 of the 5 demos it ran on** (a029). The others still drop or never lift the cube.
+  - Their replays pushed the cube before the close, or regrasped after it moved. Then the rule rightly skips those
+    closes, because the existing op aims at the scene's cube pose, not at where the cube is.
+- **7 discarded demos** fail on grasping (not_in_bin/dropped), not placing.
+  - That is where the replay itself is least faithful (see fidelity above).
+  - The next generic op would recentre onto the cube's *measured* position at the close. That needs a cube-xy
+    field on `recenter_grasp`, which the Nemotron menu would then also see; not done.
+
+**Before training (for the user's go), honestly:**
+- The two arms differ in more than the method.
+  - `raw_10` is 10 *failed* replays (`raw_arm=all`).
+  - `perfected_multiply_10` is 27 verified episodes from **3** of the 10 people's demos.
+- A raw-vs-multiplied difference would mostly measure "trained on successes vs on failures", with n = 3 human roots
+  behind the multiplied arm.
+- That is the pre-registered design. I flag it rather than change it.
