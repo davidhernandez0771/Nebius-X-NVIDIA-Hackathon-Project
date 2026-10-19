@@ -59,7 +59,8 @@ function StepFollower() {
 export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
   const { store } = useWorld();
   const pick = usePick();
-  const anisotropy = quality.name === "low" ? 1 : 4;
+  // The walls are seen at grazing angles: more anisotropy keeps their block lines from shimmering.
+  const anisotropy = quality.name === "low" ? 2 : 8;
   // Cartridges answer the pointer only while the workshop (or the machine beside it) is in view,
   // and not while one is open. Not during the dive either: above the roof they aren't drawn.
   const active = useCallback(

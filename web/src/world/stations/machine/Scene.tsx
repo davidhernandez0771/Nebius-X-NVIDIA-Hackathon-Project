@@ -10,9 +10,10 @@ import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { MACHINE_ANCHOR } from "../../core/layout";
+import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR } from "../../core/layout";
 import { ambient } from "../../core/activity";
-import { useWorld } from "../../core/WorldContext";
+import { useWorld, useWorldState } from "../../core/WorldContext";
+import { HoloTwin } from "../../scene/HoloTwin";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL } from "../../scene/assets";
 import { BelowRoof } from "../../scene/BelowRoof";
@@ -36,6 +37,8 @@ interface Built {
   lens: THREE.MeshBasicMaterial;
   holo: { mat: THREE.MeshBasicMaterial; peak: number }[];
   screen: THREE.Object3D | null;
+  /** Where the projector's lens is, local to the machine: the hologram stands on it. */
+  lensAt: THREE.Vector3;
   releases: (() => void)[];
 }
 
@@ -74,6 +77,7 @@ function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built
   let slot: THREE.MeshBasicMaterial | null = null;
   let lens: THREE.MeshBasicMaterial | null = null;
   let screen: THREE.Object3D | null = null;
+  let lensAt: THREE.Vector3 | null = null;
 
   scene.updateMatrixWorld(true);
   scene.traverse((o) => {
@@ -95,8 +99,13 @@ function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built
         mat = is(o, "FanMark") ? (stripGlow.get(src) ?? stripGlow.set(src, glow(src)).get(src)!) : metalFor(src);
       }
     } else if (is(o, "SlotGlow")) mat = slot = glow(src, 0);
-    else if (is(o, "Lens")) mat = lens = glow(src, LENS_IDLE);
+    else if (is(o, "Lens")) {
+      mat = lens = glow(src, LENS_IDLE);
+      lensAt = o.position.clone();
+    }
     else if (is(o, "GlowStrip")) mat = stripGlow.get(src) ?? stripGlow.set(src, glow(src)).get(src)!;
+    // The old beam cone and wireframe arm: the particle hologram (HoloTwin) replaces both.
+    else if (is(o, "HoloBeam", "Holo_")) return;
     else if (is(o, "HoloBeam")) {
       const m = glow(src);
       m.blending = THREE.AdditiveBlending;
@@ -133,7 +142,7 @@ function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built
   });
   mergeSiblings(root, screen, releases);
   fanAt.forEach((g) => mergeSiblings(g, screen, releases));
-  return { root, fans: fanAt, slot: slot!, lens: lens!, holo: holos, screen, releases };
+  return { root, fans: fanAt, slot: slot!, lens: lens!, holo: holos, screen, lensAt: lensAt ?? new THREE.Vector3(3.18, 3.44, -1.69), releases };
 }
 
 /**
@@ -212,6 +221,7 @@ const AUTOPLAY_PAUSE_MS = 2200;
 
 export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
   const { store, goTo } = useWorld();
+  const label = useWorldState((c) => (c.cartridge ?? DEFAULT_CARTRIDGE).label);
   const gltf = useGLTF(MACHINE_URL, false);
   const invalidate = useThree((s) => s.invalidate);
   const built = useMemo(() => build(gltf.scene, quality), [gltf, quality]);
@@ -283,6 +293,7 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     <BelowRoof>
       <primitive object={built.root} />
       <primitive object={hero.group} />
+      {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} label={label} position={[built.lensAt.x, built.lensAt.y + 0.35, built.lensAt.z]} /> : null}
     </BelowRoof>
   );
 }

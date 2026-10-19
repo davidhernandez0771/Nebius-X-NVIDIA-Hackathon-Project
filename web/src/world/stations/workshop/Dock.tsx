@@ -2,6 +2,7 @@
 // its cartridges along the helix to the top slots, dims the rest and limits the scroll to them
 // (spiral.ts, stepper.ts); pressing it again, or Escape, clears it. Under the tags: the robots'
 // own cartridges and the bench (the keyboard path to what is clickable in 3D), and Ask SANT.
+import { shelf } from "./stepper";
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { ITEMS, TAGS, type TagId } from "../../scene/items";
@@ -36,6 +37,9 @@ export function Dock({ children }: { children?: ReactNode }) {
     const c = store.getCoarse();
     const on = f.current && f.arrive >= 1 && c.ready && c.branch === null && spiral.selected < 0;
     if (dock.current && dock.current.dataset.on !== String(on)) dock.current.dataset.on = String(on);
+    // In the room view only Ask SANT shows; the filters belong to the shelf (and to the stills' list).
+    const view = mode === "3d" && !shelf.open ? "hub" : "shelf";
+    if (dock.current && dock.current.dataset.view !== view) dock.current.dataset.view = view;
   };
   useStationFrame("workshop", refresh);
   useEffect(() => {

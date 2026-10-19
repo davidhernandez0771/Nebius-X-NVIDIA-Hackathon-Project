@@ -12,6 +12,7 @@ import { ambient } from "../../core/activity";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { onPointer, pointer } from "../../ui/pointer";
+import { ROOF_HIDE_Y } from "../../scene/BelowRoof";
 import { DUST, LOGO, LOGO_SCALE, RING, SKYLIGHT } from "./layout";
 import { MARK_URL } from "./mark";
 import { drawPlaceholderMark, dustBuffers, logoBuffers, sampleMark } from "./particles";
@@ -191,7 +192,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     };
   }, [logo, gl, scene, camera, invalidate]);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock, camera }, delta) => {
     const s = st.current;
     const now = clock.elapsedTime;
     const dt = Math.min(delta, 1 / 30);
@@ -226,6 +227,8 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     du.uTime.value = now;
     du.uPR.value = pr;
     du.uMix.value = store.frames.workshop.arrive;
+    // The dust is the sky's: inside the room it read as static over the walls.
+    dust.visible = camera.position.y >= ROOF_HIDE_Y;
 
     // Gathering plays on every tier; the drift after it only where idle loops are allowed.
     const branch = store.getCoarse().branch !== null;

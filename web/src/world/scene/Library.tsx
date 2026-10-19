@@ -7,11 +7,11 @@ import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { QualityTier } from "../core/quality";
 import { CARTRIDGE_LOD_URL } from "./assets";
-import { cartridgeParts, labelAtlas, slotMatrix, tileAttribute } from "./cartridge";
+import { cartridgeParts, slotMatrix } from "./cartridge";
 import { GRAPHITE } from "./Helix";
 import { LIBRARY_TILES, TILE_COUNT } from "./labels";
 import { LIBRARY } from "./layout";
-import { liveMaterial, trackLive, withTiles } from "./materials";
+import { liveMaterial, trackLive } from "./materials";
 import { markLoaded } from "./power";
 
 const N = LIBRARY.length;
@@ -33,15 +33,15 @@ export function Library({ quality }: { quality: QualityTier }) {
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
 
   const parts = useMemo(() => {
-    const atlas = labelAtlas();
     const picks = LIBRARY.map((_, i) => libraryPick(i));
     // The far shelves never need reflections: Lambert on every tier.
     const flat = { ...quality, name: "low" as const };
     return cartridgeParts(gltf.scene).map((p) => {
       const isLabel = p.name.startsWith("label");
       const geometry = isLabel ? p.geometry.clone() : p.geometry;
-      if (isLabel) geometry.setAttribute("aTile", tileAttribute(picks.map((k) => k.tile)));
-      const material = isLabel ? withTiles(liveMaterial(p.source, flat, { map: atlas, color: "#ffffff" })) : liveMaterial(p.source, flat, { color: "#ffffff" });
+      // At library distance a label is a few pixels: sampling the shared atlas there blends
+      // neighbouring labels into sparkling stripes as the view moves. A plain paper label instead.
+      const material = isLabel ? liveMaterial(p.source, flat, { color: "#a9a59a" }) : liveMaterial(p.source, flat, { color: "#ffffff" });
       return { name: p.name, geometry, material, isLabel, picks };
     });
   }, [gltf, quality]);
