@@ -7,6 +7,9 @@ import { Box, PALETTE } from "../../core/Placeholder";
 import { useStationFrame } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps, StationSceneProps } from "../../core/types";
 import { hero } from "../../../site/landing/copy";
+import { through } from "../../core/rail";
+import { STILLS } from "../../scene/assets";
+import { stop } from "../../scene/layout";
 
 const BARS = 9;
 const BEATS = [
@@ -26,10 +29,10 @@ function Scene({ frame }: StationSceneProps) {
     });
   });
   return (
-    <group position={[3.5, -2.6, 0]}>
+    <group position={[0, 17.6, 0]}>
       {Array.from({ length: BARS }, (_, i) => (
         <group key={i} ref={(g) => (bars.current[i] = g)} position={[(i - (BARS - 1) / 2) * 1.1, 0, 0]}>
-          <Box size={[0.7, 1, 0.7]} position={[0, 0.5, 0]} color={i === BARS - 1 ? PALETTE.accent : PALETTE.raised} emissive={i === BARS - 1 ? 0.4 : 0} />
+          <Box size={[0.7, 1, 0.7]} position={[0, 0.5, 0]} color={i === BARS - 1 ? PALETTE.accent : PALETTE.edge} emissive={i === BARS - 1 ? 0.6 : 0.35} />
         </group>
       ))}
     </group>
@@ -59,13 +62,15 @@ function Overlay(_: StationOverlayProps) {
 
 const story: StationModule = {
   id: "story",
+  still: STILLS.story,
   title: "Story",
   owner: "core (copy from T5)",
   kind: "rail",
-  anchor: [0, 42, 0],
+  anchor: [0, 0, 0],
   travel: 0,
   length: 3,
-  camera: (t) => ({ position: [0, 0.8 - t * 1.6, 14], target: [0, -0.6 - t * 0.6, 0], fov: 40 }),
+  // Blender's first three stops, high above the workshop's ceiling.
+  camera: through(stop("Title"), stop("One demo → 100"), stop("Proof")),
   Scene,
   Overlay,
 };

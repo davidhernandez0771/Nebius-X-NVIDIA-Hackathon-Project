@@ -4,7 +4,7 @@
 // Pure, so continuity at every boundary is tested.
 import type { CameraPose, StationFrame, StationId, StationModule, Vec3 } from "./types";
 
-export type RailStation = Pick<StationModule, "id" | "anchor" | "travel" | "length" | "camera" | "rest">;
+export type RailStation = Pick<StationModule, "id" | "anchor" | "travel" | "length" | "camera" | "rest" | "reach">;
 
 export interface RailSpan {
   id: StationId;
@@ -20,6 +20,8 @@ export interface Rail {
   spans: RailSpan[];
   /** Scroll px of the whole rail: the page is this plus one viewport tall. */
   total: number;
+  /** Per station: how many stations away it is still drawn (StationModule.reach, default 1). */
+  reach: number[];
 }
 
 export interface Place {
@@ -41,7 +43,7 @@ export function layoutRail(stations: readonly RailStation[], vh: number): Rail {
     y = end;
     return { id: s.id, from, start, end };
   });
-  return { spans, total: y };
+  return { spans, total: y, reach: stations.map((s) => s.reach ?? 1) };
 }
 
 const clamp01 = (u: number) => Math.min(1, Math.max(0, u));
@@ -123,8 +125,23 @@ export function fillFrames(rail: Rail, y: number, frames: readonly StationFrame[
       f.arrive = 1;
     }
     f.current = i === p.current;
-    f.near = Math.abs(i - p.current) <= 1 || i === p.index;
+    f.near = Math.abs(i - p.current) <= (rail.reach[i] ?? 1) || i === p.index;
   });
+}
+
+/**
+ * A camera through a list of stops, for a dwell: equal shares of t, eased with smootherstep inside
+ * each share, so the camera settles at every stop on the way (the stops of a tour).
+ */
+export function through(...stops: CameraPose[]): (t: number) => CameraPose {
+  if (stops.length === 0) throw new Error("world: through() needs at least one stop");
+  if (stops.length === 1) return () => stops[0];
+  const n = stops.length - 1;
+  return (t) => {
+    const u = clamp01(t) * n;
+    const i = Math.min(n - 1, Math.floor(u));
+    return mixPose(stops[i], stops[i + 1], smoother(u - i));
+  };
 }
 
 /** Scroll px of a station's dwell start, for goTo(). */

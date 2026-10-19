@@ -5,6 +5,8 @@ import { Box, PALETTE } from "../../core/Placeholder";
 import { still } from "../../core/layout";
 import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
+import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
 
 function Scene() {
   return (
@@ -31,13 +33,14 @@ function Overlay(_: StationOverlayProps) {
 
 const workbench: StationModule = {
   id: "workbench",
+  still: STILLS.workbench,
   title: "Workbench",
   owner: "T1",
   kind: "branch",
-  anchor: [-9, 0, 1],
+  anchor: BENCH_PIVOT.position,
   travel: 0,
   length: 0,
-  camera: still({ position: [0, 2.6, 5.2], target: [0, 1.0, 0], fov: 40 }),
+  camera: still(stopFrom(BENCH_PIVOT.position, "Workbench edit")),
   Scene,
   Overlay,
 };

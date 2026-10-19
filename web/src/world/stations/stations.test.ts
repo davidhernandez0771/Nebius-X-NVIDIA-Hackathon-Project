@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fillDistance, MACHINE_ANCHOR, MACHINE_VIEW, PROJECTION } from "../core/layout";
+import { stop, type StopName } from "../scene/layout";
 import { layoutRail, poseAt, stationPose } from "../core/rail";
 import { checkStations } from "../core/registry";
 import { RAIL_ORDER, type StationModule } from "../core/types";
@@ -44,10 +45,34 @@ describe("the registered stations", () => {
     expect(zoom.anchor).toEqual(MACHINE_ANCHOR);
   });
 
-  it("end the zoom close enough that the projection fills the view", () => {
-    const d = CLOSE.position[2] - PROJECTION.center[2];
+  it("end the zoom square in front of the projection, close enough that it fills the view", () => {
+    const off = CLOSE.position.map((v, i) => v - PROJECTION.center[i]);
+    const d = off.reduce((s, v, i) => s + v * PROJECTION.normal[i], 0);
+    const side = Math.hypot(...off.map((v, i) => v - d * PROJECTION.normal[i]));
+    expect(d).toBeGreaterThan(0.5);
     expect(d).toBeLessThan(fillDistance(CLOSE.fov));
-    expect(CLOSE.target).toEqual(PROJECTION.center);
+    expect(side).toBeLessThan(0.01);
+    // machine.glb's hologram and layout.json's "Zoom to UI" stop agree on where the screen is.
+    CLOSE.target.forEach((v, i) => expect(v).toBeCloseTo(PROJECTION.center[i], 2));
+  });
+
+  it("follow Blender's camera stops", () => {
+    const at = (id: string, t: number) => stationPose(rails[RAIL_ORDER.indexOf(id as (typeof RAIL_ORDER)[number])], t);
+    const same = (id: string, t: number, name: StopName) => {
+      const p = at(id, t);
+      const s = stop(name);
+      p.position.forEach((v, i) => expect(v).toBeCloseTo(s.position[i], 6));
+      p.target.forEach((v, i) => expect(v).toBeCloseTo(s.target[i], 6));
+    };
+    same("story", 0, "Title");
+    same("story", 1, "Proof");
+    same("descent", 0, "Descent");
+    same("workshop", 0, "Workshop intro");
+    same("workshop", 1, "Tutorial 1 · shelf");
+    same("machine", 0, "Tutorial 2 · machine");
+    same("machine", 0.5, "Plug in");
+    same("machine", 1, "Projection");
+    same("zoom", 1, "Zoom to UI");
   });
 
   it("each live in their own folder with an owner", () => {

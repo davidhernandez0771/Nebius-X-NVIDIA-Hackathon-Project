@@ -6,11 +6,11 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { useNavigate } from "react-router-dom";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { navigateWithTransition } from "../../sant/motion/viewTransition";
-import { hasWebGL } from "../../three/capability";
 import { STATIONS } from "../stations";
 import { INITIAL_HANDOFF, handoffStep, saveReturn, takeReturn } from "./handoff";
+import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
-import { pickTier, readSignals } from "./quality";
+import { TIERS, pickQuality, readSignals, type QualityChoice } from "./quality";
 import { dwellStart, locate } from "./rail";
 import { checkStations } from "./registry";
 import { createWorldStore } from "./store";
@@ -45,9 +45,35 @@ function scrollToY(top: number, smooth: boolean) {
   }
 }
 
-/** `?static` forces the no-canvas fallback (also used when there is no WebGL). */
-export function canRun3D(search: string): boolean {
-  return !new URLSearchParams(search).has("static") && hasWebGL();
+const FORCED = new Set(["low", "high", "ultra", "medium", "stills", "static"]);
+
+/**
+ * The tier or the stills. A forced answer (`?quality=`, `?static`, or the `webgl` prop in tests)
+ * skips the GPU check; otherwise it runs once per session.
+ */
+export function chooseQuality(search: string, webgl?: boolean): QualityChoice {
+  if (webgl === false) return { mode: "stills", tier: TIERS.low };
+  const signals = readSignals(search, "high");
+  const forced = signals.forceStatic || FORCED.has(signals.query?.toLowerCase() ?? "");
+  const gpu = forced || webgl === true ? "high" : checkGpu(session()).gpu;
+  return pickQuality({ ...signals, gpu });
+}
+
+/** No usable GPU: each station's pre-rendered still, cross-fading as the journey moves. */
+function Stills({ stations, at, title }: { stations: readonly StationModule[]; at: StationId; title: string }) {
+  const still = stations.find((s) => s.id === at)?.still;
+  return (
+    <div className="world-ground world-stills" aria-hidden="true" data-quality="stills">
+      {stations.map((s) =>
+        s.still ? <img key={s.id} className="world-stills__img" src={s.still} alt="" decoding="async" data-on={s.id === at} /> : null,
+      )}
+      {still ? null : (
+        <span key={at} className="world-ground__name">
+          {title}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function JourneyRail({ stations, at, goTo }: { stations: readonly StationModule[]; at: StationId; goTo: (id: StationId) => void }) {
@@ -69,8 +95,8 @@ function JourneyRail({ stations, at, goTo }: { stations: readonly StationModule[
 export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: readonly StationModule[]; webgl?: boolean }) {
   const { reduced } = useMotion();
   const navigate = useNavigate();
-  const [run3D] = useState(() => webgl ?? canRun3D(window.location.search));
-  const [quality] = useState(() => pickTier(readSignals(window.location.search)));
+  const [{ mode, tier: quality }] = useState(() => chooseQuality(window.location.search, webgl));
+  const run3D = mode === "3d";
   const [store] = useState(() => createWorldStore(stations, window.innerHeight, window.scrollY));
   const coarse = useSyncExternalStore(store.subscribe, store.getCoarse);
   const veil = useRef<HTMLDivElement>(null);
@@ -198,11 +224,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
             <WorldCanvas store={store} stations={stations} quality={quality} reduced={reduced} onCut={onCut} />
           </Suspense>
         ) : (
-          <div className="world-ground" aria-hidden="true">
-            <span key={at} className="world-ground__name">
-              {atTitle}
-            </span>
-          </div>
+          <Stills stations={stations} at={at} title={atTitle} />
         )}
         <div ref={veil} className="world-veil" aria-hidden="true" />
         <main className="world-overlays">

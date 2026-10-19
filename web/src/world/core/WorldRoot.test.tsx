@@ -59,24 +59,28 @@ describe("WorldRoot (no WebGL)", () => {
     expect(within(rail).getByRole("button", { name: "Workshop" }).getAttribute("aria-current")).toBe("step");
   });
 
-  it("chooses a cartridge in the workshop and opens its route at the end of the zoom", () => {
+  it("sends a robot's cartridge from the workshop to the machine, and opens Record at the end of the zoom", () => {
     vi.useFakeTimers();
     renderWorld();
     const h = window.innerHeight;
     scrollTo(h * 6.8);
-    fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByRole("button", { name: "Review" }).getAttribute("aria-pressed")).toBe("true");
+    vi.mocked(window.scrollTo).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "PiPER" }));
+    expect(screen.getByRole("button", { name: "PiPER" }).getAttribute("aria-pressed")).toBe("true");
+    // The journey follows it to the machine.
+    expect(window.scrollTo).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Open PiPER" })).toBeTruthy();
     scrollTo(h * 11);
     expect(current()).toBe("zoom");
     scrollTo(h * 100);
     act(() => vi.runAllTimers());
-    expect(screen.getByRole("heading", { name: "Review page" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
     expect(sessionStorage.getItem("world.return")).toBe("machine");
   });
 
-  it("hands off now with the zoom's button, to Record by default", () => {
+  it("hands off now with the zoom's button, to Record with the SO-101 by default", () => {
     renderWorld();
-    fireEvent.click(screen.getByRole("button", { name: "Open Record" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open SO-101" }));
     expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
   });
 
@@ -90,6 +94,15 @@ describe("WorldRoot (no WebGL)", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(current()).toBe("workshop");
     expect(document.documentElement.style.overflow).toBe("");
+  });
+
+  it("shows the current station's pre-rendered still in place of the canvas", () => {
+    renderWorld();
+    const on = () => document.querySelector<HTMLImageElement>('.world-stills__img[data-on="true"]')?.getAttribute("src");
+    expect(document.querySelector(".world-canvas")).toBeNull();
+    expect(on()).toMatch(/stills\/story\.webp$/);
+    scrollTo(window.innerHeight * 6.8);
+    expect(on()).toMatch(/stills\/workshop\.webp$/);
   });
 
   it("comes back from a 2D route to the machine, without leaving again", () => {

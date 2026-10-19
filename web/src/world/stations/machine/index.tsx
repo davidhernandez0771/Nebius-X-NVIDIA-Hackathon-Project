@@ -8,6 +8,9 @@ import { Box, PALETTE } from "../../core/Placeholder";
 import { smoother } from "../../core/rail";
 import { useWorldState } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps, StationSceneProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
+import { stopFrom } from "../../scene/layout";
+import { through } from "../../core/rail";
 
 /** A placeholder screen for the hologram: the cartridge's name on the app's ground. */
 function useScreenTexture(label: string): THREE.CanvasTexture | null {
@@ -84,18 +87,15 @@ function Overlay(_: StationOverlayProps) {
 
 const machine: StationModule = {
   id: "machine",
+  still: STILLS.machine,
   title: "Machine",
   owner: "T7",
   kind: "rail",
   anchor: MACHINE_ANCHOR,
   travel: 0.8,
   length: 1.6,
-  // Ends exactly on MACHINE_VIEW, where the zoom starts.
-  camera: (t) => {
-    const u = smoother(t);
-    const [px, py, pz] = MACHINE_VIEW.position;
-    return { position: [px + 1.6 * (1 - u), py - 0.2 * (1 - u), pz + 0.8 * (1 - u)], target: MACHINE_VIEW.target, fov: MACHINE_VIEW.fov };
-  },
+  // The machine from the side, the port close up, then the projection: MACHINE_VIEW, where the zoom starts.
+  camera: through(stopFrom(MACHINE_ANCHOR, "Tutorial 2 · machine"), stopFrom(MACHINE_ANCHOR, "Plug in"), MACHINE_VIEW),
   rest: MACHINE_VIEW,
   Scene,
   Overlay,

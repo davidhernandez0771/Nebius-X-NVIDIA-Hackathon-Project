@@ -68,9 +68,9 @@ export default function WorldCanvas({
       data-quality={quality.name}
     >
       <color attach="background" args={[WORLD_BG]} />
-      <fog attach="fog" args={[WORLD_BG, 16, 58]} />
-      <hemisphereLight args={["#E6EDF3", "#151A21", 1.1]} />
-      <directionalLight position={[8, 18, 10]} intensity={1.6} castShadow={quality.shadows} shadow-mapSize={[1024, 1024]} />
+      {/* The room is ~44 m across: fog only reaches its far walls, thicker with ultra's haze. */}
+      <fog attach="fog" args={quality.haze ? [WORLD_BG, 24, 95] : [WORLD_BG, 34, 120]} />
+      {/* No lights here: the room's light is baked, and the workshop's live lights follow its lamps. */}
       <CameraRig store={store} stations={stations} reduced={reduced} onCut={onCut} />
       {stations
         .filter((s) => s.Scene)

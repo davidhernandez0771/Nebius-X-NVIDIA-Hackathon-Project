@@ -1,17 +1,18 @@
-// Zoom to UI (core): the camera dollies from MACHINE_VIEW into the projection until it fills the
-// view; a DOM screen in the app's ground fades up over it, and at the end of the rail the route
+// Zoom to UI (core): the camera dollies from MACHINE_VIEW (Blender's "Projection" stop) to its
+// "Zoom to UI" stop, square in front of the projection and close enough that it fills the view; a DOM screen in the app's ground fades up over it, and at the end of the rail the route
 // changes to the cartridge's 2D page (core/handoff.ts). The button is the same handoff, now.
 import { useRef } from "react";
 import { Button } from "../../../sant/components/Button";
-import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR, MACHINE_VIEW, PROJECTION, fillDistance } from "../../core/layout";
+import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR, MACHINE_VIEW, PROJECTION, inFront } from "../../core/layout";
 import { screenOpacity } from "../../core/handoff";
 import { mixPose, smoother } from "../../core/rail";
 import { useStationFrame, useWorld, useWorldState } from "../../core/WorldContext";
 import type { CameraPose, StationModule, StationOverlayProps } from "../../core/types";
+import { STILLS } from "../../scene/assets";
+import { stopFrom } from "../../scene/layout";
 
-const [cx, cy, cz] = PROJECTION.center;
-/** Closer than the fill distance, so a wide window is covered edge to edge too. */
-export const CLOSE: CameraPose = { position: [cx, cy, cz + fillDistance(MACHINE_VIEW.fov) * 0.8], target: [cx, cy, cz], fov: MACHINE_VIEW.fov };
+/** Blender's "Zoom to UI" stop, on the projection's normal, closer than the fill distance. */
+export const CLOSE: CameraPose = stopFrom(MACHINE_ANCHOR, "Zoom to UI");
 
 function Overlay(_: StationOverlayProps) {
   const { handoff } = useWorld();
@@ -34,6 +35,7 @@ function Overlay(_: StationOverlayProps) {
 
 const zoom: StationModule = {
   id: "zoom",
+  still: STILLS.zoom,
   title: "Into the projection",
   owner: "core",
   kind: "rail",
@@ -41,7 +43,7 @@ const zoom: StationModule = {
   travel: 0,
   length: 1.4,
   camera: (t) => mixPose(MACHINE_VIEW, CLOSE, smoother(t)),
-  rest: { position: [cx, cy, cz + 5], target: [cx, cy, cz], fov: MACHINE_VIEW.fov },
+  rest: { position: inFront(5), target: PROJECTION.center, fov: MACHINE_VIEW.fov },
   Overlay,
 };
 
