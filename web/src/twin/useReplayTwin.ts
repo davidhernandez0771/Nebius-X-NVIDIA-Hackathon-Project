@@ -1,6 +1,7 @@
 // Replay mode: plays a saved episode's joint_pos from the store, so a visitor without a sim sees real, verified
 // copies move. Looped, in real time, at most REPLAY_HZ poses a second. It doesn't start by itself when motion is
-// reduced (the OS setting or SANT's "Effects off"): the first step shows until play() is called.
+// reduced (the OS setting or SANT's "Effects off"): the first step shows until play() is called. With `url`, it
+// plays a static episode file instead (the same JSON as GET /twin/episodes/{id}), so it works without a backend.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { describeError, pmFetch } from "../pm/api";
 import { useMotion } from "../sant/motion/MotionProvider";
@@ -22,7 +23,10 @@ export type ReplayTwin = {
 
 type Load = { id: string | null; status: ReplayTwin["status"]; episode: Episode | null; error: string | null };
 
-export function useReplayTwin(demoId: string | null, { autoplay, fetchImpl = fetch }: { autoplay?: boolean; fetchImpl?: typeof fetch } = {}): ReplayTwin {
+export function useReplayTwin(
+  demoId: string | null,
+  { autoplay, fetchImpl = fetch, url }: { autoplay?: boolean; fetchImpl?: typeof fetch; url?: string | null } = {},
+): ReplayTwin {
   const { reduced } = useMotion();
   const auto = autoplay ?? !reduced;
   const [load, setLoad] = useState<Load>({ id: null, status: "idle", episode: null, error: null });
@@ -30,34 +34,36 @@ export function useReplayTwin(demoId: string | null, { autoplay, fetchImpl = fet
   const [playing, setPlaying] = useState(false);
   const clock = useRef<ReplayClock | null>(null);
 
+  const source = url ?? demoId; // what is loaded: the file, else the store's episode
   useEffect(() => {
-    if (!demoId) {
+    if (!source) {
       setLoad({ id: null, status: "idle", episode: null, error: null });
       return;
     }
     let live = true;
-    setLoad({ id: demoId, status: "loading", episode: null, error: null });
-    pmFetch<unknown>(`/twin/episodes/${encodeURIComponent(demoId)}`, undefined, fetchImpl).then(
+    setLoad({ id: source, status: "loading", episode: null, error: null });
+    const body = url ? pmFetch<unknown>(url, undefined, fetchImpl, "") : pmFetch<unknown>(`/twin/episodes/${encodeURIComponent(source)}`, undefined, fetchImpl);
+    body.then(
       (body) => {
         if (!live) return;
         try {
           const episode = parseEpisode(body);
           clock.current = new ReplayClock(episode.nSteps, episode.fps);
           setStep(0);
-          setLoad({ id: demoId, status: "ready", episode, error: null });
+          setLoad({ id: source, status: "ready", episode, error: null });
           setPlaying(auto);
         } catch (e) {
-          setLoad({ id: demoId, status: "error", episode: null, error: (e as Error).message });
+          setLoad({ id: source, status: "error", episode: null, error: (e as Error).message });
         }
       },
-      (e) => live && setLoad({ id: demoId, status: "error", episode: null, error: describeError(e) }),
+      (e) => live && setLoad({ id: source, status: "error", episode: null, error: describeError(e) }),
     );
     return () => {
       live = false;
     };
     // auto is read once per episode: turning effects off later pauses through the effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoId, fetchImpl]);
+  }, [source, url, fetchImpl]);
 
   useEffect(() => {
     if (reduced) setPlaying(false);

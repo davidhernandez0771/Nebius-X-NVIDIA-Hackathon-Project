@@ -139,6 +139,15 @@ describe("useReplayTwin", () => {
     expect(result.current.twin.joints).toBeNull();
   });
 
+  it("plays a static episode file, without the store", async () => {
+    const fetchImpl = vi.fn(async () => json(EPISODE)) as unknown as typeof fetch;
+    const { result } = renderHook(() => useReplayTwin(null, { fetchImpl, url: "/world/demo-episode.json" }), { wrapper: reducedMotion(true) });
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe("/world/demo-episode.json");
+    expect(result.current.episode?.demoId).toBe(EPISODE.demo_id);
+    expect(result.current.twin.joints).toEqual({ panda_joint1: 0.1, panda_finger_joint1: 0.04 });
+  });
+
   it("does nothing without an episode", () => {
     const fetchImpl = vi.fn() as unknown as typeof fetch;
     const { result } = renderHook(() => useReplayTwin(null, { fetchImpl }), { wrapper: reducedMotion(false) });
