@@ -5,6 +5,8 @@ import { Box, PALETTE } from "../../core/Placeholder";
 import { useWorld, useWorldState } from "../../core/WorldContext";
 import type { Cartridge, StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
+import { stop } from "../../scene/layout";
+import { through } from "../../core/rail";
 
 /** Placeholder shelf: each cartridge opens one of the app's real 2D routes. */
 export const CARTRIDGES: Cartridge[] = [
@@ -75,7 +77,11 @@ const workshop: StationModule = {
   anchor: [0, 0, 0],
   travel: 0.6,
   length: 1.5,
-  camera: (t) => ({ position: [0, 3.4 - t * 0.3, 11 - t * 1.5], target: [0, 1.4, -2], fov: 42 }),
+  // The room from the front, then the spiral shelf.
+  camera: through(stop("Workshop intro"), stop("Tutorial 1 · shelf")),
+  rest: stop("Workshop intro"),
+  // The room stays drawn behind the machine and the zoom.
+  reach: 2,
   Scene,
   Overlay,
 };

@@ -74,9 +74,9 @@ describe("WorldRoot (no WebGL)", () => {
     expect(sessionStorage.getItem("world.return")).toBe("machine");
   });
 
-  it("hands off now with the zoom's button, to Record by default", () => {
+  it("hands off now with the zoom's button, to Record with the SO-101 by default", () => {
     renderWorld();
-    fireEvent.click(screen.getByRole("button", { name: "Open Record" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open SO-101" }));
     expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
   });
 

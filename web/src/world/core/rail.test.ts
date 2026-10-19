@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillFrames, layoutRail, locate, mixPose, poseAt, restIndexAt, smoother, type RailStation } from "./rail";
+import { fillFrames, layoutRail, locate, mixPose, poseAt, restIndexAt, smoother, through, type RailStation } from "./rail";
 import type { CameraPose, StationFrame } from "./types";
 
 const pose = (x: number): CameraPose => ({ position: [x, 0, 10], target: [x, 0, 0], fov: 40 });
@@ -62,6 +62,30 @@ describe("reduced motion", () => {
     const rail = layoutRail(STATIONS, VH);
     expect(restIndexAt(rail, 240)).toBe(0);
     expect(restIndexAt(rail, 260)).toBe(1);
+  });
+});
+
+describe("fillFrames reach", () => {
+  it("keeps a station with a longer reach drawn two stations away", () => {
+    const d: RailStation = { id: "machine", anchor: [0, 0, 0], travel: 0.5, length: 1, camera: () => pose(0) };
+    const wide = [a, { ...b, reach: 2 }, c, d];
+    const rail = layoutRail(wide, VH);
+    const frames: StationFrame[] = wide.map(() => ({ t: 0, arrive: 0, current: false, near: false }));
+    fillFrames(rail, rail.total, frames);
+    expect(frames.map((f) => f.near)).toEqual([false, true, true, true]);
+  });
+});
+
+describe("through", () => {
+  it("passes every stop, settling at each", () => {
+    const cam = through(pose(0), pose(10), pose(30));
+    expect(cam(0).position[0]).toBe(0);
+    expect(cam(0.5).position[0]).toBe(10);
+    expect(cam(1).position[0]).toBe(30);
+    expect(cam(0.25).position[0]).toBeCloseTo(5, 6);
+    // Zero speed at the middle stop: a small step either side barely moves.
+    expect(Math.abs(cam(0.501).position[0] - 10)).toBeLessThan(1e-3);
+    expect(through(pose(4))(0.7).position[0]).toBe(4);
   });
 });
 

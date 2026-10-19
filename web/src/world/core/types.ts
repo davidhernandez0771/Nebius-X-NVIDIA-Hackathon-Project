@@ -76,6 +76,11 @@ export interface StationModule {
   Scene?: ComponentType<StationSceneProps>;
   /** DOM over the canvas: copy, controls and the keyboard path for anything clickable in 3D. */
   Overlay?: ComponentType<StationOverlayProps>;
+  /**
+   * How many stations away along the rail the Scene is still drawn (default 1: the neighbours). The
+   * workshop's room uses 2, so it stays behind the machine and the zoom.
+   */
+  reach?: number;
   /** A pre-rendered still of the station, shown instead of the canvas when there is no usable GPU. */
   still?: string;
 }
