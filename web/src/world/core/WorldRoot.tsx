@@ -10,7 +10,8 @@ import { STATIONS } from "../stations";
 import { INITIAL_HANDOFF, handoffStep, saveReturn, takeReturn } from "./handoff";
 import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
-import { TIERS, pickQuality, readSignals, type QualityChoice } from "./quality";
+import { Hud } from "./Hud";
+import { TIERS, pickQuality, readSignals, saveTier, type QualityChoice, type TierName } from "./quality";
 import { dwellStart, locate } from "./rail";
 import { checkStations } from "./registry";
 import { createWorldStore } from "./store";
@@ -18,6 +19,7 @@ import type { StationId, StationModule } from "./types";
 import type { ReactNode } from "react";
 import { WorldContext, type WorldApi } from "./WorldContext";
 import "./world.css";
+import "../ui/ui.css";
 
 const WorldCanvas = lazy(() => import("./WorldCanvas"));
 
@@ -119,6 +121,16 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     if (mode !== "3d") s.setReady();
     return s;
   });
+  // The URL's tier wins and isn't tuned; neither is one an earlier visit saved.
+  const [tuning] = useState(() => {
+    const sig = readSignals(window.location.search, "high");
+    const q = sig.query?.toLowerCase() ?? "";
+    return { forced: FORCED.has(q), tune: !FORCED.has(q) && !sig.saved };
+  });
+  const setTier = useCallback((name: TierName) => {
+    saveTier(name);
+    setChoice({ mode: "3d", tier: TIERS[name] });
+  }, []);
   const fail = useCallback(() => {
     store.setReady();
     setChoice({ mode: "stills", tier: TIERS.low });
@@ -260,7 +272,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
         {run3D ? (
           <CanvasBoundary onFail={fail}>
             <Suspense fallback={<div className="world-ground" aria-hidden="true" />}>
-              <WorldCanvas store={store} stations={stations} quality={quality} reduced={reduced} onCut={onCut} />
+              <WorldCanvas store={store} stations={stations} quality={quality} reduced={reduced} onCut={onCut} tune={tuning.tune} onTier={setTier} />
             </Suspense>
           </CanvasBoundary>
         ) : (
@@ -279,6 +291,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
           })}
         </main>
         <JourneyRail stations={stations} at={at} goTo={api.goTo} />
+        {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />
       </div>
     </WorldContext.Provider>

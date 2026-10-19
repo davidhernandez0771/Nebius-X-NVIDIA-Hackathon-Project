@@ -7,7 +7,9 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import type { Group } from "three";
 import { CameraRig } from "./CameraRig";
 import { WORLD_BG } from "./layout";
-import type { QualityTier } from "./quality";
+import { AutoTune, HudProbe, Pause, WarmUp } from "./Perf";
+import { PostFX } from "./PostFX";
+import type { QualityTier, TierName } from "./quality";
 import type { WorldStore } from "./store";
 import type { StationFrame, StationModule } from "./types";
 
@@ -65,12 +67,17 @@ export default function WorldCanvas({
   quality,
   reduced,
   onCut,
+  tune = false,
+  onTier = () => {},
 }: {
   store: WorldStore;
   stations: readonly StationModule[];
   quality: QualityTier;
   reduced: boolean;
   onCut: () => void;
+  /** Run the auto-tune (not when the URL or an earlier visit chose the tier). */
+  tune?: boolean;
+  onTier?: (t: TierName) => void;
 }) {
   const first = store.rails[0];
   return (
@@ -95,6 +102,11 @@ export default function WorldCanvas({
       {/* No lights here: the room's light is baked, and the workshop's live lights follow its lamps. */}
       <CameraRig store={store} stations={stations} reduced={reduced} onCut={onCut} />
       <Stations store={store} stations={stations} quality={quality} reduced={reduced} />
+      {quality.post ? <PostFX store={store} quality={quality} reduced={reduced} /> : null}
+      <HudProbe />
+      {tune ? <AutoTune store={store} tier={quality.name} onTier={onTier} /> : null}
+      <Pause />
+      <WarmUp />
     </Canvas>
   );
 }

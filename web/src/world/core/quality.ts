@@ -10,6 +10,7 @@ export interface QualityTier {
   name: TierName;
   /** [min, max] device pixel ratio for the canvas. */
   dpr: [number, number];
+  /** The canvas's own MSAA. Off on every tier: high and ultra multisample the post target instead (msaa). */
   antialias: boolean;
   /** Real-time shadow maps. Off everywhere: the room's light and shadow are baked. */
   shadows: boolean;
@@ -21,8 +22,6 @@ export interface QualityTier {
   envMap: boolean;
   /** Light shafts under the lamps and a denser fog. */
   haze: boolean;
-  /** Dust drifting in the light. An idle loop. */
-  dust: boolean;
   powerPreference: "low-power" | "default" | "high-performance";
   /** Points in the logo (mark + plumes), which become the roof lattice. */
   logoParticles: number;
@@ -36,9 +35,9 @@ export interface QualityTier {
 
 export const TIERS: Record<TierName, QualityTier> = {
   // The particle, post and MSAA numbers are the site build brief's table (docs/design/site-build-brief.md).
-  low: { name: "low", dpr: [0.75, 1], antialias: false, shadows: false, idleMotion: false, physical: false, envMap: false, haze: false, dust: false, powerPreference: "low-power", logoParticles: 18000, dustParticles: 4000, post: false, msaa: 0 },
-  high: { name: "high", dpr: [1, 1.5], antialias: true, shadows: false, idleMotion: true, physical: false, envMap: true, haze: false, dust: false, powerPreference: "default", logoParticles: 70000, dustParticles: 14000, post: true, msaa: 4 },
-  ultra: { name: "ultra", dpr: [1, 2], antialias: true, shadows: false, idleMotion: true, physical: true, envMap: true, haze: true, dust: true, powerPreference: "high-performance", logoParticles: 140000, dustParticles: 28000, post: true, msaa: 4 },
+  low: { name: "low", dpr: [0.75, 1], antialias: false, shadows: false, idleMotion: false, physical: false, envMap: false, haze: false, powerPreference: "low-power", logoParticles: 18000, dustParticles: 4000, post: false, msaa: 0 },
+  high: { name: "high", dpr: [1, 1.5], antialias: false, shadows: false, idleMotion: true, physical: false, envMap: true, haze: false, powerPreference: "default", logoParticles: 70000, dustParticles: 14000, post: true, msaa: 4 },
+  ultra: { name: "ultra", dpr: [1, 2], antialias: false, shadows: false, idleMotion: true, physical: true, envMap: true, haze: true, powerPreference: "high-performance", logoParticles: 140000, dustParticles: 28000, post: true, msaa: 4 },
 };
 
 /** "3d": the canvas at a tier. "stills": no canvas, one pre-rendered still per station. */
@@ -56,6 +55,8 @@ export interface DeviceSignals {
   forceStatic?: boolean;
   /** What the GPU check found (gpu.ts). */
   gpu: GpuClass;
+  /** The tier the auto-tune (or the quality chip) chose on an earlier visit; the URL still wins. */
+  saved?: string | null;
   deviceMemory?: number;
   cores?: number;
   saveData?: boolean;
@@ -71,6 +72,7 @@ export function pickQuality(s: DeviceSignals): QualityChoice {
   if (asked === "low" || asked === "high" || asked === "ultra") return { mode: "3d", tier: TIERS[asked] };
   if (asked === "medium") return { mode: "3d", tier: TIERS.high };
   if (s.gpu === "stills") return { mode: "stills", tier: TIERS.low };
+  if (s.saved === "low" || s.saved === "high" || s.saved === "ultra") return { mode: "3d", tier: TIERS[s.saved] };
 
   let name: TierName = s.gpu;
   // The GPU can draw it, but a phone, data saver or a very small machine still gets the light tier.
@@ -82,11 +84,31 @@ export function pickQuality(s: DeviceSignals): QualityChoice {
 }
 
 /** The browser's signals (navigator.deviceMemory is Chromium-only; absent means unknown). */
+/** Where the chosen tier is kept between visits. */
+export const SAVED_TIER_KEY = "world.tier";
+
+export function readSavedTier(): string | null {
+  try {
+    return window.localStorage.getItem(SAVED_TIER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function saveTier(name: TierName): void {
+  try {
+    window.localStorage.setItem(SAVED_TIER_KEY, name);
+  } catch {
+    /* private mode or blocked */
+  }
+}
+
 export function readSignals(search: string, gpu: GpuClass): DeviceSignals {
   const n = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
   const q = new URLSearchParams(search);
   return {
     query: q.get("q") ?? q.get("quality"),
+    saved: readSavedTier(),
     forceStatic: q.has("static"),
     gpu,
     deviceMemory: n.deviceMemory,

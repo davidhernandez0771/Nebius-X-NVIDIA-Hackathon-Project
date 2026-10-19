@@ -156,3 +156,47 @@
   font-style: normal;
   color: var(--w-dim);
 }
+
+/* The quality chip and the HUD (backtick). */
+.world-q {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 6;
+  cursor: pointer;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(6, 12, 14, 0.6);
+  color: var(--w-dim);
+}
+
+.world-q:hover,
+.world-q:focus-visible {
+  color: var(--w-ink);
+}
+
+.world-hud {
+  position: fixed;
+  top: 64px;
+  right: 20px;
+  z-index: 9;
+  margin: 0;
+  font-family: var(--w-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--w-teal);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 10px 12px;
+  border: 1px solid var(--w-line);
+  white-space: pre;
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .world-q {
+    bottom: auto;
+    top: 70px;
+    right: 16px;
+  }
+}

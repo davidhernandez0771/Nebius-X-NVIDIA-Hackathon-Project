@@ -33,15 +33,24 @@ describe("pickQuality", () => {
 });
 
 describe("TIERS", () => {
-  it("caps the pixel ratio, keeps low still, and saves haze and dust for ultra", () => {
+  it("caps the pixel ratio, keeps low still, and saves the haze for ultra", () => {
     expect(TIERS.low.dpr[1]).toBe(1);
     expect(TIERS.high.dpr[1]).toBe(1.5);
     expect(TIERS.ultra.dpr[1]).toBe(2);
     expect(TIERS.low.idleMotion).toBe(false);
     expect(TIERS.low.antialias).toBe(false);
     expect([TIERS.low.haze, TIERS.high.haze, TIERS.ultra.haze]).toEqual([false, false, true]);
-    expect([TIERS.low.dust, TIERS.high.dust, TIERS.ultra.dust]).toEqual([false, false, true]);
     expect(Object.values(TIERS).every((t) => !t.shadows)).toBe(true);
+  });
+});
+
+describe("a saved tier", () => {
+  it("wins over the GPU check but not over the URL or a missing GPU", () => {
+    expect(pick({ gpu: "high", saved: "ultra" })).toBe("ultra");
+    expect(pick({ gpu: "ultra", saved: "low" })).toBe("low");
+    expect(pick({ gpu: "ultra", saved: "low", query: "high" })).toBe("high");
+    expect(pick({ gpu: "stills", saved: "ultra" })).toBe("stills");
+    expect(pick({ gpu: "high", saved: "nonsense" })).toBe("high");
   });
 });
 

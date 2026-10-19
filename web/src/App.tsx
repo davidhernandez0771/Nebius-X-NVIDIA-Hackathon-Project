@@ -12,7 +12,6 @@ import Organize from "./pages/Organize";
 import Chat from "./pages/Chat";
 import Settings from "./pages/Settings";
 import DatasetPage from "./pm/dataset/DatasetPage";
-import RecordPage from "./pm/record/RecordPage";
 import ReviewPage from "./pm/review/ReviewPage";
 import ResultsPage from "./pm/results/ResultsPage";
 import { siteModeOf } from "./sant/motion/crossing";
@@ -33,6 +32,8 @@ const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPrev
 const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
 // The world (sprint 9): one continuous 3D journey, from the story down to the work (docs/design/world-core.md).
 const World = lazy(() => import("./world/core/WorldRoot"));
+// Record (webcam, hand tracking, the twin) loads only when it opens: the world's first load stays light.
+const RecordPage = lazy(() => import("./pm/record/RecordPage"));
 
 // Dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
@@ -101,7 +102,7 @@ export default function App() {
           <Route path="/organize" element={<Organize />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/pm/record" element={<RecordPage />} />
+          <Route path="/pm/record" element={<Suspense fallback={null}><RecordPage /></Suspense>} />
           <Route path="/pm/review" element={<ReviewPage />} />
           <Route path="/pm/dataset" element={<DatasetPage />} />
           <Route path="/pm/results" element={<ResultsPage />} />

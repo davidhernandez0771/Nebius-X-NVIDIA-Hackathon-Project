@@ -62,7 +62,6 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
     [store],
   );
   const browsing = useCallback(() => store.frames.workshop.current && store.frames.workshop.t >= tOfStep(0) - 0.01, [store]);
-  const drift = useCallback(() => quality.dust && !reduced && store.frames.workshop.near, [store, quality, reduced]);
   return (
     <group>
       <Lamps reduced={reduced} />
@@ -75,7 +74,7 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
       ))}
       <Ribbon />
       <Pendants />
-      {quality.haze ? <Haze drift={drift} /> : null}
+      {quality.haze ? <Haze /> : null}
       <Suspense fallback={null}>
         <Helix quality={quality} reduced={reduced} active={active} browsing={browsing} onPick={(k) => pick(k)} />
       </Suspense>

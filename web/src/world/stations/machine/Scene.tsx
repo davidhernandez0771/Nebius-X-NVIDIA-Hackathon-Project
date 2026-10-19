@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { MACHINE_ANCHOR } from "../../core/layout";
 import { glideTo } from "../../core/scroll";
 import { useWorld } from "../../core/WorldContext";
@@ -68,6 +69,7 @@ function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built
   const fanAt = [new THREE.Group(), new THREE.Group()];
   const holos: Built["holo"] = [];
   const stripGlow = new Map<THREE.Material, THREE.MeshBasicMaterial>();
+  const holoWire = new Map<THREE.Material, THREE.MeshBasicMaterial>();
   let slot: THREE.MeshBasicMaterial | null = null;
   let lens: THREE.MeshBasicMaterial | null = null;
   let screen: THREE.Object3D | null = null;
@@ -107,10 +109,15 @@ function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built
       holos.push(holo(m, 0.96));
       mat = m;
     } else if (is(o, "Holo_")) {
-      const m = glow(src);
-      m.wireframe = true;
-      m.blending = THREE.AdditiveBlending;
-      holos.push(holo(m, 0.85));
+      // One wireframe material per source, so the arm's parts merge into one mesh (mergeSiblings).
+      let m = holoWire.get(src);
+      if (!m) {
+        m = glow(src);
+        m.wireframe = true;
+        m.blending = THREE.AdditiveBlending;
+        holos.push(holo(m, 0.85));
+        holoWire.set(src, m);
+      }
       mat = m;
     } else return; // baked: the desk, fins, shroud, vents, heat pipes, cable, port
     const mesh = new THREE.Mesh(o.geometry, mat);
@@ -123,7 +130,44 @@ function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built
     mesh.raycast = () => {};
     parent.add(mesh);
   });
+  mergeSiblings(root, screen, releases);
+  fanAt.forEach((g) => mergeSiblings(g, screen, releases));
   return { root, fans: fanAt, slot: slot!, lens: lens!, holo: holos, screen, releases };
+}
+
+/**
+ * Draw calls: the file has a mesh per fan blade and per hologram part. Siblings that share a
+ * material and never move apart (a fan's blades turn together; the hologram lights as one) become
+ * one mesh. `keep` (the screen, which scales on its own) stays apart.
+ */
+function mergeSiblings(parent: THREE.Object3D, keep: THREE.Object3D | null, releases: (() => void)[]): void {
+  const buckets = new Map<THREE.Material, THREE.Mesh[]>();
+  for (const c of parent.children) {
+    if (!(c instanceof THREE.Mesh) || c === keep) continue;
+    const list = buckets.get(c.material as THREE.Material) ?? [];
+    list.push(c);
+    buckets.set(c.material as THREE.Material, list);
+  }
+  for (const [material, meshes] of buckets) {
+    if (meshes.length < 2) continue;
+    const names = Object.keys(meshes[0].geometry.attributes).filter((n) => meshes.every((m) => m.geometry.getAttribute(n)));
+    const geos = meshes.map((m) => {
+      m.updateMatrix();
+      const g = new THREE.BufferGeometry();
+      const src = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+      for (const n of names) g.setAttribute(n, src.getAttribute(n).clone());
+      return g.applyMatrix4(m.matrix);
+    });
+    const merged = mergeGeometries(geos);
+    geos.forEach((g) => g.dispose());
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.name = `${meshes[0].name}+${meshes.length - 1}`;
+    mesh.raycast = () => {};
+    meshes.forEach((m) => parent.remove(m));
+    parent.add(mesh);
+    releases.push(() => merged.dispose());
+  }
 }
 
 /** The cartridge in flight and plugged in: cartridge.glb's parts as plain meshes, retinted per slot. */
@@ -216,7 +260,11 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     setGlowGain(built.lens, LENS_IDLE + (1 - LENS_IDLE) * p);
     // A faint flicker in the projection on ultra (it already renders every frame there).
     const flicker = quality.haze && p > 0 ? 0.94 + 0.06 * Math.sin(now * 37) * Math.sin(now * 11.3) : 1;
-    for (const h of built.holo) h.mat.opacity = h.peak * p * flicker;
+    for (const h of built.holo) {
+      h.mat.opacity = h.peak * p * flicker;
+      // Dark until it projects: no draw calls for it before.
+      h.mat.visible = p > 0;
+    }
     // The screen unfolds upward as it lights (its height is the plane's local z).
     if (built.screen) built.screen.scale.z = (built.screen.userData.sz ??= built.screen.scale.z) * (0.6 + 0.4 * p);
 
