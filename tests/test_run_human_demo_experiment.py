@@ -362,3 +362,14 @@ def test_replay_lookahead_is_frozen_and_defaults_to_0(hx, tmp_path):
     with pytest.raises(hx.Refused, match="replay_lookahead"):
         exp.select(ids=["human_20261019185258_9f47"], tag=None,
                    settings={**SMOKE, "replay_path": "achieved", "replay_lookahead": 1})
+
+
+def test_an_empty_cell_is_refused_cleanly_not_a_traceback(hx, tmp_path, capsys):
+    from fake_sim_worker import verification
+
+    sim = FakeSim(tmp_path, results=[verification(False)] * 200)  # nothing verifies: no repaired demo to multiply
+    exp, _, _ = _exp(hx, tmp_path, sim=sim)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    with pytest.raises(hx.Refused, match="empty cell"):
+        exp.run(until="grid")
+    assert not (tmp_path / "human_exp" / "smoke1" / "grid.json").exists()

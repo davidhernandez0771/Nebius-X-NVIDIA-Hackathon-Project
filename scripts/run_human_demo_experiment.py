@@ -413,7 +413,12 @@ class Experiment:
                 mult_dirs += [str(self.store.episode_dir(a["id"])) for a in mark["attempts"] if a["success"]]
             else:
                 notes.append(f"{id}: nothing in the multiplied arm (repair {((_read_json(self.marker('repair', id)) or {}).get('status'))})")
-        grid = {"name": self.grid_name, "cells": cells(raw_dirs, mult_dirs, self.config["n_human"])}
+        try:
+            grid = {"name": self.grid_name, "cells": cells(raw_dirs, mult_dirs, self.config["n_human"])}
+        except ValueError as e:  # nothing verified for one arm: nothing to train, and not a crash
+            for note in notes:
+                self.log(f"grid: {note}")
+            raise Refused(f"empty cell: {e} (each demo's stage markers are under {self.stages})") from e
         from lerobot_tools.assemble import Cell, build_manifest
 
         manifests = {}

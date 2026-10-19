@@ -15,7 +15,15 @@ from demo_pipeline.repair import (
     smooth,
     trim,
 )
-from demo_pipeline.schemas import Discard, Pose, RemovePause, Retime, Scene, Smooth, Trajectory
+from demo_pipeline.schemas import (
+    Discard,
+    Pose,
+    RemovePause,
+    Retime,
+    Scene,
+    Smooth,
+    Trajectory,
+)
 
 DT = 0.02
 IDENTITY = (1.0, 0.0, 0.0, 0.0)
@@ -262,3 +270,84 @@ def test_discard_raises():
     tr = _traj(*_clean_arrays())
     with pytest.raises(DiscardDemo):
         apply_repairs(tr, [Smooth(op="smooth", t0=1.0, t1=2.0), Discard(op="discard")], SCENE, RIM_Z)
+
+
+# --- release_above_bin ----------------------------------------------------------------
+
+def _pressing_demo(bin_xy=(0.5, 0.3), push=(0.085, 0.0), z_press=0.05):
+    """The clean demo, but the place descends low next to the bin's far wall (bin_xy + push) and opens there:
+    the live test #10 failure (gripper pressing into the bin, release past the centre)."""
+    pts = [p.copy() for p in WAYPOINTS]
+    pts[4] = np.array([bin_xy[0], bin_xy[1], 0.25])
+    pts[5] = np.array([bin_xy[0] + push[0], bin_xy[1] + push[1], z_press])
+    pts[6] = pts[5] + np.array([0.0, 0.0, 0.15])
+    pos, grip, cur, g = [pts[0]], [0], pts[0], 0
+    for kind, arg, secs in PLAN:
+        n = int(round(secs / DT))
+        if kind == "move":
+            s = np.arange(1, n + 1) / n
+            b = 10 * s**3 - 15 * s**4 + 6 * s**5
+            pos += list(cur + (pts[arg] - cur) * b[:, None])
+            grip += [g] * n
+            cur = pts[arg]
+        else:
+            pos += [cur] * n
+            grip += [g] * (n // 2) + [arg] * (n - n // 2)
+            g = arg
+    return _traj(np.array(pos), np.array(grip))
+
+
+def _bin_local(p, scene):
+    w, x, y, z = scene.bin_pose.quat_wxyz
+    yaw = np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+    d = np.asarray(p)[..., :2] - np.asarray(scene.bin_pose.pos[:2])
+    c, s = np.cos(-yaw), np.sin(-yaw)
+    return np.stack([c * d[..., 0] - s * d[..., 1], s * d[..., 0] + c * d[..., 1]], axis=-1)
+
+
+@pytest.mark.parametrize("scene", [
+    SCENE,
+    # another bin pose: moved and turned 90 degrees, so nothing can be tuned to (0.5, 0.3)
+    Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=IDENTITY),
+          bin_pose=Pose(pos=(0.45, -0.3, 0.0), quat_wxyz=(0.7071068, 0.0, 0.0, 0.7071068)), robot="franka", seed=1),
+])
+def test_release_above_bin_opens_over_the_inside_at_rim_clearance_and_lifts_away(scene):
+    from demo_pipeline.repair import release_above_bin
+    from demo_pipeline.scene_geometry import (
+        BIN_INNER,
+        BIN_RIM_HEIGHT,
+        CUBE_HALF,
+        RELEASE_CLEARANCE,
+    )
+
+    tr = _pressing_demo(bin_xy=scene.bin_pose.pos[:2])
+    _, t_open = gripper_events(tr)
+    out = release_above_bin(tr, t_open + 0.04, scene)  # a slightly late time still anchors on the real open
+    _assert_even_grid(out)
+    assert _transitions(out) == _transitions(tr)  # one close, one open, in that order
+    g, p = np.asarray(out.gripper), _pos(out)
+    k_open = int(np.flatnonzero((g[1:] == 0) & (g[:-1] == 1))[0]) + 1
+    z_place = scene.bin_pose.pos[2] + BIN_RIM_HEIGHT + CUBE_HALF + RELEASE_CLEARANCE
+    assert p[k_open, 2] == pytest.approx(z_place, abs=1e-6)  # the cube's bottom clears the rim
+    inside = BIN_INNER[0] / 2 - CUBE_HALF
+    assert np.all(np.abs(_bin_local(p[k_open], scene)) <= inside + 1e-6)  # over the bin's inside, not its wall
+    assert np.linalg.norm(p[k_open] - p[k_open - 1]) < 1e-6  # stopped there before opening
+    assert p[k_open:, 2].min() >= z_place - 1e-6 and p[-1, 2] >= z_place + 0.05  # then lifts away, never lower
+    over_bin = np.all(np.abs(_bin_local(p, scene)) <= BIN_INNER[0] / 2 + 0.01 + 0.05, axis=1)
+    after_grasp = np.arange(len(g)) > int(np.flatnonzero(g == 1)[0]) + 75  # once lifted off the table
+    assert p[over_bin & after_grasp, 2].min() >= z_place - 1e-6  # nothing near the bin dips under the release height
+    i_close = int(np.flatnonzero(g == 1)[0])
+    assert np.allclose(p[: i_close + 50], _pos(tr)[: i_close + 50], atol=1e-9)  # the grasp is untouched
+
+
+def test_release_above_bin_runs_last_in_apply_repairs():
+    from demo_pipeline.schemas import REPAIR_ORDER, ReleaseAboveBin
+
+    assert REPAIR_ORDER[-1] == "release_above_bin"
+    tr = _pressing_demo()
+    _, t_open = gripper_events(tr)
+    ops = [ReleaseAboveBin(op="release_above_bin", t=t_open), Smooth(op="smooth", t0=0.5, t1=3.0, strength="med")]
+    out = apply_repairs(tr, ops, SCENE, bin_rim_z=0.09)
+    g = np.asarray(out.gripper)
+    k_open = int(np.flatnonzero((g[1:] == 0) & (g[:-1] == 1))[0]) + 1
+    assert _pos(out)[k_open, 2] > 0.09 + 0.025

@@ -228,17 +228,28 @@ class ReplanTransit(_TimeRange):
     op: Literal["replan_transit"]
 
 
+class ReleaseAboveBin(_Model):
+    """Place from above: stop over the bin's inside with the held cube clear of the rim, open there, lift away.
+    t is the release (the last open)."""
+
+    op: Literal["release_above_bin"]
+    t: float = Field(ge=0)
+
+
 class Discard(_Model):
     op: Literal["discard"]
 
 
 RepairOp = Annotated[
-    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, Discard],
+    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, ReleaseAboveBin, Discard],
     Field(discriminator="op"),
 ]
 
-# Spec 8.4: repairs always run in this order, whatever order they were listed in.
-REPAIR_ORDER: tuple[str, ...] = ("trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime")
+# Spec 8.4: repairs always run in this order, whatever order they were listed in. release_above_bin rewrites
+# everything from the place onwards, so it runs last, on the timeline the other ops left.
+REPAIR_ORDER: tuple[str, ...] = (
+    "trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime", "release_above_bin",
+)
 
 
 def _times(obj) -> list[float]:

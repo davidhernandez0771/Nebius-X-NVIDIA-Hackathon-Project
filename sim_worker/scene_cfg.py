@@ -19,12 +19,11 @@ from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
 from isaaclab_assets.robots.flexiv import FLEXIV_RIZON4S_CFG, FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort:skip
 from isaaclab_assets.robots.openarm import OPENARM_UNI_HIGH_PD_CFG  # isort:skip
 
+from demo_pipeline.scene_geometry import BIN_INNER, BIN_WALL, CUBE_SIZE
+
 from .robots import robot_spec
 
-CUBE_SIZE = 0.05
 CUBE_MASS = 0.1
-BIN_INNER = (0.20, 0.20, 0.08)
-BIN_WALL = 0.01
 IMAGE_SIZE = 128
 RED = (0.85, 0.05, 0.05)
 BLUE = (0.05, 0.2, 0.85)
