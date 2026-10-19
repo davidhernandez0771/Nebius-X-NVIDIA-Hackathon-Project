@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../hand/contracts";
+import { loadFailureMessage } from "../hand/tracking/assets";
 import {
   ReachCenterer,
   TeleopCalibrator,
@@ -72,7 +73,7 @@ function cameraMessage(err: unknown): string {
     return "The camera is blocked. Allow camera access for this site in the browser, then start again.";
   if (name === "NotFoundError") return "No camera found. Plug one in, then start again.";
   if (name === "NotReadableError") return "Another app is using the camera. Close it, then start again.";
-  return `The camera didn't start: ${err instanceof Error ? err.message : String(err)}`;
+  return `The camera didn't start: ${loadFailureMessage(err)}`;
 }
 
 export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {

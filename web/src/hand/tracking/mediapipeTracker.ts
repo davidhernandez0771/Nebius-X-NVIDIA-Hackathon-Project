@@ -7,6 +7,7 @@
 
 import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../contracts";
+import { checkHandAssets, loadFailureMessage } from "./assets";
 import { STALE_FRAME_MS } from "../contracts";
 import { startCamera, type CameraHandle } from "./camera";
 import { buildTrackedHands } from "./handFrameBuilder";
@@ -111,6 +112,9 @@ export function createMediapipeTracker(): TrackingAdapter {
         if (!landmarker) {
           const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
           if (cleanedUp) return;
+          // Say which file is missing, rather than MediaPipe's bare "[object Event]" (assets.ts).
+          await checkHandAssets([fileset.wasmLoaderPath, fileset.wasmBinaryPath, MODEL_ASSET_PATH]);
+          if (cleanedUp) return;
           const acquiredLandmarker = await HandLandmarker.createFromOptions(fileset, {
             baseOptions: {
               modelAssetPath: MODEL_ASSET_PATH,
@@ -127,6 +131,8 @@ export function createMediapipeTracker(): TrackingAdapter {
             minHandDetectionConfidence: 0.6,
             minHandPresenceConfidence: 0.6,
             minTrackingConfidence: 0.5,
+          }).catch((err: unknown) => {
+            throw err instanceof Error ? err : new Error(loadFailureMessage(err, fileset.wasmLoaderPath));
           });
           if (cleanedUp) {
             acquiredLandmarker.close();
