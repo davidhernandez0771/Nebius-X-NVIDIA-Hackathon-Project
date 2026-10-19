@@ -66,7 +66,6 @@ describe("WorldRoot (no WebGL)", () => {
     scrollTo(h * 6.8);
     vi.mocked(window.scrollTo).mockClear();
     fireEvent.click(screen.getByRole("button", { name: "PiPER" }));
-    expect(screen.getByRole("button", { name: "PiPER" }).getAttribute("aria-pressed")).toBe("true");
     // The journey follows it to the machine.
     expect(window.scrollTo).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Open PiPER" })).toBeTruthy();
@@ -88,7 +87,7 @@ describe("WorldRoot (no WebGL)", () => {
   it("opens the workbench as a branch, holds the page, and goes back on Escape", () => {
     renderWorld();
     scrollTo(window.innerHeight * 6.8);
-    fireEvent.click(screen.getByRole("button", { name: "Add a cartridge" }));
+    fireEvent.click(screen.getByRole("button", { name: "+ Add a cartridge" }));
     expect(current()).toBe("workbench");
     expect(document.documentElement.style.overflow).toBe("hidden");
     expect(document.activeElement?.getAttribute("data-station")).toBe("workbench");
@@ -113,5 +112,35 @@ describe("WorldRoot (no WebGL)", () => {
     expect(window.scrollTo).toHaveBeenCalled();
     expect(sessionStorage.getItem("world.return")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Record page" })).toBeNull();
+  });
+});
+
+describe("the spiral's filters (no WebGL)", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    sessionStorage.clear();
+  });
+  afterEach(async () => {
+    cleanup();
+    vi.restoreAllMocks();
+    (await import("../scene/spiral")).resetSpiral();
+  });
+
+  it("slides a tag's cartridges to the top, back to the first step, and clears on a second press or Escape", async () => {
+    const { spiral, stepCount } = await import("../scene/spiral");
+    renderWorld();
+    scrollTo(window.innerHeight * 8);
+    const results = screen.getByRole("button", { name: "-> results" });
+    fireEvent.click(results);
+    expect(results.getAttribute("aria-pressed")).toBe("true");
+    expect(spiral.filter).toBe("results");
+    expect(stepCount()).toBe(4);
+    expect(window.scrollTo).toHaveBeenCalled();
+    fireEvent.click(results);
+    expect(spiral.filter).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "-> train" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(spiral.filter).toBeNull();
   });
 });

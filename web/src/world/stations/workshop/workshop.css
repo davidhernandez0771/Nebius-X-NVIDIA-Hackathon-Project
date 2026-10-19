@@ -1,0 +1,102 @@
+/* The dock: bottom left, the prototype's filters and Ask SANT. */
+.world-dock {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 6;
+  width: min(340px, calc(100vw - 48px));
+  font-family: var(--w-mono);
+  color: var(--w-ink);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.5s, transform 0.5s;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.world-dock[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.world-dock button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.world-dock__h {
+  margin: 0 0 10px;
+  font-weight: 500;
+}
+
+.world-dock__filters {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.world-dock__filters button {
+  color: #8fb7ff;
+  transition: transform 0.25s, color 0.25s;
+}
+
+.world-dock__filters button:hover,
+.world-dock__filters button:focus-visible {
+  color: var(--w-ink);
+}
+
+.world-dock__filters button[aria-pressed="true"] {
+  color: #fff;
+  transform: translateX(10px);
+}
+
+.world-dock__robots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 14px;
+  font-size: 10px;
+  color: var(--w-dim);
+}
+
+.world-dock__robots button:hover,
+.world-dock__robots button:focus-visible {
+  color: var(--w-teal);
+}
+
+.world-dock__bench {
+  color: var(--w-teal);
+}
+
+.world-dock button:focus-visible {
+  outline: 1px solid var(--w-teal);
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .world-dock {
+    left: 16px;
+    bottom: 16px;
+    width: calc(100vw - 32px);
+  }
+  .world-dock__filters {
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+}
+
+[data-motion-world="reduced"] .world-dock,
+[data-motion-world="reduced"] .world-dock__filters button {
+  transition: none;
+}
