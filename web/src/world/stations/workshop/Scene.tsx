@@ -10,9 +10,11 @@ import type { StationSceneProps } from "../../core/types";
 import { BAKED } from "../../scene/assets";
 import { Baked } from "../../scene/Baked";
 import { Helix } from "../../scene/Helix";
+import { Haze } from "../../scene/Haze";
 import { Lamps } from "../../scene/Lamps";
 import { Library } from "../../scene/Library";
 import { LiveLights } from "../../scene/LiveLights";
+import { Pendants } from "../../scene/Pendants";
 import { Ribbon } from "../../scene/Ribbon";
 import { useSend } from "./send";
 
@@ -39,6 +41,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
   const anisotropy = quality.name === "low" ? 1 : 4;
   // Cartridges answer the pointer only while the workshop (or the machine beside it) is in view.
   const active = useCallback(() => store.frames.workshop.current || store.frames.machine.current, [store]);
+  const drift = useCallback(() => quality.dust && !reduced && store.frames.workshop.near, [store, quality, reduced]);
   return (
     <group>
       <Lamps reduced={reduced} />
@@ -49,7 +52,9 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
           <Baked name={name} anisotropy={anisotropy} />
         </Suspense>
       ))}
-      <Ribbon quality={quality} />
+      <Ribbon />
+      <Pendants />
+      {quality.haze ? <Haze drift={drift} /> : null}
       <Suspense fallback={null}>
         <Helix quality={quality} active={active} onSend={send} />
       </Suspense>

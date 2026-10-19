@@ -7,7 +7,7 @@ import type { QualityTier } from "../core/quality";
 import { addLit } from "./power";
 
 /** How much the environment reflects at full power (the lamps scale it, power.ts). */
-export const ENV_INTENSITY = 0.45;
+export const ENV_INTENSITY = 0.22;
 
 type Src = THREE.MeshStandardMaterial & Partial<Pick<THREE.MeshPhysicalMaterial, "clearcoat" | "clearcoatRoughness">>;
 

@@ -117,7 +117,24 @@
   display: grid;
   gap: var(--sant-space-4);
   justify-items: start;
+  /* Only the controls take the pointer: the empty box around the copy lets clicks through to the 3D
+     behind it (the workshop's cartridges sit right there). */
+  pointer-events: none;
+}
+
+.world-panel :is(a, button, input, select, textarea, label, [role="button"], [tabindex]) {
   pointer-events: auto;
+}
+
+/* A soft pool of the ground colour behind the copy, so it reads over a busy 3D shot. Static (no
+   animation), behind the panel's own text. Not behind the zoom's single button. */
+.world-panel:not(.world-panel--zoom)::before {
+  content: "";
+  position: absolute;
+  inset: -56px -72px -56px -96px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgb(7 9 12 / 0.78), rgb(7 9 12 / 0.5) 55%, rgb(7 9 12 / 0));
+  pointer-events: none;
 }
 
 .world-panel--story {

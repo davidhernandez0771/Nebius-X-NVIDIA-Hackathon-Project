@@ -66,6 +66,10 @@ export default function WorldCanvas({
       camera={{ fov: 40, near: 0.1, far: 220, position: first.anchor as [number, number, number] }}
       aria-hidden="true"
       data-quality={quality.name}
+      onCreated={(state) => {
+        // Dev only: the r3f state for the console and the perf measurement (docs/design/world-workshop.md).
+        if (import.meta.env.DEV) (window as unknown as { __world3d?: unknown }).__world3d = state;
+      }}
     >
       <color attach="background" args={[WORLD_BG]} />
       {/* The room is ~44 m across: fog only reaches its far walls, thicker with ultra's haze. */}

@@ -135,7 +135,8 @@ choice made, the zoom opens `DEFAULT_CARTRIDGE` (Record, `/pm/record`).
 
 - **Layout:** each Overlay renders inside a fixed, full-viewport `<section>`. It is visible and
   focusable only while its station is current (240 ms opacity fade; 160 ms with reduced motion).
-  The layer is `pointer-events: none`, so wrap controls in `.world-panel`, which turns them back on.
+  The layer is `pointer-events: none`, so wrap controls in `.world-panel`: its controls (buttons, links,
+  inputs) take the pointer again, and the empty space around the copy lets clicks through to the 3D.
 - **Keyboard path:** anything clickable in 3D needs a DOM control in the overlay too. The workshop's
   cartridges are buttons as well as boxes.
 - **Headings:** the story has the page's `<h1>`, and stations use `<h2 className="world-h">`.

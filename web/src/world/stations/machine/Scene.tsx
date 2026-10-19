@@ -23,6 +23,8 @@ import { addGlow, markLoaded, power, setGlowGain } from "../../scene/power";
 import { ROBOTS } from "../../scene/robots";
 
 const FAN_RPS = 0.9;
+/** The projector's lens before it projects: a faint ready light. */
+const LENS_IDLE = 0.12;
 const is = (o: THREE.Object3D, ...names: string[]) => names.some((n) => o.name.startsWith(`mx_M_${n}`));
 
 interface Built {
@@ -90,7 +92,7 @@ function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built
         mat = is(o, "FanMark") ? (stripGlow.get(src) ?? stripGlow.set(src, glow(src)).get(src)!) : metalFor(src);
       }
     } else if (is(o, "SlotGlow")) mat = slot = glow(src, 0);
-    else if (is(o, "Lens")) mat = lens = glow(src, 0.35);
+    else if (is(o, "Lens")) mat = lens = glow(src, LENS_IDLE);
     else if (is(o, "GlowStrip")) mat = stripGlow.get(src) ?? stripGlow.set(src, glow(src)).get(src)!;
     else if (is(o, "HoloBeam")) {
       const m = glow(src);
@@ -199,7 +201,7 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
 
     setGlowGain(built.slot, slotGlow(u));
     const p = projection(u);
-    setGlowGain(built.lens, 0.35 + 0.65 * p);
+    setGlowGain(built.lens, LENS_IDLE + (1 - LENS_IDLE) * p);
     // A faint flicker in the projection on ultra (it already renders every frame there).
     const flicker = quality.haze && p > 0 ? 0.94 + 0.06 * Math.sin(now * 37) * Math.sin(now * 11.3) : 1;
     for (const h of built.holo) h.mat.opacity = h.peak * p * flicker;
