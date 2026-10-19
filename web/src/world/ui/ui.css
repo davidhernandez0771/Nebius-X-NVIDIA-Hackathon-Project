@@ -200,3 +200,24 @@
     right: 16px;
   }
 }
+
+.world-brand {
+  position: fixed;
+  top: 22px;
+  left: 24px;
+  z-index: 6;
+  margin: 0;
+  color: var(--w-dim);
+  pointer-events: none;
+}
+
+.world-brand b {
+  color: var(--w-ink);
+  font-weight: 500;
+}
+
+@media (max-width: 700px) {
+  .world-brand {
+    display: none;
+  }
+}

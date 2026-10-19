@@ -54,6 +54,11 @@ export function PostFX({ store, quality, reduced }: { store: WorldStore; quality
     }
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.5, 0.8);
+    // Glows that skip tone mapping (the hologram, the strips) add up past 1 where they overlap; the
+    // screen would clip them, so the bloom sees them clipped too instead of blowing them out.
+    const hp = bloom.materialHighPassFilter;
+    hp.fragmentShader = hp.fragmentShader.replace("vec4 texel = texture2D( tDiffuse, vUv );", "vec4 texel = min( texture2D( tDiffuse, vUv ), vec4( 1.0 ) );");
+    hp.needsUpdate = true;
     composer.addPass(bloom);
     const final = new ShaderPass(FinalShader);
     composer.addPass(final);

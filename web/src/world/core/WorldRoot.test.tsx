@@ -147,7 +147,8 @@ describe("the spiral's filters (no WebGL)", () => {
   it("opens the front cartridge's detail on Enter, closes it on Escape, and plugs it in", async () => {
     const { spiral } = await import("../scene/spiral");
     renderWorld();
-    scrollTo(window.innerHeight * 7);
+    // Step 0: intro 3 + descent 2.5 + the workshop's travel 0.6 and way in 0.7 viewport heights.
+    scrollTo(window.innerHeight * 6.8);
     fireEvent.keyDown(window, { key: "Enter" });
     const dialog = screen.getByRole("dialog", { name: "RECORD, cartridge" });
     expect(within(dialog).getByText("2026 / FR3 / record a demo")).toBeTruthy();

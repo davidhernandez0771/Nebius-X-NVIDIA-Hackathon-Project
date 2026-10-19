@@ -290,6 +290,9 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
             );
           })}
         </main>
+        <p className="world-brand world-u" aria-hidden="true">
+          <b>S·A·N·T</b> &nbsp;perfect, then multiply
+        </p>
         <JourneyRail stations={stations} at={at} goTo={api.goTo} />
         {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />
