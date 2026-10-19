@@ -1,6 +1,6 @@
 // Descent (core): from Blender's "Descent" stop above the workshop (where the intro ends), scrolling down circles the
 // camera once around the spiral shelf's axis, looking down into it, and drops toward the ceiling.
-// It stops above the ceiling, so the travel into the room comes in over the open front wall.
+// It stops above the ceiling; the workshop's dive (stations/workshop/dive.ts) takes it in through the skylight.
 // The spiral itself is the workshop's (its Scene reaches up here).
 import type { CameraPose, StationModule, StationOverlayProps } from "../../core/types";
 import { Beats } from "../../ui/Beats";

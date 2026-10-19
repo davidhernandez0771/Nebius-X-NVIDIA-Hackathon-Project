@@ -8,7 +8,7 @@ import { ITEMS, TAGS, type TagId } from "../../scene/items";
 import { ROBOTS, slotForRobot } from "../../scene/robots";
 import { matches, setFilter, spiral, subscribeSpiral } from "../../scene/spiral";
 import { tOfStep } from "./camera";
-import { useDetail } from "./detail";
+import { useDetail } from "./detailStore";
 import { useSend } from "./send";
 import { scrollToStep } from "./stepper";
 

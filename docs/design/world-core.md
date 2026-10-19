@@ -37,7 +37,7 @@ web/src/world/
     quality.ts              tiers (pure, tested), the saved tier
     autotune.ts             drop or raise a tier from measured frames (pure, tested)
     PostFX.tsx              bloom at half res + the final pass (RGB split, grain, vignette), MSAA target
-    Perf.tsx, Hud.tsx, hud.ts  the HUD (backtick), the auto-tune, pause when hidden, compile what streams in
+    Perf.tsx, Hud.tsx, hudStore.ts  the HUD (backtick), the auto-tune, pause when hidden, compile what streams in
     scroll.ts               scrollToY, glideTo (the plug-in's run into the projection)
     gpu.ts                  the quick GPU check that picks a tier or the stills (classify: pure, tested)
     layout.ts               facts two stations share: MACHINE_ANCHOR, MACHINE_VIEW, PROJECTION

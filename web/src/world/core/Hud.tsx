@@ -1,8 +1,8 @@
 // The HUD (backtick, or ?hud) and the quality chip, bottom right: the tier and fps; a click steps
-// the tier (low → high → ultra) and saves it. The numbers come from the canvas (hud.ts).
+// the tier (low → high → ultra) and saves it. The numbers come from the canvas (hudStore.ts).
 import { useEffect, useRef, useState } from "react";
 import { gpuLabel } from "./gpu";
-import { hud } from "./hud";
+import { hud } from "./hudStore";
 import type { QualityTier, TierName } from "./quality";
 import type { WorldStore } from "./store";
 

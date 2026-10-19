@@ -10,7 +10,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Texture, type Material, type WebGLRenderer } from "three";
 import { idle } from "./activity";
 import { createTuner } from "./autotune";
-import { hud } from "./hud";
+import { hud } from "./hudStore";
 import type { QualityTier, TierName } from "./quality";
 import { createScaler, targetDpr } from "./resolution";
 import type { WorldStore } from "./store";

@@ -5,7 +5,7 @@ import { HELIX } from "../../scene/layout";
 import { sendToMachine } from "../../scene/plug";
 import { cartridgeAt } from "../../scene/robots";
 import { N_ITEMS, ROBOT_SLOTS } from "../../scene/spiral";
-import { useDetail } from "./detail";
+import { useDetail } from "./detailStore";
 
 /** Send one spiral slot to the machine: choose its cartridge, start the plug-in, follow it there. */
 export function useSend(): (slot: number) => void {

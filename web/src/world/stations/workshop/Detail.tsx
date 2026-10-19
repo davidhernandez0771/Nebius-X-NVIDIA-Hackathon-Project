@@ -8,7 +8,7 @@ import { ITEMS, tagLabel } from "../../scene/items";
 import { itemAtStep, spiral, subscribeSpiral } from "../../scene/spiral";
 import { scramble } from "../../ui/scramble";
 import { tOfStep } from "./camera";
-import { useDetail } from "./detail";
+import { useDetail } from "./detailStore";
 import { stepGeometry } from "./stepper";
 
 const selectedNow = () => spiral.selected;

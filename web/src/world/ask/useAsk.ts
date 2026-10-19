@@ -7,7 +7,7 @@ import { scrollToY } from "../core/scroll";
 import { useWorld } from "../core/WorldContext";
 import { ITEMS, itemIndex, tagLabel, type TagId } from "../scene/items";
 import { setFilter, spiral } from "../scene/spiral";
-import { useDetail } from "../stations/workshop/detail";
+import { useDetail } from "../stations/workshop/detailStore";
 import { scrollToStep } from "../stations/workshop/stepper";
 import { endTour, startTour } from "../stations/workshop/tour";
 import { TOOLS, callLine, route, validCall, type Section, type ToolCall } from "./registry";

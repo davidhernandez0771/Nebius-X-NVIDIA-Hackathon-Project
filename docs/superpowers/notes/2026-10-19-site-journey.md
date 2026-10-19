@@ -25,7 +25,7 @@ Branch: `claude/compassionate-cannon-u7cxjg`, one commit per step.
 | 1. The opening | See "The opening" below | `web/src/world/stations/intro/` |
 | 2. The spiral with an arm | See "The spiral" below | `scene/items.ts`, `scene/spiral.ts`, `scene/Helix.tsx`, `scene/Arm.tsx`, `stations/workshop/camera.ts`, `stepper.ts`, `ui/HoverTip.tsx` |
 | 3. Filters | See "Filters" below | `stations/workshop/Dock.tsx`, `scene/spiral.ts` |
-| 4. Click → detail → plug in | See "Detail and plug-in" below | `stations/workshop/detail.ts`, `Detail.tsx`, `core/store.ts` (`override`), `core/CameraRig.tsx`, `stations/machine/Scene.tsx`, `core/scroll.ts` |
+| 4. Click → detail → plug in | See "Detail and plug-in" below | `stations/workshop/detailStore.ts`, `Detail.tsx`, `core/store.ts` (`override`), `core/CameraRig.tsx`, `stations/machine/Scene.tsx`, `core/scroll.ts` |
 | 5. Ask SANT | See "Ask SANT" below | `web/src/world/ask/`, `src/app/ai/ask.py`, `src/app/routers/ask.py`, `stations/workshop/tour.ts` |
 | 6. Accessibility and fallback | See "Accessibility and fallback" below | across the above; `core/rail.ts` (`reducedPoseAt`) |
 | Performance rules | See "Performance" below | `core/quality.ts`, `core/autotune.ts`, `core/PostFX.tsx`, `core/Perf.tsx`, `core/Hud.tsx`, `App.tsx` |
