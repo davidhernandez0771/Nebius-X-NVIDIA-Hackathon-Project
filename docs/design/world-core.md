@@ -7,7 +7,9 @@ opens the workbench.
 
 The core owns the canvas, the camera rail, the station API, the handoff to 2D, quality and reduced
 motion. **T6 (workshop), T7 (machine) and T1 (workbench)** each own one folder and plug in through the
-API below. Everything is a placeholder box until the Blender models arrive.
+API below. The workshop, the machine and the camera stops now come from the Blender export
+(`docs/design/blender/export`); how that part is built and measured is in
+`docs/superpowers/notes/2026-10-18-world-workshop.md`.
 
 - **Open it:** `npm --prefix web run dev`, then `http://localhost:5173/world`.
 - **URL flags:** `?quality=low|high|ultra` forces a tier, and `?static` (or `?quality=stills`) forces the stills fallback.
@@ -27,9 +29,12 @@ web/src/world/
     CameraRig.tsx           damped rail camera, branch tweens, reduced-motion cuts
     handoff.ts              zoom → 2D route rule (pure, tested)
     quality.ts              tiers (pure, tested)
+    gpu.ts                  the quick GPU check that picks a tier or the stills (classify: pure, tested)
     layout.ts               facts two stations share: MACHINE_ANCHOR, MACHINE_VIEW, PROJECTION
     registry.ts             checkStations(): the rules below, as code
     Placeholder.tsx         <Box> with edges, and the placeholder palette
+  scene/                    the Blender workshop, shared by the stations (layout.json, the baked room,
+                            the lamps, the cartridges, the plug-in); see the workshop note
   stations/
     index.ts                the registry: the one file that lists every module
     story/      core        title, intro, scroll story (copy from T5's landing)
@@ -60,11 +65,15 @@ const workshop: StationModule = {
   rest: pose,               // optional: the one pose with reduced motion (default camera(0.5))
   Scene,                    // optional: r3f content, mounted once inside <group position={anchor}>
   Overlay,                  // optional: DOM over the canvas
+  reach: 1,                 // optional: how many stations along the rail the Scene stays drawn
+  still: url,               // optional: the pre-rendered still shown when there is no usable GPU
 };
 ```
 
 A `CameraPose` is `{ position: [x,y,z], target: [x,y,z], fov }`, with the fov vertical and in degrees.
-`still(pose)` from `core/layout.ts` holds a single shot.
+`still(pose)` from `core/layout.ts` holds a single shot; `through(a, b, c…)` from `core/rail.ts` passes
+through several stops in equal shares of the dwell, settling at each. The stops themselves are
+Blender's: `stop(name)` and `stopFrom(anchor, name)` in `scene/layout.ts` read `layout.json`.
 
 ### The rail
 
@@ -119,15 +128,21 @@ These work in Scenes and Overlays alike, since r3f bridges context into the canv
 | `handoff()` | leaves for the chosen cartridge's 2D route now |
 | `quality`, `reduced` | the tier and the reduced-motion flag |
 
-`Cartridge = { id, label, route }`. The placeholder shelf is `CARTRIDGES` in `workshop/`. With no
-choice made, the zoom opens `DEFAULT_CARTRIDGE` (Record, `/pm/record`).
+`Cartridge = { id, label, route, slot? }`: one robot on the spiral (`scene/robots.ts`), `slot` its place in
+`layout.json`. Every robot opens Record for now. With no choice made, the zoom opens
+`DEFAULT_CARTRIDGE`, the SO-101 in the lowest slot, which the machine plugs in by itself as the scroll
+passes.
 
 ### Shared world facts (`core/layout.ts`)
 
-- **`MACHINE_ANCHOR`:** where the machine stands. The zoom uses the same anchor.
-- **`MACHINE_VIEW`:** the machine's dwell ends here and the zoom starts here.
-- **`PROJECTION`:** `{ center, width: 3.2, height: 1.8 }`, local to the machine, facing +z.
-  - **T7:** draw the hologram exactly in this rectangle, because the zoom flies into it.
+World coordinates are Blender's (Y-up metres, the floor at y = -0.6).
+
+- **`MACHINE_ANCHOR`:** machine.glb's pivot (`layout.json` `stations.machine`). The zoom uses it too.
+- **`MACHINE_VIEW`:** Blender's "Projection" stop: the machine's dwell ends here and the zoom starts here.
+- **`PROJECTION`:** `{ center, width: 4.8, height: 2.256, normal }`, local to the machine: machine.glb's
+  `mx_M_HoloScreen`, turned with the machine (28°), so it faces `normal`, not +z. `inFront(d)` is a point
+  on that normal.
+  - The hologram is drawn in this rectangle, because the zoom flies into it (to Blender's "Zoom to UI").
   - Changing it moves the zoom with it, and the tests check that the zoom still ends close enough to
     fill the view.
 
@@ -142,7 +157,7 @@ choice made, the zoom opens `DEFAULT_CARTRIDGE` (Record, `/pm/record`).
 - **Headings:** the story has the page's `<h1>`, and stations use `<h2 className="world-h">`.
 - **Buttons:** use the SANT `Button` (`web/src/sant/components/Button`).
 
-### Models (later)
+### Models
 
 Load each model inside your own Scene with `useGLTF` from drei. Every Scene is wrapped in its own
 `Suspense` and error boundary, so a slow or broken model blanks only that station, and the error

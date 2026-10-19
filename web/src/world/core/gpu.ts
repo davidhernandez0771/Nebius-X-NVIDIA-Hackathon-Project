@@ -22,7 +22,7 @@ export const BENCH = { size: 512, draws: 8, steps: 48 } as const;
  * Thresholds on BENCH, in ms. Measured in Chrome: an RTX 5080 takes 0.2–0.9 ms (5 runs, at the
  * 0.1 ms timer resolution). A mid laptop GPU (Iris Xe, Radeon 680M) has roughly 1/20 of its shader
  * throughput, so ~5–20 ms; an old integrated one ~50 ms. Above STILLS_MS the canvas would not hold
- * even 20 fps. Not yet checked on a laptop: see docs/design/world-workshop.md.
+ * even 20 fps. Not yet checked on a laptop: docs/superpowers/notes/2026-10-18-world-workshop.md.
  */
 export const BENCH_MS = { ultra: 3, high: 24, stills: 400 } as const;
 

@@ -67,7 +67,7 @@ export default function WorldCanvas({
       aria-hidden="true"
       data-quality={quality.name}
       onCreated={(state) => {
-        // Dev only: the r3f state for the console and the perf measurement (docs/design/world-workshop.md).
+        // Dev only: the r3f state for the console and the perf measurement (web/scripts/world-perf.mjs).
         if (import.meta.env.DEV) (window as unknown as { __world3d?: unknown }).__world3d = state;
       }}
     >
