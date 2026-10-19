@@ -24,12 +24,21 @@ export interface QualityTier {
   /** Dust drifting in the light. An idle loop. */
   dust: boolean;
   powerPreference: "low-power" | "default" | "high-performance";
+  /** Points in the logo (mark + plumes), which become the roof lattice. */
+  logoParticles: number;
+  /** Points of dust through the whole journey. */
+  dustParticles: number;
+  /** Post: bloom at half resolution and one final pass (RGB split on scroll speed, grain, vignette). */
+  post: boolean;
+  /** MSAA samples on the post target (0: none). The canvas itself never multisamples with post on. */
+  msaa: number;
 }
 
 export const TIERS: Record<TierName, QualityTier> = {
-  low: { name: "low", dpr: [0.75, 1], antialias: false, shadows: false, idleMotion: false, physical: false, envMap: false, haze: false, dust: false, powerPreference: "low-power" },
-  high: { name: "high", dpr: [1, 1.5], antialias: true, shadows: false, idleMotion: true, physical: false, envMap: true, haze: false, dust: false, powerPreference: "default" },
-  ultra: { name: "ultra", dpr: [1, 2], antialias: true, shadows: false, idleMotion: true, physical: true, envMap: true, haze: true, dust: true, powerPreference: "high-performance" },
+  // The particle, post and MSAA numbers are the site build brief's table (docs/design/site-build-brief.md).
+  low: { name: "low", dpr: [0.75, 1], antialias: false, shadows: false, idleMotion: false, physical: false, envMap: false, haze: false, dust: false, powerPreference: "low-power", logoParticles: 18000, dustParticles: 4000, post: false, msaa: 0 },
+  high: { name: "high", dpr: [1, 1.5], antialias: true, shadows: false, idleMotion: true, physical: false, envMap: true, haze: false, dust: false, powerPreference: "default", logoParticles: 70000, dustParticles: 14000, post: true, msaa: 4 },
+  ultra: { name: "ultra", dpr: [1, 2], antialias: true, shadows: false, idleMotion: true, physical: true, envMap: true, haze: true, dust: true, powerPreference: "high-performance", logoParticles: 140000, dustParticles: 28000, post: true, msaa: 4 },
 };
 
 /** "3d": the canvas at a tier. "stills": no canvas, one pre-rendered still per station. */
@@ -41,7 +50,7 @@ export interface QualityChoice {
 }
 
 export interface DeviceSignals {
-  /** `?quality=low|high|ultra|stills` wins over everything ("medium" is an old name for high). */
+  /** `?q=` or `?quality=low|high|ultra|stills|static` wins over everything ("medium" is an old name for high). */
   query?: string | null;
   /** `?static` forces the stills. */
   forceStatic?: boolean;
@@ -77,7 +86,7 @@ export function readSignals(search: string, gpu: GpuClass): DeviceSignals {
   const n = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
   const q = new URLSearchParams(search);
   return {
-    query: q.get("quality"),
+    query: q.get("q") ?? q.get("quality"),
     forceStatic: q.has("static"),
     gpu,
     deviceMemory: n.deviceMemory,

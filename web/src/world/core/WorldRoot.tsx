@@ -2,7 +2,7 @@
 // tall scroll track that drives the camera rail, each station's DOM overlay in front, and the
 // journey rail to jump between stations. The canvas is released when the handoff leaves for a 2D
 // route, since app pages like Record share the GPU with Isaac Sim (AppShell).
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { navigateWithTransition } from "../../sant/motion/viewTransition";
@@ -15,10 +15,26 @@ import { dwellStart, locate } from "./rail";
 import { checkStations } from "./registry";
 import { createWorldStore } from "./store";
 import type { StationId, StationModule } from "./types";
+import type { ReactNode } from "react";
 import { WorldContext, type WorldApi } from "./WorldContext";
 import "./world.css";
 
 const WorldCanvas = lazy(() => import("./WorldCanvas"));
+
+/** The canvas failed to load or to make a WebGL context: fall back to the stills. */
+class CanvasBoundary extends Component<{ onFail: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error("world: the 3D canvas failed, showing the stills", error);
+    this.props.onFail();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 function session(): Storage | undefined {
   try {
@@ -95,9 +111,18 @@ function JourneyRail({ stations, at, goTo }: { stations: readonly StationModule[
 export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: readonly StationModule[]; webgl?: boolean }) {
   const { reduced } = useMotion();
   const navigate = useNavigate();
-  const [{ mode, tier: quality }] = useState(() => chooseQuality(window.location.search, webgl));
+  const [{ mode, tier: quality }, setChoice] = useState(() => chooseQuality(window.location.search, webgl));
   const run3D = mode === "3d";
-  const [store] = useState(() => createWorldStore(stations, window.innerHeight, window.scrollY));
+  const [store] = useState(() => {
+    const s = createWorldStore(stations, window.innerHeight, window.scrollY);
+    // No canvas, nothing to load: the stills are ready at once.
+    if (mode !== "3d") s.setReady();
+    return s;
+  });
+  const fail = useCallback(() => {
+    store.setReady();
+    setChoice({ mode: "stills", tier: TIERS.low });
+  }, [store]);
   const coarse = useSyncExternalStore(store.subscribe, store.getCoarse);
   const veil = useRef<HTMLDivElement>(null);
 
@@ -119,6 +144,8 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       store,
       quality,
       reduced,
+      mode,
+      fail,
       goTo(id) {
         const m = stations.find((s) => s.id === id);
         if (!m) return;
@@ -138,7 +165,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       selectCartridge: (c) => store.setCartridge(c),
       handoff: () => handoffRef.current(),
     }),
-    [store, quality, reduced, stations],
+    [store, quality, reduced, mode, fail, stations],
   );
 
   // Back from a 2D route: the machine, with the projection still lit, just before the zoom.
@@ -220,9 +247,11 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     <WorldContext.Provider value={api}>
       <div className="sant world" data-mode="volt" data-branch={coarse.branch ?? undefined} data-motion-world={reduced ? "reduced" : "full"}>
         {run3D ? (
-          <Suspense fallback={<div className="world-ground" aria-hidden="true" />}>
-            <WorldCanvas store={store} stations={stations} quality={quality} reduced={reduced} onCut={onCut} />
-          </Suspense>
+          <CanvasBoundary onFail={fail}>
+            <Suspense fallback={<div className="world-ground" aria-hidden="true" />}>
+              <WorldCanvas store={store} stations={stations} quality={quality} reduced={reduced} onCut={onCut} />
+            </Suspense>
+          </CanvasBoundary>
         ) : (
           <Stills stations={stations} at={at} title={atTitle} />
         )}

@@ -2,7 +2,7 @@
 // rig asks for frames while the camera moves, the scroll asks for one per scroll event, and an idle
 // world draws nothing. Each station's Scene sits in its own group, Suspense and error boundary, so
 // one module loading or failing never blanks the others.
-import { Component, Suspense, useRef, type ReactNode } from "react";
+import { Component, Suspense, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { Group } from "three";
 import { CameraRig } from "./CameraRig";
@@ -41,6 +41,24 @@ function StationGroup({ station, frame, quality, reduced }: { station: StationMo
   );
 }
 
+/**
+ * The stations' Scenes. Until the loader is done only the first rail station (the intro) is mounted,
+ * so its shaders compile under the loader and the workshop's files stream in after the first frame.
+ */
+function Stations({ store, stations, quality, reduced }: { store: WorldStore; stations: readonly StationModule[]; quality: QualityTier; reduced: boolean }) {
+  const ready = useSyncExternalStore(store.subscribe, () => store.getCoarse().ready);
+  const first = store.rails[0].id;
+  return (
+    <>
+      {stations
+        .filter((s) => s.Scene && (ready || s.id === first))
+        .map((s) => (
+          <StationGroup key={s.id} station={s} frame={store.frames[s.id]} quality={quality} reduced={reduced} />
+        ))}
+    </>
+  );
+}
+
 export default function WorldCanvas({
   store,
   stations,
@@ -76,11 +94,7 @@ export default function WorldCanvas({
       <fog attach="fog" args={quality.haze ? [WORLD_BG, 24, 95] : [WORLD_BG, 34, 120]} />
       {/* No lights here: the room's light is baked, and the workshop's live lights follow its lamps. */}
       <CameraRig store={store} stations={stations} reduced={reduced} onCut={onCut} />
-      {stations
-        .filter((s) => s.Scene)
-        .map((s) => (
-          <StationGroup key={s.id} station={s} frame={store.frames[s.id]} quality={quality} reduced={reduced} />
-        ))}
+      <Stations store={store} stations={stations} quality={quality} reduced={reduced} />
     </Canvas>
   );
 }

@@ -64,8 +64,8 @@ describe("the registered stations", () => {
       p.position.forEach((v, i) => expect(v).toBeCloseTo(s.position[i], 6));
       p.target.forEach((v, i) => expect(v).toBeCloseTo(s.target[i], 6));
     };
-    same("story", 0, "Title");
-    same("story", 1, "Proof");
+    same("intro", 0, "Title");
+    same("intro", 1, "Descent");
     same("descent", 0, "Descent");
     same("workshop", 0, "Workshop intro");
     same("workshop", 1, "Tutorial 1 · shelf");
@@ -86,6 +86,6 @@ describe("checkStations", () => {
     const broken = STATIONS.map((s) => (s.id === "zoom" ? { ...s, camera: () => ({ position: [0, 0, 0] as const, target: [0, 0, -1] as const, fov: 40 }) } : s));
     expect(checkStations(broken)).toEqual([`"zoom" has travel 0 but its camera(0) isn't "machine"'s camera(1)`]);
     expect(checkStations(STATIONS.filter((s) => s.id !== "workbench"))).toEqual([`no module for "workbench"`]);
-    expect(checkStations([...STATIONS, STATIONS[0]])).toEqual([`"story" is registered twice`]);
+    expect(checkStations([...STATIONS, STATIONS[0]])).toEqual([`"intro" is registered twice`]);
   });
 });

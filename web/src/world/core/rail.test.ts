@@ -3,7 +3,7 @@ import { fillFrames, layoutRail, locate, mixPose, poseAt, restIndexAt, smoother,
 import type { CameraPose, StationFrame } from "./types";
 
 const pose = (x: number): CameraPose => ({ position: [x, 0, 10], target: [x, 0, 0], fov: 40 });
-const a: RailStation = { id: "story", anchor: [0, 0, 0], travel: 0, length: 2, camera: (t) => pose(t) };
+const a: RailStation = { id: "intro", anchor: [0, 0, 0], travel: 0, length: 2, camera: (t) => pose(t) };
 const b: RailStation = { id: "descent", anchor: [100, 0, 0], travel: 1, length: 1, camera: (t) => pose(t * 2) };
 const c: RailStation = { id: "workshop", anchor: [200, 0, 0], travel: 0.5, length: 1, camera: () => pose(0) };
 const STATIONS = [a, b, c];
@@ -13,7 +13,7 @@ describe("layoutRail", () => {
   it("lays stations end to end in viewport heights, the first with no travel", () => {
     const rail = layoutRail(STATIONS, VH);
     expect(rail.spans).toEqual([
-      { id: "story", from: 0, start: 0, end: 200 },
+      { id: "intro", from: 0, start: 0, end: 200 },
       { id: "descent", from: 200, start: 300, end: 400 },
       { id: "workshop", from: 400, start: 450, end: 550 },
     ]);

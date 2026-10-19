@@ -12,6 +12,11 @@ export interface Coarse {
   cartridge: Cartridge | null;
   /** Page height in px: the rail plus one viewport. */
   height: number;
+  /**
+   * The loader is done (the intro's shaders compiled). Until then only the intro's Scene is mounted,
+   * so the workshop's files stream after the first frame instead of before it.
+   */
+  ready: boolean;
 }
 
 type FrameListener = () => void;
@@ -36,6 +41,7 @@ export interface WorldStore {
   setViewport(vh: number): void;
   setBranch(id: StationId | null): void;
   setCartridge(c: Cartridge | null): void;
+  setReady(): void;
 }
 
 const blankFrame = (): StationFrame => ({ t: 0, arrive: 0, current: false, near: false });
@@ -54,7 +60,7 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
   let viewport = vh;
   let targetY = y;
   let shownY = y;
-  let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh };
+  let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh, ready: false };
   const listeners = new Set<() => void>();
   const frameListeners = new Set<FrameListener>();
   const targetListeners = new Set<() => void>();
@@ -136,6 +142,10 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
     },
     setCartridge(c) {
       set({ cartridge: c });
+      targetListeners.forEach((fn) => fn());
+    },
+    setReady() {
+      set({ ready: true });
       targetListeners.forEach((fn) => fn());
     },
   };

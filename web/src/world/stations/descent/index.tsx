@@ -1,8 +1,9 @@
-// Descent (core): from Blender's "Descent" stop above the workshop, scrolling down circles the
+// Descent (core): from Blender's "Descent" stop above the workshop (where the intro ends), scrolling down circles the
 // camera once around the spiral shelf's axis, looking down into it, and drops toward the ceiling.
 // It stops above the ceiling, so the travel into the room comes in over the open front wall.
 // The spiral itself is the workshop's (its Scene reaches up here).
 import type { CameraPose, StationModule, StationOverlayProps } from "../../core/types";
+import { Beats } from "../../ui/Beats";
 import { STILLS } from "../../scene/assets";
 import { stop } from "../../scene/layout";
 
@@ -22,11 +23,39 @@ export function spiral(t: number): CameraPose {
   return { position: [RADIUS * Math.sin(a), y, RADIUS * Math.cos(a)], target: [START.target[0], START.target[1] - SINK * t, START.target[2]], fov: START.fov };
 }
 
+/** The proof, honest numbers only (the prototype's ITEMS; docs/superpowers/notes on the runs). */
 function Overlay(_: StationOverlayProps) {
   return (
-    <div className="world-panel world-panel--quiet">
-      <p className="world-lede">Down to the workshop.</p>
-    </div>
+    <Beats
+      station="descent"
+      beats={[
+        {
+          from: 0.06,
+          to: 0.94,
+          className: "world-beat--stats",
+          children: (
+            <>
+              <div>
+                <b data-scramble>3/40</b>
+                <span className="world-u">raw demos</span>
+              </div>
+              <div className="world-beat__arrow" aria-hidden="true">
+                →
+              </div>
+              <div>
+                <b data-scramble>17/40</b>
+                <span className="world-u">multiplied · p = 0.0005</span>
+              </div>
+              <div>
+                <b data-scramble>40/40</b>
+                <span className="world-u">Nemotron labels</span>
+              </div>
+              <p className="world-beat__foot world-u">Same ACT policy · 40 unseen seeds · run once, pre-registered</p>
+            </>
+          ),
+        },
+      ]}
+    />
   );
 }
 
@@ -37,7 +66,8 @@ const descent: StationModule = {
   owner: "core",
   kind: "rail",
   anchor: [0, 0, 0],
-  travel: 0.6,
+  // The intro ends on the Descent stop, so the spiral starts right there.
+  travel: 0,
   length: 2.5,
   camera: spiral,
   rest: START,

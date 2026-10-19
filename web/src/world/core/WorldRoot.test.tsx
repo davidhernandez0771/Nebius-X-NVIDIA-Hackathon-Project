@@ -41,10 +41,10 @@ describe("WorldRoot (no WebGL)", () => {
     vi.useRealTimers();
   });
 
-  it("opens on the story, with the title, and a page as tall as the rail", () => {
+  it("opens on the intro, with the title, and a page as tall as the rail", () => {
     renderWorld();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Show a robot once. Get the data to teach it.");
-    expect(current()).toBe("story");
+    expect(current()).toBe("intro");
     const track = document.querySelector<HTMLElement>(".world-track")!;
     expect(parseFloat(track.style.height)).toBeGreaterThan(window.innerHeight * 10);
   });
@@ -52,8 +52,8 @@ describe("WorldRoot (no WebGL)", () => {
   it("follows the scroll from station to station, and the journey rail marks where you are", () => {
     renderWorld();
     const h = window.innerHeight;
-    // story 3, descent 0.6 + 2.5, workshop 0.6 + 1.5 viewport heights
-    scrollTo(h * (3 + 3.1 + 0.6 + 0.2));
+    // intro 3, descent 2.5, workshop 0.6 + its dwell, in viewport heights
+    scrollTo(h * (3 + 2.5 + 0.6 + 0.2));
     expect(current()).toBe("workshop");
     const rail = screen.getByRole("navigation", { name: "Journey" });
     expect(within(rail).getByRole("button", { name: "Workshop" }).getAttribute("aria-current")).toBe("step");

@@ -44,3 +44,12 @@ describe("TIERS", () => {
     expect(Object.values(TIERS).every((t) => !t.shadows)).toBe(true);
   });
 });
+
+describe("the brief's particle and post numbers", () => {
+  it("scales the logo, the dust and the post with the tier", () => {
+    expect([TIERS.low.logoParticles, TIERS.high.logoParticles, TIERS.ultra.logoParticles]).toEqual([18000, 70000, 140000]);
+    expect([TIERS.low.dustParticles, TIERS.high.dustParticles, TIERS.ultra.dustParticles]).toEqual([4000, 14000, 28000]);
+    expect([TIERS.low.post, TIERS.high.post, TIERS.ultra.post]).toEqual([false, true, true]);
+    expect([TIERS.low.msaa, TIERS.high.msaa, TIERS.ultra.msaa]).toEqual([0, 4, 4]);
+  });
+});

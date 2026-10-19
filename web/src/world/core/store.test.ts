@@ -7,9 +7,9 @@ const VH = 1000;
 describe("createWorldStore", () => {
   it("lays out the rail stations in RAIL_ORDER and sizes the page", () => {
     const s = createWorldStore(STATIONS, VH);
-    expect(s.rails.map((r) => r.id)).toEqual(["story", "descent", "workshop", "machine", "zoom"]);
+    expect(s.rails.map((r) => r.id)).toEqual(["intro", "descent", "workshop", "machine", "zoom"]);
     expect(s.getCoarse().height).toBe(s.rail.total + VH);
-    expect(s.getCoarse().current).toBe("story");
+    expect(s.getCoarse().current).toBe("intro");
   });
 
   it("notifies React only when the station changes, not on every scroll", () => {
@@ -35,7 +35,7 @@ describe("createWorldStore", () => {
     expect(s.frames.machine).toBe(machine);
     expect(machine.t).toBeCloseTo(0.5, 6);
     expect(machine.current).toBe(true);
-    expect(s.frames.story.near).toBe(false);
+    expect(s.frames.descent.near).toBe(false);
     expect(onFrame).toHaveBeenCalledTimes(1);
   });
 
@@ -44,9 +44,9 @@ describe("createWorldStore", () => {
     s.setBranch("workbench");
     expect(s.getCoarse().branch).toBe("workbench");
     expect(s.frames.workbench.current).toBe(true);
-    expect(s.frames.story.current).toBe(false);
+    expect(s.frames.intro.current).toBe(false);
     s.setBranch(null);
-    expect(s.frames.story.current).toBe(true);
+    expect(s.frames.intro.current).toBe(true);
   });
 
   it("keeps the place on the rail when the viewport resizes", () => {

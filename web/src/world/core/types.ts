@@ -13,10 +13,10 @@ export interface CameraPose {
   fov: number;
 }
 
-export type StationId = "story" | "descent" | "workshop" | "machine" | "zoom" | "workbench";
+export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench";
 
 /** The scroll rail, top to bottom. The workbench is a branch: reached with goTo(), not by scrolling. */
-export const RAIL_ORDER = ["story", "descent", "workshop", "machine", "zoom"] as const satisfies readonly StationId[];
+export const RAIL_ORDER = ["intro", "descent", "workshop", "machine", "zoom"] as const satisfies readonly StationId[];
 export const BRANCHES = ["workbench"] as const satisfies readonly StationId[];
 
 /**
