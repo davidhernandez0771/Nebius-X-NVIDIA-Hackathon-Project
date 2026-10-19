@@ -7,6 +7,7 @@ import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
+import { WorkbenchScene } from "./Scene";
 
 function Overlay(_: StationOverlayProps) {
   const { back } = useWorld();
@@ -31,6 +32,7 @@ const workbench: StationModule = {
   travel: 0,
   length: 0,
   camera: still(stopFrom(BENCH_PIVOT.position, "Workbench edit")),
+  Scene: WorkbenchScene,
   Overlay,
 };
 
