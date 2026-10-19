@@ -17,29 +17,31 @@ import ReviewPage from "./legacy/pm/review/ReviewPage";
 import ResultsPage from "./legacy/pm/results/ResultsPage";
 import { HandArtPreviewRoute } from "./record/handArt";
 import { SantRoot } from "./sant/SantRoot";
+import { WorkShell } from "./work/WorkShell";
 import { useHandPointer } from "./hand/integration/useHandPointer";
 import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
 import { HandToggle } from "./hand/integration/HandToggle";
 import { CalibrationPanel } from "./hand/overlay/CalibrationPanel";
 
-// Full-bleed 3D pages live outside the dashboard shell and load lazily, so the
-// three.js bundle is only fetched when one of them is visited.
+// The site is the world (docs/design/world-core.md): one continuous 3D journey from the logo down to
+// the workshop, where a cartridge plugs in and opens the work page. It loads lazily, so three.js is
+// fetched only there.
+const World = lazy(() => import("./world/core/WorldRoot"));
+// Full-bleed 3D pages of the archive live outside the dashboard shell and load lazily.
 const Landing = lazy(() => import("./legacy/pages/Landing"));
 const Entry = lazy(() => import("./legacy/pages/Entry"));
-// SANT website (sprint 8): the design-system review pages, under SantRoot's providers.
+// The design-system reference pages (internal, not linked from the site).
 const DesignPage = lazy(() => import("./sant/design/DesignPage").then((m) => ({ default: m.DesignPage })));
 const DesignAppPage = lazy(() => import("./sant/design/DesignAppPage").then((m) => ({ default: m.DesignAppPage })));
 const RecordHudPreview = lazy(() => import("./site/record-hud/RecordHudPreview").then((m) => ({ default: m.RecordHudPreview })));
 const ReviewPage2 = lazy(() => import("./site/review/ReviewPage2"));
 const SetupPage = lazy(() => import("./site/setup/SetupPage"));
-const PinchSheetPreview = lazy(() => import("./landing/pinchSheet/PinchSheetPreview"));
-const SiteLanding = lazy(() => import("./site/landing/LandingPage"));
 // The new Record (the hologram). The old one stays at /legacy/pm/record.
 const RecordConsole = lazy(() => import("./site/record/RecordConsole"));
 const SiteResultsPage = lazy(() => import("./site/results/ResultsPage").then((m) => ({ default: m.ResultsPage })));
 const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
-// The world (sprint 9): one continuous 3D journey, from the story down to the work (docs/design/world-core.md).
-const World = lazy(() => import("./world/core/WorldRoot"));
+
+const lazyPage = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
 const LEGACY = /^\/legacy(\/|$)/;
 
@@ -49,19 +51,12 @@ function ToRecord() {
   return <Navigate to={`/record${search}${hash}`} replace />;
 }
 
-/** /pm/... → /legacy/pm/..., keeping the query (e.g. /pm/review?id=…) and the hash. */
-function ToLegacy() {
-  const { pathname, search, hash } = useLocation();
-  return <Navigate to={`/legacy${pathname}${search}${hash}`} replace />;
-}
-
-// The old dashboard pages share DashboardShell (top bar + icon rail).
 export default function App() {
   // Opt-in hand-controlled cursor for the /legacy pages: mounted once outside <Routes>
-  // so it survives navigation. See HAND_INTERACTION_PLAN.md.
+  // so it survives navigation. See HAND_INTERACTION_PLAN.md. The work pages have their own, in WorkShell.
   const hand = useHandPointer();
   const [calibrationOpen, setCalibrationOpen] = useState(false);
-  // Only the archived old site (/legacy/...) has the hand cursor: its controls show there alone, and
+  // Only the archived old site (/legacy/...) has this hand cursor: its controls show there alone, and
   // the camera turns off if it was left on, since no other page has a switch to turn it off.
   const onLegacy = LEGACY.test(useLocation().pathname);
   const { enabled: handOn, disable: handOff } = hand;
@@ -72,56 +67,30 @@ export default function App() {
   return (
     <>
       <Routes>
-        {/* The SANT landing (/site) is the front door. /welcome is kept as an alias. */}
-        <Route path="/" element={<Navigate to="/site" replace />} />
-        <Route path="/welcome" element={<Navigate to="/site" replace />} />
-        {/* Hand v4's hand-art preview (live tooling, not archived): this exact path wins over the /pm/* redirect. */}
+        {/* Hand v4's hand-art preview (live tooling, not archived). */}
         <Route path="/pm/hand-art" element={<HandArtPreviewRoute />} />
         <Route element={<SantRoot />}>
-          <Route path="/site" element={<Suspense fallback={null}><SiteLanding /></Suspense>} />
-          <Route path="/world" element={<Suspense fallback={null}><World /></Suspense>} />
-          <Route
-            path="/design"
-            element={
-              <Suspense fallback={null}>
-                <DesignPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/design/app"
-            element={
-              <Suspense fallback={null}>
-                <DesignAppPage />
-              </Suspense>
-            }
-          />
-          <Route path="/site/record-hud" element={<Suspense fallback={null}><RecordHudPreview /></Suspense>} />
-          <Route path="/record" element={<Suspense fallback={null}><RecordConsole /></Suspense>} />
-          <Route path="/review2" element={<Suspense fallback={null}><ReviewPage2 /></Suspense>} />
-          <Route path="/site/results" element={<Suspense fallback={null}><SiteResultsPage /></Suspense>} />
-          <Route path="/robots" element={<Suspense fallback={null}><RobotsPage /></Suspense>} />
-          <Route path="/robots/setup" element={<Suspense fallback={null}><SetupPage /></Suspense>} />
+          <Route path="/" element={lazyPage(<World />)} />
+          <Route path="/world" element={lazyPage(<World />)} />
+          <Route path="/design" element={lazyPage(<DesignPage />)} />
+          <Route path="/design/app" element={lazyPage(<DesignAppPage />)} />
+          <Route path="/site/record-hud" element={lazyPage(<RecordHudPreview />)} />
+          <Route path="/record" element={lazyPage(<RecordConsole />)} />
+          <Route path="/review2" element={lazyPage(<ReviewPage2 />)} />
+          <Route path="/site/results" element={lazyPage(<SiteResultsPage />)} />
+          <Route path="/robots" element={lazyPage(<RobotsPage />)} />
+          <Route path="/robots/setup" element={lazyPage(<SetupPage />)} />
         </Route>
-        <Route path="/landing/pinch-sheet" element={<Suspense fallback={null}><PinchSheetPreview /></Suspense>} />
+        {/* The work pages a cartridge opens, in the journey's look. Record is the hologram (/record). */}
+        <Route element={<WorkShell />}>
+          <Route path="/pm/review" element={<ReviewPage />} />
+          <Route path="/pm/dataset" element={<DatasetPage />} />
+          <Route path="/pm/results" element={<ResultsPage />} />
+        </Route>
         {/* The archived old site (web/src/legacy): the 3D intro, then the dashboard and its pages. */}
         <Route path="/legacy">
-          <Route
-            index
-            element={
-              <Suspense fallback={null}>
-                <Landing />
-              </Suspense>
-            }
-          />
-          <Route
-            path="enter"
-            element={
-              <Suspense fallback={null}>
-                <Entry />
-              </Suspense>
-            }
-          />
+          <Route index element={lazyPage(<Landing />)} />
+          <Route path="enter" element={lazyPage(<Entry />)} />
           <Route element={<DashboardShell />}>
             <Route path="home" element={<Home />} />
             <Route path="room" element={<RoomView />} />
@@ -138,11 +107,11 @@ export default function App() {
             <Route path="pm/results" element={<ResultsPage />} />
           </Route>
         </Route>
-        {/* The live test's /pm/record opens the new Record (the old one stays at /legacy/pm/record);
-            other old bookmarks go to the archive. The exact path wins over the /pm/* splat. */}
+        {/* The live test's and the cartridges' /pm/record open the new Record (the old one stays at
+            /legacy/pm/record). */}
         <Route path="/pm/record" element={<ToRecord />} />
-        <Route path="/pm/*" element={<ToLegacy />} />
-        <Route path="*" element={<Navigate to="/site" replace />} />
+        {/* Everything else (the old room pages, the old landings, /site) goes to the journey. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {onLegacy && (
         <>

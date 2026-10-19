@@ -13,11 +13,15 @@ export interface CameraPose {
   fov: number;
 }
 
-export type StationId = "story" | "descent" | "workshop" | "machine" | "zoom" | "workbench";
+export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench";
 
-/** The scroll rail, top to bottom. The workbench is a branch: reached with goTo(), not by scrolling. */
-export const RAIL_ORDER = ["story", "descent", "workshop", "machine", "zoom"] as const satisfies readonly StationId[];
-export const BRANCHES = ["workbench"] as const satisfies readonly StationId[];
+/**
+ * The scroll rail, top to bottom: the story ends in the workshop, and the scroll ends there too. In
+ * the workshop the page is a game: the machine, the projection and the bench are branches, opened by
+ * a click (goTo), never by scrolling.
+ */
+export const RAIL_ORDER = ["intro", "descent", "workshop"] as const satisfies readonly StationId[];
+export const BRANCHES = ["machine", "zoom", "workbench"] as const satisfies readonly StationId[];
 
 /**
  * A station's progress, updated in place every rendered frame (never through React state). Read it
@@ -68,6 +72,14 @@ export interface StationModule {
   travel: number;
   /** Viewport heights of scroll spent at the station (rail only). */
   length: number;
+  /**
+   * The camera through the travel in, t 0–1, in world coordinates, given where the previous station
+   * left it. Absent: a straight eased move. A station whose travel cuts (behind a full-screen mask,
+   * the workshop's dive through the skylight) says where in `cutAt`.
+   */
+  enter?: (t: number, from: CameraPose) => CameraPose;
+  /** The travel t at which `enter` jumps, hidden by the station's own mask (rail tests skip it). */
+  cutAt?: number;
   /** The camera through the dwell, t 0–1, local to `anchor`. Use still() for a fixed shot. */
   camera: (t: number) => CameraPose;
   /** The one pose used when motion is reduced (default: camera(0.5)). */
@@ -81,6 +93,17 @@ export interface StationModule {
    * workshop's room uses 2, so it stays behind the machine and the zoom.
    */
   reach?: number;
+  /**
+   * With reduced motion the camera normally holds `rest`. A station that is browsed by steps (the
+   * spiral) sets this so the camera jumps to each step instead (no easing, no travel).
+   */
+  follow?: boolean;
+  /**
+   * A branch that plays (the machine's plug-in, the zoom into the projection): seconds for its frame
+   * t to run 0 to 1 once it opens, with the camera on camera(t). Absent: the branch holds rest (or
+   * camera(0.5)) and its t is 1.
+   */
+  duration?: number;
   /** A pre-rendered still of the station, shown instead of the canvas when there is no usable GPU. */
   still?: string;
 }

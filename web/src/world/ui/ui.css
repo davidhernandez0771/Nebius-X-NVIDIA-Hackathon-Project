@@ -1,0 +1,279 @@
+/* The journey's DOM over the canvas, in the look of docs/design/prototypes/site-journey.html: one
+   squared mono face, all caps, huge for headlines and 11 px with wide tracking for UI. */
+
+.world {
+  --w-ink: #d8efe9;
+  --w-dim: #5f7c76;
+  --w-mute: #2b3b38;
+  --w-teal: #19f5c2;
+  --w-amber: #ffb000;
+  --w-needle: #ff5a1f;
+  --w-line: rgba(25, 245, 194, 0.2);
+  --w-mono: "Geist Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.world-u {
+  font-family: var(--w-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.world-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.world-hint {
+  position: fixed;
+  left: 50%;
+  top: 21vh;
+  transform: translateX(-50%);
+  color: #7fc7d6;
+  margin: 0;
+}
+
+/* A beat: the old one leaves fast, the new one waits 0.2 s for it, so two headlines never overlap. */
+.world-beat {
+  position: fixed;
+  left: 7vw;
+  right: 7vw;
+  bottom: 15vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 4vw;
+  align-items: end;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.18s ease, transform 0.25s ease;
+  font-family: var(--w-mono);
+  color: var(--w-ink);
+  pointer-events: none;
+}
+
+.world-beat[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.5s ease 0.2s, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s;
+}
+
+.world-beat h2 {
+  margin: 0;
+  font-weight: 300;
+  font-size: clamp(34px, 6.4vw, 104px);
+  line-height: 0.92;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  text-shadow: 0 0 30px rgba(25, 245, 194, 0.12);
+}
+
+.world-beat p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.75;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a9c9c1;
+  max-width: 42ch;
+}
+
+.world-beat--stats {
+  grid-template-columns: repeat(4, auto);
+  justify-content: start;
+  gap: 5vw;
+}
+
+.world-beat--stats b {
+  display: block;
+  font-weight: 300;
+  font-size: clamp(40px, 7vw, 118px);
+  line-height: 0.9;
+}
+
+.world-beat--stats span {
+  display: block;
+  margin-top: 10px;
+  color: #9dbdb5;
+}
+
+.world-beat__arrow {
+  font-size: clamp(28px, 4vw, 64px);
+  color: var(--w-teal);
+  font-weight: 300;
+  align-self: start;
+  margin-top: clamp(4px, 1.4vw, 22px);
+}
+
+.world-beat--stats .world-beat__foot {
+  grid-column: 1 / -1;
+  color: var(--w-dim);
+  font-size: 11px;
+}
+
+@media (max-width: 700px) {
+  .world-beat {
+    grid-template-columns: 1fr;
+    bottom: 30vh;
+    gap: 14px;
+  }
+  .world-beat--stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .world-beat__arrow {
+    display: none;
+  }
+}
+
+[data-motion-world="reduced"] .world-beat {
+  transition: none;
+}
+
+.world-tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  pointer-events: none;
+  padding: 7px 10px;
+  border: 1px solid var(--w-line);
+  background: rgba(4, 8, 9, 0.8);
+  color: var(--w-ink);
+  opacity: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.world-tip[data-on="true"] {
+  opacity: 1;
+}
+
+.world-tip em {
+  font-style: normal;
+  color: var(--w-dim);
+}
+
+/* The quality chip and the HUD (backtick). */
+.world-q {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 6;
+  cursor: pointer;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(6, 12, 14, 0.6);
+  color: var(--w-dim);
+}
+
+.world-q:hover,
+.world-q:focus-visible {
+  color: var(--w-ink);
+}
+
+.world-hud {
+  position: fixed;
+  top: 64px;
+  right: 20px;
+  z-index: 9;
+  margin: 0;
+  font-family: var(--w-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--w-teal);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 10px 12px;
+  border: 1px solid var(--w-line);
+  white-space: pre;
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .world-q {
+    bottom: auto;
+    top: 70px;
+    right: 16px;
+  }
+}
+
+.world-brand {
+  position: fixed;
+  top: 22px;
+  left: 24px;
+  z-index: 6;
+  margin: 0;
+  color: var(--w-dim);
+  pointer-events: none;
+}
+
+.world-brand b {
+  color: var(--w-ink);
+  font-weight: 500;
+}
+
+@media (max-width: 700px) {
+  .world-brand {
+    display: none;
+  }
+}
+
+/* The stations' own captions (machine, zoom, bench) and the journey list, in the same mono UI as
+   the beats and the dock, not the app's serif. */
+.sant.world .world-h {
+  font-family: var(--w-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--w-ink);
+}
+
+.sant.world .world-lede {
+  font-family: var(--w-mono);
+  font-size: 12px;
+  line-height: 1.75;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a9c9c1;
+  max-width: 46ch;
+}
+
+.sant.world .world-handoff__title {
+  font-family: var(--w-mono);
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sant.world .world-rail button {
+  font: 500 10.5px / 1.2 var(--w-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sant.world .world-rail button[aria-current="step"]::before {
+  background: var(--w-teal);
+}
+
+.sant.world .sant-btn {
+  font-family: var(--w-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  color: var(--w-teal);
+  background: rgba(6, 12, 14, 0.72);
+  border: 1px solid rgba(25, 245, 194, 0.45);
+  box-shadow: 0 10px 30px -12px rgba(25, 245, 194, 0.45);
+}
+
+.sant.world .sant-btn:hover:not(:disabled) {
+  color: #02110d;
+  background: var(--w-teal);
+}

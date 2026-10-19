@@ -17,11 +17,13 @@ describe("the registered stations", () => {
 
   it("move the camera without a jump anywhere on the rail", () => {
     const rail = layoutRail(rails, 900);
+    // A travel that cuts behind its own mask (cutAt) may jump there, and only there.
+    const cuts = rail.spans.flatMap((s, i) => (rails[i].cutAt !== undefined ? [s.from + (s.start - s.from) * rails[i].cutAt!] : []));
     let prev = poseAt(rails, rail, 0);
     for (let y = 2; y <= rail.total; y += 2) {
       const p = poseAt(rails, rail, y);
       const step = Math.hypot(...p.position.map((v, i) => v - prev.position[i]));
-      expect(step).toBeLessThan(0.5);
+      if (!cuts.some((c) => c > y - 2 && c <= y)) expect(step).toBeLessThan(0.5);
       prev = p;
     }
   });
@@ -38,8 +40,12 @@ describe("the registered stations", () => {
   });
 
   it("hand the machine's last view to the zoom", () => {
-    const machine = rails[RAIL_ORDER.indexOf("machine")];
-    const zoom = rails[RAIL_ORDER.indexOf("zoom")];
+    const machine = STATIONS.find((s) => s.id === "machine")!;
+    const zoom = STATIONS.find((s) => s.id === "zoom")!;
+    expect(machine.kind).toBe("branch");
+    expect(zoom.kind).toBe("branch");
+    expect(machine.duration).toBeGreaterThan(0);
+    expect(zoom.duration).toBeGreaterThan(0);
     expect(stationPose(machine, 1)).toEqual(stationPose(zoom, 0));
     expect(machine.camera(1)).toEqual(MACHINE_VIEW);
     expect(zoom.anchor).toEqual(MACHINE_ANCHOR);
@@ -57,18 +63,18 @@ describe("the registered stations", () => {
   });
 
   it("follow Blender's camera stops", () => {
-    const at = (id: string, t: number) => stationPose(rails[RAIL_ORDER.indexOf(id as (typeof RAIL_ORDER)[number])], t);
+    const at = (id: string, t: number) => stationPose(STATIONS.find((s) => s.id === id)!, t);
     const same = (id: string, t: number, name: StopName) => {
       const p = at(id, t);
       const s = stop(name);
       p.position.forEach((v, i) => expect(v).toBeCloseTo(s.position[i], 6));
       p.target.forEach((v, i) => expect(v).toBeCloseTo(s.target[i], 6));
     };
-    same("story", 0, "Title");
-    same("story", 1, "Proof");
+    same("intro", 0, "Title");
+    same("intro", 1, "Descent");
     same("descent", 0, "Descent");
     same("workshop", 0, "Workshop intro");
-    same("workshop", 1, "Tutorial 1 · shelf");
+
     same("machine", 0, "Tutorial 2 · machine");
     same("machine", 0.5, "Plug in");
     same("machine", 1, "Projection");
@@ -83,9 +89,9 @@ describe("the registered stations", () => {
 
 describe("checkStations", () => {
   it("names what is wrong", () => {
-    const broken = STATIONS.map((s) => (s.id === "zoom" ? { ...s, camera: () => ({ position: [0, 0, 0] as const, target: [0, 0, -1] as const, fov: 40 }) } : s));
-    expect(checkStations(broken)).toEqual([`"zoom" has travel 0 but its camera(0) isn't "machine"'s camera(1)`]);
+    const broken = STATIONS.map((s) => (s.id === "descent" ? { ...s, camera: () => ({ position: [0, 0, 0] as const, target: [0, 0, -1] as const, fov: 40 }) } : s));
+    expect(checkStations(broken)).toEqual([`"descent" has travel 0 but its camera(0) isn't "intro"'s camera(1)`]);
     expect(checkStations(STATIONS.filter((s) => s.id !== "workbench"))).toEqual([`no module for "workbench"`]);
-    expect(checkStations([...STATIONS, STATIONS[0]])).toEqual([`"story" is registered twice`]);
+    expect(checkStations([...STATIONS, STATIONS[0]])).toEqual([`"intro" is registered twice`]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BENCH_MS, checkGpu, classifyGpu, probeGpu, type GpuReport } from "./gpu";
+import { BENCH_MS, checkGpu, classifyGpu, gpuLabel, probeGpu, type GpuReport } from "./gpu";
 
 const r = (renderer: string, ms: number | null = 1, more: Partial<GpuReport> = {}): GpuReport => ({ webgl2: true, renderer, caveat: false, ms, ...more });
 
@@ -61,5 +61,21 @@ describe("checkGpu", () => {
 
   it("finds no WebGL2 in jsdom, so the world falls back to the stills", () => {
     expect(classifyGpu(probeGpu())).toBe("stills");
+  });
+});
+
+describe("gpuLabel", () => {
+  it("unwraps Chrome's ANGLE string", () => {
+    expect(gpuLabel("ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0) Direct3D11 vs_5_0 ps_5_0, D3D11)")).toBe(
+      "NVIDIA GeForce RTX 4060 Laptop GPU · D3D11",
+    );
+  });
+  it("flags integrated graphics", () => {
+    expect(gpuLabel("ANGLE (Intel, Intel(R) UHD Graphics (0x00009A68) Direct3D11 vs_5_0 ps_5_0, D3D11)")).toBe("Intel(R) UHD Graphics · D3D11  (integrated)");
+    expect(gpuLabel("ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001681) Direct3D11 vs_5_0 ps_5_0, D3D11)")).toContain("(integrated)");
+  });
+  it("keeps other strings as they are", () => {
+    expect(gpuLabel("Apple M2")).toBe("Apple M2");
+    expect(gpuLabel("")).toBe("unknown (the browser hides it)");
   });
 });

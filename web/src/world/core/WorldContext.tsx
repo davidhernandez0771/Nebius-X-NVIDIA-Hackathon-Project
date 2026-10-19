@@ -2,7 +2,7 @@
 // actions. Works inside the canvas too (react-three-fiber bridges context into it).
 import { createContext, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import type { QualityTier } from "./quality";
+import type { QualityTier, WorldMode } from "./quality";
 import type { Coarse, WorldStore } from "./store";
 import type { Cartridge, StationFrame, StationId } from "./types";
 
@@ -10,6 +10,10 @@ export interface WorldApi {
   store: WorldStore;
   quality: QualityTier;
   reduced: boolean;
+  /** "3d" with the canvas, or "stills" without a usable GPU. */
+  mode: WorldMode;
+  /** The canvas can't run (no context, the loader stalled): switch to the stills. */
+  fail(): void;
   /** Scroll to a rail station's dwell, or open a branch station (the workbench). */
   goTo(id: StationId): void;
   /** Close the open branch: the camera returns to the rail where the scroll is. */

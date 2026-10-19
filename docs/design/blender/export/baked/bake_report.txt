@@ -1,0 +1,6 @@
+room: 5 objs, 550 tris, 29.7 s
+pedestal: 1 objs, 380 tris, 2.1 s
+shelves: 26 objs, 536 tris, 6.3 s
+bench: 22 objs, 942 tris, 7.2 s
+desk: 5 objs, 156 tris, 3.1 s
+machine_body: 73 objs, 4368 tris, 3.7 s

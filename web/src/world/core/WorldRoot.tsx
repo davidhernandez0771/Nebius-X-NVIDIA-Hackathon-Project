@@ -2,23 +2,42 @@
 // tall scroll track that drives the camera rail, each station's DOM overlay in front, and the
 // journey rail to jump between stations. The canvas is released when the handoff leaves for a 2D
 // route, since app pages like Record share the GPU with Isaac Sim (AppShell).
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { navigateWithTransition } from "../../sant/motion/viewTransition";
 import { STATIONS } from "../stations";
-import { INITIAL_HANDOFF, handoffStep, saveReturn, takeReturn } from "./handoff";
+import { FIRE_AT, saveReturn, takeReturn } from "./handoff";
 import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
-import { TIERS, pickQuality, readSignals, type QualityChoice } from "./quality";
-import { dwellStart, locate } from "./rail";
+import { Hud } from "./Hud";
+import { runIris } from "./iris";
+import { TIERS, pickQuality, readSignals, saveTier, type QualityChoice, type TierName } from "./quality";
+import { dwellStart } from "./rail";
 import { checkStations } from "./registry";
 import { createWorldStore } from "./store";
 import type { StationId, StationModule } from "./types";
+import type { ReactNode } from "react";
 import { WorldContext, type WorldApi } from "./WorldContext";
 import "./world.css";
+import "../ui/ui.css";
 
 const WorldCanvas = lazy(() => import("./WorldCanvas"));
+
+/** The canvas failed to load or to make a WebGL context: fall back to the stills. */
+class CanvasBoundary extends Component<{ onFail: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error("world: the 3D canvas failed, showing the stills", error);
+    this.props.onFail();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 function session(): Storage | undefined {
   try {
@@ -87,7 +106,8 @@ function JourneyRail({ stations, at, goTo }: { stations: readonly StationModule[
   return (
     <nav className="world-rail" aria-label="Journey">
       <ol>{stations.filter((s) => s.kind === "rail").map(item)}</ol>
-      <ul>{stations.filter((s) => s.kind === "branch").map(item)}</ul>
+      {/* The zoom isn't a place to go to: it plays out of the machine. */}
+      <ul>{stations.filter((s) => s.kind === "branch" && s.id !== "zoom").map(item)}</ul>
     </nav>
   );
 }
@@ -95,9 +115,28 @@ function JourneyRail({ stations, at, goTo }: { stations: readonly StationModule[
 export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: readonly StationModule[]; webgl?: boolean }) {
   const { reduced } = useMotion();
   const navigate = useNavigate();
-  const [{ mode, tier: quality }] = useState(() => chooseQuality(window.location.search, webgl));
+  const [{ mode, tier: quality }, setChoice] = useState(() => chooseQuality(window.location.search, webgl));
   const run3D = mode === "3d";
-  const [store] = useState(() => createWorldStore(stations, window.innerHeight, window.scrollY));
+  const [store] = useState(() => {
+    const s = createWorldStore(stations, window.innerHeight, window.scrollY);
+    // No canvas, nothing to load: the stills are ready at once.
+    if (mode !== "3d") s.setReady();
+    return s;
+  });
+  // The URL's tier wins and isn't tuned; neither is one an earlier visit saved.
+  const [tuning] = useState(() => {
+    const sig = readSignals(window.location.search, "high");
+    const q = sig.query?.toLowerCase() ?? "";
+    return { forced: FORCED.has(q), tune: !FORCED.has(q) && !sig.saved };
+  });
+  const setTier = useCallback((name: TierName) => {
+    saveTier(name);
+    setChoice({ mode: "3d", tier: TIERS[name] });
+  }, []);
+  const fail = useCallback(() => {
+    store.setReady();
+    setChoice({ mode: "stills", tier: TIERS.low });
+  }, [store]);
   const coarse = useSyncExternalStore(store.subscribe, store.getCoarse);
   const veil = useRef<HTMLDivElement>(null);
 
@@ -119,6 +158,8 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       store,
       quality,
       reduced,
+      mode,
+      fail,
       goTo(id) {
         const m = stations.find((s) => s.id === id);
         if (!m) return;
@@ -138,20 +179,22 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       selectCartridge: (c) => store.setCartridge(c),
       handoff: () => handoffRef.current(),
     }),
-    [store, quality, reduced, stations],
+    [store, quality, reduced, mode, fail, stations],
   );
 
   // Back from a 2D route: the machine, with the projection still lit, just before the zoom.
   useLayoutEffect(() => {
     const back = takeReturn(session());
-    const span = back ? store.rail.spans.find((s) => s.id === back) : undefined;
+    if (!back) return;
+    // The workshop's end (the room view), with the machine open and already played: the hologram up.
+    const span = store.rail.spans.find((s) => s.id === "workshop");
     if (!span) return;
-    const y = span.end - 1;
+    const y = span.end;
     scrollToY(y, false);
-    store.setScroll(y);
-    store.setShown(y);
+    store.jump(y);
+    if (stations.some((s) => s.id === back && s.kind === "branch")) store.setBranch(back as StationId, 1);
     requestAnimationFrame(() => setScrollRestoration("auto"));
-  }, [store]);
+  }, [store, stations]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -174,16 +217,53 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
 
   // The handoff watches what the camera shows (damped), so the screen is opaque when it fires.
   useEffect(() => {
-    let state = INITIAL_HANDOFF;
-    const zoomIndex = store.rails.findIndex((s) => s.id === "zoom");
+    let fired = false;
     return store.onFrame(() => {
-      if (store.getCoarse().branch) return;
-      const r = handoffStep(state, locate(store.rail, store.shownY), zoomIndex);
-      state = r.state;
+      if (store.getCoarse().branch !== "zoom") {
+        fired = false;
+        return;
+      }
+      if (fired || store.frames.zoom.t < FIRE_AT) return;
+      fired = true;
       // Not inside the canvas's frame: navigating unmounts it.
-      if (r.fire) setTimeout(() => handoffRef.current(), 0);
+      setTimeout(() => handoffRef.current(), 0);
     });
   }, [store]);
+
+  // The scroll ends in the workshop: once the dive has landed, the page holds still and the room is a
+  // game (clicks, Escape). "↑ Story" (world:story) lets go and goes back to the top.
+  useEffect(() => {
+    if (!run3D) return;
+    const root = document.documentElement;
+    let locked = false;
+    const lock = (on: boolean) => {
+      if (on === locked) return;
+      locked = on;
+      root.style.overflow = on ? "hidden" : "";
+    };
+    const off = store.onFrame(() => lock(store.getCoarse().current === "workshop" && store.frames.workshop.arrive >= 1));
+    const toStory = () => {
+      lock(false);
+      jumpRef.current("intro");
+    };
+    window.addEventListener("world:story", toStory);
+    return () => {
+      off();
+      window.removeEventListener("world:story", toStory);
+      lock(false);
+    };
+  }, [store, run3D]);
+
+  // A held shot (the detail view, the tour) holds the page still too; its owner handles Escape.
+  useEffect(() => {
+    if (!coarse.override) return;
+    const root = document.documentElement;
+    const before = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = before;
+    };
+  }, [coarse.override]);
 
   // An open branch holds the page still, closes on Escape, and takes focus; closing gives it back.
   const lastBranch = useRef(coarse.branch);
@@ -205,6 +285,34 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     };
   }, [coarse.branch, store]);
 
+  // The journey rail jumps behind the iris (iris.ts): it closes, the scroll and the camera cut to the
+  // station, and it opens there, so nothing in between plays (the dive, half a spiral). Reduced
+  // motion already cuts behind the veil, and a branch keeps its tween to the side.
+  const iris = useRef<HTMLDivElement>(null);
+  const jump = useCallback(
+    (id: StationId) => {
+      const m = stations.find((s) => s.id === id);
+      const y = dwellStart(store.rail, id);
+      const { branch, current } = store.getCoarse();
+      if (!m || m.kind === "branch" || reduced || !iris.current || y === null || (current === id && branch === null)) {
+        api.goTo(id);
+        return;
+      }
+      runIris(iris.current, () => {
+        const wasOpen = store.getCoarse().branch !== null;
+        store.setBranch(null);
+        store.jump(y);
+        // A branch locks the page scroll; the unlock lands a frame later.
+        if (wasOpen) requestAnimationFrame(() => scrollToY(y, false));
+        else scrollToY(y, false);
+      });
+    },
+    [api, reduced, stations, store],
+  );
+
+  const jumpRef = useRef(jump);
+  jumpRef.current = jump;
+
   const onCut = useCallback(() => {
     const el = veil.current;
     if (!el) return;
@@ -220,9 +328,11 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     <WorldContext.Provider value={api}>
       <div className="sant world" data-mode="volt" data-branch={coarse.branch ?? undefined} data-motion-world={reduced ? "reduced" : "full"}>
         {run3D ? (
-          <Suspense fallback={<div className="world-ground" aria-hidden="true" />}>
-            <WorldCanvas store={store} stations={stations} quality={quality} reduced={reduced} onCut={onCut} />
-          </Suspense>
+          <CanvasBoundary onFail={fail}>
+            <Suspense fallback={<div className="world-ground" aria-hidden="true" />}>
+              <WorldCanvas store={store} stations={stations} quality={quality} reduced={reduced} onCut={onCut} tune={tuning.tune} onTier={setTier} />
+            </Suspense>
+          </CanvasBoundary>
         ) : (
           <Stills stations={stations} at={at} title={atTitle} />
         )}
@@ -238,7 +348,12 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
             );
           })}
         </main>
-        <JourneyRail stations={stations} at={at} goTo={api.goTo} />
+        <div ref={iris} className="world-iris" aria-hidden="true" />
+        <p className="world-brand world-u" aria-hidden="true">
+          <b>S·A·N·T</b> &nbsp;perfect, then multiply
+        </p>
+        <JourneyRail stations={stations} at={at} goTo={jump} />
+        {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />
       </div>
     </WorldContext.Provider>

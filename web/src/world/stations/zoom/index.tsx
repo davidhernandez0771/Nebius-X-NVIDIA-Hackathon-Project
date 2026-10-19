@@ -1,5 +1,5 @@
 // Zoom to UI (core): the camera dollies from MACHINE_VIEW (Blender's "Projection" stop) to its
-// "Zoom to UI" stop, square in front of the projection and close enough that it fills the view; a DOM screen in the app's ground fades up over it, and at the end of the rail the route
+// "Zoom to UI" stop, square in front of the projection and close enough that it fills the view; a DOM screen in the app's ground fades up over it, and at the end of the play the route
 // changes to the cartridge's 2D page (core/handoff.ts). The button is the same handoff, now.
 import { useRef } from "react";
 import { Button } from "../../../sant/components/Button";
@@ -38,10 +38,12 @@ const zoom: StationModule = {
   still: STILLS.zoom,
   title: "Into the projection",
   owner: "core",
-  kind: "rail",
+  kind: "branch",
   anchor: MACHINE_ANCHOR,
   travel: 0,
-  length: 1.4,
+  length: 0,
+  // Plays once it opens (the machine's button, or PLUG IN carrying on): the dolly in, then the page.
+  duration: 2.4,
   camera: (t) => mixPose(MACHINE_VIEW, CLOSE, smoother(t)),
   rest: { position: inFront(5), target: PROJECTION.center, fov: MACHINE_VIEW.fov },
   Overlay,

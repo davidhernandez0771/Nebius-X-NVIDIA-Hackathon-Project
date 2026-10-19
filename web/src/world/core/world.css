@@ -73,6 +73,28 @@
   }
 }
 
+/* The journey rail's jump (iris.ts): the dark closes from the edges onto a teal rim and opens from
+   the centre. --iris is the open radius, set per frame; above the overlays, under the rail. */
+.world-iris {
+  --iris: 72vmax;
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: none;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent calc(var(--iris) - 1.5px),
+    rgba(25, 245, 194, 0.95) var(--iris),
+    rgba(25, 245, 194, 0.22) calc(var(--iris) + 4px),
+    #04070a calc(var(--iris) + 18px)
+  );
+}
+
+.world-iris.is-on {
+  display: block;
+}
+
 @keyframes world-fade-in {
   from {
     opacity: 0;
@@ -117,7 +139,24 @@
   display: grid;
   gap: var(--sant-space-4);
   justify-items: start;
+  /* Only the controls take the pointer: the empty box around the copy lets clicks through to the 3D
+     behind it (the workshop's cartridges sit right there). */
+  pointer-events: none;
+}
+
+.world-panel :is(a, button, input, select, textarea, label, [role="button"], [tabindex]) {
   pointer-events: auto;
+}
+
+/* A soft pool of the ground colour behind the copy, so it reads over a busy 3D shot. Static (no
+   animation), behind the panel's own text. Not behind the zoom's single button. */
+.world-panel:not(.world-panel--zoom)::before {
+  content: "";
+  position: absolute;
+  inset: -56px -72px -56px -96px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgb(7 9 12 / 0.78), rgb(7 9 12 / 0.5) 55%, rgb(7 9 12 / 0));
+  pointer-events: none;
 }
 
 .world-panel--story {

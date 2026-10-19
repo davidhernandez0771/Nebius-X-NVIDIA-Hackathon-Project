@@ -4,7 +4,7 @@
 // - per-frame state (the damped scroll, each station's StationFrame) is mutated in place and pushed
 //   to frame listeners, never through React.
 import { fillFrames, layoutRail, locate, type Place, type Rail } from "./rail";
-import { RAIL_ORDER, type Cartridge, type StationFrame, type StationId, type StationModule } from "./types";
+import { RAIL_ORDER, type CameraPose, type Cartridge, type StationFrame, type StationId, type StationModule } from "./types";
 
 export interface Coarse {
   current: StationId;
@@ -12,6 +12,16 @@ export interface Coarse {
   cartridge: Cartridge | null;
   /** Page height in px: the rail plus one viewport. */
   height: number;
+  /**
+   * The loader is done (the intro's shaders compiled). Until then only the intro's Scene is mounted,
+   * so the workshop's files stream after the first frame instead of before it.
+   */
+  ready: boolean;
+  /**
+   * A shot the camera holds instead of the rail (the detail view, the tour), or null. The rail's
+   * stations stay current under it; the page scroll is held while it is set.
+   */
+  override: CameraPose | null;
 }
 
 type FrameListener = () => void;
@@ -30,12 +40,24 @@ export interface WorldStore {
   setScroll(y: number): Place;
   /** Called by the camera rig each frame (or on scroll when there is no canvas). */
   setShown(y: number): void;
+  /** Counts jump() calls, so the camera rig can tell one happened. */
+  readonly jumps: number;
+  /** Puts both the scroll and the camera at y with no glide in between (a cut behind the iris). */
+  jump(y: number): void;
   onFrame(fn: FrameListener): () => void;
   /** Called on scroll so the canvas renders a frame. */
   onTarget(fn: () => void): () => void;
   setViewport(vh: number): void;
-  setBranch(id: StationId | null): void;
+  /** Open a branch (or close with null). A playing branch starts at t0 (1: already played, e.g. Back). */
+  setBranch(id: StationId | null, t0?: number): void;
+  /** A playing branch's t, 0–1, written by the camera rig every frame it plays. */
+  readonly branchT: number;
+  /** Where the open branch started (setBranch's t0), for the camera rig. */
+  readonly branchT0: number;
+  setBranchT(t: number): void;
   setCartridge(c: Cartridge | null): void;
+  setReady(): void;
+  setOverride(pose: CameraPose | null): void;
 }
 
 const blankFrame = (): StationFrame => ({ t: 0, arrive: 0, current: false, near: false });
@@ -54,7 +76,10 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
   let viewport = vh;
   let targetY = y;
   let shownY = y;
-  let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh };
+  let jumps = 0;
+  let branchT = 0;
+  let branchT0 = 0;
+  let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh, ready: false, override: null };
   const listeners = new Set<() => void>();
   const frameListeners = new Set<FrameListener>();
   const targetListeners = new Set<() => void>();
@@ -72,7 +97,7 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
     for (const b of branches) {
       const f = frames[b.id];
       const open = coarse.branch === b.id;
-      f.t = open ? 1 : 0;
+      f.t = open ? (b.duration ? branchT : 1) : 0;
       f.arrive = open ? 1 : 0;
       f.current = open;
       f.near = true;
@@ -110,6 +135,15 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
       shownY = next;
       fill();
     },
+    get jumps() {
+      return jumps;
+    },
+    jump(next) {
+      jumps++;
+      shownY = next;
+      store.setScroll(next);
+      fill();
+    },
     onFrame(fn) {
       frameListeners.add(fn);
       return () => frameListeners.delete(fn);
@@ -129,13 +163,34 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
       set({ height: rail.total + next });
       fill();
     },
-    setBranch(id) {
+    get branchT() {
+      return branchT;
+    },
+    get branchT0() {
+      return branchT0;
+    },
+    setBranchT(t) {
+      if (t === branchT) return;
+      branchT = t;
+      fill();
+    },
+    setBranch(id, t0 = 0) {
+      branchT0 = id ? Math.min(1, Math.max(0, t0)) : 0;
+      branchT = branchT0;
       set({ branch: id });
       fill();
       targetListeners.forEach((fn) => fn());
     },
     setCartridge(c) {
       set({ cartridge: c });
+      targetListeners.forEach((fn) => fn());
+    },
+    setReady() {
+      set({ ready: true });
+      targetListeners.forEach((fn) => fn());
+    },
+    setOverride(pose) {
+      set({ override: pose });
       targetListeners.forEach((fn) => fn());
     },
   };

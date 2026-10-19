@@ -1,0 +1,50 @@
+/* The loader: black, a cartridge of slashes lighting from the bottom, the //N counter under it. */
+.world-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.7s ease;
+  pointer-events: auto;
+}
+
+.world-loader[data-done="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.world-loader__cart {
+  margin: 0;
+  font-family: var(--w-mono);
+  font-size: 12px;
+  line-height: 1.18;
+  color: #0f1c19;
+  text-align: center;
+  user-select: none;
+}
+
+.world-loader__cart span {
+  transition: color 0.25s;
+}
+
+.world-loader__cart span.is-lit {
+  color: rgba(25, 245, 194, 0.55);
+}
+
+.world-loader__count {
+  position: absolute;
+  top: calc(50% + 104px);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--w-teal);
+  font-family: var(--w-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+}
+
+[data-motion-world="reduced"] .world-loader,
+[data-motion-world="reduced"] .world-loader__cart span {
+  transition: none;
+}

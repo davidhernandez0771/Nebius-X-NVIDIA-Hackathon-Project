@@ -1,49 +1,67 @@
-// Workshop: the room the descent comes down into, with the spiral shelf of robot cartridges in the
-// middle, the machine to the right and the bench to the left. Pointing at a cartridge lifts it;
-// clicking it (or its robot's button below, the keyboard path) sends it to the machine, and the
-// journey moves on to the machine to watch it plug in. "Add a cartridge" opens the workbench.
-import { Button } from "../../../sant/components/Button";
-import { through } from "../../core/rail";
-import { useWorld, useWorldState } from "../../core/WorldContext";
+// Workshop: the room the descent comes down into, and where the scroll ends. From here the site is a
+// game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and three things to
+// click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
+// and projects the robot), and the bench (make a new cartridge). Escape always goes back one level.
+import { useEffect, useRef } from "react";
+import { inHub } from "../../core/CameraRig";
+import { still } from "../../core/layout";
+import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { stop } from "../../scene/layout";
-import { ROBOTS, slotForRobot } from "../../scene/robots";
+import { HoverTip } from "../../ui/HoverTip";
+import { CUT_AT, diveEnter } from "./dive";
 import { WorkshopScene } from "./Scene";
-import { useSend } from "./send";
+import "./workshop.css";
+import { AskBox } from "../../ask/AskBox";
+import { Detail } from "./Detail";
+import { Dock } from "./Dock";
+import { useStepper } from "./stepper";
+import { TourCaption } from "./TourCaption";
 
-function Overlay(_: StationOverlayProps) {
-  const { goTo } = useWorld();
-  const send = useSend();
-  const chosen = useWorldState((c) => c.cartridge?.id ?? null);
+/** The room view's controls, bottom centre: how to play, and the way back up to the story. */
+function HubBar() {
+  const { store } = useWorld();
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let shown = false;
+    return store.onFrame(() => {
+      const on = inHub(store);
+      if (on === shown || !bar.current) return;
+      shown = on;
+      bar.current.dataset.on = String(on);
+    });
+  }, [store]);
+  const toStory = () => {
+    // The story is above: unlock the page (WorldRoot) and go back to its first section.
+    store.setOverride(null);
+    window.dispatchEvent(new CustomEvent("world:story"));
+  };
   return (
-    <div className="world-panel world-panel--workshop">
-      <h2 className="world-h">Workshop</h2>
-      <p className="world-lede">Every robot is a cartridge. Pick one and plug it into the machine.</p>
-      <ol className="world-steps">
-        <li>
-          <strong>Pick a robot.</strong> Point at a cartridge on the spiral, or choose one here.
-        </li>
-        <li>
-          <strong>Plug it in.</strong> The machine reads it and opens Record, where you teach it by showing.
-        </li>
-        <li>
-          <strong>Add a cartridge.</strong> At the bench: pick a shell, name it, upload your robot.
-        </li>
-      </ol>
-      <div className="world-choices" role="group" aria-label="Robots">
-        {ROBOTS.map((r) => (
-          <button key={r.id} type="button" className="sant-btn sant-btn--secondary sant-btn--sm world-choice" aria-pressed={chosen === r.id} onClick={() => send(slotForRobot(r.code).index)}>
-            {r.name}
-          </button>
-        ))}
-      </div>
-      <Button variant="ghost" size="sm" onClick={() => goTo("workbench")}>
-        Add a cartridge
-      </Button>
+    <div ref={bar} className="world-hubbar world-u" data-on="false">
+      <span>Click the shelf, the machine or the bench · Esc goes back</span>
+      <button type="button" onClick={toStory}>↑ Story</button>
     </div>
   );
 }
+
+function Overlay(_: StationOverlayProps) {
+  useStepper();
+  return (
+    <>
+      <HoverTip />
+      <h2 className="world-sr">Workshop</h2>
+      <HubBar />
+      <Dock>
+        <AskBox />
+      </Dock>
+      <Detail />
+      <TourCaption />
+    </>
+  );
+}
+
+const HUB = stop("Workshop intro");
 
 const workshop: StationModule = {
   id: "workshop",
@@ -52,13 +70,16 @@ const workshop: StationModule = {
   owner: "T6",
   kind: "rail",
   anchor: [0, 0, 0],
-  travel: 0.6,
-  length: 1.5,
-  // The room from the front, then the spiral shelf.
-  camera: through(stop("Workshop intro"), stop("Tutorial 1 · shelf")),
-  rest: stop("Workshop intro"),
-  // The room stays drawn behind the machine and the zoom.
-  reach: 2,
+  // In through the skylight, behind a mask (dive.ts): a longer travel, so the dive reads.
+  travel: 1.1,
+  enter: diveEnter,
+  cutAt: CUT_AT,
+  // The end of the scroll: the room view. From here it's clicks (the shelf, the machine, the bench).
+  length: 0.25,
+  camera: still(HUB),
+  rest: HUB,
+  // The room stays drawn behind the machine, the zoom and the bench.
+  reach: 3,
   Scene: WorkshopScene,
   Overlay,
 };

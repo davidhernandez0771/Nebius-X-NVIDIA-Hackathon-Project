@@ -25,6 +25,12 @@ export function checkStations(stations: readonly StationModule[]): string[] {
       const p = s.camera(t);
       if (![...p.position, ...p.target, p.fov].every(Number.isFinite)) problems.push(`"${s.id}" camera(${t}) is not finite`);
     }
+    // A custom travel must start where the previous station ends and land on this one's camera(0).
+    if (i > 0 && s.enter) {
+      const from = stationPose(rail[i - 1], 1);
+      if (!samePose(s.enter(0, from), from)) problems.push(`"${s.id}" enter(0) isn't "${rail[i - 1].id}"'s camera(1)`);
+      if (!samePose(s.enter(1, from), stationPose(s, 0))) problems.push(`"${s.id}" enter(1) isn't its own camera(0)`);
+    }
     // With no travel there is no move between the two cameras, so they must meet exactly.
     if (i > 0 && s.travel === 0 && !samePose(stationPose(rail[i - 1], 1), stationPose(s, 0)))
       problems.push(`"${s.id}" has travel 0 but its camera(0) isn't "${rail[i - 1].id}"'s camera(1)`);

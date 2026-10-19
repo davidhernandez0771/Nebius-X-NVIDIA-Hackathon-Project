@@ -1,123 +1,44 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter, Outlet, useLocation } from "react-router-dom";
+// The site's routes after the revamp: the journey is the front door, the old room and landing pages
+// redirect to it, and the work pages sit in the work shell with the pipeline nav.
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
-// Only the routing is under test: the heavy pages, the providers and the hand cursor are stubbed.
-vi.mock("./site/landing/LandingPage", () => ({ default: () => <p>site landing</p> }));
-vi.mock("./sant/SantRoot", () => ({ SantRoot: () => <Outlet /> }));
-const hand = vi.hoisted(() => ({ enabled: false, disable: (() => {}) as () => void }));
-vi.mock("./hand/integration/useHandPointer", () => ({
-  useHandPointer: () => ({ enabled: hand.enabled, status: "off", enable: () => {}, disable: hand.disable }),
-}));
-vi.mock("./hand/overlay/HandCursorOverlay", () => ({ HandCursorOverlay: () => <div data-testid="hand-overlay" /> }));
-vi.mock("./hand/overlay/CalibrationPanel", () => ({ CalibrationPanel: () => null }));
-vi.mock("./hand/integration/HandToggle", () => ({ HandToggle: () => <button type="button">Hand control</button> }));
-vi.mock("./legacy/pages/Landing", () => ({ default: () => <p>legacy landing</p> }));
-vi.mock("./legacy/pages/Entry", () => ({ default: () => <p>legacy entry</p> }));
-vi.mock("./legacy/pages/Home", () => ({ default: () => <p>legacy home</p> }));
-vi.mock("./legacy/pm/record/RecordPage", () => ({ default: () => <p>legacy record</p> }));
-vi.mock("./legacy/pm/review/ReviewPage", () => ({ default: () => <p>legacy review</p> }));
-vi.mock("./site/record/RecordConsole", () => ({ default: () => <p>new record</p> }));
-
-function Where() {
-  return <output data-testid="where">{useLocation().pathname}</output>;
-}
-
-function at(path: string) {
+const at = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]}>
       <App />
-      <Where />
     </MemoryRouter>,
   );
-}
-
-afterEach(() => {
-  cleanup();
-  hand.enabled = false;
-  hand.disable = () => {};
-});
 
 describe("App routes", () => {
-  // /home and /enter are the old site's unprefixed URLs: only /pm/* is redirected into /legacy.
-  it.each(["/", "/welcome", "/no-such-page", "/home", "/enter"])("%s goes to the SANT landing at /site", async (path) => {
-    at(path);
-    expect(await screen.findByText("site landing")).toBeTruthy();
-    expect(screen.getByTestId("where").textContent).toBe("/site");
+  beforeEach(() => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    // No backend in tests: every request fails, and the pages say so.
+    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new Error("offline"))));
   });
-
-  it.each([
-    ["/legacy", "legacy landing"],
-    ["/legacy/enter", "legacy entry"],
-    ["/legacy/home", "legacy home"],
-    ["/legacy/pm/record", "legacy record"],
-  ])("serves the archived old site at %s", async (path, text) => {
-    at(path);
-    expect(await screen.findByText(text)).toBeTruthy();
-    expect(screen.getByTestId("where").textContent).toBe(path);
-  });
-
-  it("keeps the old dashboard rail around the legacy pages", async () => {
-    at("/legacy/home");
-    await screen.findByText("legacy home");
-    expect(screen.getByRole("navigation", { name: "Main" })).toBeTruthy();
-  });
-
-  it("redirects /pm/* to /legacy/pm/*, keeping the query and the hash", async () => {
-    render(
-      <MemoryRouter initialEntries={["/pm/review?id=abc#top"]}>
-        <App />
-        <Full />
-      </MemoryRouter>,
-    );
-    expect(await screen.findByText("legacy review")).toBeTruthy();
-    expect(screen.getByTestId("full").textContent).toBe("/legacy/pm/review?id=abc#top");
-  });
-
-  it("opens the new Record for the live test's /pm/record, keeping the query and the hash", async () => {
-    render(
-      <MemoryRouter initialEntries={["/pm/record?trace#top"]}>
-        <App />
-        <Full />
-      </MemoryRouter>,
-    );
-    expect(await screen.findByText("new record")).toBeTruthy();
-    expect(screen.getByTestId("full").textContent).toBe("/record?trace#top");
-  });
-});
-
-function Full() {
-  const { pathname, search, hash } = useLocation();
-  return <output data-testid="full">{pathname + search + hash}</output>;
-}
-
-describe("hand control", () => {
-  const controls = () => ({
-    toggle: screen.queryByRole("button", { name: "Hand control" }),
-    gear: screen.queryByRole("button", { name: "Hand-control calibration" }),
-    overlay: screen.queryByTestId("hand-overlay"),
-  });
-
-  it.each(["/legacy", "/legacy/home", "/legacy/pm/record"])("shows the toggle, the gear and the cursor on %s", async (path) => {
-    at(path);
-    await screen.findByText(/^legacy (landing|home|record)$/);
-    const c = controls();
-    expect(c.toggle && c.gear && c.overlay).toBeTruthy();
-  });
-
-  it.each(["/site", "/design", "/landing/pinch-sheet"])("hides all three on %s", (path) => {
-    at(path);
-    expect(controls()).toEqual({ toggle: null, gear: null, overlay: null });
-  });
-
-  it("turns a camera left on off when leaving /legacy, and leaves it on inside", () => {
-    hand.enabled = true;
-    hand.disable = vi.fn();
-    at("/legacy/home");
-    expect(hand.disable).not.toHaveBeenCalled();
+  afterEach(() => {
     cleanup();
-    at("/site");
-    expect(hand.disable).toHaveBeenCalled();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("opens the journey at /", async () => {
+    at("/");
+    expect(await screen.findByRole("heading", { level: 1, name: "Show a robot once. Get the data to teach it." }, { timeout: 8000 })).toBeTruthy();
+  });
+
+  it.each(["/home", "/inventory", "/chat", "/site", "/enter", "/room?room_id=1"])("sends the old page %s to the journey", async (path) => {
+    at(path);
+    expect(await screen.findByRole("heading", { level: 1, name: "Show a robot once. Get the data to teach it." }, { timeout: 8000 })).toBeTruthy();
+  });
+
+  it("frames a work page with the pipeline and the way back to the workshop", async () => {
+    at("/pm/results");
+    const nav = await screen.findByRole("navigation", { name: "Pipeline" });
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["01 Record", "02 Review", "03 Dataset", "04 Results"]);
+    expect(within(nav).getByRole("link", { name: "04 Results" }).className).toContain("active");
+    expect(screen.getByRole("link", { name: "← Workshop" }).getAttribute("href")).toBe("/");
   });
 });

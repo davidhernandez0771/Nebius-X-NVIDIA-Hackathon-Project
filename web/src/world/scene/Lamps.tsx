@@ -1,4 +1,4 @@
-// The lamps: the workshop starts dark. Once the camera is halfway down the descent, the lamps sputter
+// The lamps: the workshop starts dark. Once the dive opens into the room, the lamps sputter
 // while the files are still arriving, then run the power-on flicker when everything is in (flicker.ts).
 // It is a short time-driven sequence, so it asks for frames only while it plays. With reduced
 // motion there is no flicker: the room stays dark until it is ready, then fades up.
@@ -23,7 +23,9 @@ export function Lamps({ reduced }: { reduced: boolean }) {
   useFrame(({ clock }) => {
     const now = clock.elapsedTime;
     const f = store.frames;
-    const arrived = f.descent.t >= 0.5 || f.workshop.arrive > 0 || f.workbench.current;
+    // The room boots as the dive opens into it (stations/workshop/dive.ts), not while it is still
+    // only a glimpse through the skylight.
+    const arrived = f.workshop.arrive >= 0.55 || f.workbench.current;
     if (!arrived) {
       if (onAt.current === null) setPower(OFF);
       return;

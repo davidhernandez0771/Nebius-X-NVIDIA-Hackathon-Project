@@ -4,9 +4,8 @@
 // widened toward and away from the axis.
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import type { QualityTier } from "../core/quality";
 import { HELIX } from "./layout";
-import { addGlow, addLit } from "./power";
+import { addGlow } from "./power";
 
 /** Half a cartridge's height: a slot's position is the cartridge's centre. */
 const HALF_H = 1.25;
@@ -60,20 +59,15 @@ function bandGeometry(curve: THREE.CatmullRomCurve3): { band: THREE.BufferGeomet
   return { band: strip(band), edge: strip(edge) };
 }
 
-export function Ribbon({ quality }: { quality: QualityTier }) {
+export function Ribbon() {
   const { band, edge } = useMemo(() => bandGeometry(ribbonCurve()), []);
-  const bandMat = useMemo(
-    () =>
-      quality.name === "low"
-        ? new THREE.MeshLambertMaterial({ color: "#0d0f12", side: THREE.DoubleSide })
-        : new THREE.MeshStandardMaterial({ color: "#0d0f12", roughness: 0.28, metalness: 0.6, side: THREE.DoubleSide, envMapIntensity: 0.6 }),
-    [quality],
-  );
+  // Matte on every tier: a glossy band catches the key light as a grey sheet.
+  const bandMat = useMemo(() => new THREE.MeshLambertMaterial({ color: "#0b0d10", side: THREE.DoubleSide }), []);
   const edgeMat = useMemo(() => new THREE.MeshBasicMaterial({ color: TEAL, toneMapped: false, side: THREE.DoubleSide }), []);
   useEffect(() => {
-    const offs = [addGlow(edgeMat, TEAL), bandMat instanceof THREE.MeshStandardMaterial ? addLit(bandMat, bandMat.envMapIntensity) : () => {}];
+    const off = addGlow(edgeMat, TEAL);
     return () => {
-      offs.forEach((f) => f());
+      off();
       bandMat.dispose();
       edgeMat.dispose();
       band.dispose();

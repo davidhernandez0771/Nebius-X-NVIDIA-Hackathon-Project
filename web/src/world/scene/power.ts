@@ -2,14 +2,15 @@
 // colour of every baked material (their light is in the atlas, so dimming the colour dims the room)
 // and the intensity of the few live lights on the moving parts. Mutated in place, never React state.
 // It also counts the files in, so the lamps know when the workshop is ready.
-import { Color, type Light, type MeshBasicMaterial, type MeshStandardMaterial } from "three";
+import { Color, type ColorRepresentation, type Light, type MeshBasicMaterial, type Scene } from "three";
 import { ALL_MODELS } from "./assets";
 import { OFF } from "./flicker";
 
 const baked = new Set<MeshBasicMaterial>();
 const lights = new Map<Light, number>();
-const lit = new Map<MeshStandardMaterial, number>();
-const glows = new Map<MeshBasicMaterial, Color>();
+/** The scene whose environment (the reflections on the live parts) follows the lamps, at full power `base`. */
+let env: { scene: Scene; base: number } | null = null;
+const glows = new Map<MeshBasicMaterial, { base: Color; gain: number }>();
 const loaded = new Set<string>();
 
 export const power = {
@@ -27,8 +28,9 @@ export function setPower(level: number): void {
   power.level = level;
   baked.forEach((m) => apply(m, level));
   lights.forEach((base, l) => (l.intensity = base * level));
-  lit.forEach((base, m) => (m.envMapIntensity = base * level));
-  glows.forEach((base, m) => m.color.copy(base).multiplyScalar(level));
+  // three uses scene.environmentIntensity, not material.envMapIntensity, for a scene-wide environment.
+  if (env) env.scene.environmentIntensity = env.base * level;
+  glows.forEach((g, m) => m.color.copy(g.base).multiplyScalar(level * g.gain));
 }
 
 /** A baked material follows the lamps from now on; returns the unregister. */
@@ -38,19 +40,28 @@ export function addBaked(m: MeshBasicMaterial): () => void {
   return () => baked.delete(m);
 }
 
-/** A lit material whose reflections (envMapIntensity `base` at full power) follow the lamps. */
-export function addLit(m: MeshStandardMaterial, base: number): () => void {
-  lit.set(m, base);
-  m.envMapIntensity = base * power.level;
-  return () => lit.delete(m);
+/** The scene's environment follows the lamps from now on; returns the unregister. */
+export function addEnvironment(scene: Scene, base: number): () => void {
+  env = { scene, base };
+  scene.environmentIntensity = base * power.level;
+  return () => {
+    if (env?.scene === scene) env = null;
+  };
 }
 
-/** A lamp-powered light strip (an unlit material of colour `base` at full power). */
-export function addGlow(m: MeshBasicMaterial, base: string): () => void {
-  const c = new Color(base);
-  glows.set(m, c);
-  m.color.copy(c).multiplyScalar(power.level);
+/** A lamp-powered light strip: an unlit material of colour `base` at full power. */
+export function addGlow(m: MeshBasicMaterial, base: ColorRepresentation): () => void {
+  glows.set(m, { base: new Color(base), gain: 1 });
+  m.color.copy(glows.get(m)!.base).multiplyScalar(power.level);
   return () => glows.delete(m);
+}
+
+/** Turn one glow up or down on top of the lamps (the slot light, the projector's lens). */
+export function setGlowGain(m: MeshBasicMaterial, gain: number): void {
+  const g = glows.get(m);
+  if (!g || g.gain === gain) return;
+  g.gain = gain;
+  m.color.copy(g.base).multiplyScalar(power.level * gain);
 }
 
 /** A live light at full power `base`; returns the unregister. */

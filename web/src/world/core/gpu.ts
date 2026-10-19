@@ -22,7 +22,7 @@ export const BENCH = { size: 512, draws: 8, steps: 48 } as const;
  * Thresholds on BENCH, in ms. Measured in Chrome: an RTX 5080 takes 0.2–0.9 ms (5 runs, at the
  * 0.1 ms timer resolution). A mid laptop GPU (Iris Xe, Radeon 680M) has roughly 1/20 of its shader
  * throughput, so ~5–20 ms; an old integrated one ~50 ms. Above STILLS_MS the canvas would not hold
- * even 20 fps. Not yet checked on a laptop: see docs/design/world-workshop.md.
+ * even 20 fps. Not yet checked on a laptop: docs/superpowers/notes/2026-10-18-world-workshop.md.
  */
 export const BENCH_MS = { ultra: 3, high: 24, stills: 400 } as const;
 
@@ -149,4 +149,26 @@ export function checkGpu(storage: Storage | undefined, probe: () => GpuReport = 
     /* storage full or blocked */
   }
   return { gpu, report };
+}
+
+/**
+ * The renderer string, short enough for the HUD. Chrome wraps it in ANGLE:
+ * "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+ * reads "NVIDIA GeForce RTX 4060 Laptop GPU · D3D11". Integrated graphics get a flag, since a laptop
+ * with two GPUs may hand the browser the weaker one (PERF.md, step 0).
+ */
+export function gpuLabel(renderer: string): string {
+  let name = renderer.trim();
+  let api = "";
+  const angle = /^ANGLE \((.*)\)$/i.exec(name);
+  if (angle) {
+    const parts = angle[1].split(", ");
+    // [vendor, device, backend]; a device name may hold commas of its own.
+    api = parts.length >= 3 ? parts[parts.length - 1] : "";
+    name = (parts.length >= 3 ? parts.slice(1, -1) : parts.slice(1)).join(", ") || parts[0];
+    name = name.replace(/\s*\(0x[0-9a-f]+\)/gi, "").replace(/\s+(Direct3D|vs_|ps_|OpenGL|Vulkan|Metal).*$/i, "");
+  }
+  if (!name) return "unknown (the browser hides it)";
+  const integrated = /\bintel\b|radeon\(tm\) graphics|\bradeon graphics|\bvega \d+ graphics/i.test(name) && !/\barc\b/i.test(name);
+  return `${name}${api ? ` · ${api}` : ""}${integrated ? "  (integrated)" : ""}`;
 }
