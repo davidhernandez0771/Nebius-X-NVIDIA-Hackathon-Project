@@ -1,7 +1,8 @@
 // /record, "inside the hologram" (docs/design/prototypes/record-hologram.html): you zoomed into the
 // machine's projection, so the page is that projection. The cutting-mat grid, the plugged-in robot
 // cartridge and the S/A/N/T rail on top, the camera pane with the hand art and the control region,
-// the robot twin, the gripper dial and height gauge, the bottom strip, and the settings drawer.
+// the 3D robot twin (live from the sim, else a replay of a verified copy: robotTwin.ts), the gripper
+// dial and height gauge, the bottom strip, and the settings drawer.
 // Everything is fed by the same teleop session as /legacy/pm/record (useRecordSession: hand v4's
 // simple pinch, reset gesture, original hand art, control region, break-through). The page fits the
 // window: a 100dvh grid, no page scrollbar, nothing scrolls inside a pane.
@@ -14,9 +15,11 @@ import ResetGestureRing from "../../record/ResetGestureRing";
 import type { StagePalette } from "../../record/stageDraw";
 import { ART_COOLDOWN_MS, ART_MORPH_MS, SINK_COMMAND, STEP_S, useRecordSession, type PoseUi, type RecordSession } from "../../record/useRecordSession";
 import { useMotion } from "../../sant/motion/MotionProvider";
+import { RobotTwin } from "../../twin";
 import { formatClock } from "../record-hud";
-import { GripDial, HeightGauge, Trace, Twin } from "./instruments";
+import { GripDial, HeightGauge, Trace } from "./instruments";
 import { RecordSettings } from "./RecordSettings";
+import { useRecordTwin } from "./robotTwin";
 import { LIVE_ROBOT, initialLive, stepLive, type LiveState } from "./twin";
 import "./record-hologram.css";
 
@@ -106,6 +109,7 @@ export default RecordConsole;
 export function RecordView({ session, onPalette }: { session: RecordSession; onPalette: (p: StagePalette) => void }) {
   const { phase, relay, sim, pose, settings, streaming, lost, simReady, recording, resetToast } = session;
   const live = useLive(pose);
+  const twin = useRecordTwin();
   const saved = useSavedDemos(sim?.demoId);
   const { reduced } = useMotion();
   const [boot, setBoot] = useState(!reduced);
@@ -298,10 +302,14 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
         <div className="rg-side">
           <section className="rg-pane" aria-label="workspace">
             <div className="rg-hd">
-              <span>workspace · top + side</span>
-              <span className="rg-hd__tag">robot twin</span>
+              <span>workspace · robot twin</span>
+              <span className="rg-hd__tag" data-mode={twin.mode}>
+                {twin.mode}
+              </span>
             </div>
-            <Twin live={live} />
+            <div className="rg-twin3d">
+              <RobotTwin {...twin.view} caption={twin.caption} />
+            </div>
             <Brackets diagonal />
           </section>
           <div className="rg-duo">

@@ -1,24 +1,12 @@
-// /record's instruments, after docs/design/prototypes/record-hologram.html: the robot twin (top and
-// side views), the gripper dial with its orange needle, the height gauge and the bottom trace. Each
-// is an SVG drawn at its pane's pixel size (measured), so lines stay 1 px and text never scales.
+// /record's instruments, after docs/design/prototypes/record-hologram.html: the gripper dial with its
+// orange needle, the height gauge and the bottom trace (the robot twin is the 3D one, web/src/twin).
+// Each is an SVG drawn at its pane's pixel size (measured), so lines stay 1 px and text never scales.
 
 import { useCallback, useEffect, useRef, useState, type RefCallback } from "react";
 import { knobAngle } from "../record-hud";
 import { LIVE_HISTORY } from "./liveHud";
 import { PINCH_CLOSE_BELOW, PINCH_OPEN_ABOVE } from "../../record/teleop/pinch";
-import {
-  SCENE,
-  SIDE_VIEW,
-  TOP_VIEW,
-  WORKSPACE,
-  fitBox,
-  pathOf,
-  sidePoint,
-  topPoint,
-  traceX,
-  tracePath,
-  type LiveState,
-} from "./twin";
+import { WORKSPACE, traceX, tracePath, type LiveState } from "./twin";
 
 type Size = { w: number; h: number };
 
@@ -42,115 +30,6 @@ function useSize<T extends Element>(): [RefCallback<T>, Size] {
   }, []);
   useEffect(() => () => observer.current?.disconnect(), []);
   return [ref, size];
-}
-
-const fmt2 = (v: number) => v.toFixed(2);
-
-/** The robot twin: top view (bin, cube start, the target's path and dot) and side view (height over the table). */
-export function Twin({ live }: { live: LiveState }) {
-  const [ref, { w, h }] = useSize<SVGSVGElement>();
-  const { hud, yHistory } = live;
-  const t = hud.target;
-  const closed = t !== null && hud.gripper === 1;
-  const stale = t !== null && !hud.tracking;
-  const label = t
-    ? `Robot twin: target x ${fmt2(t.ee[0])} m, y ${fmt2(t.ee[1])} m, height ${fmt2(t.ee[2])} m, gripper ${closed ? "closed" : "open"}${stale ? " (held, hand lost)" : ""}`
-    : "Robot twin: no target yet";
-
-  // Two views side by side under the pane header, labels underneath.
-  const pad = 14;
-  const head = 30;
-  const foot = 20;
-  const gap = 18;
-  const areaH = Math.max(0, h - head - foot);
-  const topW = Math.max(0, (w - 2 * pad - gap) * 0.62);
-  const top = fitBox(topW, areaH, (TOP_VIEW.y[1] - TOP_VIEW.y[0]) / (TOP_VIEW.x[1] - TOP_VIEW.x[0]), pad, head);
-  const sideW = Math.max(0, w - 2 * pad - gap - topW);
-  const side = fitBox(sideW, areaH, (SIDE_VIEW.x[1] - SIDE_VIEW.x[0]) / (SIDE_VIEW.z[1] - SIDE_VIEW.z[0]), pad + topW + gap, head);
-  const ready = w > 0 && h > 0 && top.width > 0 && side.width > 0;
-
-  return (
-    <svg ref={ref} className="rg-svg" role="img" aria-label={label} width={w || undefined} height={h || undefined}>
-      {ready && (
-        <>
-          <TopView box={top} live={live} yHistory={yHistory} closed={closed} stale={stale} />
-          <SideView box={side} live={live} closed={closed} stale={stale} />
-        </>
-      )}
-    </svg>
-  );
-}
-
-type Box = ReturnType<typeof fitBox>;
-
-function TopView({ box, live, yHistory, closed, stale }: { box: Box; live: LiveState; yHistory: number[]; closed: boolean; stale: boolean }) {
-  const { hud } = live;
-  const t = hud.target;
-  const [wx0, wy0] = topPoint(WORKSPACE.x[1], WORKSPACE.y[1], box);
-  const [wx1, wy1] = topPoint(WORKSPACE.x[0], WORKSPACE.y[0], box);
-  const scale = box.height / (TOP_VIEW.x[1] - TOP_VIEW.x[0]); // px per meter (same both ways: the box keeps the aspect)
-  const [bx, by] = topPoint(SCENE.bin.x, SCENE.bin.y, box);
-  const [cx, cy] = topPoint(SCENE.cube.x, SCENE.cube.y, box);
-  const bin = SCENE.bin.outer * scale;
-  const cube = SCENE.cube.size * scale;
-  const n = Math.min(hud.xHistory.length, yHistory.length);
-  const path = pathOf(Array.from({ length: n }, (_, i) => topPoint(hud.xHistory[hud.xHistory.length - n + i], yHistory[yHistory.length - n + i], box)));
-  const dot = t ? topPoint(t.ee[0], t.ee[1], box) : null;
-  return (
-    <g>
-      <rect className="rg-hair" x={box.left} y={box.top} width={box.width} height={box.height} />
-      {[1, 2, 3].map((k) => (
-        <g key={k} className="rg-grid">
-          <line x1={box.left + (box.width * k) / 4} y1={box.top} x2={box.left + (box.width * k) / 4} y2={box.top + box.height} />
-          <line x1={box.left} y1={box.top + (box.height * k) / 4} x2={box.left + box.width} y2={box.top + (box.height * k) / 4} />
-        </g>
-      ))}
-      <rect className="rg-reach" x={wx0} y={wy0} width={wx1 - wx0} height={wy1 - wy0} />
-      <rect className="rg-bin" x={bx - bin / 2} y={by - bin / 2} width={bin} height={bin} />
-      <text className="rg-svg-label rg-svg-label--bin" x={bx} y={by + bin / 2 + 12} textAnchor="middle">
-        bin
-      </text>
-      <rect className="rg-cube" x={cx - cube / 2} y={cy - cube / 2} width={cube} height={cube} />
-      <text className="rg-svg-label" x={cx} y={cy + cube / 2 + 12} textAnchor="middle">
-        cube
-      </text>
-      {path && <path className="rg-path" d={path} />}
-      {dot && <circle className="rg-ee" data-closed={closed || undefined} data-stale={stale || undefined} cx={dot[0]} cy={dot[1]} r={4} />}
-      <text className="rg-svg-label" x={box.left} y={box.top + box.height + 14}>
-        top · x/y
-      </text>
-    </g>
-  );
-}
-
-function SideView({ box, live, closed, stale }: { box: Box; live: LiveState; closed: boolean; stale: boolean }) {
-  const t = live.hud.target;
-  const scale = box.height / (SIDE_VIEW.z[1] - SIDE_VIEW.z[0]);
-  const [tableX0, tableY] = sidePoint(SIDE_VIEW.x[0], 0, box);
-  const [tableX1] = sidePoint(SIDE_VIEW.x[1], 0, box);
-  const [binX] = sidePoint(SCENE.bin.x - SCENE.bin.outer / 2, 0, box);
-  const [cubeX] = sidePoint(SCENE.cube.x - SCENE.cube.size / 2, 0, box);
-  const ee = t ? sidePoint(t.ee[0], t.ee[2], box) : null;
-  return (
-    <g>
-      <rect className="rg-hair" x={box.left} y={box.top} width={box.width} height={box.height} />
-      <path className="rg-bin rg-bin--side" d={`M${binX} ${tableY}V${tableY - SCENE.bin.height * scale}M${binX + SCENE.bin.outer * scale} ${tableY}V${tableY - SCENE.bin.height * scale}`} />
-      <rect className="rg-cube rg-cube--side" x={cubeX} y={tableY - SCENE.cube.size * scale} width={SCENE.cube.size * scale} height={SCENE.cube.size * scale} />
-      <line className="rg-table" x1={tableX0} y1={tableY} x2={tableX1} y2={tableY} />
-      <text className="rg-svg-label" x={box.left + 4} y={tableY - 4}>
-        table
-      </text>
-      {ee && (
-        <g className="rg-plumb" data-closed={closed || undefined} data-stale={stale || undefined}>
-          <line x1={ee[0]} y1={box.top} x2={ee[0]} y2={ee[1]} />
-          <rect x={ee[0] - 7} y={ee[1] - 3} width={14} height={6} />
-        </g>
-      )}
-      <text className="rg-svg-label" x={box.left} y={box.top + box.height + 14}>
-        side · z
-      </text>
-    </g>
-  );
 }
 
 /** Polar point: angle in degrees, 0 at the top, clockwise. */

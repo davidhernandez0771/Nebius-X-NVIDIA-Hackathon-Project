@@ -41,6 +41,30 @@ vi.mock("../../record/teleop/handLock", async (importOriginal) => ({
   HandLock: (await import("../../record/teleop/__fixtures__/passThroughLock")).PassThroughHandLock,
 }));
 vi.mock("../../record/handArt", () => ({ LazyHandArtOverlay: () => <div data-testid="hand-art-overlay" /> }));
+// The 3D twin's two sources, faked: three.js never loads, no socket opens, nothing is fetched.
+const twin = vi.hoisted(() => ({
+  live: { status: "offline", joints: null, gripper: null, cube: null, bin: null, base: null, robot: null } as Record<string, unknown>,
+  replay: {
+    status: "ready",
+    error: null,
+    episode: { demoId: "s1_0004_nemotron_m104003" },
+    twin: { joints: { panda_joint1: 0.6 }, gripper: 0, cube: null, bin: null },
+    base: null,
+  } as Record<string, unknown>,
+  replayUrl: undefined as string | null | undefined,
+}));
+vi.mock("../../twin", () => ({
+  RobotTwin: ({ caption, joints }: { caption?: string; joints: Record<string, number> | null }) => (
+    <div data-testid="twin3d" data-joints={JSON.stringify(joints)}>
+      {caption}
+    </div>
+  ),
+  useLiveTwin: () => twin.live,
+  useReplayTwin: (_id: string | null, opts?: { url?: string | null }) => {
+    twin.replayUrl = opts?.url;
+    return twin.replay;
+  },
+}));
 vi.mock("../../record/recordLink", () => ({
   RecordLink: class {
     sent: string[] = [];
@@ -224,7 +248,6 @@ describe("/record: the instruments show what is sent", () => {
     expect(within(tile("ee_x")).getByText("—")).toBeTruthy();
     holdFor(0, 200, hand());
     expect(within(tile("ee_x")).queryByText("—")).toBeNull();
-    expect(screen.getByRole("img", { name: /^Robot twin: target x \d/ })).toBeTruthy();
   });
 
   it("the V sign held 1.5 s sends reset_scene once and says so", async () => {
@@ -317,9 +340,30 @@ describe("/record: the hologram's top bar and boot", () => {
     expect(container.querySelector(".rg-scan")).toBeNull();
   });
 
-  it("shows the twin, the dial and the gauge empty until a hand is tracked", async () => {
+  it("replays the demo episode in the 3D twin when no sim streams, with the camera off", () => {
+    renderPage();
+    expect(twin.replayUrl).toMatch(/world\/demo-episode\.json$/);
+    const view = screen.getByTestId("twin3d");
+    expect(view.textContent).toBe("replay · verified copy s1_0004_nemotron_m104003");
+    expect(view.getAttribute("data-joints")).toBe(JSON.stringify({ panda_joint1: 0.6 }));
+    expect(within(tile("workspace")).getByText("replay")).toBeTruthy();
+  });
+
+  it("shows the sim live in the 3D twin when it streams, and stops loading the replay", () => {
+    twin.live = { ...twin.live, status: "live", joints: { panda_joint1: -0.3 } };
+    try {
+      renderPage();
+      expect(twin.replayUrl).toBeNull();
+      expect(screen.getByTestId("twin3d").textContent).toBe("live from the sim");
+      expect(screen.getByTestId("twin3d").getAttribute("data-joints")).toBe(JSON.stringify({ panda_joint1: -0.3 }));
+      expect(within(tile("workspace")).getByText("live")).toBeTruthy();
+    } finally {
+      twin.live = { ...twin.live, status: "offline", joints: null };
+    }
+  });
+
+  it("shows the dial and the gauge empty until a hand is tracked", async () => {
     await startCamera();
-    expect(screen.getByRole("img", { name: "Robot twin: no target yet" })).toBeTruthy();
     expect(screen.getByRole("meter", { name: "Arm height" }).getAttribute("aria-valuetext")).toBe("no target");
     holdFor(0, 200, hand());
     expect(screen.getByRole("meter", { name: "Arm height" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m$/);

@@ -442,6 +442,17 @@
   letter-spacing: 0.08em;
 }
 
+/* The 3D robot twin (web/src/twin) fills the workspace pane under its header; twin.css reads the --rg tokens. */
+.rg-twin3d {
+  position: absolute;
+  inset: 26px 0 0;
+  overflow: hidden;
+}
+
+.rg-hd__tag[data-mode="live"] {
+  color: var(--rg-live);
+}
+
 .rg-svg {
   position: absolute;
   inset: 0;
