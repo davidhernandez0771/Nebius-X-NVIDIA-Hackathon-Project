@@ -172,6 +172,32 @@ The tiers extend T5's `quality.ts` with the brief's numbers:
 - **First load:** Record is now lazy. `/world` needs **1.66 MB before the first frame**; the 4.1 MB of
   models stream after the loader.
 
+## After the first review (same day)
+
+- **One site:** `/` now opens the journey (`/world` still works).
+  - The old room-tidying pages (rooms, room view, scan and photo, review, inventory, organize, chat,
+    settings), the old landings (`/site`, `/enter`, `/landing/...`) and the dashboard shell are
+    deleted. Their URLs redirect to the journey.
+  - The Python backend is untouched.
+- **The work pages:** Record, Review, Dataset and Results sit in a new frame (`web/src/work/`) in the
+  journey's look:
+  - the brand top left;
+  - the four pipeline steps as the prototype's capsule nav;
+  - "← Workshop" back into the spiral;
+  - the hand control.
+
+  The app's tokens are redefined inside `.work`, so every card, tag and button the pages share is
+  mono, hairline and teal without changing their markup.
+- **The stations' captions** (machine, zoom, bench) and the journey list are in the same mono UI.
+- **Performance:**
+  - Each tier has a pixel budget: low 1.3, high 2.6, ultra 3.7 megapixels.
+  - A live resolution scale drops in steps (to 0.6) when 60 frames average over 19 ms, and recovers
+    under 12.5 ms. The HUD shows it.
+  - The ambient drift and the fans run at 30 fps after 3 s without input.
+  - High asks for the high-performance GPU.
+- **The preview artifact** loads the models through three's cache, because the host serves no
+  `.glb` and blocks `data:` and `blob:` fetches.
+
 ## Decisions to look at
 
 - **The spiral doesn't turn; the camera walks round it.** The baked `shelves.glb` is one mesh with
@@ -204,8 +230,13 @@ The tiers extend T5's `quality.ts` with the brief's numbers:
   tests mock Nemotron. Check the replies stay honest (the prompt forbids numbers).
 - **CORS:** the backend allows only `http://localhost:5173`. A deployed site needs its origin added
   in `src/app/main.py`.
-- **Older overlays:** the machine, zoom and workbench overlays still use the older serif style, not
-  the mono UI; they are T7's, core's and T1's. The workbench is still a placeholder.
+- **The workbench** is still a placeholder.
+- **Results sample:** with no backend, the Results page shows its sample layout ("experiments
+  pending"), not the 3/40 → 17/40 the journey shows. It needs the real results file from the
+  backend.
+- **Unused code left in:** `three/ScanViewer.tsx` stays only because the hand pointer
+  (`hand/integration`) still references it, and much of `styles.css` is now unused CSS from the
+  dashboard.
 - **Mobile:** not checked on a phone. The dock has the prototype's small-screen layout, and the tier
   check puts phones on low.
 - **Python tests:** 3 fail on `pm/world-core` as well, untouched by this work. Two are Isaac

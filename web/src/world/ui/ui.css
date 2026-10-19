@@ -221,3 +221,59 @@
     display: none;
   }
 }
+
+/* The stations' own captions (machine, zoom, bench) and the journey list, in the same mono UI as
+   the beats and the dock, not the app's serif. */
+.sant.world .world-h {
+  font-family: var(--w-mono);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--w-ink);
+}
+
+.sant.world .world-lede {
+  font-family: var(--w-mono);
+  font-size: 12px;
+  line-height: 1.75;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a9c9c1;
+  max-width: 46ch;
+}
+
+.sant.world .world-handoff__title {
+  font-family: var(--w-mono);
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sant.world .world-rail button {
+  font: 500 10.5px / 1.2 var(--w-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sant.world .world-rail button[aria-current="step"]::before {
+  background: var(--w-teal);
+}
+
+.sant.world .sant-btn {
+  font-family: var(--w-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  color: var(--w-teal);
+  background: rgba(6, 12, 14, 0.72);
+  border: 1px solid rgba(25, 245, 194, 0.45);
+  box-shadow: 0 10px 30px -12px rgba(25, 245, 194, 0.45);
+}
+
+.sant.world .sant-btn:hover:not(:disabled) {
+  color: #02110d;
+  background: var(--w-teal);
+}

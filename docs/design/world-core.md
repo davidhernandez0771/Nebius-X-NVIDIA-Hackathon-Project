@@ -16,7 +16,8 @@ API below. The workshop, the machine and the camera stops now come from the Blen
 (`docs/design/blender/export`); how that part is built and measured is in
 `docs/superpowers/notes/2026-10-18-world-workshop.md`.
 
-- **Open it:** `npm --prefix web run dev`, then `http://localhost:5173/world`.
+- **Open it:** `npm --prefix web run dev`, then `http://localhost:5173/` (the journey is the site's
+  front door; `/world` works too).
 - **URL flags:** `?quality=low|high|ultra` forces a tier, and `?static` (or `?quality=stills`) forces the stills fallback.
 - **While someone holds `C:\dev\gpu.lock`:** check pages only with `?quality=low` and screenshots.
 

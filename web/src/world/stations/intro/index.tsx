@@ -9,11 +9,13 @@ import { useStationFrame } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { Beats } from "../../ui/Beats";
-import { hero } from "../../../site/landing/copy";
 import { INTRO_STOPS } from "./layout";
 import { Loader } from "./Loader";
 import { IntroScene } from "./Scene";
 import "./intro.css";
+
+/** The page's one line, for the h1 (read by screen readers; the beats carry the story). */
+export const TITLE = "Show a robot once. Get the data to teach it.";
 
 function Overlay(_: StationOverlayProps) {
   const hint = useRef<HTMLParagraphElement>(null);
@@ -23,7 +25,7 @@ function Overlay(_: StationOverlayProps) {
   return (
     <>
       <Loader />
-      <h1 className="world-sr">{hero.title}</h1>
+      <h1 className="world-sr">{TITLE}</h1>
       <p ref={hint} className="world-hint world-u">
         Scroll down
       </p>

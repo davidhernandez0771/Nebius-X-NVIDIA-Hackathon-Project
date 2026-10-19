@@ -8,6 +8,12 @@ a mid laptop (Iris Xe / GTX 1650 class) at 1080p.
 
 ## 0. Before you start
 
+- [ ] **Laptops with two GPUs (e.g. an RTX 4060 plus integrated graphics):** make Chrome use the RTX.
+  1. Open Windows Settings → System → Display → Graphics.
+  2. Find Chrome (Browse to `chrome.exe` if it isn't listed).
+  3. Set it to **High performance**, then restart Chrome.
+  4. Check the HUD's `gpu` line: it should name the NVIDIA GPU, not Intel or AMD integrated graphics.
+
 - [ ] Nothing else on the GPU: close Isaac Sim, and check that nobody holds `C:\dev\gpu.lock`.
 - [ ] Plug the laptop in and set Windows to "Best performance".
 - [ ] Use a 1920×1080 browser window at 100% zoom (or F11 full screen on a 1080p panel).
@@ -31,7 +37,7 @@ a mid laptop (Iris Xe / GTX 1650 class) at 1080p.
   |---|---|
   | tier | the tier in use; `(url)` when `?q=` forced it; `auto → x` once the auto-tune decided |
   | fps | frames per second over the last 0.25 s |
-  | dpr | the canvas pixel ratio (the tier caps it: low 1, high 1.5, ultra 2) |
+  | dpr | the canvas pixel ratio, and the live scale. The tier caps the ratio (low 1, high 1.5, ultra 2) and a pixel budget holds it (1.3 / 2.6 / 3.7 MP). The scale drops to 0.6 while frames run slow; if it sits below 1, the GPU is struggling there. |
   | calls / tris / points | the last frame, every pass included (scene, bloom, final pass) |
   | particles | logo plus dust points for the tier |
   | post | `bloom ½ + final, msaa 4x` on high and ultra, `none` on low |
