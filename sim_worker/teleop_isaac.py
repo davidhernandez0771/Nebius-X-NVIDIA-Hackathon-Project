@@ -50,7 +50,7 @@ from . import replay as _replay
 from .replay import CAMERA_WARMUP_STEPS, CONTACT_N, PHYSICS_DT
 from .scene_cfg import ARM_CONTACT_SENSORS
 from .teleop_render import SubstepSim
-from .teleop_session import TELEOP_DT, StepState
+from .teleop_session import TELEOP_DT, StepState, TwinState
 from .teleop_trace import Sections
 from .tracking import CONTROL_DT
 
@@ -145,6 +145,21 @@ class IsaacTeleopDriver:
         # the per-substep IK inside _physics_step is charged to "other" (step wall minus the timed sections)
         self._action = _replay._physics_step(self._stepper, cmd, int(gripper), joint_vel=vel)
         self._prev_cmd, self._prev_pos = cmd, pos
+
+    @property
+    def joint_names(self) -> list[str]:
+        """The robot's joints in joint_pos order (Isaac Lab's articulation order)."""
+        return list(self.s.scene["robot"].joint_names)
+
+    def read_twin(self) -> TwinState:
+        """Joints and cube pose for the robot twin: one small GPU-to-CPU copy, no contacts or cameras."""
+        with self._time("twin"):
+            s = self.s
+            cube = s.scene["cube"].data.root_pose_w.torch[0]  # pos + quat (x, y, z, w), world frame
+            row = torch.cat([s.scene["robot"].data.joint_pos.torch[0], cube[0:3] - s.scene.env_origins[0], cube[3:7]])
+            v = row.cpu().numpy().astype(np.float64)
+        n = v.shape[0] - 7
+        return TwinState(joint_pos=v[:n], cube_pose=np.concatenate([v[n:n + 3], _replay._wxyz(v[n + 3:])]))
 
     def read_state(self) -> StepState:
         with self._time("read"):
