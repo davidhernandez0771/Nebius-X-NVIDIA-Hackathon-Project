@@ -15,9 +15,13 @@ export interface CameraPose {
 
 export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench";
 
-/** The scroll rail, top to bottom. The workbench is a branch: reached with goTo(), not by scrolling. */
-export const RAIL_ORDER = ["intro", "descent", "workshop", "machine", "zoom"] as const satisfies readonly StationId[];
-export const BRANCHES = ["workbench"] as const satisfies readonly StationId[];
+/**
+ * The scroll rail, top to bottom: the story ends in the workshop, and the scroll ends there too. In
+ * the workshop the page is a game: the machine, the projection and the bench are branches, opened by
+ * a click (goTo), never by scrolling.
+ */
+export const RAIL_ORDER = ["intro", "descent", "workshop"] as const satisfies readonly StationId[];
+export const BRANCHES = ["machine", "zoom", "workbench"] as const satisfies readonly StationId[];
 
 /**
  * A station's progress, updated in place every rendered frame (never through React state). Read it
@@ -94,6 +98,12 @@ export interface StationModule {
    * spiral) sets this so the camera jumps to each step instead (no easing, no travel).
    */
   follow?: boolean;
+  /**
+   * A branch that plays (the machine's plug-in, the zoom into the projection): seconds for its frame
+   * t to run 0 to 1 once it opens, with the camera on camera(t). Absent: the branch holds rest (or
+   * camera(0.5)) and its t is 1.
+   */
+  duration?: number;
   /** A pre-rendered still of the station, shown instead of the canvas when there is no usable GPU. */
   still?: string;
 }

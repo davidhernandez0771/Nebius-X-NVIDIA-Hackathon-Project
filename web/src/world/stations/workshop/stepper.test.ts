@@ -1,30 +1,36 @@
 import { describe, expect, it } from "vitest";
 import { createWorldStore } from "../../core/store";
 import { STATIONS } from "..";
-import { nextY, snapY, stepGeometry } from "./stepper";
+import { stepView } from "./camera";
+import { closeShelf, nextStep, scrollToStep, shelf, shelfView } from "./stepper";
 
-const store = createWorldStore(STATIONS, 1000);
-
-describe("the spiral's stepper", () => {
-  const g = stepGeometry(store, 23)!;
-
-  it("moves exactly one step per notch inside the steps", () => {
-    expect(nextY(g, g.yOfStep(5), 1, false)).toBeCloseTo(g.yOfStep(6), 6);
-    expect(nextY(g, g.yOfStep(5) + 20, -1, false)).toBeCloseTo(g.yOfStep(4), 6);
+describe("the shelf (the spiral browsed in place)", () => {
+  it("moves exactly one cartridge per step and stops at both ends", () => {
+    expect(nextStep(5, 1, 23)).toBe(6);
+    expect(nextStep(5, -1, 23)).toBe(4);
+    expect(nextStep(0, -1, 23)).toBe(0);
+    expect(nextStep(23, 1, 23)).toBe(23);
+    // With a filter on, the steps end at the last match.
+    expect(nextStep(3, 1, 3)).toBe(3);
   });
 
-  it("lets the page scroll on past the ends, except down past the last match with a filter", () => {
-    expect(nextY(g, g.yOfStep(0), -1, false)).toBeNull();
-    expect(nextY(g, g.yOfStep(23), 1, false)).toBeNull();
-    const f = stepGeometry(store, 3)!;
-    expect(nextY(f, f.yOfStep(3), 1, true)).toBeCloseTo(f.yOfStep(3), 6);
-    expect(nextY(g, g.yOfStep(0) - 3 * g.half, 1, false)).toBeNull();
+  it("opens on a cartridge with the camera holding the shot facing it, and closes back to the room", () => {
+    const store = createWorldStore(STATIONS, 1000);
+    scrollToStep(store, 4);
+    expect(shelf.open).toBe(true);
+    expect(shelf.step).toBe(4);
+    expect(store.getCoarse().override).toEqual(stepView(4));
+    expect(shelfView()).toEqual(stepView(4));
+    closeShelf(store);
+    expect(shelf.open).toBe(false);
+    expect(store.getCoarse().override).toBeNull();
+    expect(shelfView()).toBeNull();
   });
 
-  it("snaps a stopped scroll to the nearest step, and back to the last match with a filter", () => {
-    expect(snapY(g, g.yOfStep(7) + g.half * 1.2, false)).toBeCloseTo(g.yOfStep(8), 6);
-    const f = stepGeometry(store, 3)!;
-    expect(snapY(f, f.yOfStep(3) + 2 * f.half, true)).toBeCloseTo(f.yOfStep(3), 6);
-    expect(snapY(g, g.yOfStep(0) - 2 * g.half, false)).toBeNull();
+  it("never scrolls the page: the store's scroll is where it was", () => {
+    const store = createWorldStore(STATIONS, 1000, 1234);
+    scrollToStep(store, 7);
+    expect(store.targetY).toBe(1234);
+    closeShelf(store);
   });
 });

@@ -7,7 +7,6 @@ import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { ITEMS, TAGS, type TagId } from "../../scene/items";
 import { ROBOTS, slotForRobot } from "../../scene/robots";
 import { matches, setFilter, spiral, subscribeSpiral } from "../../scene/spiral";
-import { tOfStep } from "./camera";
 import { useDetail } from "./detailStore";
 import { useSend } from "./send";
 import { scrollToStep } from "./stepper";
@@ -31,11 +30,11 @@ export function Dock({ children }: { children?: ReactNode }) {
   const send = useSend();
   const dock = useRef<HTMLDivElement>(null);
 
-  // Shown while the spiral is being browsed: not over the way in, a branch or the detail view.
+  // Shown in the room view and on the shelf: not on the way in, in a branch or over the detail view.
   const refresh = () => {
     const f = store.frames.workshop;
     const c = store.getCoarse();
-    const on = f.current && f.t >= tOfStep(0) * 0.85 && c.ready && c.branch === null && c.override === null && spiral.selected < 0;
+    const on = f.current && f.arrive >= 1 && c.ready && c.branch === null && spiral.selected < 0;
     if (dock.current && dock.current.dataset.on !== String(on)) dock.current.dataset.on = String(on);
   };
   useStationFrame("workshop", refresh);

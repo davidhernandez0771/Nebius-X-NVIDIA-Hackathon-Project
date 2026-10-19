@@ -7,7 +7,7 @@ const VH = 1000;
 describe("createWorldStore", () => {
   it("lays out the rail stations in RAIL_ORDER and sizes the page", () => {
     const s = createWorldStore(STATIONS, VH);
-    expect(s.rails.map((r) => r.id)).toEqual(["intro", "descent", "workshop", "machine", "zoom"]);
+    expect(s.rails.map((r) => r.id)).toEqual(["intro", "descent", "workshop"]);
     expect(s.getCoarse().height).toBe(s.rail.total + VH);
     expect(s.getCoarse().current).toBe("intro");
   });
@@ -27,16 +27,34 @@ describe("createWorldStore", () => {
 
   it("updates frames in place for the shown position and tells frame listeners", () => {
     const s = createWorldStore(STATIONS, VH);
-    const machine = s.frames.machine;
+    const descent = s.frames.descent;
     const onFrame = vi.fn();
     s.onFrame(onFrame);
-    const span = s.rail.spans.find((x) => x.id === "machine")!;
+    const span = s.rail.spans.find((x) => x.id === "descent")!;
     s.setShown((span.start + span.end) / 2);
-    expect(s.frames.machine).toBe(machine);
-    expect(machine.t).toBeCloseTo(0.5, 6);
-    expect(machine.current).toBe(true);
-    expect(s.frames.descent.near).toBe(false);
+    expect(s.frames.descent).toBe(descent);
+    expect(descent.t).toBeCloseTo(0.5, 6);
+    expect(descent.current).toBe(true);
+    // The machine is a branch now: nothing on the rail opens it.
+    expect(s.frames.machine.current).toBe(false);
     expect(onFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays a timed branch from its start, and opens one already played (Back)", () => {
+    const s = createWorldStore(STATIONS, VH);
+    s.setBranch("machine");
+    expect(s.frames.machine.current).toBe(true);
+    expect(s.frames.machine.t).toBe(0);
+    s.setBranchT(0.5);
+    expect(s.frames.machine.t).toBe(0.5);
+    s.setBranch("machine", 1);
+    expect(s.branchT0).toBe(1);
+    expect(s.frames.machine.t).toBe(1);
+    // A branch that doesn't play (the bench) is simply there.
+    s.setBranch("workbench");
+    expect(s.frames.workbench.t).toBe(1);
+    s.setBranch(null);
+    expect(s.frames.machine.t).toBe(0);
   });
 
   it("opens a branch: it becomes current and no rail station is", () => {

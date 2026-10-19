@@ -40,8 +40,12 @@ describe("the registered stations", () => {
   });
 
   it("hand the machine's last view to the zoom", () => {
-    const machine = rails[RAIL_ORDER.indexOf("machine")];
-    const zoom = rails[RAIL_ORDER.indexOf("zoom")];
+    const machine = STATIONS.find((s) => s.id === "machine")!;
+    const zoom = STATIONS.find((s) => s.id === "zoom")!;
+    expect(machine.kind).toBe("branch");
+    expect(zoom.kind).toBe("branch");
+    expect(machine.duration).toBeGreaterThan(0);
+    expect(zoom.duration).toBeGreaterThan(0);
     expect(stationPose(machine, 1)).toEqual(stationPose(zoom, 0));
     expect(machine.camera(1)).toEqual(MACHINE_VIEW);
     expect(zoom.anchor).toEqual(MACHINE_ANCHOR);
@@ -59,7 +63,7 @@ describe("the registered stations", () => {
   });
 
   it("follow Blender's camera stops", () => {
-    const at = (id: string, t: number) => stationPose(rails[RAIL_ORDER.indexOf(id as (typeof RAIL_ORDER)[number])], t);
+    const at = (id: string, t: number) => stationPose(STATIONS.find((s) => s.id === id)!, t);
     const same = (id: string, t: number, name: StopName) => {
       const p = at(id, t);
       const s = stop(name);
@@ -85,8 +89,8 @@ describe("the registered stations", () => {
 
 describe("checkStations", () => {
   it("names what is wrong", () => {
-    const broken = STATIONS.map((s) => (s.id === "zoom" ? { ...s, camera: () => ({ position: [0, 0, 0] as const, target: [0, 0, -1] as const, fov: 40 }) } : s));
-    expect(checkStations(broken)).toEqual([`"zoom" has travel 0 but its camera(0) isn't "machine"'s camera(1)`]);
+    const broken = STATIONS.map((s) => (s.id === "descent" ? { ...s, camera: () => ({ position: [0, 0, 0] as const, target: [0, 0, -1] as const, fov: 40 }) } : s));
+    expect(checkStations(broken)).toEqual([`"descent" has travel 0 but its camera(0) isn't "intro"'s camera(1)`]);
     expect(checkStations(STATIONS.filter((s) => s.id !== "workbench"))).toEqual([`no module for "workbench"`]);
     expect(checkStations([...STATIONS, STATIONS[0]])).toEqual([`"intro" is registered twice`]);
   });

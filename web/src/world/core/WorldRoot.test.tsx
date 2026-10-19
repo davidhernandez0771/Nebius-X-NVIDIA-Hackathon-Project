@@ -89,21 +89,21 @@ describe("WorldRoot (no WebGL)", () => {
     expect(within(rail).getByRole("button", { name: "Workshop" }).getAttribute("aria-current")).toBe("step");
   });
 
-  it("sends a robot's cartridge from the workshop to the machine, and opens Record at the end of the zoom", () => {
-    vi.useFakeTimers();
+  it("sends a robot's cartridge from the workshop to the machine, then into the projection and Record", () => {
     renderWorld();
     const h = window.innerHeight;
-    scrollTo(h * (INTRO + 3.8));
+    // The workshop (the room view): intro, descent 2.5, the dive 1.1 viewport heights.
+    scrollTo(h * (INTRO + 3.7));
+    expect(current()).toBe("workshop");
     vi.mocked(window.scrollTo).mockClear();
     fireEvent.click(screen.getByRole("button", { name: "PiPER" }));
-    // The journey follows it to the machine.
-    expect(window.scrollTo).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Open PiPER" })).toBeTruthy();
-    // intro, descent 2.5, workshop 1.1 + 7.6, machine 0.8 + 1.6, zoom 1.4 viewport heights
-    scrollTo(h * (INTRO + 14.5));
+    // The machine is a branch now: a click opens it, the page doesn't scroll.
+    expect(window.scrollTo).not.toHaveBeenCalled();
+    expect(current()).toBe("machine");
+    fireEvent.click(screen.getByRole("button", { name: "Into the projection →" }));
     expect(current()).toBe("zoom");
-    scrollTo(h * 100);
-    act(() => vi.runAllTimers());
+    // Without the canvas the zoom can't play: its button opens the page.
+    fireEvent.click(screen.getByRole("button", { name: "Open PiPER" }));
     expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
     expect(sessionStorage.getItem("world.return")).toBe("machine");
   });
@@ -166,7 +166,8 @@ describe("the spiral's filters (no WebGL)", () => {
     expect(results.getAttribute("aria-pressed")).toBe("true");
     expect(spiral.filter).toBe("results");
     expect(stepCount()).toBe(4);
-    expect(window.scrollTo).toHaveBeenCalled();
+    // The shelf opens on the first match, in place: the page doesn't scroll in the workshop.
+    expect((await import("../stations/workshop/stepper")).shelf.open).toBe(true);
     fireEvent.click(results);
     expect(spiral.filter).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "-> train" }));
@@ -177,15 +178,19 @@ describe("the spiral's filters (no WebGL)", () => {
   it("opens the front cartridge's detail on Enter, closes it on Escape, and plugs it in", async () => {
     const { spiral } = await import("../scene/spiral");
     renderWorld();
-    // Step 0: intro 3 + descent 2.5 + the workshop's dive 1.1 and way in 0.7 viewport heights.
-    scrollTo(window.innerHeight * (INTRO + 4.3));
+    const { shelf } = await import("../stations/workshop/stepper");
+    // The room view, then the shelf (a filter opens it on its first match).
+    scrollTo(window.innerHeight * (INTRO + 3.7));
+    fireEvent.click(screen.getByRole("button", { name: "-> record a demo" }));
+    expect(shelf.open).toBe(true);
     fireEvent.keyDown(window, { key: "Enter" });
     const dialog = screen.getByRole("dialog", { name: "RECORD, cartridge" });
     expect(within(dialog).getByText("2026 / FR3 / record a demo")).toBeTruthy();
     expect(document.documentElement.style.overflow).toBe("hidden");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(spiral.selected).toBe(-1);
-    expect(document.documentElement.style.overflow).toBe("");
+    // Back on the shelf it came from.
+    expect(shelf.open).toBe(true);
     fireEvent.keyDown(window, { key: "Enter" });
     // Without the canvas there is no plug-in to watch: Plug in opens the page.
     fireEvent.click(screen.getByRole("button", { name: "Plug in →" }));

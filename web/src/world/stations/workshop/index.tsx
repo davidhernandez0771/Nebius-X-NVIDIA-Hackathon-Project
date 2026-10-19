@@ -1,15 +1,15 @@
-// Workshop: the room the descent comes down into, with the spiral shelf in the middle (the jobs at
-// the top, the robots under them, an arm inside), the machine to the right and the bench to the left.
-// The scroll steps down the spiral one cartridge at a time (stepper.ts, camera.ts). Pointing at one
-// lifts it and scrambles its title in the tip; clicking a job steps to it; a robot (or its button in
-// the dock, the keyboard path) goes to the machine. The dock's filters reorder the spiral; "Add a
-// cartridge" opens the workbench.
+// Workshop: the room the descent comes down into, and where the scroll ends. From here the site is a
+// game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and three things to
+// click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
+// and projects the robot), and the bench (make a new cartridge). Escape always goes back one level.
+import { useEffect, useRef } from "react";
+import { inHub } from "../../core/CameraRig";
+import { still } from "../../core/layout";
+import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { stop } from "../../scene/layout";
-import { Beats } from "../../ui/Beats";
 import { HoverTip } from "../../ui/HoverTip";
-import { LENGTH_VH, tOfStep, workshopCamera } from "./camera";
 import { CUT_AT, diveEnter } from "./dive";
 import { WorkshopScene } from "./Scene";
 import "./workshop.css";
@@ -19,27 +19,39 @@ import { Dock } from "./Dock";
 import { useStepper } from "./stepper";
 import { TourCaption } from "./TourCaption";
 
+/** The room view's controls, bottom centre: how to play, and the way back up to the story. */
+function HubBar() {
+  const { store } = useWorld();
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let shown = false;
+    return store.onFrame(() => {
+      const on = inHub(store);
+      if (on === shown || !bar.current) return;
+      shown = on;
+      bar.current.dataset.on = String(on);
+    });
+  }, [store]);
+  const toStory = () => {
+    // The story is above: unlock the page (WorldRoot) and go back to its first section.
+    store.setOverride(null);
+    window.dispatchEvent(new CustomEvent("world:story"));
+  };
+  return (
+    <div ref={bar} className="world-hubbar world-u" data-on="false">
+      <span>Click the shelf, the machine or the bench · Esc goes back</span>
+      <button type="button" onClick={toStory}>↑ Story</button>
+    </div>
+  );
+}
+
 function Overlay(_: StationOverlayProps) {
   useStepper();
   return (
     <>
-      <Beats
-        station="workshop"
-        beats={[
-          {
-            from: 0,
-            to: tOfStep(0) * 0.85,
-            children: (
-              <>
-                <h2 data-scramble>The workshop.</h2>
-                <p>Every cartridge is a job. Pick one and plug it in, or ask.</p>
-              </>
-            ),
-          },
-        ]}
-      />
       <HoverTip />
       <h2 className="world-sr">Workshop</h2>
+      <HubBar />
       <Dock>
         <AskBox />
       </Dock>
@@ -48,6 +60,8 @@ function Overlay(_: StationOverlayProps) {
     </>
   );
 }
+
+const HUB = stop("Workshop intro");
 
 const workshop: StationModule = {
   id: "workshop",
@@ -60,13 +74,12 @@ const workshop: StationModule = {
   travel: 1.1,
   enter: diveEnter,
   cutAt: CUT_AT,
-  length: LENGTH_VH,
-  // The room from the front, then down the spiral one cartridge per step.
-  camera: workshopCamera,
-  rest: stop("Workshop intro"),
-  follow: true,
-  // The room stays drawn behind the machine and the zoom.
-  reach: 2,
+  // The end of the scroll: the room view. From here it's clicks (the shelf, the machine, the bench).
+  length: 0.25,
+  camera: still(HUB),
+  rest: HUB,
+  // The room stays drawn behind the machine, the zoom and the bench.
+  reach: 3,
   Scene: WorkshopScene,
   Overlay,
 };

@@ -1,129 +1,117 @@
-// The spiral's scroll: one cartridge per step. In the workshop's dwell a wheel notch, a swipe or an
-// arrow key moves exactly one step (the page scrolls there and the camera glides); a scrollbar drag or
-// a touch flick snaps to the nearest step when it stops. With a filter on, the steps end at the last
-// match. Past the first step (up) or the last (down, no filter) the page scrolls on as usual.
+// The shelf: the spiral browsed in place, like a game menu. The page doesn't scroll in the workshop
+// (the story ends there); clicking the spiral (or its tag, a filter, Ask SANT) opens the shelf on a
+// cartridge, and the camera holds a shot facing it (store.setOverride). A wheel notch, a swipe or an
+// arrow key moves one cartridge; Escape goes back to the room view. The detail view sits on top of
+// the shelf and gives it back when it closes.
 import { useEffect } from "react";
 import { useWorld } from "../../core/WorldContext";
 import type { WorldStore } from "../../core/store";
 import { spiral, stepCount } from "../../scene/spiral";
-import { stepOfT, tOfStep } from "./camera";
+import { stepView } from "./camera";
 
 /** Wheel distance (px) that makes one step, and the pause between steps so a fling doesn't skip. */
 const WHEEL_STEP = 40;
-const STEP_GAP_MS = 260;
-const SNAP_IDLE_MS = 180;
+const STEP_GAP_MS = 240;
+/** A swipe this long (px) moves one step. */
+const SWIPE_PX = 36;
 
-export interface StepGeometry {
-  yOfStep(d: number): number;
-  stepAtY(y: number): number;
-  /** Half a step in px, the margin round the steps where the stepper still holds the scroll. */
-  half: number;
-  last: number;
+/** Shared, mutated in place: whether the shelf is open, and the step it faces. */
+export const shelf = { open: false, step: 0 };
+
+/** The last step there is to face: the last match with a filter on. */
+export function lastStep(): number {
+  return Math.max(0, stepCount() - 1);
 }
 
-export function stepGeometry(store: WorldStore, last = stepCount() - 1): StepGeometry | null {
-  const span = store.rail.spans.find((s) => s.id === "workshop");
-  if (!span) return null;
-  const len = span.end - span.start;
-  const yOfStep = (d: number) => span.start + tOfStep(d) * len;
-  return { yOfStep, stepAtY: (y) => stepOfT((y - span.start) / len), half: (yOfStep(1) - yOfStep(0)) / 2, last };
+/** The step one move away from `d` in `dir`, held inside the steps there are. */
+export function nextStep(d: number, dir: 1 | -1, last = lastStep()): number {
+  return Math.min(last, Math.max(0, Math.round(d) + dir));
 }
 
-/** Where a step key or wheel notch goes from y: the y to scroll to, or null to let the page scroll. */
-export function nextY(g: StepGeometry, y: number, dir: 1 | -1, filtered: boolean): number | null {
-  if (y < g.yOfStep(0) - g.half || y > g.yOfStep(g.last) + g.half) return null;
-  const cur = Math.min(g.last, Math.max(0, Math.round(g.stepAtY(y))));
-  const next = cur + dir;
-  if (next < 0) return null;
-  if (next > g.last) return filtered ? g.yOfStep(g.last) : null;
-  return g.yOfStep(next);
+/** Open the shelf on step d (a click on the spiral, a filter, Ask SANT, the detail view). */
+export function scrollToStep(store: WorldStore, d: number): void {
+  shelf.open = true;
+  shelf.step = Math.min(lastStep(), Math.max(0, Math.round(d)));
+  store.setOverride(stepView(shelf.step));
 }
 
-/** The nearest step's y for a scroll that stopped in the steps (or null outside them). */
-export function snapY(g: StepGeometry, y: number, filtered: boolean): number | null {
-  if (y < g.yOfStep(0) - g.half) return null;
-  if (y > g.yOfStep(g.last) + g.half) return filtered && y < g.yOfStep(g.last) + 4 * g.half ? g.yOfStep(g.last) : null;
-  return g.yOfStep(Math.min(g.last, Math.max(0, Math.round(g.stepAtY(y)))));
+/** Back to the room view. */
+export function closeShelf(store: WorldStore): void {
+  if (!shelf.open) return;
+  shelf.open = false;
+  if (spiral.selected < 0) store.setOverride(null);
 }
 
-function scrollToY(top: number) {
-  try {
-    window.scrollTo({ top, behavior: "auto" });
-  } catch {
-    /* jsdom */
-  }
+/** The shot the shelf holds now (the detail view returns to it). */
+export function shelfView() {
+  return shelf.open ? stepView(shelf.step) : null;
 }
 
 export function useStepper(): void {
   const { store, mode } = useWorld();
   useEffect(() => {
-    // The stills have nothing to step through: the page scrolls as usual there.
     if (mode !== "3d") return;
     let acc = 0;
-    let lastStep = 0;
     let accAt = 0;
-    let idle: ReturnType<typeof setTimeout> | undefined;
-    const busy = () => store.getCoarse().branch !== null || store.getCoarse().override !== null || spiral.selected >= 0;
-    const go = (dir: 1 | -1, e: Event): boolean => {
-      const g = stepGeometry(store);
-      if (!g) return false;
-      const y = nextY(g, store.targetY, dir, spiral.filter !== null);
-      if (y === null) return false;
-      e.preventDefault();
+    let lastMove = 0;
+    let ty: number | null = null;
+    // Only the shelf itself: not under the detail view or an open branch.
+    const browsing = () => shelf.open && spiral.selected < 0 && store.getCoarse().branch === null;
+    const move = (dir: 1 | -1) => {
       const now = performance.now();
-      if (now - lastStep < STEP_GAP_MS) return true;
-      lastStep = now;
-      if (Math.abs(y - store.targetY) > 0.5) scrollToY(y);
-      return true;
+      if (now - lastMove < STEP_GAP_MS) return;
+      lastMove = now;
+      const d = nextStep(shelf.step, dir);
+      if (d === shelf.step) return;
+      shelf.step = d;
+      store.setOverride(stepView(d));
     };
     const onWheel = (e: WheelEvent) => {
-      if (busy()) return;
-      const g = stepGeometry(store);
-      if (!g) return;
+      if (!browsing()) return;
+      e.preventDefault();
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
       const dir = dy > 0 ? 1 : -1;
-      // Outside the steps, or leaving them at an end: the page scrolls as usual.
-      if (nextY(g, store.targetY, dir, spiral.filter !== null) === null) return;
-      e.preventDefault();
       const now = performance.now();
       if (now - accAt > 160 || Math.sign(acc) !== dir) acc = 0;
       accAt = now;
       acc += dy;
       if (Math.abs(acc) >= WHEEL_STEP) {
         acc = 0;
-        go(dir, e);
+        move(dir);
       }
     };
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (busy() || e.defaultPrevented || (t && /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t.tagName))) return;
-      if (e.key === "ArrowDown" || e.key === "PageDown" || (e.key === " " && !e.shiftKey)) go(1, e);
-      else if (e.key === "ArrowUp" || e.key === "PageUp" || (e.key === " " && e.shiftKey)) go(-1, e);
+      if (!browsing() || e.defaultPrevented || (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeShelf(store);
+      } else if (e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "PageDown") {
+        e.preventDefault();
+        move(1);
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp") {
+        e.preventDefault();
+        move(-1);
+      }
     };
-    const onScroll = () => {
-      if (idle) clearTimeout(idle);
-      idle = setTimeout(() => {
-        if (busy()) return;
-        const g = stepGeometry(store);
-        if (!g) return;
-        const y = snapY(g, store.targetY, spiral.filter !== null);
-        if (y !== null && Math.abs(y - store.targetY) > 1) scrollToY(y);
-      }, SNAP_IDLE_MS);
+    const onTouchStart = (e: TouchEvent) => (ty = e.touches[0]?.clientY ?? null);
+    const onTouchMove = (e: TouchEvent) => {
+      if (!browsing() || ty === null) return;
+      const y = e.touches[0]?.clientY ?? ty;
+      if (Math.abs(y - ty) >= SWIPE_PX) {
+        move(y < ty ? 1 : -1);
+        ty = y;
+      }
     };
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
     return () => {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll);
-      if (idle) clearTimeout(idle);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
     };
   }, [store, mode]);
-}
-
-/** Scroll to an item's step (a click on it, a filter, Ask SANT). */
-export function scrollToStep(store: WorldStore, d: number): void {
-  const g = stepGeometry(store);
-  if (g) scrollToY(g.yOfStep(Math.min(g.last, Math.max(0, d))));
 }

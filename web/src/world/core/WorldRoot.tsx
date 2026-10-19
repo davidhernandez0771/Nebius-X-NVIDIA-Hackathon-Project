@@ -7,13 +7,13 @@ import { useNavigate } from "react-router-dom";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { navigateWithTransition } from "../../sant/motion/viewTransition";
 import { STATIONS } from "../stations";
-import { INITIAL_HANDOFF, handoffStep, saveReturn, takeReturn } from "./handoff";
+import { FIRE_AT, saveReturn, takeReturn } from "./handoff";
 import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
 import { Hud } from "./Hud";
 import { runIris } from "./iris";
 import { TIERS, pickQuality, readSignals, saveTier, type QualityChoice, type TierName } from "./quality";
-import { dwellStart, locate } from "./rail";
+import { dwellStart } from "./rail";
 import { checkStations } from "./registry";
 import { createWorldStore } from "./store";
 import type { StationId, StationModule } from "./types";
@@ -106,7 +106,8 @@ function JourneyRail({ stations, at, goTo }: { stations: readonly StationModule[
   return (
     <nav className="world-rail" aria-label="Journey">
       <ol>{stations.filter((s) => s.kind === "rail").map(item)}</ol>
-      <ul>{stations.filter((s) => s.kind === "branch").map(item)}</ul>
+      {/* The zoom isn't a place to go to: it plays out of the machine. */}
+      <ul>{stations.filter((s) => s.kind === "branch" && s.id !== "zoom").map(item)}</ul>
     </nav>
   );
 }
@@ -184,14 +185,16 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
   // Back from a 2D route: the machine, with the projection still lit, just before the zoom.
   useLayoutEffect(() => {
     const back = takeReturn(session());
-    const span = back ? store.rail.spans.find((s) => s.id === back) : undefined;
+    if (!back) return;
+    // The workshop's end (the room view), with the machine open and already played: the hologram up.
+    const span = store.rail.spans.find((s) => s.id === "workshop");
     if (!span) return;
-    const y = span.end - 1;
+    const y = span.end;
     scrollToY(y, false);
-    store.setScroll(y);
-    store.setShown(y);
+    store.jump(y);
+    if (stations.some((s) => s.id === back && s.kind === "branch")) store.setBranch(back as StationId, 1);
     requestAnimationFrame(() => setScrollRestoration("auto"));
-  }, [store]);
+  }, [store, stations]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -214,16 +217,42 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
 
   // The handoff watches what the camera shows (damped), so the screen is opaque when it fires.
   useEffect(() => {
-    let state = INITIAL_HANDOFF;
-    const zoomIndex = store.rails.findIndex((s) => s.id === "zoom");
+    let fired = false;
     return store.onFrame(() => {
-      if (store.getCoarse().branch) return;
-      const r = handoffStep(state, locate(store.rail, store.shownY), zoomIndex);
-      state = r.state;
+      if (store.getCoarse().branch !== "zoom") {
+        fired = false;
+        return;
+      }
+      if (fired || store.frames.zoom.t < FIRE_AT) return;
+      fired = true;
       // Not inside the canvas's frame: navigating unmounts it.
-      if (r.fire) setTimeout(() => handoffRef.current(), 0);
+      setTimeout(() => handoffRef.current(), 0);
     });
   }, [store]);
+
+  // The scroll ends in the workshop: once the dive has landed, the page holds still and the room is a
+  // game (clicks, Escape). "↑ Story" (world:story) lets go and goes back to the top.
+  useEffect(() => {
+    if (!run3D) return;
+    const root = document.documentElement;
+    let locked = false;
+    const lock = (on: boolean) => {
+      if (on === locked) return;
+      locked = on;
+      root.style.overflow = on ? "hidden" : "";
+    };
+    const off = store.onFrame(() => lock(store.getCoarse().current === "workshop" && store.frames.workshop.arrive >= 1));
+    const toStory = () => {
+      lock(false);
+      jumpRef.current("intro");
+    };
+    window.addEventListener("world:story", toStory);
+    return () => {
+      off();
+      window.removeEventListener("world:story", toStory);
+      lock(false);
+    };
+  }, [store, run3D]);
 
   // A held shot (the detail view, the tour) holds the page still too; its owner handles Escape.
   useEffect(() => {
@@ -280,6 +309,9 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     },
     [api, reduced, stations, store],
   );
+
+  const jumpRef = useRef(jump);
+  jumpRef.current = jump;
 
   const onCut = useCallback(() => {
     const el = veil.current;

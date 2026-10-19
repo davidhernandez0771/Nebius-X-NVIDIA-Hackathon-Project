@@ -5,7 +5,7 @@ import { useWorld } from "../../core/WorldContext";
 import { sendToMachine } from "../../scene/plug";
 import { cartridgeOfItem, matches, setFilter, setSelected, slotOfItem, spiral } from "../../scene/spiral";
 import { detailView } from "./camera";
-import { scrollToStep } from "./stepper";
+import { scrollToStep, shelfView } from "./stepper";
 
 export interface DetailApi {
   open(item: number): void;
@@ -18,7 +18,8 @@ export function useDetail(): DetailApi {
   const close = () => {
     if (spiral.selected < 0) return;
     setSelected(-1);
-    store.setOverride(null);
+    // Back to the shelf it was opened from, or the room view.
+    store.setOverride(shelfView());
   };
   return {
     open(item) {

@@ -48,7 +48,13 @@ export interface WorldStore {
   /** Called on scroll so the canvas renders a frame. */
   onTarget(fn: () => void): () => void;
   setViewport(vh: number): void;
-  setBranch(id: StationId | null): void;
+  /** Open a branch (or close with null). A playing branch starts at t0 (1: already played, e.g. Back). */
+  setBranch(id: StationId | null, t0?: number): void;
+  /** A playing branch's t, 0–1, written by the camera rig every frame it plays. */
+  readonly branchT: number;
+  /** Where the open branch started (setBranch's t0), for the camera rig. */
+  readonly branchT0: number;
+  setBranchT(t: number): void;
   setCartridge(c: Cartridge | null): void;
   setReady(): void;
   setOverride(pose: CameraPose | null): void;
@@ -71,6 +77,8 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
   let targetY = y;
   let shownY = y;
   let jumps = 0;
+  let branchT = 0;
+  let branchT0 = 0;
   let coarse: Coarse = { current: rails[locate(rail, y).current].id, branch: null, cartridge: null, height: rail.total + vh, ready: false, override: null };
   const listeners = new Set<() => void>();
   const frameListeners = new Set<FrameListener>();
@@ -89,7 +97,7 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
     for (const b of branches) {
       const f = frames[b.id];
       const open = coarse.branch === b.id;
-      f.t = open ? 1 : 0;
+      f.t = open ? (b.duration ? branchT : 1) : 0;
       f.arrive = open ? 1 : 0;
       f.current = open;
       f.near = true;
@@ -155,7 +163,20 @@ export function createWorldStore(stations: readonly StationModule[], vh: number,
       set({ height: rail.total + next });
       fill();
     },
-    setBranch(id) {
+    get branchT() {
+      return branchT;
+    },
+    get branchT0() {
+      return branchT0;
+    },
+    setBranchT(t) {
+      if (t === branchT) return;
+      branchT = t;
+      fill();
+    },
+    setBranch(id, t0 = 0) {
+      branchT0 = id ? Math.min(1, Math.max(0, t0)) : 0;
+      branchT = branchT0;
       set({ branch: id });
       fill();
       targetListeners.forEach((fn) => fn());

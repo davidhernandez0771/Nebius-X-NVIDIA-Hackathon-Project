@@ -7,9 +7,8 @@ import { useWorld } from "../../core/WorldContext";
 import { ITEMS, tagLabel } from "../../scene/items";
 import { itemAtStep, spiral, subscribeSpiral } from "../../scene/spiral";
 import { scramble } from "../../ui/scramble";
-import { tOfStep } from "./camera";
 import { useDetail } from "./detailStore";
-import { stepGeometry } from "./stepper";
+import { shelf } from "./stepper";
 
 const selectedNow = () => spiral.selected;
 
@@ -64,12 +63,9 @@ export function Detail() {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.key !== "Enter" || spiral.selected >= 0 || (t && /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
-      const f = store.frames.workshop;
-      if (!f.current || f.t < tOfStep(0) - 0.01 || store.getCoarse().branch) return;
-      // The step the scroll is on (the camera may still be gliding there).
-      const g = stepGeometry(store);
-      const d = g ? Math.min(g.last, Math.max(0, Math.round(g.stepAtY(store.targetY)))) : 0;
-      const i = itemAtStep(d);
+      // Only on the shelf: the cartridge it faces.
+      if (!shelf.open || store.getCoarse().branch) return;
+      const i = itemAtStep(shelf.step);
       if (i >= 0) {
         e.preventDefault();
         detailRef.current.open(i);

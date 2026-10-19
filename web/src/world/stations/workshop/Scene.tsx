@@ -21,10 +21,11 @@ import { Pendants } from "../../scene/Pendants";
 import { addEnvironment } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
 import { N_ITEMS, spiral } from "../../scene/spiral";
-import { stepOfT, tOfStep } from "./camera";
 import { CUT_AT } from "./dive";
 import { Portal } from "./Portal";
+import { HubTags } from "./HubTags";
 import { usePick } from "./send";
+import { shelf } from "./stepper";
 import { Well } from "./Well";
 
 /** A small prefiltered room for the glossy plastic to reflect (high and ultra). */
@@ -47,10 +48,10 @@ function Reflections() {
   return null;
 }
 
-/** Keeps spiral.step on the camera's step while the workshop browses. */
-function StepFollower({ frame }: { frame: StationSceneProps["frame"] }) {
+/** Keeps spiral.step on the shelf's step while it is open (the front cartridge stands out). */
+function StepFollower() {
   useFrame(() => {
-    spiral.step = frame.current ? Math.min(N_ITEMS - 1, Math.max(-1, stepOfT(frame.t))) : -1;
+    spiral.step = shelf.open ? Math.min(N_ITEMS - 1, Math.max(0, shelf.step)) : -1;
   });
   return null;
 }
@@ -62,13 +63,10 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
   // Cartridges answer the pointer only while the workshop (or the machine beside it) is in view,
   // and not while one is open. Not during the dive either: above the roof they aren't drawn.
   const active = useCallback(
-    () =>
-      ((store.frames.workshop.current && store.frames.workshop.arrive >= CUT_AT) || store.frames.machine.current) &&
-      store.getCoarse().branch === null &&
-      spiral.selected < 0,
+    () => store.frames.workshop.current && store.frames.workshop.arrive >= CUT_AT && store.getCoarse().branch === null && spiral.selected < 0,
     [store],
   );
-  const browsing = useCallback(() => store.frames.workshop.current && store.frames.workshop.t >= tOfStep(0) - 0.01, [store]);
+  const browsing = useCallback(() => shelf.open, []);
   return (
     <group>
       <Lamps reduced={reduced} />
@@ -88,6 +86,7 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
           <Library quality={quality} />
         </Suspense>
         <Ribbon />
+        <HubTags />
         <Suspense fallback={null}>
           <Helix quality={quality} reduced={reduced} active={active} browsing={browsing} onPick={(k) => pick(k)} />
         </Suspense>
@@ -96,7 +95,7 @@ export function WorkshopScene({ frame, quality, reduced }: StationSceneProps) {
       <AboveRoof>
         <Well reduced={reduced} />
       </AboveRoof>
-      <StepFollower frame={frame} />
+      <StepFollower />
       <Portal frame={frame} reduced={reduced} />
     </group>
   );
