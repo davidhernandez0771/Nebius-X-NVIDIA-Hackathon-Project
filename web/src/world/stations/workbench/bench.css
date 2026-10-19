@@ -6,9 +6,6 @@
   bottom: 24px;
   z-index: 7;
   width: min(400px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   font-family: var(--w-mono);
   color: var(--w-ink);
   opacity: 0;
@@ -28,11 +25,8 @@
 /* A soft pool of the ground colour behind the copy, as the journey's panels have. */
 .world-bench::before {
   content: "";
-  position: fixed;
-  left: -120px;
-  bottom: -120px;
-  width: 640px;
-  height: 820px;
+  position: absolute;
+  inset: -64px -96px -48px -72px;
   z-index: -1;
   background: radial-gradient(closest-side, rgb(7 9 12 / 0.8), rgb(7 9 12 / 0.5) 60%, rgb(7 9 12 / 0));
   pointer-events: none;
@@ -54,14 +48,14 @@
   outline-offset: 3px;
 }
 
-.world-bench__h {
+.world-bench .world-bench__h {
   margin: 0 0 18px;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
 
-.world-bench__step {
+.world-bench .world-bench__step {
   display: block;
   margin: 0 0 8px;
   font-weight: 500;
@@ -80,7 +74,7 @@
   margin-bottom: 18px;
 }
 
-.world-bench__input {
+.world-bench .world-bench__input {
   flex: 1;
   min-width: 0;
   padding: 8px 0 6px;
@@ -88,6 +82,8 @@
   border-bottom: 1px solid var(--w-line);
   border-radius: 0;
   background: none;
+  box-shadow: none;
+  outline: none;
   color: var(--w-ink);
   font-family: var(--w-mono);
   font-size: 16px;
@@ -102,11 +98,11 @@
   opacity: 1;
 }
 
-.world-bench__input:focus {
+.world-bench .world-bench__input:focus {
   border-bottom-color: var(--w-teal);
 }
 
-.world-bench__input:focus-visible {
+.world-bench .world-bench__input:focus-visible {
   outline: none;
 }
 
@@ -281,6 +277,15 @@
   margin: 0;
   color: var(--w-dim);
   font-size: 10px;
+}
+
+/* A short window: the editor scrolls inside itself rather than running off the top. */
+@media (max-height: 640px) {
+  .world-bench {
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 [data-motion-world="reduced"] .world-bench,

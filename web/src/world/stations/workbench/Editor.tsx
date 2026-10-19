@@ -105,9 +105,9 @@ export function Editor({ current }: { current: boolean }) {
       <h3 className="world-bench__step world-u" id="world-bench-look">
         <span>02</span> Look
       </h3>
-      <div className="world-bench__swatches" role="group" aria-labelledby="world-bench-look">
+      <div className="world-bench__swatches world-u" role="group" aria-labelledby="world-bench-look">
         {SHELLS.map((s) => (
-          <button key={s.id} type="button" className="world-bench__swatch world-u" aria-pressed={draft.shell === s.id} onClick={() => setDraft({ shell: s.id })}>
+          <button key={s.id} type="button" className="world-bench__swatch" aria-pressed={draft.shell === s.id} onClick={() => setDraft({ shell: s.id })}>
             <i style={{ backgroundColor: s.hex }} data-see-through={s.id === "smoke"} aria-hidden="true" />
             {s.name}
           </button>

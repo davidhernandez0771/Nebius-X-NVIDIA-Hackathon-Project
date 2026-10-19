@@ -14,7 +14,7 @@ import { drawSingle } from "../../scene/labels";
 import { liveMaterial, trackLive } from "../../scene/materials";
 import { shellOf } from "../../scene/saved";
 import { bench, draftLabel, subscribeBench } from "./draft";
-import { BENCH_SCALE, PAPER, PRINT_H, PRINT_S, PRINT_W, benchCartridge, printPose } from "./layout";
+import { BENCH_SCALE, PRINT_H, PRINT_QUATERNION, PRINT_S, PRINT_W, benchCartridge, printPose } from "./layout";
 
 /** The bench is seen close: its labels print at twice a spiral tile's size. */
 const LABEL_SCALE = 2;
@@ -79,7 +79,7 @@ function usePrintedLabel() {
     const geometry = new THREE.PlaneGeometry(PRINT_W, PRINT_H).rotateX(-Math.PI / 2);
     const material = new THREE.MeshLambertMaterial({ map, color: "#ffffff" });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.quaternion.copy(PAPER.quaternion);
+    mesh.quaternion.copy(PRINT_QUATERNION);
     mesh.raycast = () => {};
     mesh.visible = false;
     const print = () => {

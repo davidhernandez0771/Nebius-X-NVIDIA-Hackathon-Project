@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { BENCH_SCALE, EDIT_VIEW, PAPER, TURNTABLE, TURNTABLE_TOP, benchCartridge, printPose } from "./layout";
+import { BENCH_SCALE, EDIT_VIEW, PRINT_H, PRINT_QUATERNION, SLOT, TURNTABLE, TURNTABLE_TOP, benchCartridge, printPose } from "./layout";
 
 const v = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2]);
 
@@ -28,14 +28,20 @@ describe("the bench's live parts", () => {
     }
   });
 
-  it("slide the printed label out of the printer onto its tray", () => {
-    const out = new THREE.Vector3(0, 0, 1).applyQuaternion(PAPER.quaternion);
+  it("feed the printed label out of the printer's slot, turned toward the edit camera", () => {
+    const along = new THREE.Vector3(0, 0, 1).applyQuaternion(PRINT_QUATERNION);
     const start = printPose(0);
     const end = printPose(1);
-    // It moves out along the paper's own direction, and rests on the paper.
-    expect(end.clone().sub(start).normalize().dot(out)).toBeGreaterThan(0.999);
-    expect(end.distanceTo(PAPER.position)).toBeLessThan(0.03);
+    expect(end.clone().sub(start).normalize().dot(along)).toBeGreaterThan(0.999);
+    // All inside the printer at the start, all out at the end (its near edge past the slot).
+    expect(start.clone().sub(SLOT).dot(along)).toBeLessThan(-PRINT_H / 2);
+    expect(end.clone().sub(SLOT).dot(along)).toBeGreaterThan(PRINT_H / 2);
     expect(printPose(2).equals(end)).toBe(true);
-    expect(printPose(0.5).distanceTo(start)).toBeGreaterThan(printPose(0.5).distanceTo(end));
+    // Its face sees the camera better than lying flat would, and its far edge stays over the bench top.
+    const face = new THREE.Vector3(0, 1, 0).applyQuaternion(PRINT_QUATERNION);
+    const toEye = v(EDIT_VIEW.position).sub(end).normalize();
+    expect(face.dot(toEye)).toBeGreaterThan(new THREE.Vector3(0, 1, 0).dot(toEye) + 0.15);
+    // bx_B_Mat, the bench's cutting mat, is the top: 3.335.
+    expect(end.clone().addScaledVector(along, PRINT_H / 2).y).toBeGreaterThan(3.335);
   });
 });

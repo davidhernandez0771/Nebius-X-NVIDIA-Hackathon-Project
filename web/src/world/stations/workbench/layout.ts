@@ -1,8 +1,9 @@
 // Where the bench's live parts go, local to the bench pivot (BENCH_PIVOT, the station's anchor). The
 // numbers are the transforms of the bench parts in docs/design/blender/sant-cartridge.blend (the
 // `bx_B_*` copies every baked GLB carries, already turned with the bench): the turntable the
-// cartridge stands on, and the label printer's paper. Pure, so it is tested.
+// cartridge stands on, and the label printer's slot. Pure, so it is tested.
 import * as THREE from "three";
+import { LABEL_ASPECT } from "../../scene/labels";
 import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
 
 /** bx_B_Turntable's centre; its top (with the teal ring) is TURNTABLE_TOP. */
@@ -24,33 +25,32 @@ export function benchCartridge(): { position: THREE.Vector3; yaw: number } {
   return { position: new THREE.Vector3(TURNTABLE.x, TURNTABLE_TOP + HALF_H * BENCH_SCALE, TURNTABLE.z), yaw };
 }
 
-/** bx_B_Paper: where the printer's paper lies, tilted on its tray, and its turn (three.js x, y, z, w). */
-export const PAPER = {
-  position: new THREE.Vector3(-2.7673, 3.6, -2.0377),
-  quaternion: new THREE.Quaternion(-0.16894, -0.23823, -0.04212, 0.95548).normalize(),
-};
+/**
+ * bx_B_PrinterSlot: the label printer's slot, on its front face. Blender's paper (bx_B_Paper) leans
+ * back from it, so from the edit camera a label lying on it would be nearly edge-on; the printed
+ * label feeds straight out of the slot instead and droops toward the camera, like a strip of paper.
+ */
+export const SLOT = new THREE.Vector3(-2.6546, 3.61, -2.2496);
+/** The printer faces the way the bench does. */
+const FEED = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), BENCH_PIVOT.yaw);
+/** Enough to face the camera, not so much that its far edge reaches the bench top (0.27 m below the slot). */
+const DROOP = 0.4;
+export const PRINT_QUATERNION = FEED.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), DROOP));
 
-/** The printed label: the label's aspect, a little smaller than the paper (0.8 x 0.5 m). */
-export const PRINT_W = 0.62;
-export const PRINT_H = 0.455;
-/** Along the paper's own +z (out of the printer's slot): from inside the printer to resting on the tray. */
-const SLIDE_FROM = -0.5;
-const SLIDE_TO = 0.02;
-/** Just over the baked paper, so the two don't fight. */
-const LIFT = 0.004;
+/** The printed label: the label's aspect, about as wide as the slot (0.9 m). */
+export const PRINT_W = 0.8;
+export const PRINT_H = PRINT_W / LABEL_ASPECT;
+/** Along the label's own +z, from the slot: from all inside the printer to all out. */
+const SLIDE_FROM = -(PRINT_H / 2 + 0.03);
+const SLIDE_TO = PRINT_H / 2 + 0.01;
 
 const _z = new THREE.Vector3();
-const _y = new THREE.Vector3();
 
-/** The printed label's pose at u (0: inside the printer, 1: out on the tray). Eased out, like a feed roller letting go. */
+/** The printed label's centre at u (0: inside the printer, 1: out). Eased out, like a feed roller letting go. */
 export function printPose(u: number, out = new THREE.Vector3()): THREE.Vector3 {
   const k = 1 - (1 - Math.min(1, Math.max(0, u))) ** 3;
-  _z.set(0, 0, 1).applyQuaternion(PAPER.quaternion);
-  _y.set(0, 1, 0).applyQuaternion(PAPER.quaternion);
-  return out
-    .copy(PAPER.position)
-    .addScaledVector(_z, SLIDE_FROM + (SLIDE_TO - SLIDE_FROM) * k)
-    .addScaledVector(_y, LIFT);
+  _z.set(0, 0, 1).applyQuaternion(PRINT_QUATERNION);
+  return out.copy(SLOT).addScaledVector(_z, SLIDE_FROM + (SLIDE_TO - SLIDE_FROM) * k);
 }
 
 /** Seconds the label takes to come out. */
