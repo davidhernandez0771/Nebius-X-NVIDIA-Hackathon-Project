@@ -1,22 +1,12 @@
 // Workbench (T1, placeholder): a branch off the rail. "Add a cartridge" in the workshop flies the
-// camera here; the editor will live in the overlay. Back (or Escape) returns to the rail.
+// camera to Blender's "Workbench edit" stop over the baked bench (in the workshop's room); the editor
+// will live in the overlay, and its live parts can come from workbench.glb. Back (or Escape) returns.
 import { Button } from "../../../sant/components/Button";
-import { Box, PALETTE } from "../../core/Placeholder";
 import { still } from "../../core/layout";
 import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
-
-function Scene() {
-  return (
-    <group>
-      <Box size={[4.4, 0.18, 2]} position={[0, 0.95, 0]} color={PALETTE.raised} />
-      {[-2, 2].flatMap((x) => [-0.85, 0.85].map((z) => <Box key={`${x}${z}`} size={[0.14, 0.9, 0.14]} position={[x, 0.45, z]} />))}
-      <Box size={[1.1, 0.7, 0.9]} position={[0, 1.4, 0]} color={PALETTE.violet} emissive={0.3} />
-    </group>
-  );
-}
 
 function Overlay(_: StationOverlayProps) {
   const { back } = useWorld();
@@ -41,7 +31,6 @@ const workbench: StationModule = {
   travel: 0,
   length: 0,
   camera: still(stopFrom(BENCH_PIVOT.position, "Workbench edit")),
-  Scene,
   Overlay,
 };
 
