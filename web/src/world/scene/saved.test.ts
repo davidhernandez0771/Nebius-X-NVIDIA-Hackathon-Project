@@ -107,3 +107,45 @@ describe("saved cartridges", () => {
     expect(ROBOTS.some((x) => x.code === r.cartridge.robot)).toBe(true);
   });
 });
+
+describe("saved cartridges on the spiral", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetSaved();
+  });
+
+  it("stand as the instances after the robots, each in its own empty place", async () => {
+    const { N_INSTANCES, N_ITEMS, ROBOT_SLOTS, SAVED0, instanceSlot } = await import("./spiral");
+    const { instanceInSlot, instanceLabel, slotLook } = await import("./Helix");
+    const { SAVED_TILE0 } = await import("./labels");
+    expect(SAVED0).toBe(N_ITEMS + ROBOT_SLOTS.length);
+    expect(N_INSTANCES).toBe(SAVED0 + MAX_SAVED);
+    expect(instanceSlot(N_ITEMS)).toBe(ROBOT_SLOTS[0]);
+    expect(instanceSlot(SAVED0 + 2)).toBe(savedSlot(2));
+    // Empty until one is saved.
+    expect(instanceInSlot(savedSlot(0))).toBe(-1);
+    saveCartridge({ name: "Shed arm", shell: "signal", robot: "OPN" });
+    expect(instanceInSlot(savedSlot(0))).toBe(SAVED0);
+    expect(instanceLabel(SAVED0)).toBe("Shed arm");
+    const look = slotLook(savedSlot(0));
+    expect(look.tile).toBe(SAVED_TILE0);
+    // Signal's teal: more green than red.
+    expect(look.shell.g).toBeGreaterThan(look.shell.r);
+  });
+
+  it("give the machine the right cartridge for any slot, and say so when a place is empty", async () => {
+    const { cartridgeInSlot } = await import("./saved");
+    const { cartridgeAt } = await import("./robots");
+    expect(cartridgeInSlot(0)).toEqual(cartridgeAt(HELIX[0]));
+    expect(() => cartridgeInSlot(savedSlot(0))).toThrow(/empty/);
+    const r = saveCartridge({ name: "Lab arm", shell: "ash", robot: "RZ4" });
+    if (!r.ok) throw new Error("save failed");
+    expect(cartridgeInSlot(savedSlot(0)).label).toBe("Lab arm");
+  });
+
+  it("fly to the machine from their own place", async () => {
+    const { cartridgePose } = await import("./plugSequence");
+    const at = cartridgePose(savedSlot(1), 0).position;
+    expect(at.toArray().map((v) => +v.toFixed(4))).toEqual(SPARE[1].position.map((v) => +v.toFixed(4)));
+  });
+});

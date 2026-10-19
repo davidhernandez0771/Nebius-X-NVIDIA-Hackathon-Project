@@ -3,7 +3,7 @@
 // functions only; the spiral, the label atlas and the bench hear about changes through `subscribeSaved`.
 import type { Cartridge } from "../core/types";
 import { HELIX, SPARE } from "./layout";
-import { ROBOTS } from "./robots";
+import { ROBOTS, cartridgeAt } from "./robots";
 
 /** The bench's five shell plastics (sRGB), as in the C-workbench render. */
 export const SHELLS = [
@@ -134,6 +134,14 @@ export function savedInSlot(slot: number): SavedCartridge | null {
 /** What the machine gets for a saved cartridge: its name, and the robot's Record page. */
 export function cartridgeOfSaved(c: SavedCartridge, place: number): Cartridge {
   return { id: `mine-${c.id}`, label: c.name, route: "/pm/record", slot: savedSlot(place) };
+}
+
+/** The cartridge in any spiral slot: a saved one by its place, else the helix slot's (robots.ts). */
+export function cartridgeInSlot(slot: number): Cartridge {
+  if (slot < HELIX.length) return cartridgeAt(HELIX[slot]);
+  const c = savedInSlot(slot);
+  if (!c) throw new Error(`world: spiral place ${slot} is empty`);
+  return cartridgeOfSaved(c, slot - HELIX.length);
 }
 
 /** Forget what was read (tests; the next read goes back to localStorage). */

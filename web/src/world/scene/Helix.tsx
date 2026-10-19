@@ -1,7 +1,8 @@
-// The spiral shelf's 29 cartridges: one InstancedMesh per part of cartridge.glb (8 draw calls for all
+// The spiral shelf's cartridges (29, and up to 4 more from the bench): one InstancedMesh per part of cartridge.glb (8 draw calls for all
 // of them), each label reading its tile of the atlas and each shell its tint. The 24 jobs (items.ts)
 // fill the top slots and slide along the helix when a filter reorders them (spiral.ts); the five robot
-// cartridges keep the lowest slots. The front cartridge (the scroll's step) stands out of its slot,
+// cartridges keep the lowest slots. The bench's saved cartridges (saved.ts) stand in the empty
+// places Blender left (layout.ts SPARE). The front cartridge (the scroll's step) stands out of its slot,
 // the pointed-at one lifts further, the one open in the detail view comes right out, and with a
 // filter on the others dim. Hits go to a box per cartridge (12 triangles) instead of the shells.
 import { useEffect, useMemo, useRef } from "react";
@@ -11,37 +12,60 @@ import * as THREE from "three";
 import type { QualityTier } from "../core/quality";
 import { CARTRIDGE_URL } from "./assets";
 import { cartridgeParts, labelAtlas, offRedraw, slotMatrix, tileAttribute } from "./cartridge";
-import { ITEM_TILE0 } from "./labels";
-import { HELIX } from "./layout";
+import { ITEM_TILE0, SAVED_TILE0 } from "./labels";
+import { HELIX, SPARE } from "./layout";
 import { liveMaterial, trackLive, withTiles } from "./materials";
 import { plug } from "./plug";
 import { markLoaded } from "./power";
 import { ROBOTS, robotInSlot } from "./robots";
 import { ITEMS } from "./items";
-import { N_ITEMS, ROBOT_SLOTS, itemInSlot, itemShell, matches, setHover, spiral, stepPose } from "./spiral";
+import { MAX_SAVED, savedCartridges, shellOf, subscribeSaved } from "./saved";
+import { N_INSTANCES, N_ITEMS, ROBOT_SLOTS, SAVED0, itemInSlot, itemShell, matches, setHover, spiral, stepPose } from "./spiral";
 
 /** Graphite, the default shell: glossy near-black plastic (linear RGB). */
 export const GRAPHITE = [0.032, 0.033, 0.036] as const;
 
-/** Instances: the jobs first (instance i is job i), then the robots in slots 0–4. */
-export const N = N_ITEMS + ROBOT_SLOTS.length;
+/** Instances: the jobs first (instance i is job i), then the robots in slots 0–4, then the saved places. */
+export const N = N_INSTANCES;
 const robotSlot = (k: number) => ROBOT_SLOTS[k - N_ITEMS];
-/** The instance in a helix slot. */
+/** The instance in a spiral slot, or -1 (an empty place). */
 export function instanceInSlot(slot: number): number {
+  if (slot >= HELIX.length) {
+    const place = slot - HELIX.length;
+    return place < savedCartridges().length ? SAVED0 + place : -1;
+  }
   const i = itemInSlot(slot);
   return i >= 0 ? i : ROBOT_SLOTS.indexOf(slot) >= 0 ? N_ITEMS + ROBOT_SLOTS.indexOf(slot) : -1;
 }
 /** What an instance is called (the hover tip). */
 export function instanceLabel(k: number): string {
   if (k < N_ITEMS) return ITEMS[k].title;
+  if (k >= SAVED0) return savedCartridges()[k - SAVED0]?.name ?? "";
   return robotInSlot(robotSlot(k))?.name ?? HELIX[robotSlot(k)].code;
 }
 
-const TILES = [...ITEMS.map((_, i) => ITEM_TILE0 + i), ...ROBOT_SLOTS.map((s) => ROBOTS.findIndex((r) => r.code === robotInSlot(s)?.code))];
+const TILES = [
+  ...ITEMS.map((_, i) => ITEM_TILE0 + i),
+  ...ROBOT_SLOTS.map((s) => ROBOTS.findIndex((r) => r.code === robotInSlot(s)?.code)),
+  ...SPARE.map((_, i) => SAVED_TILE0 + i),
+];
 const ROBOT_BASE = ROBOT_SLOTS.map((s) => slotMatrix(HELIX[s]));
-const shells = [...ITEMS.map((_, i) => itemShell(i)), ...ROBOT_SLOTS.map((s) => new THREE.Color().setRGB(...(HELIX[s].shell ?? GRAPHITE), THREE.LinearSRGBColorSpace))];
+const SAVED_BASE = SPARE.map((s) => slotMatrix(s));
+const shells = [
+  ...ITEMS.map((_, i) => itemShell(i)),
+  ...ROBOT_SLOTS.map((s) => new THREE.Color().setRGB(...(HELIX[s].shell ?? GRAPHITE), THREE.LinearSRGBColorSpace)),
+  ...SPARE.map(() => new THREE.Color().setRGB(...GRAPHITE, THREE.LinearSRGBColorSpace)),
+];
 
-/** What the cartridge in a helix slot looks like: its label tile and shell tint (the machine's copy). */
+/** Retint the saved places from the saved list (each shell as the bench picked it). */
+function dressSaved(): void {
+  const list = savedCartridges();
+  for (let i = 0; i < MAX_SAVED; i++) if (list[i]) shells[SAVED0 + i].set(shellOf(list[i].shell).hex);
+}
+dressSaved();
+subscribeSaved(dressSaved);
+
+/** What the cartridge in a spiral slot looks like: its label tile and shell tint (the machine's copy). */
 export function slotLook(slot: number): { tile: number; shell: THREE.Color } {
   const k = instanceInSlot(slot);
   return k < 0 ? { tile: 0, shell: new THREE.Color().setRGB(...GRAPHITE, THREE.LinearSRGBColorSpace) } : { tile: TILES[k], shell: shells[k] };
@@ -99,9 +123,15 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
     markLoaded(CARTRIDGE_URL);
     st.first = true;
     invalidate();
+    // A save or a remove on the bench: stand the saved places up (or hide them) and retint them.
+    const offSaved = subscribeSaved(() => {
+      st.first = true;
+      invalidate();
+    });
     return () => {
       releases.forEach((r) => r());
       offRedraw(redraw);
+      offSaved();
     };
   }, [parts, invalidate, st]);
 
@@ -151,12 +181,12 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
     if (moving) {
       for (let k = 0; k < N; k++) {
         let mat: THREE.Matrix4;
-        if (k === away) mat = HIDDEN;
+        if (k === away || (k >= SAVED0 && k - SAVED0 >= savedCartridges().length)) mat = HIDDEN;
         else {
           if (k < N_ITEMS) {
             stepPose(spiral.pos[k], p3, q4);
             m4.compose(p3, q4, s3);
-          } else m4.copy(ROBOT_BASE[k - N_ITEMS]);
+          } else m4.copy(k < SAVED0 ? ROBOT_BASE[k - N_ITEMS] : SAVED_BASE[k - SAVED0]);
           const pop = st.pop[k];
           if (pop > 0) {
             o3.set(0, 0, 1).applyQuaternion(q4.setFromRotationMatrix(m4));

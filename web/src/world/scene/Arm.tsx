@@ -8,8 +8,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { QualityTier } from "../core/quality";
-import { HELIX } from "./layout";
-import { N_ITEMS, ROBOT_SLOTS, spiral, stepPose } from "./spiral";
+import { slotAt } from "./layout";
+import { N_ITEMS, instanceSlot, spiral, stepPose } from "./spiral";
 
 const PAINT = new THREE.Color("#d9d5cc");
 const DARK = new THREE.Color("#15191b");
@@ -111,7 +111,7 @@ const _look = new THREE.Vector3();
 /** Where the arm looks: the pointed-at cartridge, else the front one. */
 function lookTarget(out: THREE.Vector3): THREE.Vector3 {
   const k = spiral.hover;
-  if (k >= N_ITEMS) return out.set(...HELIX[ROBOT_SLOTS[k - N_ITEMS]].position);
+  if (k >= N_ITEMS) return out.set(...slotAt(instanceSlot(k)).position);
   if (k >= 0) return stepPose(spiral.pos[k], out).position;
   return stepPose(spiral.step, out).position;
 }
