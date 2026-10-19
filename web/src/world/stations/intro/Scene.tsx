@@ -8,6 +8,7 @@ import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { ambient } from "../../core/activity";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { onPointer, pointer } from "../../ui/pointer";
@@ -227,7 +228,8 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     // Gathering plays on every tier; the drift after it only where idle loops are allowed.
     const branch = store.getCoarse().branch !== null;
     const drifting = quality.idleMotion && !reduced && !branch;
-    if ((ready && gather < 1) || drifting || Math.abs(pointer.x - s.mx) + Math.abs(pointer.y - s.my) > 0.002) invalidate();
+    if ((ready && gather < 1) || Math.abs(pointer.x - s.mx) + Math.abs(pointer.y - s.my) > 0.002) invalidate();
+    else if (drifting) ambient(invalidate);
   });
 
   return (

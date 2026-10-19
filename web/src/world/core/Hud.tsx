@@ -31,7 +31,7 @@ export function Hud({ store, quality, forced, onTier }: { store: WorldStore; qua
       pre.current.textContent = [
         `tier      ${quality.name}${forced ? " (url)" : ""}${hud.tune ? `  ${hud.tune}` : ""}`,
         `fps       ${hud.fps}`,
-        `dpr       ${hud.dpr}`,
+        `dpr       ${hud.dpr}  (scale ${hud.scale})`,
         `calls     ${hud.calls}`,
         `tris      ${hud.tris}`,
         `points    ${hud.points}`,

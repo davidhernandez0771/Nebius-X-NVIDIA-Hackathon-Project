@@ -36,7 +36,7 @@ export interface QualityTier {
 export const TIERS: Record<TierName, QualityTier> = {
   // The particle, post and MSAA numbers are the site build brief's table (docs/design/site-build-brief.md).
   low: { name: "low", dpr: [0.75, 1], antialias: false, shadows: false, idleMotion: false, physical: false, envMap: false, haze: false, powerPreference: "low-power", logoParticles: 18000, dustParticles: 4000, post: false, msaa: 0 },
-  high: { name: "high", dpr: [1, 1.5], antialias: false, shadows: false, idleMotion: true, physical: false, envMap: true, haze: false, powerPreference: "default", logoParticles: 70000, dustParticles: 14000, post: true, msaa: 4 },
+  high: { name: "high", dpr: [1, 1.5], antialias: false, shadows: false, idleMotion: true, physical: false, envMap: true, haze: false, powerPreference: "high-performance", logoParticles: 70000, dustParticles: 14000, post: true, msaa: 4 },
   ultra: { name: "ultra", dpr: [1, 2], antialias: false, shadows: false, idleMotion: true, physical: true, envMap: true, haze: true, powerPreference: "high-performance", logoParticles: 140000, dustParticles: 28000, post: true, msaa: 4 },
 };
 

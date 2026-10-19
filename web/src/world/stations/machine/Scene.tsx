@@ -11,6 +11,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { MACHINE_ANCHOR } from "../../core/layout";
+import { ambient } from "../../core/activity";
 import { glideTo } from "../../core/scroll";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
@@ -274,7 +275,8 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
       built.fans[0].rotation.y = a;
       built.fans[1].rotation.y = -a * 1.07;
     }
-    if (spinning || (s.clicked && u < 1)) invalidate();
+    if (s.clicked && u < 1) invalidate();
+    else if (spinning) ambient(invalidate);
   });
 
   return (

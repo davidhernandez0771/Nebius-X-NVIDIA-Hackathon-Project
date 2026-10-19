@@ -8,9 +8,11 @@ import { useEffect, useMemo, useRef } from "react";
 import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { WebGLRenderer } from "three";
+import { idle } from "./activity";
 import { createTuner } from "./autotune";
 import { hud } from "./hud";
-import type { TierName } from "./quality";
+import type { QualityTier, TierName } from "./quality";
+import { createScaler, targetDpr } from "./resolution";
 import type { WorldStore } from "./store";
 
 /** Seconds after the loader before the auto-tune starts: the logo has gathered (intro GATHER_S). */
@@ -60,7 +62,7 @@ export function AutoTune({ store, tier, onTier }: { store: WorldStore; tier: Tie
     hud.tune = "auto";
   }, []);
   useFrame(({ clock }, delta) => {
-    if (tuner.done) return;
+    if (tuner.done || idle()) return;
     if (!store.getCoarse().ready) return;
     const now = clock.elapsedTime;
     st.current.readyAt ??= now;
@@ -68,6 +70,33 @@ export function AutoTune({ store, tier, onTier }: { store: WorldStore; tier: Tie
     const next = tuner.sample(delta * 1000);
     if (next) onTier(next);
     if (tuner.done) hud.tune = `auto → ${tuner.tier}`;
+  });
+  return null;
+}
+
+/**
+ * The canvas's pixel ratio: the tier's cap held to its pixel budget (resolution.ts), times a live
+ * scale that drops when frames run slow and recovers with headroom. Calls onDpr only on a change.
+ */
+export function Resolution({ quality, onDpr }: { quality: QualityTier; onDpr: (dpr: number) => void }) {
+  const size = useThree((s) => s.size);
+  const scaler = useMemo(() => createScaler(), [quality]);
+  const st = useRef({ scale: 1, sent: 0 });
+  const push = (scale: number) => {
+    st.current.scale = scale;
+    const dpr = targetDpr(quality, size.width, size.height, window.devicePixelRatio || 1, scale);
+    hud.scale = scale;
+    if (dpr !== st.current.sent) {
+      st.current.sent = dpr;
+      onDpr(dpr);
+    }
+  };
+  useEffect(() => push(scaler.scale), [quality, size.width, size.height]); // eslint-disable-line react-hooks/exhaustive-deps
+  useFrame((_, delta) => {
+    // Idle frames come at 30 fps on purpose (activity.ts): not a sign of a slow GPU.
+    if (idle()) return;
+    const next = scaler.sample(delta * 1000);
+    if (next !== null) push(next);
   });
   return null;
 }

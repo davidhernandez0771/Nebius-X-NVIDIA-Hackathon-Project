@@ -2,14 +2,15 @@
 // rig asks for frames while the camera moves, the scroll asks for one per scroll event, and an idle
 // world draws nothing. Each station's Scene sits in its own group, Suspense and error boundary, so
 // one module loading or failing never blanks the others.
-import { Component, Suspense, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { Component, Suspense, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { Group } from "three";
 import { CameraRig } from "./CameraRig";
 import { WORLD_BG } from "./layout";
-import { AutoTune, HudProbe, Pause, WarmUp } from "./Perf";
+import { AutoTune, HudProbe, Pause, Resolution, WarmUp } from "./Perf";
 import { PostFX } from "./PostFX";
 import type { QualityTier, TierName } from "./quality";
+import { targetDpr } from "./resolution";
 import type { WorldStore } from "./store";
 import type { StationFrame, StationModule } from "./types";
 
@@ -80,12 +81,14 @@ export default function WorldCanvas({
   onTier?: (t: TierName) => void;
 }) {
   const first = store.rails[0];
+  // The pixel ratio lives here, so a re-render of the canvas keeps the live value (r3f re-applies it).
+  const [dpr, setDpr] = useState(() => targetDpr(quality, window.innerWidth, window.innerHeight, window.devicePixelRatio || 1));
   return (
     <Canvas
       className="world-canvas"
       style={{ position: "fixed", inset: 0 }}
       frameloop="demand"
-      dpr={quality.dpr}
+      dpr={dpr}
       shadows={quality.shadows}
       gl={{ antialias: quality.antialias, powerPreference: quality.powerPreference, alpha: false }}
       camera={{ fov: 40, near: 0.1, far: 220, position: first.anchor as [number, number, number] }}
@@ -103,6 +106,7 @@ export default function WorldCanvas({
       <CameraRig store={store} stations={stations} reduced={reduced} onCut={onCut} />
       <Stations store={store} stations={stations} quality={quality} reduced={reduced} />
       {quality.post ? <PostFX store={store} quality={quality} reduced={reduced} /> : null}
+      <Resolution quality={quality} onDpr={setDpr} />
       <HudProbe />
       {tune ? <AutoTune store={store} tier={quality.name} onTier={onTier} /> : null}
       <Pause />

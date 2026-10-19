@@ -10,6 +10,8 @@ export const hud = {
   geometries: 0,
   programs: 0,
   dpr: 1,
+  /** The live resolution scale (resolution.ts): 1 at full, lower while frames run slow. */
+  scale: 1,
   gpu: "",
   /** The JS heap in MB (Chromium only), or null. */
   heapMb: null as number | null,
