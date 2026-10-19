@@ -14,7 +14,9 @@ import { Haze } from "../../scene/Haze";
 import { Lamps } from "../../scene/Lamps";
 import { Library } from "../../scene/Library";
 import { LiveLights } from "../../scene/LiveLights";
+import { ENV_INTENSITY } from "../../scene/materials";
 import { Pendants } from "../../scene/Pendants";
+import { addEnvironment } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
 import { useSend } from "./send";
 
@@ -27,8 +29,11 @@ function Reflections() {
     const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
     scene.environment = env;
+    const off = addEnvironment(scene, ENV_INTENSITY);
     return () => {
+      off();
       scene.environment = null;
+      scene.environmentIntensity = 1;
       env.dispose();
     };
   }, [gl, scene]);

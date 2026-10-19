@@ -4,9 +4,8 @@
 // an `aTile` attribute (offset xy, scale zw), patched into the shader once.
 import * as THREE from "three";
 import type { QualityTier } from "../core/quality";
-import { addLit } from "./power";
 
-/** How much the environment reflects at full power (the lamps scale it, power.ts). */
+/** How much the environment reflects at full power (scene.environmentIntensity; the lamps scale it, power.ts). */
 export const ENV_INTENSITY = 0.22;
 
 type Src = THREE.MeshStandardMaterial & Partial<Pick<THREE.MeshPhysicalMaterial, "clearcoat" | "clearcoatRoughness">>;
@@ -19,18 +18,14 @@ export function liveMaterial(src: THREE.Material, tier: QualityTier, extra: { ma
   const opacity = extra.opacity ?? 1;
   const common = { color, map, transparent, opacity, depthWrite: !transparent, name: s.name };
   if (tier.name === "low") return new THREE.MeshLambertMaterial(common);
-  const pbr = { ...common, roughness: s.roughness ?? 0.5, metalness: s.metalness ?? 0, envMapIntensity: tier.envMap ? ENV_INTENSITY : 0 };
+  const pbr = { ...common, roughness: s.roughness ?? 0.5, metalness: s.metalness ?? 0 };
   const m = tier.physical && (s.clearcoat ?? 0) > 0 ? new THREE.MeshPhysicalMaterial({ ...pbr, clearcoat: s.clearcoat, clearcoatRoughness: s.clearcoatRoughness ?? 0.05 }) : new THREE.MeshStandardMaterial(pbr);
   return m;
 }
 
-/** Hook a live material's reflections to the lamps; returns the release (unhook and dispose). */
+/** The release for a live material (its reflections follow the lamps through the scene, power.ts). */
 export function trackLive(m: THREE.Material): () => void {
-  const off = m instanceof THREE.MeshStandardMaterial ? addLit(m, m.envMapIntensity) : () => {};
-  return () => {
-    off();
-    m.dispose();
-  };
+  return () => m.dispose();
 }
 
 /** Let an instanced material read its map through the per-instance atlas tile `aTile`. */
