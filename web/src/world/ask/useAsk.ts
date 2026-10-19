@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import { apiUrl } from "../../api/client";
 import { scrollToY } from "../core/scroll";
 import { useWorld } from "../core/WorldContext";
+import { breaksLength, sectionShown } from "../ui/wipe";
 import { ITEMS, itemIndex, tagLabel, type TagId } from "../scene/items";
 import { setFilter, spiral } from "../scene/spiral";
 import { useDetail } from "../stations/workshop/detailStore";
@@ -58,8 +59,9 @@ export function useAsk() {
         const s = c.arg as Section;
         if (s === "top") scrollToY(0, !reduced);
         else if (s === "story") {
+          // The intro's first break (the problem), fully shown.
           const span = store.rail.spans[0];
-          scrollToY(span.start + (span.end - span.start) * 0.12, !reduced);
+          scrollToY(span.start + (span.end - span.start) * (sectionShown(0) / breaksLength()), !reduced);
         } else if (s === "workshop") scrollToStep(store, 0);
         else if (s === "machine") goTo("machine");
         else goTo("workbench");

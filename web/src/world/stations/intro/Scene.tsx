@@ -16,6 +16,7 @@ import { DUST, LOGO, LOGO_SCALE, RING, SKYLIGHT } from "./layout";
 import { MARK_URL } from "./mark";
 import { drawPlaceholderMark, dustBuffers, logoBuffers, sampleMark } from "./particles";
 import { load } from "./progress";
+import { story } from "./storyline";
 import { dustFrag, dustVert, logoFrag, logoPointSize, logoVert } from "./shaders";
 
 const MARK_PX = 512;
@@ -197,7 +198,8 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     const ready = store.getCoarse().ready;
     if (ready && s.readyAt === null) s.readyAt = now;
     const gather = reduced ? 1 : s.readyAt === null ? 0 : clamp01((now - s.readyAt) / GATHER_S);
-    const t = frame.t;
+    // The story, not the raw dwell: storyline.ts spreads it over the breaks.
+    const t = story(frame.t);
     const k = 1 - Math.exp(-dt * 4);
     s.mx += (pointer.x - s.mx) * k;
     s.my += (pointer.y - s.my) * k;
