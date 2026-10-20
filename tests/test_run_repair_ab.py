@@ -164,3 +164,33 @@ def test_a_stop_file_ends_the_run_cleanly_after_the_current_demo_and_a_rerun_res
     assert list(run.rows()) == ["standin_00", "standin_01"]
     stop.unlink()
     assert run.run()["n"] == 4
+
+
+def test_hybrid_is_the_rules_result_else_the_blind_edits_run_and_is_the_primary_comparison(ab, tmp_path):
+    arms = Arms(rules=dict(zip(IDS, ["perfected", "discarded", "discarded", "kept"])),
+                edits=dict(zip(IDS, ["discarded", "perfected", "discarded", "discarded"])))
+    run, sim = _setup(ab, tmp_path, arms)
+    s = run.run()
+    assert s["arms"]["hybrid"]["status"] == dict(zip(IDS, ["perfected", "perfected", "discarded", "kept"]))
+    assert s["arms"]["hybrid"]["pass"] == 3 and s["arms"]["rules"]["pass"] == 2
+    assert s["primary"] == {"arms": ["rules", "hybrid"], "both": 2, "only_rules": 0, "only_hybrid": 1,
+                            "neither": 1, "mcnemar_p": 1.0}
+    assert s["paired"]["only_edits"] == 1 and s["paired"]["only_rules"] == 2  # secondary: rules vs edits alone
+    assert len(sim.requests) == len(IDS)  # hybrid adds no replay: it reuses both arms' runs
+    root = tmp_path / "human_exp" / "ab1"
+    assert "hybrid" in json.loads((root / "ab_summary.json").read_text())["arms"]
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "Primary: rules vs hybrid" in prereg and "Secondary: rules vs nemotron-edits" in prereg
+
+
+def test_the_frozen_settings_carry_the_variance_fixes(ab):
+    s = ab.ab_settings()
+    assert s["temperature"] == 0.0 and s["prompt_fingerprint"] == ab.nemotron_repair.prompt_fingerprint()
+    assert s["primary"].startswith("rules vs hybrid")
+
+
+def test_select_forwards_input_only_when_given(ab):
+    p = ab.build_parser()
+    assert "input" not in ab.select_kwargs(p.parse_args(["--name", "x", "--tag", "human_*"]))
+    kw = ab.select_kwargs(p.parse_args(["--name", "x", "--tag", "human_20261020*", "--input", "keyboard"]))
+    assert kw == {"ids": None, "tag": "human_20261020*", "settings": ab.SETTINGS, "input": "keyboard"}

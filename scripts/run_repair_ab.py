@@ -1,7 +1,8 @@
-"""Blind A/B of the two repairers on the same human demos: the hand-written rules vs Nemotron's trajectory edits.
+"""Blind A/B of the repairers on the same human demos: the hand-written rules, Nemotron's trajectory edits, and the
+hybrid (the rules first, the edits for a demo the rules discard; derived from the other two, primary vs the rules).
 
     uv run --env-file <.env> python scripts/run_repair_ab.py --name <name> --tag "human_20261019*" ^
-        [--data-dir <DATA_DIR>] [--ids a,b] [--max-cost-usd 1.0] [--sim-port 8770]
+        [--input keyboard] [--data-dir <DATA_DIR>] [--ids a,b] [--max-cost-usd 1.0] [--sim-port 8770]
 
 One sim worker (Isaac, Franka, cameras) under the GPU lock, through run_human_demo_experiment's own pieces:
   select   the demos, frozen by hash, replaying the achieved path (Experiment.select; DATA_DIR/human_exp/<name>);
@@ -12,11 +13,14 @@ One sim worker (Isaac, Franka, cameras) under the GPU lock, through run_human_de
              nemotron-edits  app.jobs.perfect_stored_demo_edits(...)        -> "<id>_edits" (Nemotron sees no
                              hand-written op; up to 3 model calls, each valid plan verified);
            every verification is the worker's replay and the unchanged check_success. ab/<id>.json per demo.
-  summary  per arm: repaired demos that pass physics (status perfected or kept); the paired table; exact McNemar.
+  summary  per arm: repaired demos that pass physics (status perfected or kept); the hybrid per demo is the rules'
+           result when it passes, else the edits' (the edits arm is blind, so its run is the hybrid's fallback);
+           primary rules vs hybrid, secondary rules vs edits, each with the paired table and exact McNemar.
            ab_summary.json, and the table printed.
 A re-run resumes from the markers. To stop early but cleanly, create DATA_DIR/human_exp/<name>/STOP: the demo in
-progress finishes, then the worker stops and gpu.lock is released (a re-run clears the file and resumes). ab_config.json freezes the code commit and the repair prompt's SHA-256 next to the
-experiment's config.json. Exit: 0 done, 1 refused, 2 stopped (a worker failed, the model API failed, or the spend
+progress finishes, then the worker stops and gpu.lock is released (a re-run clears the file and resumes).
+ab_config.json freezes the code commit, the repair prompt's SHA-256 and the prompt fingerprint (temperature, budget
+hint, best-plan text, rescue) next to the experiment's config.json. Exit: 0 done, 1 refused, 2 stopped (a worker failed, the model API failed, or the spend
 cap was reached: re-run to resume; a demo stopped mid-way is redone from its raw replay).
 """
 from __future__ import annotations
@@ -42,7 +46,8 @@ from demo_pipeline.stats import mcnemar_exact, wilson_ci  # noqa: E402
 from demo_pipeline.store import DemoStore  # noqa: E402
 from nebius_llm import TokenFactoryError  # noqa: E402
 
-ARMS = ("rules", "nemotron-edits")
+ARMS = ("rules", "nemotron-edits")  # the two that run; the hybrid is derived from them (hybrid_status)
+HYBRID = "hybrid"
 PASS = ("perfected", "kept")
 SETTINGS = {**hx.DEFAULTS, "smoke": False, "raw_arm": "all", "judge_copies": 1, "nemotron": False,
             "max_cost_usd": 0.0, "replay_path": "achieved", "replay_lookahead": 0, "repair": "rules"}
@@ -70,7 +75,17 @@ def ab_settings() -> dict:
             "repair_budget_m": REPAIR_BUDGET_M, "prompt_sha256": prompt_sha256(),
             "rescue": "a thinking reply cut at the token cap or with no JSON is re-asked once in the same round, "
                       "thinking off; not a round", "rescue_suffix_sha256": hashlib.sha256(
-                nemotron_repair.RESCUE_SUFFIX.encode("utf-8")).hexdigest()}
+                nemotron_repair.RESCUE_SUFFIX.encode("utf-8")).hexdigest(),
+            "primary": f"rules vs {HYBRID} (the rules' result when it passes, else the blind nemotron-edits run on "
+                       "the same raw replay; no extra replays)",
+            "secondary": "rules vs nemotron-edits", "temperature": nemotron_repair.TEMPERATURE,
+            "prompt_fingerprint": nemotron_repair.prompt_fingerprint()}
+
+
+def hybrid_status(row: dict) -> str:
+    """What the hybrid repairer (app.jobs.perfect_stored_demo_hybrid) gives on this demo: the rules' result when it
+    passes, else the edits'. The edits arm is blind to the rules, so its run is exactly the hybrid's fallback."""
+    return row["rules"]["status"] if row["rules"]["status"] in PASS else row["nemotron-edits"]["status"]
 
 
 def preregistration(config: dict, ab: dict) -> str:
@@ -81,26 +96,44 @@ def preregistration(config: dict, ab: dict) -> str:
 Frozen at {ab['frozen_at']} (UTC) from `config.json` and `ab_config.json`, before any repair ran. Code `{ab['commit']}`;
 repair prompt sha256 `{ab['prompt_sha256']}`. The full text is docs/superpowers/notes/2026-10-20-nemotron-repair.md.
 
-**Question.** On the same human demos, does Nemotron's trajectory editing (no hand-written op shown to it) repair as
-many demos to a physics pass as the hand-written rules (with release_above_bin and recenter_grasp)?
+**Question.** {QUESTION_HYBRID if "primary" in ab else QUESTION_EDITS}
 
-**Demos** ({config['n_human']}, frozen by content hash; the achieved path, lookahead {config['replay_lookahead']}):
+**Demos** ({config['n_human']}, frozen by content hash; the achieved path, lookahead {config['replay_lookahead']}{
+    f"; recorded with input `{config['input']}`" if config.get("input") else ""}):
 {ids}
 
 **Arms**, both on each demo's one raw replay, the first arm alternating by demo ({ab['order']}):
 - **rules:** app.jobs.perfect_stored_demo(..., "rules"): up to 3 verifications.
 - **nemotron-edits:** app.jobs.perfect_stored_demo_edits: Nemotron `{ab['tier']}` (thinking {ab['think']}), at most
   {ab['max_rounds']} rounds, edits within a {ab['repair_budget_m'] * 100:.0f} cm per-step budget; each valid plan
-  verified.{"" if "rescue" not in ab else " Rescue: " + ab["rescue"] + " (logged per demo and in ab_summary.json)."}
+  verified.{"" if "rescue" not in ab else " Rescue: " + ab["rescue"] + " (logged per demo and in ab_summary.json)."}{
+    "" if "temperature" not in ab else f" Sampling at temperature {ab['temperature']}, the 5 cm budget stated in the"
+    " facts, and the best failed plan so far shown each round; prompt fingerprint `" + ab["prompt_fingerprint"] + "`."}{
+    "" if "primary" not in ab else '''
+- **hybrid** (derived; no replay of its own): the rules' result when it passes, else the nemotron-edits result. The
+  edits arm never sees the rules, so its run on a demo is exactly what app.jobs.perfect_stored_demo_hybrid would run
+  there after the rules discard it.'''}
 
 **Metric.** {ab['metric']}, per arm, out of {config['n_human']}. The verdict is the sim worker's replay and the
-unchanged check_success, for both arms.
+unchanged check_success, for every arm.
 
-**Test.** Exact two-sided McNemar on the paired outcomes, alpha 0.05, with a Wilson 95% CI per arm. One test, no
-interim looks, n fixed. With {config['n_human']} demos only a large difference can reach significance; the counts and
-the paired table are reported whatever they say. A worker or API failure stops the run and the demo is redone on
-resume; it is never counted for either arm.
+**Test.** {TEST_HYBRID if "primary" in ab else TEST_EDITS} Alpha 0.05, a Wilson 95% CI per arm. No interim looks, n
+fixed; the counts and the paired tables are reported whatever they say. A worker, API or spend-cap stop is redone on
+resume and never counted for any arm.
 """
+
+
+QUESTION_EDITS = ("On the same human demos, does Nemotron's trajectory editing (no hand-written op shown to it) repair "
+                  "as many demos to a physics pass as the hand-written rules (with release_above_bin and "
+                  "recenter_grasp)?")
+QUESTION_HYBRID = ("On human demos the rules were never written for, does the hybrid repairer (the rules first; "
+                   "Nemotron's blind trajectory edits for a demo the rules discard) repair more demos to a physics "
+                   "pass than the rules alone?")
+TEST_EDITS = "Exact two-sided McNemar on the paired outcomes; one test."
+TEST_HYBRID = ("Primary: rules vs hybrid, exact two-sided McNemar on the paired outcomes. The hybrid can only add "
+               "passes (only_rules = 0 by construction), so this is a sign test on the demos the rules discard and "
+               "Nemotron repairs: it reaches p < 0.05 only with 6 or more of them. Secondary: rules vs nemotron-edits "
+               "alone, exact two-sided McNemar (reported, not a second confirmatory test).")
 
 
 def summarize(rows: dict[str, dict]) -> dict[str, Any]:
@@ -112,10 +145,17 @@ def summarize(rows: dict[str, dict]) -> dict[str, Any]:
     only_rules = sum(a and not b for a, b in zip(ok["rules"], ok["nemotron-edits"]))
     only_edits = sum(b and not a for a, b in zip(ok["rules"], ok["nemotron-edits"]))
     out: dict[str, Any] = {"n": n, "arms": {}}
-    for arm in ARMS:
-        k = sum(ok[arm])
-        out["arms"][arm] = {"pass": k, "of": n, "wilson_95": wilson_ci(k, n) if n else None,
-                            "status": {i: rows[i][arm]["status"] for i in ids}}
+    status = {arm: {i: rows[i][arm]["status"] for i in ids} for arm in ARMS}
+    status[HYBRID] = {i: hybrid_status(rows[i]) for i in ids}
+    for arm, st in status.items():
+        k = sum(v in PASS for v in st.values())
+        out["arms"][arm] = {"pass": k, "of": n, "wilson_95": wilson_ci(k, n) if n else None, "status": st}
+    hyb = [status[HYBRID][i] in PASS for i in ids]
+    p_both = sum(a and b for a, b in zip(ok["rules"], hyb))
+    p_rules = sum(a and not b for a, b in zip(ok["rules"], hyb))  # 0 by construction
+    p_hyb = sum(b and not a for a, b in zip(ok["rules"], hyb))
+    out["primary"] = {"arms": ["rules", HYBRID], "both": p_both, "only_rules": p_rules, "only_hybrid": p_hyb,
+                      "neither": n - p_both - p_rules - p_hyb, "mcnemar_p": mcnemar_exact(p_rules, p_hyb)}
     out["paired"] = {"both": both, "only_rules": only_rules, "only_edits": only_edits,
                      "neither": n - both - only_rules - only_edits}
     out["mcnemar_p"] = mcnemar_exact(only_rules, only_edits)
@@ -131,13 +171,17 @@ def summarize(rows: dict[str, dict]) -> dict[str, Any]:
 
 
 def table(rows: dict[str, dict], s: dict) -> str:
-    lines = [f"{'demo':<30} {'raw':<32} {'rules':<11} {'nemotron-edits':<15} edits why"]
+    lines = [f"{'demo':<30} {'raw':<32} {'rules':<11} {'nemotron-edits':<15} {HYBRID:<11} edits why"]
     for i, r in rows.items():
         raw = "pass" if r["raw"]["success"] else ",".join(r["raw"]["reasons"])
-        why = (r["nemotron-edits"].get("why") or "")[:70]
-        lines.append(f"{i:<30} {raw:<32} {r['rules']['status']:<11} {r['nemotron-edits']['status']:<15} {why}")
-    a = s["arms"]
-    lines.append(f"\nrules {a['rules']['pass']}/{s['n']}  vs  nemotron-edits {a['nemotron-edits']['pass']}/{s['n']}"
+        why = (r["nemotron-edits"].get("why") or "")[:60]
+        lines.append(f"{i:<30} {raw:<32} {r['rules']['status']:<11} {r['nemotron-edits']['status']:<15} "
+                     f"{hybrid_status(r):<11} {why}")
+    a, pr = s["arms"], s["primary"]
+    lines.append(f"\nPRIMARY rules {a['rules']['pass']}/{s['n']}  vs  {HYBRID} {a[HYBRID]['pass']}/{s['n']}   paired: "
+                 f"both {pr['both']}, only rules {pr['only_rules']}, only {HYBRID} {pr['only_hybrid']}, neither "
+                 f"{pr['neither']}   exact McNemar p = {pr['mcnemar_p']:.3f}")
+    lines.append(f"secondary: rules {a['rules']['pass']}/{s['n']}  vs  nemotron-edits {a['nemotron-edits']['pass']}/{s['n']}"
                  f"   paired: both {s['paired']['both']}, only rules {s['paired']['only_rules']}, only edits "
                  f"{s['paired']['only_edits']}, neither {s['paired']['neither']}   exact McNemar p = "
                  f"{s['mcnemar_p']:.3f}   Nemotron ${s['nemotron_cost_usd']:.3f}, {s['model_calls']} calls, "
@@ -227,14 +271,27 @@ class RepairAB:
         return s
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--name", required=True, help="DATA_DIR/human_exp/<name>")
     p.add_argument("--ids", help="comma-separated human demo ids (in this order)")
     p.add_argument("--tag", help='fnmatch pattern over human demo ids, e.g. "human_20261019*"')
+    p.add_argument("--input", choices=("camera", "keyboard", "mouse"), default=None,
+                   help="only demos recorded with this input (Demo.input; needs pm/live-11's Experiment.select)")
     p.add_argument("--data-dir", type=Path, default=None)
     p.add_argument("--max-cost-usd", type=float, default=1.0, help="Nemotron spend cap for the edits arm")
     p.add_argument("--sim-port", type=int, default=8770)
+    return p
+
+
+def select_kwargs(args: argparse.Namespace) -> dict:
+    """Experiment.select's arguments; `input` only when given, so a checkout whose select has none still runs."""
+    kw = {"ids": args.ids.split(",") if args.ids else None, "tag": args.tag, "settings": SETTINGS}
+    return {**kw, "input": args.input} if args.input else kw
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = build_parser()
     args = p.parse_args(argv)
     if args.ids and args.tag:
         p.error("give --ids or --tag, not both")
@@ -257,7 +314,9 @@ def main(argv: list[str] | None = None) -> int:
                                         data / "human_exp" / args.name / "logs", lookahead=0)))
     try:
         try:
-            exp.select(ids=args.ids.split(",") if args.ids else None, tag=args.tag, settings=SETTINGS)
+            exp.select(**select_kwargs(args))
+        except TypeError as e:  # a checkout without Demo.input (before pm/live-11's select gained `input`)
+            raise hx.Refused(f"this checkout's Experiment.select takes no --input ({e}); run from pm/live-11") from e
         except ValueError as e:
             raise hx.Refused(str(e)) from e
         RepairAB(exp, max_cost_usd=args.max_cost_usd).run()

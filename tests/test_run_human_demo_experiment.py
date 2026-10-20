@@ -387,3 +387,14 @@ def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
     assert "repaired with Nemotron's trajectory edits" in (root / "preregistration.md").read_text(encoding="utf-8")
     with pytest.raises(hx.Refused, match="repair must be one of"):
         _exp(hx, tmp_path, name="other")[0].select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "magic"})
+
+
+def test_repairer_hybrid_routes_the_repair_step(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "hybrid"})
+    exp.run(until="grid", sim_until="repair")
+    root = tmp_path / "human_exp" / "smoke1"
+    marks = [json.loads(p.read_text()) for p in sorted((root / "stages" / "repair").glob("*.json"))]
+    assert marks and all(m["diagnoser"] == "hybrid" and m["stage"] == "rules" for m in marks)  # the fakes pass
+    assert "rules first; Nemotron's trajectory edits for a demo the rules discard" in (
+        root / "preregistration.md").read_text(encoding="utf-8")

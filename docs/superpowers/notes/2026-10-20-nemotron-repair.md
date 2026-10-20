@@ -388,6 +388,97 @@ were over budget, and the rest failed physics. The fix did what it was meant to;
   - Sample at temperature 0.
   - Run both repairers and keep whichever passes: across the two runs that union is 6 of 10.
 
+## The hybrid repairer, less plan variance, and the next A/B on fresh keyboard demos (code only; no GPU)
+
+The lead asked for this after repair_ab2. Every change below was written tests-first and is frozen into
+`ab_config.json`.
+
+- **Hybrid repairer** (`app.jobs.perfect_stored_demo_hybrid`; `--repairer hybrid` in
+  `run_human_demo_experiment.py`). This is the product candidate.
+  - **Order.** `perfect_stored_demo(..., "rules")` runs first. Only if the rules discard the demo does
+    `perfect_stored_demo_edits` run, on the same raw replay.
+  - **Blind.** The edits' prompt comes from the raw replay alone, never from the rules' diagnosis or attempts.
+    `release_above_bin` stays unseen; a test checks the prompt.
+  - **Output.** The winning stage's demo (`<id>_rules` or `<id>_edits`). The summary keeps both stages' summaries and
+    `stage`.
+- **Less plan variance**, in `app.ai.nemotron_repair`:
+  - **Temperature 0** (`TEMPERATURE`), on every call, rescues included.
+  - **A budget hint** in the facts: `repair_budget: "max 5 cm per step from where the original had the tool at that
+    moment, all edits together; plans over budget are rejected"`. In repair_ab2, 9 rounds were lost to over-budget
+    plans.
+  - **The best plan so far.** After a failed verification, the next round also gets "Your best plan so far is round
+    k (failed: …). Its edits: … Keep what worked and change what the new facts show is wrong." "Best" means the
+    fewest failure reasons, the earlier round on a tie; invalid replies never count.
+  - **Fingerprint.** `prompt_fingerprint()` hashes the system prompt, the budget hint, the rescue and best-plan
+    texts, the temperature, tier, thinking and token cap (`8e62711f…` now). `ab_config.json` freezes it with
+    `temperature`.
+- **Real check of temperature 0** (2 runs × 2 demos, no Isaac, $0.03). The API accepts 0 with thinking on, but the
+  plans were still **not** repeatable:
+  - **c045:** "+1.5 cm y, +1 cm z" in one run; "the place +2 cm, the release −2 cm x, open 8.10" in the other.
+  - **a029:** a 4.6 cm forward shift in one run; a give-up in the other.
+  - So temperature 0 reduces the variance at best: the thinking path or the server stays non-deterministic. That is
+    why the hybrid, not temperature, is the main lever.
+- **The A/B script** (`run_repair_ab.py`) now reports three arms.
+  - **Derived hybrid.** The hybrid is derived per demo: the rules' result when it passes, else the edits'. The edits
+    arm never sees the rules, so its run on a demo the rules discard is exactly what
+    `perfect_stored_demo_hybrid` would run there. No extra replays.
+  - **Comparisons.** Primary: rules vs hybrid. Secondary: rules vs edits alone.
+  - **`--input`** is passed to `Experiment.select` only when given. On a checkout whose select has no `input`
+    (this branch, before it is merged with pm/live-11), it refuses cleanly.
+
+### Pre-registration draft: `repair_kb1` (fresh keyboard demos; the script writes the frozen copy)
+
+- **Question.** On human demos the rules were never written for, does the hybrid repairer repair more demos to a
+  physics pass than the rules alone? The hybrid runs the rules first, then Nemotron's blind trajectory edits for any
+  demo the rules discard.
+  - The rules' two failure-specific ops, `release_above_bin` and `recenter_grasp`, were written for the 10 camera
+    demos of live test #10. These keyboard demos are new to both.
+- **Demos.** Every saved human demo from live test #11 recorded with the keyboard: `--tag "human_2026102[01]*"
+  --input keyboard` in `C:\dev\pm-t6\data`.
+  - This is the same selection as T4's pre-registration (`pm/kb-prereg`); `[01]` also catches takes after midnight.
+  - The ids and demo/steps hashes are frozen at select.
+  - Achieved path, lookahead 0. Demos without an `input` never match.
+  - n = however many were saved. With fewer than 6 demos the primary test cannot reach significance (see below),
+    and the result is then descriptive only.
+- **Arms**, all on each demo's one raw replay, with the first arm alternating by index:
+  - **rules:** `perfect_stored_demo(..., "rules")`, up to 3 verifications.
+  - **nemotron-edits:** `perfect_stored_demo_edits`.
+    - `super`, thinking on, 3 rounds, the 5 cm budget, the same system prompt (sha256 `836b5291…`).
+    - The rescue.
+    - **New:** temperature 0, the budget hint in the facts, and the best failed plan each round (fingerprint
+      `8e62711f…`).
+  - **hybrid (derived):** the rules' result when it passes, else the nemotron-edits result. No replay of its own.
+- **Metric.** Repaired demos that pass physics (status `perfected` or `kept`), per arm, out of n. The verdict is the
+  sim worker's replay and the unchanged `check_success`.
+- **Test.**
+  - **Primary:** rules vs hybrid, exact two-sided McNemar, α = 0.05, with a Wilson 95% CI per arm.
+    - The hybrid can only add passes (only_rules = 0 by construction).
+    - So this is a sign test on the demos the rules discard and Nemotron repairs. It reaches p < 0.05 only with 6 or
+      more of them.
+  - **Secondary** (reported, not confirmatory): rules vs nemotron-edits alone, exact McNemar. Descriptive: rescues,
+    rounds lost to the budget, model calls, spend.
+- **Not counted.** A worker, API or spend-cap stop is redone on resume and never counted for any arm.
+- **Caveats.**
+  - The rules arm also produces the hybrid's first stage, so the two share its PhysX noise. That is by design: the
+    question is what the edits add.
+  - The keyboard demos' replay fidelity on achieved paths is unknown until tonight's physics step.
+
+**Prerequisite: run it from a checkout of pm/live-11 with this branch merged in.** This branch lacks `Demo.input` and
+the `--input` filter, which live in pm/live-11; the lead merges, I never do.
+- A trial merge, read-only (`git merge-tree`), is in the report.
+- Commit first, so `ab_config.json` has no `+dirty`.
+- The script takes gpu.lock itself.
+
+```
+cd C:\dev\pm-t7
+uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python scripts/run_repair_ab.py --name repair_kb1 --tag "human_2026102[01]*" --input keyboard --data-dir C:\dev\pm-t6\data --max-cost-usd 1.0
+```
+
+- **Time:** about 2 min of Isaac start, plus 5–6 min per demo, as in repair_ab1 and repair_ab2.
+- **Spend:** about $0.03 per demo; capped at $1.
+- **Clean stop:** create `C:\dev\pm-t6\data\human_exp\repair_kb1\STOP`. The demo in progress finishes and the GPU is
+  freed; the same command resumes.
+
 ## Open
 
 - **Grasp edits are the weak spot.** Nemotron often moves the grasp by a few cm, but only physics can say whether a

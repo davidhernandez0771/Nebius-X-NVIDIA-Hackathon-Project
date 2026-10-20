@@ -18,7 +18,9 @@ Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stag
               physics   replay every demo as recorded: Isaac's verdict on what the person did;
               repair    perfect it with the rules (app.jobs.perfect_stored_demo -> "<id>_rules", verified), or,
                         with --repairer nemotron-edits, with Nemotron's trajectory edits, each verified the same way
-                        (app.jobs.perfect_stored_demo_edits -> "<id>_edits"; the hand-written ops are not used);
+                        (app.jobs.perfect_stored_demo_edits -> "<id>_edits"; the hand-written ops are not used),
+                        or, with --repairer hybrid, the rules first and the edits only for a demo they discard
+                        (app.jobs.perfect_stored_demo_hybrid -> the winning stage's "<id>_rules" or "<id>_edits");
               align     start every training episode at home (sim_worker.human_exp.align_home): "<id>_home"
                         (raw arm, no repairs) and "<id>_rules_home" (the repaired one);
               multiply  --variants new scenes per repaired demo, rehomed like sprint 6's home-start variants,
@@ -66,8 +68,9 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))  # sim_worker, lerobot_tools
 
-from app.jobs import (EDITS_REPAIRER, _copy_episode, is_infrastructure, perfect_stored_demo,  # noqa: E402
-                      perfect_stored_demo_edits, record_raw, stored_raw)
+from app.jobs import (EDITS_REPAIRER, HYBRID_REPAIRER, _copy_episode, is_infrastructure,  # noqa: E402
+                      perfect_stored_demo, perfect_stored_demo_edits, perfect_stored_demo_hybrid, record_raw,
+                      stored_raw)
 from app.sim_client import SimWorkerClient, SimWorkerError  # noqa: E402
 from demo_pipeline import PIPELINE_VERSION  # noqa: E402
 from demo_pipeline.multiply import sample_scene  # noqa: E402
@@ -87,7 +90,9 @@ BATCH = 8
 DEFAULTS = {"variants": 10, "steps": 30_000, "save_freq": 2500, "eval_n": 40, "eval_seed0": 5020}
 SIM_STEPS = ("physics", "repair", "align", "multiply")
 REPLAY_PATHS = ("achieved", "commanded")
-REPAIRERS = ("rules", EDITS_REPAIRER)
+REPAIRERS = ("rules", EDITS_REPAIRER, HYBRID_REPAIRER)
+REPAIR_TEXT = {EDITS_REPAIRER: "repaired with Nemotron's trajectory edits",
+               HYBRID_REPAIRER: "repaired: rules first; Nemotron's trajectory edits for a demo the rules discard"}
 SMOKE = {"steps": 2000, "save_freq": 2000, "eval_n": 5}
 LABEL_FRAMES, JUDGE_FRAMES, MODEL_SIZE = 8, 4, 256  # as T3's pre-registered test (scripts/intent_eval.py)
 
@@ -289,6 +294,8 @@ class Experiment:
             raw = stored_raw(self.store, id, need_cameras=True)
             if self.config.get("repair", "rules") == EDITS_REPAIRER:
                 summary = perfect_stored_demo_edits(self.store, client, id, raw=raw, record_cameras=True)
+            elif self.config.get("repair") == HYBRID_REPAIRER:
+                summary = perfect_stored_demo_hybrid(self.store, client, id, raw=raw, record_cameras=True)
             else:
                 summary = perfect_stored_demo(self.store, client, id, "rules", raw=raw, record_cameras=True)
             _write_json(self.marker("repair", id), summary)
@@ -659,7 +666,7 @@ trained on the same {n} demos as recorded?
 - **raw_{n}:** every demo as recorded, start-aligned
   (`raw_arm = {config['raw_arm']}`{': all demos, whether or not physics verified them' if config['raw_arm'] == 'all' else ': only the demos physics verified'}).
 - **perfected_multiply_{n}:** each demo
-  - {"repaired with Nemotron's trajectory edits" if config.get('repair') == EDITS_REPAIRER else "rules-repaired"}, then verified in Isaac;
+  - {REPAIR_TEXT.get(config.get('repair', 'rules'), "rules-repaired")}, then verified in Isaac;
   - start-aligned;
   - plus {config['variants']} variants in new scenes, each kept only if it verifies.
 
@@ -860,7 +867,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--replay-lookahead", type=int, default=None,
                    help="the sim worker's --lookahead for every replay (default 0: measured best on live test #10)")
     p.add_argument("--repairer", choices=REPAIRERS, default="rules",
-                   help="the repair step: the rules (hand-written ops), or Nemotron's trajectory edits")
+                   help="the repair step: the rules (hand-written ops), Nemotron's trajectory edits, or hybrid "
+                        "(the rules, then the edits for a demo the rules discard)")
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)

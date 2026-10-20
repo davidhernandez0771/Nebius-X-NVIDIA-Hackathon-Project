@@ -15,6 +15,7 @@ model: this repairer is the alternative to them.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal
@@ -43,6 +44,13 @@ from nebius_llm import chat
 TIER = "super"  # a text task (config.TIERS)
 THINK = True  # measured on the human demos' signals (notes 2026-10-20): the reasoning is worth the tokens
 MAX_TOKENS = 16000  # thinking + the answer
+# Plan variance (repair_ab1 vs repair_ab2: 5/10 then 2/10, the plans differed run to run at the client's default 0.2):
+# sample at 0, tell the budget in the facts, and show the best failed plan so far each round.
+TEMPERATURE = 0.0
+BUDGET_HINT = (f"max {REPAIR_BUDGET_M * 100:.0f} cm per step from where the original had the tool at that moment, all "
+               "edits together; plans over budget are rejected")
+BEST_PLAN_TEXT = ("Your best plan so far is round {round} (failed: {reasons}). Its edits:\n{edits}\nKeep what worked "
+                  "and change what the new facts show is wrong.")
 MAX_ROUNDS = 3  # rounds per demo; an invalid reply spends one, a rescued one (see RESCUE_SUFFIX) does not
 # A thinking reply cut at the token cap, or with no JSON at all, is asked again once in the same round, thinking off,
 # with this added; the rescue doesn't count as a round (repair_ab1 lost 3 of 23 calls to the cap).
@@ -240,6 +248,12 @@ def path_table(traj: Trajectory, signals: SimSignals, *, times: np.ndarray | Non
     return "\n".join(rows)
 
 
+def prompt_fingerprint() -> str:
+    """SHA-256 of everything that shapes what the model is asked and how it samples (frozen with an A/B)."""
+    parts = [SYSTEM_PROMPT, BUDGET_HINT, RESCUE_SUFFIX, BEST_PLAN_TEXT, TEMPERATURE, TIER, THINK, MAX_TOKENS]
+    return hashlib.sha256(json.dumps(parts).encode("utf-8")).hexdigest()
+
+
 def facts_text(f: dict[str, Any]) -> str:
     """One line per fact, the value as compact JSON."""
     return "\n".join(f"{k}: {json.dumps(v, separators=(', ', ': '))}" for k, v in f.items())
@@ -265,7 +279,7 @@ def first_prompt(ctx: _Context) -> str:
             f"Replay verdict: {verdict_text(ctx.verdict)}\n\n"
             f"Scene geometry:\n{geometry_text(ctx.demo.scene)}\n\n"
             f"What the replay did (times in s; positions in m; the step labels come from the gripper and the cube):\n"
-            f"{facts_text(f)}\n\n"
+            f"{facts_text({**f, 'repair_budget': BUDGET_HINT})}\n\n"
             f"Path:\n{path_table(ctx.trajectory, ctx.signals)}")
 
 
@@ -279,10 +293,20 @@ def _round_text(r: dict) -> str:
             f"Its path (original-timeline times):\n{r['table']}")
 
 
+def best_failed_round(history: list[dict]) -> dict | None:
+    """The verified round with the fewest failure reasons (the earlier one on a tie); None before any replay."""
+    tried = [r for r in history if r.get("verification") is not None]
+    return min(tried, key=lambda r: (len(r["verification"]["reasons"]), r["round"])) if tried else None
+
+
 def build_prompt(ctx: _Context, history: list[dict]) -> str:
     if not history:
         return first_prompt(ctx) + "\n\nPropose the edits."
-    return (first_prompt(ctx) + "\n\n" + "\n\n".join(_round_text(r) for r in history)
+    best = best_failed_round(history)
+    best_text = "" if best is None else "\n\n" + BEST_PLAN_TEXT.format(
+        round=best["round"], reasons=", ".join(best["verification"]["reasons"]),
+        edits=json.dumps(best["plan"]["edits"]))
+    return (first_prompt(ctx) + "\n\n" + "\n\n".join(_round_text(r) for r in history) + best_text
             + "\n\nPropose the complete corrected set of edits (applied to the original demo).")
 
 
@@ -353,7 +377,8 @@ def repair_with_nemotron(demo: Demo, verdict: VerificationResult, signals: SimSi
     def ask(prompt: str, thinking: bool):
         if before_call is not None:
             before_call()
-        reply = chat_fn(prompt, tier=tier, system=SYSTEM_PROMPT, max_tokens=max_tokens, think=thinking)
+        reply = chat_fn(prompt, tier=tier, system=SYSTEM_PROMPT, max_tokens=max_tokens, think=thinking,
+                        temperature=TEMPERATURE)
         res.calls += 1
         res.cost_usd += float(getattr(reply, "est_cost_usd", 0.0) or 0.0)
         res.model = getattr(reply, "model", None) or res.model
