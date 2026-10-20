@@ -204,8 +204,10 @@ describe("Results page", () => {
     const replay = within(mouse).getByTestId("arm-mouse_replay").textContent;
     expect(replay).toMatch(/10\/10/);
     expect(replay).toMatch(/1\.6–4\.6 mm on average \(max 11 mm\)/);
-    expect(within(mouse).getByTestId("arm-mouse_sant").textContent).toMatch(/Pending/);
-    expect(within(mouse).getByTestId("comparison").textContent).toMatch(/: pending$/);
+    expect(within(mouse).getByTestId("arm-mouse_raw").textContent).toMatch(/0\/40/);
+    expect(within(mouse).getByTestId("arm-mouse_sant").textContent).toMatch(/3\/40.*2\.6–19\.9%/);
+    expect(within(mouse).getByTestId("comparison").textContent).toMatch(/^0\/40 vs 3\/40: p = 0\.24, not significant/);
+    expect(mouse.textContent).toMatch(/not significant, so this does not show SANT's data trains a better policy/);
   });
 
   it("links every note it cites to its lines", () => {

@@ -213,8 +213,8 @@ export function measured(id: string, key: string): Arm & { k: number; source: So
   return a as Arm & { k: number; source: Source };
 }
 
-/** p as the notes print it: 0.0005, 0.65, 1.0. */
-export const formatP = (p: number) => (Number.isInteger(p) ? p.toFixed(1) : String(p));
+/** p as the notes print it, to two significant figures: 0.0005, 0.24, 0.65, 1.0. */
+export const formatP = (p: number) => (Number.isInteger(p) ? p.toFixed(1) : String(Number(p.toPrecision(2))));
 
 /** A rate with one decimal only when it needs one: 7.5%, 40%, 98.3%. */
 export const formatPct = (v: number) => `${Math.round(v * 1000) / 10}%`;

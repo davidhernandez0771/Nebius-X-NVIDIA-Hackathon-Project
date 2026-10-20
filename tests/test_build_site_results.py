@@ -70,6 +70,10 @@ def _mouse(data: Path, results: dict | None = None) -> None:
     _physics(root, MOUSE, 10)
     if results is not None:
         _write(root / "results.json", results)
+        run = results["experiment"]["run_id"]
+        for cell, reasons in (("raw_10", {"not_in_bin": 40, "collision": 2}),
+                              ("perfected_multiply_10", {"not_in_bin": 37, "collision": 27, "dropped": 26})):
+            _write(data / "evals" / run / f"{cell}.json", {"summary": {"n": 40, "reasons": reasons}, "episodes": []})
 
 
 def _stores(data: Path, mouse_results: dict | None = None) -> Path:
@@ -81,8 +85,11 @@ def _stores(data: Path, mouse_results: dict | None = None) -> Path:
 
 
 def _two_arms(raw: int, sant: int, p: float, *, smoke: bool = False) -> dict:
-    return {"sample": smoke, "experiment": {"name": "mouse20261020", "smoke": smoke, "headline": {
-        "raw": {"successes": raw, "n": 40, "ci": [0.1, 0.3]}, "multiplied": {"successes": sant, "n": 40, "ci": [0.3, 0.6]},
+    run = "hx_mouse20261020_20261020_164411"
+    file = lambda cell: f"C:\\elsewhere\\evals\\{run}\\{cell}.json"
+    return {"sample": smoke, "experiment": {"name": "mouse20261020", "smoke": smoke, "run_id": run, "headline": {
+        "raw": {"successes": raw, "n": 40, "ci": [0.1, 0.3], "file": file("raw_10")},
+        "multiplied": {"successes": sant, "n": 40, "ci": [0.3, 0.6], "file": file("perfected_multiply_10")},
         "fisher_p": p, "significant": p < 0.05}}}
 
 
@@ -136,6 +143,17 @@ def test_the_mouse_comparison_fills_in_from_the_run_results(bsr, tmp_path):
     assert raw["source"] == {"file": "human_exp/mouse20261020/results.json"}
     cmp = next(g for g in e["groups"] if g["comparisons"])["comparisons"][0]
     assert cmp["p"] == 0.012 and cmp["verdict"].startswith("significant")
+
+
+def test_a_null_mouse_result_says_so_and_how_each_policy_failed(bsr, tmp_path):
+    e = _exp(bsr.build(_stores(tmp_path, _two_arms(0, 3, 0.2405))), "mouse")
+    cmp = next(g for g in e["groups"] if g["comparisons"])["comparisons"][0]
+    assert cmp["verdict"].startswith("not significant")
+    assert "Raw 0/40 vs SANT 3/40, p = 0.24: not significant" in e["finding"]
+    assert "26/40 episodes lose it before the bin; raw: 0" in e["finding"]
+    assert "above 5 N in 27/40 (raw: 2)" in e["finding"]
+    assert any("soft floor taught" in c for c in e["caveats"])
+    assert {"note": "mouse", "lines": "94"} in e["sources"]
 
 
 def test_a_smoke_run_never_fills_the_mouse_slot(bsr, tmp_path):

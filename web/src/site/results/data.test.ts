@@ -62,12 +62,20 @@ describe("stores.json (scripts/build_site_results.py, from the experiment stores
         for (const a of g.arms) expect(k(e.id)[a.key], `${e.id}.${a.key}`).toBe(a.k === null ? null : `${a.k}/${a.n}`);
   });
 
-  it("keeps the mouse comparison pending until its results land: null counts and p", () => {
+  it("takes the mouse comparison from its results: null counts and p until they land", () => {
     const mouse = RESULTS.experiments.find((e) => e.id === "mouse")!;
     const policies = mouse.groups.find((g) => g.comparisons.length)!;
     const stored = stores.experiments.find((e) => e.id === "mouse")!.groups.find((g) => g.comparisons.length)!;
     expect(policies.comparisons[0].p).toBe(stored.comparisons[0].p);
     if (stored.comparisons[0].p === null) expect(policies.arms.map((a) => a.k)).toEqual([null, null]);
+  });
+
+  it("reads tonight's mouse result: raw 0/40 vs SANT 3/40, not significant", () => {
+    expect(k("mouse")).toMatchObject({ mouse_raw: "0/40", mouse_sant: "3/40" });
+    const mouse = RESULTS.experiments.find((e) => e.id === "mouse")!;
+    const cmp = mouse.groups.find((g) => g.comparisons.length)!.comparisons[0];
+    expect(formatP(cmp.p!)).toBe("0.24");
+    expect(cmp.verdict).toMatch(/^not significant/);
   });
 
   it("quotes the note facts with their sources", () => {
@@ -130,7 +138,7 @@ describe("parseResults", () => {
 
 describe("formatting", () => {
   it("prints p and rates the way the notes do", () => {
-    expect([0.0005, 0.0012, 0.65, 1].map(formatP)).toEqual(["0.0005", "0.0012", "0.65", "1.0"]);
+    expect([0.0005, 0.0012, 0.65, 1, 0.24050632911392406, 0.5].map(formatP)).toEqual(["0.0005", "0.0012", "0.65", "1.0", "0.24", "0.5"]);
     expect([3 / 40, 17 / 40, 16 / 40, 59 / 60, 1].map(formatPct)).toEqual(["7.5%", "42.5%", "40%", "98.3%", "100%"]);
   });
 });

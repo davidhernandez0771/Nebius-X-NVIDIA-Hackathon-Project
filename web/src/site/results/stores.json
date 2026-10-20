@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-20 15:08",
+  "as_of": "2026-10-20 19:19",
   "generated_by": "scripts/build_site_results.py",
   "notes": {
     "live10": {
@@ -483,11 +483,16 @@
               "key": "mouse_raw",
               "label": "The 10 mouse demos as recorded",
               "detail": null,
-              "k": null,
+              "k": 0,
               "n": 40,
-              "ci": null,
+              "ci": [
+                0.0,
+                0.0876216011972866
+              ],
               "highlight": false,
-              "source": null,
+              "source": {
+                "file": "human_exp/mouse20261020/results.json"
+              },
               "outcomes": null,
               "outcomesSource": null,
               "passes": null,
@@ -498,11 +503,16 @@
               "key": "mouse_sant",
               "label": "Repaired + multiplied by SANT",
               "detail": null,
-              "k": null,
+              "k": 3,
               "n": 40,
-              "ci": null,
+              "ci": [
+                0.025836025774588198,
+                0.19864233524310543
+              ],
               "highlight": true,
-              "source": null,
+              "source": {
+                "file": "human_exp/mouse20261020/results.json"
+              },
               "outcomes": null,
               "outcomesSource": null,
               "passes": null,
@@ -514,21 +524,21 @@
             {
               "a": "mouse_raw",
               "b": "mouse_sant",
-              "p": null,
-              "verdict": null,
+              "p": 0.24050632911392406,
+              "verdict": "not significant (Fisher, α = 0.05)",
               "source": {
-                "note": "prereg",
-                "lines": "74"
+                "file": "human_exp/mouse20261020/results.json"
               }
             }
           ]
         }
       ],
-      "finding": "Every mouse demo passed live and on replay, with no hard contact, so here the raw arm is 10 good demos, not 10 failed replays. T4's run is training and evaluating it now. It fills in when human_exp/mouse20261020/results.json lands: then run scripts/build_site_results.py again.",
+      "finding": "Every mouse demo passed live and on replay, with no hard contact, so here the raw arm is 10 good demos, not 10 failed replays. Raw 0/40 vs SANT 3/40, p = 0.24: not significant, so this does not show SANT's data trains a better policy. How they fail differs: SANT's policy gets the cube into its fingers (26/40 episodes lose it before the bin; raw: 0) but hits the bin or table above 5 N in 27/40 (raw: 2).",
       "caveats": [
         "10 demos, from one person, in one session.",
         "The soft floor was on for every demo (9 of 10 had it hold the target up); they are labelled, not filtered.",
-        "One training run per arm."
+        "One training run per arm.",
+        "Whether the soft floor taught SANT's policy to push down is open: T6 is looking into it."
       ],
       "sources": [
         {
@@ -546,6 +556,26 @@
         {
           "note": "prereg",
           "lines": "8"
+        },
+        {
+          "note": "mouse",
+          "lines": "94"
+        },
+        {
+          "note": "mouse",
+          "lines": "71–72"
+        },
+        {
+          "note": "mouse",
+          "lines": "101"
+        },
+        {
+          "note": "mouse",
+          "lines": "103"
+        },
+        {
+          "note": "mouse",
+          "lines": "105–107"
         },
         {
           "file": "human_exp/mouse20261020/stages/physics"

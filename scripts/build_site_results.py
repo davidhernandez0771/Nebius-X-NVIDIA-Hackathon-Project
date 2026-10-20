@@ -65,6 +65,11 @@ CITES = {
     "mouse_repair": {"note": "mouse", "lines": "39", "quote": "all 10 perfected"},
     "mouse_test": {"note": "prereg", "lines": "74", "quote": "two-sided Fisher exact, **α = 0.05**"},
     "mouse_amendment": {"note": "prereg", "lines": "8", "quote": "`--input mouse`"},
+    "mouse_result": {"note": "mouse", "lines": "94", "quote": "**Not significant** at α = 0.05"},
+    "mouse_training": {"note": "mouse", "lines": "71–72", "quote": "final loss **0.085**"},
+    "mouse_drops": {"note": "mouse", "lines": "101", "quote": "26/40 episodes record a drop"},
+    "mouse_collisions": {"note": "mouse", "lines": "103", "quote": "27/40 episodes pushed the arm into the bin or table"},
+    "mouse_soft_floor": {"note": "mouse", "lines": "105–107", "quote": "T6 is investigating this"},
 }
 
 PENDING_MOUSE = ("T4's run is training and evaluating it now. It fills in when human_exp/mouse20261020/results.json "
@@ -228,6 +233,19 @@ def mouse_table() -> dict:
             "peak": max(peaks)}
 
 
+def _mouse_failures(data: Path, res: dict, read: list[Path]) -> str:
+    """How each policy failed, from the per-seed eval files (descriptive: the test is the Fisher p)."""
+    head = res["experiment"]["headline"]
+    evals = data / "evals" / res["experiment"]["run_id"]
+    reasons = {k: _read(evals / Path(head[k]["file"].replace("\\", "/")).name, read)["summary"]["reasons"]
+               for k in ("raw", "multiplied")}
+    raw, sant = reasons["raw"], reasons["multiplied"]
+    n = head["multiplied"]["n"]
+    return (f"How they fail differs: SANT's policy gets the cube into its fingers ({sant.get('dropped', 0)}/{n} episodes "
+            f"lose it before the bin; raw: {raw.get('dropped', 0)}) but hits the bin or table above 5 N in "
+            f"{sant.get('collision', 0)}/{n} (raw: {raw.get('collision', 0)}).")
+
+
 def mouse(data: Path, read: list[Path], table: dict) -> dict:
     root = data / "human_exp" / MOUSE
     if not root.is_dir():
@@ -276,11 +294,18 @@ def mouse(data: Path, read: list[Path], table: dict) -> dict:
         "finding": (f"Every mouse demo passed live and on replay, with no hard contact, so here the raw arm is 10 good demos, "
                     f"not 10 failed replays. "
                     + (f"Raw {head['raw']['successes']}/{head['raw']['n']} vs SANT {head['multiplied']['successes']}/"
-                       f"{head['multiplied']['n']}, p = {p}." if head else PENDING_MOUSE)),
+                       f"{head['multiplied']['n']}, p = {p:.2f}: "
+                       + ("significant." if head["significant"] else
+                          "not significant, so this does not show SANT's data trains a better policy. ")
+                       + _mouse_failures(data, res, read) if head else PENDING_MOUSE)),
         "caveats": ["10 demos, from one person, in one session.",
                     "The soft floor was on for every demo (9 of 10 had it hold the target up); they are labelled, not filtered.",
-                    "One training run per arm."],
+                    "One training run per arm.",
+                    *(["Whether the soft floor taught SANT's policy to push down is open: T6 is looking into it."]
+                      if head else [])],
         "sources": [cite("mouse_physics"), cite("mouse_table"), cite("mouse_test"), cite("mouse_amendment"),
+                    *([cite("mouse_result"), cite("mouse_training"), cite("mouse_drops"), cite("mouse_collisions"),
+                       cite("mouse_soft_floor")] if head else []),
                     {"file": _rel(data, root / "stages" / "physics")}, src],
     }
 

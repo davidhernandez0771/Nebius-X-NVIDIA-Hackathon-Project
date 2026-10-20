@@ -48,13 +48,16 @@ the Nemotron repairer → the results.
 ## Notes for the edit
 
 - **Numbers to check against the README just before recording** ([CHECK] shots): 3/40, 17/40, p = 0.0005; 16/40;
-  0/10; 5/10 vs 3/10, p = 0.50, $0.21; 3/10 → 24/30 → 3/40 (one arm); 30/30 and 0/30 (the wall). If any note changes, change the
+  0/10; 5/10 vs 3/10, p = 0.50, $0.21; 3/10 → 24/30 → 3/40 (one arm); 30/30 and 0/30 (the wall); if the mouse
+  result is shown, 0/40 vs 3/40, p = 0.24, not significant. If any note changes, change the
   shot, not the README.
 - **Don't say:**
   - "human demos" for the 3/40 → 17/40 result;
   - "Nemotron beats the rules" or "beats code";
   - "the robot learned from my hand" (the webcam-trained policy got 3/40);
-  - that repairing webcam demos made a better robot (the webcam training has one arm, nothing to compare).
+  - that repairing webcam demos made a better robot (the webcam training has one arm, nothing to compare);
+  - that SANT beat raw on the mouse demos (0/40 vs 3/40 is p = 0.24, not significant, and SANT's policy
+    collided in 27/40).
 - **The A/B's caveats** stay out of the voice-over for time, but card 3 carries "one run, not significant".
   Two caveats live in the README: the rules' two newest ops were written after seeing these 10 demos, and replays
   reproduce live outcomes only 2–4 times in 10.

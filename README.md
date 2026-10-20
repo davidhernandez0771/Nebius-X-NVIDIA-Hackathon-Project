@@ -82,6 +82,27 @@ One person recorded 10 demos with a webcam, driving the simulated Franka live.
 - 10 demos and one run are a promising sign, not proof. Replays of these demos reproduce their live outcome only
   2–4 times in 10.
 
+## Real mouse demos, raw vs SANT (2026-10-20, pre-registered)
+
+The same person recorded 10 demos driving the arm with the mouse (live test #11), with the soft floor on. The test was
+pre-registered before the first demo: raw vs SANT, two-sided Fisher, α = 0.05.
+
+| Step | Result |
+|---|---|
+| **Physics check** | **10 / 10** pass live and **10 / 10** on replay, with no hard contact (0 N). Unlike the webcam demos, these were good demos as recorded. |
+| **Repair (cleanup only), then multiply** | 10 / 10 perfected (trim, smooth) → **100 / 100** copies verified |
+| **Raw vs SANT,** ACT on the same 40 unseen scenes | Raw (10 episodes) **0 / 40** (95% CI 0–8.8%) vs SANT (110 episodes) **3 / 40** (2.6–19.9%). **Fisher p = 0.24: not significant.** |
+<!-- src: docs/superpowers/notes/2026-10-20-mouse20261020-results.md (sections 1-4: 10/10 live, 10/10 replay, 100/100 variants; run hx_mouse20261020_20261020_164411, raw_10 0/40 vs perfected_multiply_10 3/40, Wilson 0.0-8.8% / 2.6-19.9%, Fisher p = 0.24; reasons from evals/*.json); docs/superpowers/notes/2026-10-20-kb-raw-vs-sant-prereg.md (pre-registered, amendment 1: input = mouse) -->
+
+**How to read it:**
+- The pre-registered test does not show that SANT's data trains a better policy here. 0/40 vs 3/40 is well
+  within chance at n = 40.
+- The two policies fail differently (described, not tested).
+  - SANT's policy gets the cube into its fingers: 26/40 episodes lose it before the bin. The raw one records no drops.
+  - SANT's policy also hits the bin or table above 5 N in 27/40 episodes; raw does in 2/40.
+- Whether the soft floor, on during 9 of the 10 demos, taught it to push down is open. We are looking into it.
+- 10 demos, one person, one training run per arm.
+
 The full table, with every source note, is in [docs/submission/README.md](docs/submission/README.md#results-measured-only).
 
 ## How it works
@@ -156,6 +177,8 @@ Details and the comparison table: [docs/submission/README.md](docs/submission/RE
 | **Done** | Nemotron as a repairer (trajectory edits, checked by code): blind A/B 5/10 vs rules 3/10, p = 0.50 |
 | **Done** | The site: a descent intro (forest → reactor → the ring → the workshop), the robot wall and catalog, drag a cartridge to the machine, the workbench, Record with keyboard/mouse/camera and three twin views |
 | **Done** | Training on what SANT made from the webcam demos (27 episodes, 3 repaired demos): 3/40, one arm |
+| **Done** | Pre-registered raw vs SANT on 10 mouse demos (live test #11): 0/40 vs 3/40, p = 0.24, not significant; SANT's policy collides a lot (27/40) |
+| **Next** | Find out why the mouse-SANT policy collides (the soft floor during recording is one suspect) |
 | **Next** | More repaired webcam demos to train on (more recordings, or Nemotron's repairs), and fixing the drops |
 | **Next** | Re-run the repair A/B (`repair_ab2`) to see how stable 5 vs 3 is |
 | **Next** | Record the 3-minute video; the shot list is in [`docs/submission/video_script.md`](docs/submission/video_script.md) |

@@ -52,6 +52,9 @@ Our measured evidence so far:
   multiplied into **24 verified copies**.
 - **But 3 repaired demos aren't enough yet.** A policy trained only on those 27 episodes succeeded **3/40** times
   (2.6–19.9%), so more repaired demos are the next step.
+- **On clean mouse demos, raw vs SANT is not significant.** It was pre-registered: 10 mouse demos that all passed
+  physics. Raw got **0/40** and SANT **3/40**, Fisher **p = 0.24**. SANT's policy got the cube into its fingers
+  more, but it also collided with the bin or table in 27/40 episodes.
 
 ## How it uses NVIDIA and Nebius
 
@@ -169,6 +172,21 @@ from 3 repaired roots succeeds 3 times in 40.
 - **The lever:** more repaired roots (more demos recorded, or Nemotron's 5/10 repairs, which this cell didn't use)
   and fixing the drops.
 
+### Real mouse demos: raw vs SANT (pre-registered)
+
+| What was tested | Result | Test, seeds | Source note |
+|---|---|---|---|
+| **Physics check.** 10 mouse demos, the same person, live test #11, soft floor on (it held the target up in 9) | **10/10** pass live, **10/10** on replay; path error 1.6–4.6 mm mean; peak contact 0.0 N | Replay of the achieved path, lookahead 0 | [mouse20261020-results](../superpowers/notes/2026-10-20-mouse20261020-results.md), section 1 |
+| **Repair → multiply** | **10/10** perfected (cleanups only: trim, smooth, remove_pause) → **100/100** copies verified | Frozen in `mouse20261020/config.json` | [mouse20261020-results](../superpowers/notes/2026-10-20-mouse20261020-results.md), section 2 |
+| **Raw vs SANT.** ACT on the 10 raw episodes vs on SANT's 110 (10 repaired + 100 copies) | Raw **0/40** (Wilson 95% 0.0–8.8%) vs SANT **3/40** (2.6–19.9%). **Fisher p = 0.24, not significant.** Failures (an episode can have several): raw not_in_bin 40, collision 2; SANT not_in_bin 37, collision 27, dropped 26, gripper_closed 10 | Pre-registered ([prereg](../superpowers/notes/2026-10-20-kb-raw-vs-sant-prereg.md), amendment 1: input = mouse), two-sided Fisher, α = 0.05, ACT 30k, batch 8, seeds 5020–5059 | [mouse20261020-results](../superpowers/notes/2026-10-20-mouse20261020-results.md), sections 3–4 |
+
+How to read the mouse rows:
+- With clean demos, the raw arm trains on 10 good demos, not 10 failed replays, so this is a real two-arm test.
+- It found no significant difference.
+- SANT's policy gets the cube into its fingers, where the raw one records no drops. But it pushes into the bin or
+  table far more (27/40 vs 2/40).
+- Whether the soft floor, which held 9 of the 10 demos up, taught it to push down is open; we are looking into it.
+
 ### Nemotron and robots
 
 | What was tested | Result | Test, seeds | Source note |
@@ -220,6 +238,9 @@ verified demos as its input; we have not tried that.
 - **The headline result is on scripted demos, not human ones.** The 10 source demos behind 3/40 vs 17/40
   came from a scripted expert ([claims-audit](../superpowers/notes/2026-10-17-claims-audit.md)). Trained on the
   real webcam demos' 27 episodes, the policy got 3/40, a single arm with no comparison.
+- **On human demos, raw vs SANT is not significant.** The one two-arm human test, on 10 clean mouse demos, gave
+  0/40 vs 3/40, p = 0.24 ([mouse20261020-results](../superpowers/notes/2026-10-20-mouse20261020-results.md)).
+  SANT's policy collided in 27 of 40 episodes, and the cause is not known yet.
 - **The webcam demos are few.** There are 10, from one person, in one session (live test #10).
 - **Replays are not exact.** Replaying a saved demo reproduces its live outcome only 2–4 times in 10: PhysX is not
   deterministic, and the live grasps were marginal. So a demo can pass or fail by luck

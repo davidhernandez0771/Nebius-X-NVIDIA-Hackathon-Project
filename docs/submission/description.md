@@ -185,6 +185,8 @@ All policy numbers: ACT, 30k steps, batch 8, one training run per cell, the same
 | Rules repair → multiply | **3/10** repaired → **24/30** copies verified |
 | Blind repair A/B, same 10 demos | Nemotron edits **5/10** vs rules **3/10**, exact McNemar **p = 0.50 (not significant, one run)**, $0.207 |
 | A policy trained only on what SANT made from the webcam demos: 27 episodes from 3 repaired demos | **3/40** (2.6–19.9%). One arm, not a comparison. 26 of the 37 failures dropped the cube |
+| 10 real mouse demos (live test #11): physics, then repair → multiply | **10/10** pass live and on replay → 10/10 cleaned → **100/100** copies verified |
+| Raw vs SANT on those mouse demos (pre-registered): 10 raw episodes vs 110 | **0/40** vs **3/40**, Fisher **p = 0.24: not significant**. SANT's policy collided in 27/40 |
 | Nemotron labeler / judge (pre-registered) | 40/40 / 59/60, tied with code baselines |
 <!-- src: docs/submission/README.md "Results (measured only)" and the notes it names: 2026-10-15-t3-status.md, 2026-10-18-t3-grasp-fix.md, 2026-10-19-live-test-10-results.md, 2026-10-20-nemotron-repair.md, 2026-10-20-human10c-multiplied-only.md (pre-registered e979c54), 2026-10-18-nemotron-judge.md -->
 
@@ -195,6 +197,14 @@ All policy numbers: ACT, 30k steps, batch 8, one training run per cell, the same
   the number of distinct repaired demos matters. The runs also differ in source and size, so it doesn't show the
   cause.
 - More repaired demos (more recordings, or Nemotron's 5/10 repairs, which that cell didn't use) is the next step.
+
+**What the mouse result says, honestly.**
+- It is our only two-arm test on human demos, and it found no significant difference: 0/40 vs 3/40, p = 0.24.
+- SANT's policy gets the cube into its fingers (26/40 lose it before the bin; the raw one records no drops), but it
+  pushes into the bin or table in 27/40 episodes (raw: 2/40).
+- Whether the soft floor, which held 9 of the 10 demos up while recording, taught it to push down is open. We are
+  looking into it.
+  <!-- src: docs/superpowers/notes/2026-10-20-mouse20261020-results.md (sections 3–4) -->
 
 **Limits.**
 - **Narrow setup:** one task, one training robot, one policy type, one training run per cell.
@@ -254,6 +264,8 @@ every repair, and only then multiplied across positions."* We do not claim to be
 - **2026-10-20:**
   - the Nemotron repairer and its blind A/B (5/10 vs 3/10);
   - the `human10c` training result (3/40, one arm);
+  - live test #11's 10 mouse demos and the pre-registered raw vs SANT on them (0/40 vs 3/40, p = 0.24, not
+    significant);
   - the site's descent intro, the robot wall and the drag to the machine.
 <!-- src: the dated notes in docs/superpowers/notes/ for each day; git history -->
 - **Reused from SANT's earlier room-organizer version** (started 2026-09-13 for the same hackathon; it grew into
