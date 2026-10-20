@@ -8,9 +8,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Texture, type Material, type Object3D, type WebGLRenderer } from "three";
+import { compileSafe } from "../../three/compileSafe";
 import { idle } from "./activity";
 import { createTuner } from "./autotune";
-import { compileSafe, type Compiler } from "./compile";
 import { hud } from "./hudStore";
 import type { QualityTier, TierName } from "./quality";
 import { createScaler, targetDpr } from "./resolution";
@@ -138,11 +138,13 @@ export function WarmUp() {
       if (active || loaded === last) return;
       last = loaded;
       // After React has mounted what arrived: compile its shaders and upload its textures now, so the
-      // first frame that shows it doesn't stall on either.
+      // first frame that shows it doesn't stall on either. compileSafe, not gl.compileAsync: a material
+      // disposed while three polls its program (a model swapped as it streams in) threw "reading
+      // 'isReady'" from a timer, and the warm-up never finished.
       setTimeout(() => {
         if (!live) return;
         beforeWarm.forEach((fn) => fn(scene));
-        compileSafe(gl as unknown as Compiler, scene, camera).then(
+        compileSafe(gl, scene, camera).then(
           () => {
             if (!live) return;
             const seen = new Set<Texture>();

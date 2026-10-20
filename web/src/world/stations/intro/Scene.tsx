@@ -13,7 +13,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { ambient } from "../../core/activity";
-import { compileSafe, type Compiler } from "../../core/compile";
+import { compileSafe } from "../../../three/compileSafe";
 import type { QualityTier } from "../../core/quality";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
@@ -267,7 +267,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
       load.set("compile", 1);
       invalidate();
     };
-    compileSafe(gl as unknown as Compiler, scene, camera).then(done, done);
+    compileSafe(gl, scene, camera).then(done, done);
     return () => {
       live = false;
     };

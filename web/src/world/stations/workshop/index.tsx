@@ -4,47 +4,23 @@
 // game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and three things to
 // click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
 // and projects the robot), and the bench (make a new cartridge). Escape always goes back one level.
-import { useEffect, useRef } from "react";
-import { inHub } from "../../core/CameraRig";
+import { lazy } from "react";
 import { still } from "../../core/layout";
-import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { stop } from "../../scene/layout";
 import { HoverTip } from "../../ui/HoverTip";
-import { WorkshopScene } from "./Scene";
 import "./workshop.css";
 import { AskBox } from "../../ask/AskBox";
 import { Detail } from "./Detail";
 import { Dock } from "./Dock";
+import { HubBar } from "./HubBar";
 import { useStepper } from "./stepper";
 import { TourCaption } from "./TourCaption";
 
-/** The room view's controls, bottom centre: how to play, and the way back up to the story. */
-function HubBar() {
-  const { store } = useWorld();
-  const bar = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let shown = false;
-    return store.onFrame(() => {
-      const on = inHub(store);
-      if (on === shown || !bar.current) return;
-      shown = on;
-      bar.current.dataset.on = String(on);
-    });
-  }, [store]);
-  const toStory = () => {
-    // The story is above: unlock the page (WorldRoot) and go back to its first section.
-    store.setOverride(null);
-    window.dispatchEvent(new CustomEvent("world:story"));
-  };
-  return (
-    <div ref={bar} className="world-hubbar world-u" data-on="false">
-      <span>Click the shelf, the machine or the bench · Esc goes back</span>
-      <button type="button" onClick={toStory}>↑ Story</button>
-    </div>
-  );
-}
+// The room's 3D mounts only once the loader is done (WorldCanvas), so its code (and the GLTF loader)
+// loads then too, after the first frame (firstLoad.test.ts).
+const WorkshopScene = lazy(() => import("./Scene").then((m) => ({ default: m.WorkshopScene })));
 
 function Overlay(_: StationOverlayProps) {
   useStepper();

@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { inHub } from "../../core/CameraRig";
 import { useWorld } from "../../core/WorldContext";
 import { BENCH_PIVOT, MACHINE_PIVOT } from "../../scene/layout";
-import { scrollToStep } from "./stepper";
+import { openHubItem, type HubItem } from "./hubItems";
 
 const SEEN_KEY = "world.hub.seen";
 
@@ -28,7 +28,7 @@ function markSeen(): void {
   }
 }
 
-type TagId = "shelf" | "machine" | "bench";
+type TagId = HubItem;
 
 const TAGS: { id: TagId; n: string; title: string; line: string }[] = [
   { id: "shelf", n: "01", title: "The shelf", line: "Every cartridge is a job. Pick one." },
@@ -63,10 +63,7 @@ export function HubTags() {
     });
   }, [store, tutorial]);
 
-  const open = (id: TagId) => {
-    if (id === "shelf") scrollToStep(store, 0);
-    else goTo(id === "machine" ? "machine" : "workbench");
-  };
+  const open = (id: TagId) => openHubItem(id, store, goTo);
 
   // The invisible boxes round the machine and the bench: a click (and the pointer cursor) in the room view.
   const hit = (id: TagId) => ({
