@@ -146,12 +146,13 @@ def _yaw(quat_wxyz) -> float:
     return float(np.arctan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
 
 
-def in_bin_footprint(xy, bin_xy, bin_quat_wxyz) -> bool:
-    """Is the point (world xy) inside the bin's inner square, in the bin's own (yawed) frame?"""
+def in_bin_footprint(xy, bin_xy, bin_quat_wxyz, inner_xy=BIN_INNER_XY) -> bool:
+    """Is the point (world xy) inside the bin's inner rectangle (inner_xy: its inside length and width), in the
+    bin's own (yawed) frame? demo_pipeline.segment passes each container's own size."""
     c, s = np.cos(_yaw(bin_quat_wxyz)), np.sin(_yaw(bin_quat_wxyz))
     dx, dy = np.asarray(xy, dtype=float)[:2] - np.asarray(bin_xy, dtype=float)[:2]
     lx, ly = c * dx + s * dy, -s * dx + c * dy
-    return bool(abs(lx) <= BIN_INNER_XY[0] / 2 and abs(ly) <= BIN_INNER_XY[1] / 2)
+    return bool(abs(lx) <= inner_xy[0] / 2 and abs(ly) <= inner_xy[1] / 2)
 
 
 def phases(gripper: np.ndarray, cube_pos: np.ndarray, bin_pos, bin_quat_wxyz) -> list[str]:

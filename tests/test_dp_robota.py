@@ -167,11 +167,12 @@ def test_interaction_points_cover_cube_corners_and_the_gripper():
 def test_copied_sim_constants_match_sim_worker():
     src = (Path(__file__).resolve().parents[1] / "sim_worker" / "scene_cfg.py").read_text(encoding="utf-8")
 
-    def tup(name):
-        return tuple(float(x) for x in re.search(rf"^{name} = \(([^)]*)\)", src, re.M).group(1).split(","))
-
     cam = robota.FRONT_CAMERA
-    assert tup("FRONT_EYE") == cam.eye and tup("FRONT_TARGET") == cam.target
+    # The camera pose lives in sim_worker.scene_parts (no Isaac imports), which scene_cfg.py imports.
+    from sim_worker import scene_parts
+
+    assert "from .scene_parts import" in src
+    assert scene_parts.FRONT_EYE == cam.eye and scene_parts.FRONT_TARGET == cam.target
     assert "from demo_pipeline.scene_geometry import BIN_INNER, BIN_WALL, CUBE_SIZE" in src
     assert robota.BIN_INNER_XY == scene_geometry.BIN_INNER[:2] and robota.CUBE_SIZE == scene_geometry.CUBE_SIZE
     assert int(re.search(r"^IMAGE_SIZE = (\d+)", src, re.M).group(1)) == cam.width == cam.height
