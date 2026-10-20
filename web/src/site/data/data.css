@@ -274,10 +274,13 @@
   list-style: none;
 }
 
-.sant .data-variant { display: grid; gap: 4px; min-width: 0; }
+.sant .data-variant { display: grid; gap: 4px; min-width: 0; align-content: start; }
+/* A failure badge can run to two lines under a thumbnail: a rounded box, not a stretched pill. */
+.sant .data-variant .data-badge { border-radius: var(--sant-radius-sm); }
 
 .sant .data-variant > button {
   display: grid;
+  align-content: start;
   gap: 4px;
   padding: 0;
   border: 0;
