@@ -9,9 +9,12 @@
 
 import type { HandFrame } from "../hand/contracts";
 import type { TeleopControlSettings } from "./teleop/controlRegion";
+import type { HandPoseMsg } from "./teleop/handPoseMessage";
 import { TeleopClient, type TeleopClientOptions, type TeleopStatus } from "./teleop/teleopClient";
 
-export type ControlAction = "record_start" | "record_stop" | "record_discard" | "reset_scene";
+export type ControlAction = "record_start" | "record_stop" | "record_discard" | "reset_scene" | "set_input";
+/** How the page drives the arm (drive/drive.ts InputMode); set_input tells the sim, which saves it with each demo. */
+export type ControlInput = "camera" | "keyboard" | "mouse";
 
 /** The relay's SimStatusMsg, camelCased. */
 export interface SimStatus {
@@ -24,8 +27,8 @@ export interface SimStatus {
 
 const SOCKET_OPEN = 1; // WebSocket.OPEN
 
-export function controlMessage(action: ControlAction): string {
-  return JSON.stringify({ type: "control", action });
+export function controlMessage(action: ControlAction, input?: ControlInput): string {
+  return JSON.stringify(action === "set_input" ? { type: "control", action, input } : { type: "control", action });
 }
 
 export function parseSimStatus(data: unknown): SimStatus | null {
@@ -75,15 +78,20 @@ export class RecordLink {
     this.teleop.push(frame, grip);
   }
 
+  /** A ready-made HandPoseMsg (keyboard and mouse driving), throttled like push. */
+  send(msg: HandPoseMsg, grip?: 0 | 1): void {
+    this.teleop.send(msg, grip);
+  }
+
   /** Control-region settings for the hand poses (HandPoseMsg.control); null sends none. */
   setControl(settings: TeleopControlSettings | null): void {
     this.teleop.setControl(settings);
   }
 
   /** False when the socket isn't open, so nothing was sent. */
-  sendControl(action: ControlAction): boolean {
+  sendControl(action: ControlAction, input?: ControlInput): boolean {
     if (this.closed || !this.socket || this.socket.readyState !== SOCKET_OPEN) return false;
-    this.socket.send(controlMessage(action));
+    this.socket.send(controlMessage(action, input));
     return true;
   }
 

@@ -172,6 +172,23 @@ def test_standin_demo_is_human_like_and_deterministic():
     assert np.linalg.norm(np.asarray(d1.trajectory.ee_pos[0]) - HOME_TCP) < 0.02  # starts near home, jittered
 
 
+def test_select_by_tag_can_filter_by_input(tmp_path):
+    store = DemoStore(tmp_path)
+    for id, mode in (("human_k1", "keyboard"), ("human_k2", "keyboard"), ("human_m1", "mouse"), ("human_c1", "camera"),
+                     ("human_old", None)):
+        store.save_demo(Demo(id=id, source="human", trajectory=_human_like(), scene=_scene(), human_seconds=3.0,
+                             input=mode))
+    assert select_ids(store, tag="human_*", input="keyboard") == ["human_k1", "human_k2"]
+    assert select_ids(store, tag="human_*", input="camera") == ["human_c1"]  # strict: older demos have no input
+    assert select_ids(store, tag="human_*") == ["human_c1", "human_k1", "human_k2", "human_m1", "human_old"]
+    with pytest.raises(ValueError, match="input"):
+        select_ids(store, tag="human_c*", input="mouse")
+    with pytest.raises(ValueError, match="input"):
+        select_ids(store, ids=["human_k1", "human_m1"], input="keyboard")  # an explicit id that doesn't match
+    with pytest.raises(ValueError):
+        select_ids(store, tag="human_*", input="joystick")
+
+
 def test_select_skips_discarded_demos(tmp_path):
     store = _store(tmp_path)
     store.discard("standin_01")

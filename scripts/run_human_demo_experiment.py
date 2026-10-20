@@ -4,7 +4,8 @@
         [--data-dir <DATA_DIR>] [--ids a,b,c] [--smoke] [--until <stage>] [--no-nemotron] [--publish-results]
 
 Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stages/ and a re-run resumes:
-  select    the demos (--ids, or --tag: an fnmatch pattern over human demo ids), frozen with each demo.json's
+  select    the demos (--ids, or --tag: an fnmatch pattern over human demo ids; --input keyboard|mouse|camera keeps only
+            demos recorded with that input), frozen with each demo.json's
             SHA-256 in config.json together with every setting; preregistration.md is written from it, before
             anything is trained. Only demo.json is copied into the experiment's own DemoStore (<exp>/store):
             the user's store, its live episodes and diagnoses are never written.
@@ -158,15 +159,17 @@ class Experiment:
 
     # --- select -------------------------------------------------------------------------------------
 
-    def select(self, *, ids: list[str] | None, tag: str | None, settings: dict, force_config: bool = False) -> None:
+    def select(self, *, ids: list[str] | None, tag: str | None, settings: dict, force_config: bool = False,
+               input: str | None = None) -> None:
         path = self.root / "config.json"
         old = _read_json(path)
         if old is not None and ids is None and tag is None:  # a resume: the frozen selection
-            chosen, tag = old["ids"], old.get("tag")
+            chosen, tag, input = old["ids"], old.get("tag"), old.get("input")
         else:
-            chosen = select_ids(self.deps.user_store, ids=ids, tag=tag)
+            chosen = select_ids(self.deps.user_store, ids=ids, tag=tag, input=input)
         config = {
             "name": self.name, "ids": chosen, "n_human": len(chosen), "tag": tag,
+            **({"input": input} if input is not None else {}),  # only when filtered: older frozen configs still match
             "demo_sha256": {id: demo_sha256(self.deps.user_store, id) for id in chosen},
             "robot": ROBOT, "repair": "rules", "batch_size": BATCH, "policy": "act",
             "start_alignment": "every training episode starts at home: sim_worker.human_exp.align_home",
@@ -760,6 +763,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--name", required=True, help="experiment name: DATA_DIR/human_exp/<name>")
     p.add_argument("--ids", help="comma-separated human demo ids (in this order)")
     p.add_argument("--tag", help='fnmatch pattern over human demo ids, e.g. "human_20261019*"')
+    p.add_argument("--input", choices=("camera", "keyboard", "mouse"),
+                   help="only demos recorded with this input (the Record page's switch; older demos have none)")
     p.add_argument("--data-dir", type=Path, default=None, help="DATA_DIR (default: the DATA_DIR env var, or data/)")
     p.add_argument("--smoke", action="store_true", help="2000 steps, 5 eval seeds, results marked sample")
     p.add_argument("--variants", type=int)
@@ -819,7 +824,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         try:
             exp.select(ids=args.ids.split(",") if args.ids else None, tag=args.tag, settings=settings,
-                       force_config=args.force_config)
+                       force_config=args.force_config, input=args.input)
         except ValueError as e:  # select_ids: a missing, derived or unmatched demo
             raise Refused(str(e)) from e
         exp.run(until=args.until, publish=args.publish_results)

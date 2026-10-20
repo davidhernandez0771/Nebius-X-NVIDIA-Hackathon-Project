@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal, Union
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 Vec3 = tuple[float, float, float]
 Quat = tuple[float, float, float, float]  # (w, x, y, z)
@@ -91,6 +91,10 @@ class Scene(_Model):
     seed: int
 
 
+InputMode = Literal["camera", "keyboard", "mouse"]  # how a human demo was driven on the Record page
+INPUT_MODES: tuple[str, ...] = ("camera", "keyboard", "mouse")
+
+
 class Demo(_Model):
     id: str = Field(min_length=1)
     source: Literal["human", "repaired", "variant"]
@@ -99,6 +103,16 @@ class Demo(_Model):
     scene: Scene
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     human_seconds: float = Field(ge=0)  # wall-clock human time; 0 for derived demos
+    input: InputMode | None = None  # how it was driven (the Record page's input switch); None: not recorded (older)
+
+    @model_serializer(mode="wrap")
+    def _omit_unknown_input(self, handler):
+        """Leave "input" out while it is None, so a demo without one serializes byte for byte as before the field
+        existed (frozen sets and experiments hash demo.json)."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("input") is None:
+            data.pop("input", None)
+        return data
 
     @model_validator(mode="after")
     def _lineage(self) -> "Demo":

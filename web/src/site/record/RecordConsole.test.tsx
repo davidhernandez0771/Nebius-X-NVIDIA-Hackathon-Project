@@ -3,7 +3,7 @@
 // sends, the record button and its timer, Stop & discard and Delete last demo, the sim notice, the top bar, the
 // boot and the drawer.
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MotionProvider } from "../../sant/motion/MotionProvider";
@@ -27,6 +27,8 @@ interface FakeLink {
   sent: string[];
   grips: (0 | 1 | undefined)[];
   controls: unknown[];
+  inputs: string[];
+  msgs: unknown[];
   closed: boolean;
   emitStatus(s: TeleopStatus): void;
   emitSim(s: SimStatus | null): void;
@@ -71,6 +73,8 @@ vi.mock("../../record/recordLink", () => ({
     sent: string[] = [];
     grips: (0 | 1 | undefined)[] = [];
     controls: unknown[] = [];
+    inputs: string[] = [];
+    msgs: unknown[] = [];
     closed = false;
     private statusCbs = new Set<(s: TeleopStatus) => void>();
     private simCbs = new Set<(s: SimStatus | null) => void>();
@@ -83,9 +87,14 @@ vi.mock("../../record/recordLink", () => ({
     setControl(s: unknown) {
       this.controls.push(s);
     }
-    sendControl(action: string) {
-      this.sent.push(action);
+    sendControl(action: string, input?: string) {
+      if (action === "set_input") this.inputs.push(input ?? "");
+      else this.sent.push(action);
       return true;
+    }
+    send(msg: unknown, grip?: 0 | 1) {
+      this.msgs.push(msg);
+      this.grips.push(grip);
     }
     onStatus(cb: (s: TeleopStatus) => void) {
       this.statusCbs.add(cb);
@@ -106,6 +115,9 @@ vi.mock("../../record/recordLink", () => ({
     }
   },
 }));
+
+// The page's own tests run with the camera; keyboard and mouse have their own block below.
+beforeEach(() => localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "camera" })));
 
 afterEach(() => {
   cleanup();
@@ -432,5 +444,90 @@ describe("/record: the hologram's top bar and boot", () => {
     expect(screen.getByRole("meter", { name: "Arm left/right" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m (left|right)$/);
     expect(within(tile("ee_target_z")).queryByText("—")).toBeNull();
     expect(within(tile("ee_target_y")).queryByText("—")).toBeNull();
+  });
+});
+
+describe("/record with the keyboard or the mouse (no camera)", () => {
+  type Msg = { tracking_ok: boolean; control: [number, number, number]; grip?: 0 | 1 };
+  beforeEach(() => {
+    localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "keyboard" }));
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "performance"] });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const startKeyboard = () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Start keyboard" }));
+    return links.list[0];
+  };
+  const press = (code: string, type: "keyDown" | "keyUp" = "keyDown") => fireEvent[type](window, { code, key: code });
+
+  it("offers Keyboard | Mouse | Camera, keyboard first, with the key legend and the speed", () => {
+    renderPage();
+    const group = screen.getByRole("radiogroup", { name: "Input" });
+    expect(within(group).getAllByRole("radio").map((r) => [r.textContent, r.getAttribute("aria-checked")])).toEqual([
+      ["Keyboard", "true"],
+      ["Mouse", "false"],
+      ["Camera", "false"],
+    ]);
+    expect(within(screen.getByRole("list", { name: "Keys" })).getByText("robot's right")).toBeTruthy();
+    expect(screen.getByRole("slider", { name: "Speed" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Start camera" })).toBeNull();
+  });
+
+  it("starts without the camera or the hand lock, and drives the arm from the keys", () => {
+    const link = startKeyboard();
+    expect(tracker.start).not.toHaveBeenCalled();
+    act(() => link.emitStatus(connected));
+    expect(link.inputs).toEqual(["keyboard"]); // the sim is told on connect
+    act(() => {
+      press("KeyD");
+      vi.advanceTimersByTime(1000);
+    });
+    const msgs = link.msgs as Msg[];
+    expect(msgs.length).toBeGreaterThan(25);
+    expect(msgs.every((m) => m.tracking_ok)).toBe(true);
+    // D: the robot's right, which is u going down (to_ee_target: y = y_min + u * span)
+    expect(msgs[msgs.length - 1].control[0]).toBeLessThan(msgs[0].control[0]);
+    expect(within(tile("ee_y")).getByText(/^-0\.\d\d$/)).toBeTruthy();
+  });
+
+  it("Space toggles the gripper; Enter starts, then stops and saves, telling the sim the input first", () => {
+    const link = startKeyboard();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    act(() => {
+      press("Space");
+      vi.advanceTimersByTime(100);
+    });
+    expect(link.grips[link.grips.length - 1]).toBe(1);
+    act(() => press("Enter"));
+    expect(link.sent).toEqual(["record_start"]);
+    expect(link.inputs).toEqual(["keyboard", "keyboard"]);
+    act(() => link.emitSim(sim({ recording: true, steps: 40 })));
+    act(() => press("Enter"));
+    expect(link.sent).toEqual(["record_start", "record_stop"]);
+  });
+
+  it("Enter does nothing until the sim is connected", () => {
+    const link = startKeyboard();
+    act(() => press("Enter"));
+    expect(link.sent).toEqual([]);
+  });
+
+  it("switching the input stops the session; Camera brings the camera back", () => {
+    const link = startKeyboard();
+    fireEvent.click(screen.getByRole("radio", { name: "Camera" }));
+    expect(link.closed).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Start camera" }).length).toBeGreaterThan(0);
+    expect(JSON.parse(localStorage.getItem("pm.teleop.drive")!).input).toBe("camera");
+  });
+
+  it("mouse mode asks for a click on the twin to take the mouse", () => {
+    localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "mouse" }));
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Start mouse" }));
+    expect(screen.getByRole("button", { name: /Click to drive with the mouse/ })).toBeTruthy();
+    expect(screen.getByRole("slider", { name: "Mouse sensitivity" })).toBeTruthy();
   });
 });

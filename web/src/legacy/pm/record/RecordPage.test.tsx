@@ -24,6 +24,8 @@ interface FakeLinkShape {
   sent: string[];
   grips: (0 | 1 | undefined)[];
   controls: unknown[];
+  inputs: string[];
+  msgs: unknown[];
   closed: boolean;
   emitStatus(s: TeleopStatus): void;
   emitSim(s: SimStatus | null): void;
@@ -50,6 +52,8 @@ vi.mock("../../../record/recordLink", () => ({
     sent: string[] = [];
     grips: (0 | 1 | undefined)[] = [];
     controls: unknown[] = [];
+    inputs: string[] = [];
+    msgs: unknown[] = [];
     closed = false;
     private statusCbs = new Set<(s: TeleopStatus) => void>();
     private simCbs = new Set<(s: SimStatus | null) => void>();
@@ -62,9 +66,14 @@ vi.mock("../../../record/recordLink", () => ({
     setControl(s: unknown) {
       this.controls.push(s);
     }
-    sendControl(action: string) {
-      this.sent.push(action);
+    sendControl(action: string, input?: string) {
+      if (action === "set_input") this.inputs.push(input ?? "");
+      else this.sent.push(action);
       return true;
+    }
+    send(msg: unknown, grip?: 0 | 1) {
+      this.msgs.push(msg);
+      this.grips.push(grip);
     }
     onStatus(cb: (s: TeleopStatus) => void) {
       this.statusCbs.add(cb);

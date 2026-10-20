@@ -5,6 +5,9 @@
 // the alignment grid, the gripper dial and the height and left/right gauges, the bottom strip, and the
 // settings drawer. Beside Record: "Stop & discard" while recording (record_discard: nothing is saved), and after
 // a save "Delete last demo" (one more click to confirm; DELETE /demos/{id} moves it to demos/_discarded).
+// The input switch (Keyboard | Mouse | Camera, in the camera pane's header): with the keyboard or the mouse the camera
+// pane shows the key legend and the speed (DrivePanel), there's no camera and no hand lock, and Enter starts or stops
+// a recording; in mouse mode a click on the twin pane takes the mouse (Pointer Lock, Esc releases).
 // Everything is fed by the same teleop session as /legacy/pm/record (useRecordSession: hand v4's
 // simple pinch, reset gesture, original hand art, control region, break-through). The page fits the
 // window: a 100dvh grid, no page scrollbar, nothing scrolls inside a pane.
@@ -21,6 +24,7 @@ import { useMotion } from "../../sant/motion/MotionProvider";
 import { RobotTwin } from "../../twin";
 import { formatClock } from "../record-hud";
 import { GripDial, HeightGauge, SideGauge, Trace } from "./instruments";
+import { DrivePanel, InputSwitch } from "./DrivePanel";
 import { RecordSettings } from "./RecordSettings";
 import { useRecordTwin } from "./robotTwin";
 import { LIVE_ROBOT, initialLive, stepLive, type LiveState } from "./twin";
@@ -52,8 +56,10 @@ function stagePalette(el: HTMLElement): StagePalette {
 
 function chipsFor(s: RecordSession): ChipView[] {
   const { phase, track, relay, streaming } = s;
-  const hand: ChipView =
-    phase.state === "starting"
+  const drive = s.drive.input !== "camera";
+  const hand: ChipView = drive
+    ? { label: s.drive.input, state: streaming ? "ok" : "off", detail: streaming ? undefined : "stopped" }
+    : phase.state === "starting"
       ? { label: "hand", state: "wait", detail: "starting" }
       : phase.state === "error"
         ? { label: "hand", state: "wait", detail: "no camera" }
@@ -63,7 +69,7 @@ function chipsFor(s: RecordSession): ChipView[] {
             ? { label: "hand", state: "ok" }
             : { label: "hand", state: "wait", detail: TRACK_DETAIL[track] ?? track };
   const link: ChipView = !streaming
-    ? { label: "relay", state: "off", detail: "camera off" }
+    ? { label: "relay", state: "off", detail: drive ? "stopped" : "camera off" }
     : relay.socketOpen
       ? { label: "relay", state: "ok" }
       : { label: "relay", state: "wait", detail: "not connected" };
@@ -79,8 +85,9 @@ function chipsFor(s: RecordSession): ChipView[] {
 function episodeOf(s: RecordSession): { text: string; tone: Tone } {
   if (s.phase.state === "starting") return { text: "starting", tone: "wait" };
   if (s.phase.state === "error") return { text: "camera error", tone: "wait" };
-  if (!s.streaming) return { text: "camera off", tone: "off" };
+  if (!s.streaming) return { text: s.drive.input === "camera" ? "camera off" : "stopped", tone: "off" };
   if (s.recording) return s.sim?.paused ? { text: "paused", tone: "wait" } : { text: "recording", tone: "rec" };
+  if (s.drive.input !== "camera") return s.simReady ? { text: "ready", tone: "ok" } : { text: "no sim", tone: "wait" };
   if (s.lost) return { text: "no hand", tone: "wait" };
   return s.track === "tracking" ? { text: "tracking", tone: "ok" } : { text: "waiting", tone: "wait" };
 }
@@ -103,7 +110,7 @@ function useSavedDemos(demoId: string | null | undefined): string[] {
 
 export function RecordConsole() {
   const [palette, setPalette] = useState<StagePalette | undefined>(undefined);
-  const session = useRecordSession({ palette });
+  const session = useRecordSession({ palette, inputs: true });
   return <RecordView session={session} onPalette={setPalette} />;
 }
 
@@ -112,6 +119,9 @@ export default RecordConsole;
 /** The page for a session: the live one above, or a stand-in when checking the layout. */
 export function RecordView({ session, onPalette }: { session: RecordSession; onPalette: (p: StagePalette) => void }) {
   const { phase, relay, sim, pose, settings, streaming, lost, simReady, recording, resetToast } = session;
+  const input = session.drive.input;
+  const driving = input !== "camera";
+  const twinPane = useRef<HTMLElement>(null);
   const live = useLive(pose);
   const twin = useRecordTwin();
   const savedIds = useSavedDemos(sim?.demoId);
@@ -151,7 +161,15 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const fps = streaming && pose?.fps ? `${Math.round(pose.fps)} fps` : null;
   const footStatus = streaming ? (lost ? "hand lost: the arm holds still" : simReady && sim?.lastResult ? sim.lastResult : null) : null;
 
-  const message =
+  const message = driving ? (
+    !streaming && (
+      <div className="rg-message">
+        <button type="button" className="rg-btn rg-btn--primary" onClick={session.start}>
+          Start {input}
+        </button>
+      </div>
+    )
+  ) :
     phase.state === "error" ? (
       <div className="rg-message">
         <p className="rg-message__title">Can't start the camera</p>
@@ -256,7 +274,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
       <main className="rg-stage">
         <section className="rg-pane rg-cam" aria-label="camera">
           <div className="rg-hd">
-            <span>webcam_0 · hand</span>
+            <InputSwitch session={session} />
             <span className="rg-hd__tools">
               {streaming && (
                 <>
@@ -264,13 +282,19 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
                     Reset scene
                   </button>
                   <button type="button" className="rg-btn rg-btn--small" onClick={session.stop}>
-                    Stop camera
+                    Stop {driving ? input : "camera"}
                   </button>
                 </>
               )}
-              <span className="rg-hd__tag">mirror</span>
+              <span className="rg-hd__tag">{driving ? "robot frame" : "mirror"}</span>
             </span>
           </div>
+          {driving ? (
+            <div className="rg-cam__media">
+              <DrivePanel session={session} />
+              {message && <div className="rg-drive__start">{message}</div>}
+            </div>
+          ) : (
           <div className="rg-cam__media">
             <div className="rg-cam__frame">
               <canvas ref={session.canvas} aria-label="Your hand, mirrored, with the control region" />
@@ -286,7 +310,8 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               {message && <div className="rg-cam__message">{message}</div>}
             </div>
           </div>
-          {streaming && (
+          )}
+          {streaming && !driving && (
             <>
               <div className="rg-ring">
                 <ResetGestureRing status={pose?.reset ?? null} showHint={false} size={32} />
@@ -316,7 +341,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           )}
           <Brackets />
           <div className="rg-camfoot">
-            <span>pinch = grip · ✌ hold 1.5 s = reset scene</span>
+            <span>{driving ? "space = grip · shift = fine · enter = record / stop & save" : "pinch = grip · ✌ hold 1.5 s = reset scene"}</span>
             <span className="rg-camfoot__status">
               {footStatus && <span>{footStatus}</span>}
               {fps && <span>{fps}</span>}
@@ -325,7 +350,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
         </section>
 
         <div className="rg-side">
-          <section className="rg-pane" aria-label="workspace">
+          <section className="rg-pane" aria-label="workspace" ref={twinPane}>
             <div className="rg-hd">
               <span>workspace · robot twin</span>
               <span className="rg-hd__tag" data-mode={twin.mode}>
@@ -334,6 +359,11 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
             </div>
             <div className="rg-twin3d">
               <RobotTwin {...twin.view} caption={twin.caption} aids />
+              {input === "mouse" && streaming && !session.driveUi?.locked && (
+                <button type="button" className="rg-take" onClick={() => twinPane.current && session.requestMouse(twinPane.current)}>
+                  Click to drive with the mouse · Esc releases it
+                </button>
+              )}
             </div>
             <Brackets diagonal />
           </section>

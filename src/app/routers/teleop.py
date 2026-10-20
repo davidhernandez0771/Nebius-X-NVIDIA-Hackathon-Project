@@ -9,7 +9,9 @@ forwarded verbatim to the sim (or dropped if no sim is connected); an invalid on
 connects or disconnects.
 
 Control (sprint 3c): a browser message with a "type" key must be a ControlMsg,
-{"type": "control", "action": "record_start" | "record_stop" | "record_discard" | "reset_scene"}. A valid one is
+{"type": "control", "action": "record_start" | "record_stop" | "record_discard" | "reset_scene"}, or
+{"type": "control", "action": "set_input", "input": "camera" | "keyboard" | "mouse"} (how the page drives the arm:
+the sim smooths keyboard and mouse targets and saves the input with each demo). A valid one is
 forwarded verbatim to the sim; an invalid one, or one sent while no sim is connected, gets an
 error back. Controls are not counted in messages_forwarded (that counts hand poses only).
 
@@ -44,8 +46,9 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
+from demo_pipeline.schemas import InputMode
 from demo_pipeline.teleop import HandPoseMsg
 
 router = APIRouter(tags=["teleop"])
@@ -64,7 +67,14 @@ class ControlMsg(_Msg):
     """Browser -> sim: drive the sim-side TeleopSession (sim_worker/teleop_session.py)."""
 
     type: Literal["control"]
-    action: Literal["record_start", "record_stop", "record_discard", "reset_scene"]
+    action: Literal["record_start", "record_stop", "record_discard", "reset_scene", "set_input"]
+    input: InputMode | None = None  # set_input only
+
+    @model_validator(mode="after")
+    def _input_with_set_input(self) -> "ControlMsg":
+        if (self.action == "set_input") != (self.input is not None):
+            raise ValueError("set_input needs an input, and only set_input takes one")
+        return self
 
 
 class SimStatusMsg(_Msg):

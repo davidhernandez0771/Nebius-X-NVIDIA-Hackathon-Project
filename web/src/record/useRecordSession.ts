@@ -3,6 +3,10 @@
 // trace, the hand-art cues and the hand lock (teleop/handLock.ts: one hand drives the arm, every
 // other is ignored). Moved out of RecordPage.tsx unchanged, so the old page (/legacy/pm/record)
 // and the new one (/record) run the same code; each only lays it out.
+// The input switch (drive/drive.ts InputMode, saved locally): "camera" is all of the above; "keyboard" and "mouse"
+// need no camera and no hand lock: a DriveSession (drive/driveSession.ts) makes the same HandPoseMsg and the same
+// link sends it. The sim is told the input (set_input) when it connects and before each recording, so it smooths
+// keyboard and mouse targets and saves the input with each demo.
 
 import { useEffect, useRef, useState } from "react";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../hand/contracts";
@@ -30,6 +34,8 @@ import { ArtCue } from "./artCue";
 import { BreakthroughCue } from "./breakthroughCue";
 import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
 import { drawStage, type StagePalette } from "./stageDraw";
+import { loadDriveSettings, saveDriveSettings, type DriveSettings, type InputMode } from "./drive/drive";
+import { DriveSession, type DriveUi } from "./drive/driveSession";
 
 const UI_INTERVAL_MS = 100; // framing text updates at ~10 Hz; the canvas draws every frame
 // Hand art (display only) changes style when something happens (ArtCue), crossfading; events
@@ -45,6 +51,21 @@ export type Phase = { state: "idle" } | { state: "starting" } | { state: "stream
 
 /** Shown each time the reset gesture fires; `notSent` says why no reset_scene went out. */
 export type ResetToast = { at: number; notSent: string | null };
+
+/** A drive mode's pose: no hand, so framing is fine, no pinch, no reset gesture. */
+function drivePose(u: DriveUi): PoseUi {
+  return {
+    msg: u.msg,
+    framing: { state: "ok", hints: [] },
+    gripper: u.gripper,
+    pinch: null,
+    victory: null,
+    reset: { timestamp: u.msg.t_ms, phase: "idle", progress: 0, event: null },
+    size3d: null,
+    landmarks: null,
+    fps: null,
+  };
+}
 
 export type TraceUi = { state: "recording"; progress: number } | { state: "done"; url: string; name: string; frames: number };
 
@@ -75,7 +96,8 @@ function cameraMessage(err: unknown): string {
   return `The camera didn't start: ${err instanceof Error ? err.message : String(err)}`;
 }
 
-export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
+/** inputs: offer the keyboard and mouse (the /record page). Without it the session is camera only, whatever is saved. */
+export function useRecordSession({ palette, inputs = false }: { palette?: StagePalette; inputs?: boolean } = {}) {
   const [phase, setPhase] = useState<Phase>({ state: "idle" });
   const [track, setTrack] = useState<TrackingStatus>("idle");
   const [relay, setRelay] = useState<TeleopStatus>({ socketOpen: false, simConnected: false, lastError: null });
@@ -86,6 +108,9 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
   const [recentering, setRecentering] = useState(false);
   const [trace, setTrace] = useState<TraceUi | null>(null);
   const [resetToast, setResetToast] = useState<ResetToast | null>(null);
+  const [drive, setDrive] = useState<DriveSettings>(() => (inputs ? loadDriveSettings() : { ...loadDriveSettings(), input: "camera" }));
+  const [driveUi, setDriveUi] = useState<Omit<DriveUi, "msg"> | null>(null);
+  const driveRef = useRef(drive);
   const resetToastAt = useRef<number | null>(null);
   const tracer = useRef<{ trace: DebugTrace; startedAt: Date } | null>(null);
   const traceUrl = useRef<string | null>(null); // the finished file's object URL, revoked when replaced
@@ -94,7 +119,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
   const centerer = useRef<ReachCenterer | null>(null);
   const calibrationStep = useRef<CalibrationState["step"] | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const session = useRef<{ tracker: TrackingAdapter; link: RecordLink | null } | null>(null);
+  const session = useRef<{ tracker: TrackingAdapter | null; link: RecordLink | null; drive: DriveSession | null; input: InputMode } | null>(null);
   const handLockRef = useRef<HandLock | null>(null); // the running session's hand lock, for Re-pick
   const artHand = useRef<HandArtFrame | null>(null); // polled by the hand-art overlay each animation frame
   const artActive = useRef(false); // the overlay is drawing (WebGL up)
@@ -121,7 +146,8 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     artHand.current = null;
     calibrator.current = null;
     centerer.current = null;
-    session.current?.tracker.cleanup();
+    session.current?.tracker?.cleanup();
+    session.current?.drive?.stop();
     session.current?.link?.close();
     session.current = null;
   }
@@ -133,11 +159,67 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     [],
   );
 
+  /** The keyboard and mouse settings (input, speed, mouse sensitivity), saved locally. A new input stops the session:
+   *  Start again in the new mode. */
+  function updateDrive(next: DriveSettings) {
+    const switched = next.input !== driveRef.current.input;
+    driveRef.current = next;
+    setDrive(next);
+    saveDriveSettings(next);
+    if (switched && session.current) stop();
+  }
+
+  /** The link to the sim, telling it the input whenever it (re)connects. */
+  function openLink(input: InputMode): RecordLink {
+    const link = new RecordLink(teleopSocketUrl(), WebSocket, { trace: latencyTraceRequested(window.location.search) });
+    let simWas = false;
+    link.onStatus((s) => {
+      setRelay(s);
+      if (s.simConnected && !simWas) link.sendControl("set_input", input);
+      simWas = s.simConnected;
+    });
+    link.onSimStatus(setSim);
+    return link;
+  }
+
+  /** Keyboard or mouse: no camera, no hand lock; the DriveSession's messages go through the same link. */
+  function startDrive(input: InputMode) {
+    const link = openLink(input);
+    link.setControl(null);
+    let lastUi: Omit<DriveUi, "msg"> | null = null;
+    const driver = new DriveSession({
+      send: (msg, grip) => link.send(msg, grip),
+      ui: (u) => {
+        const { msg, ...flags } = u;
+        if (!lastUi || lastUi.gripper !== flags.gripper || lastUi.fine !== flags.fine || lastUi.locked !== flags.locked) setDriveUi(flags);
+        lastUi = flags;
+        setPose(drivePose({ msg, ...flags }));
+      },
+      enter: () => {
+        if (simReadyNow.current) control(recordingNow.current ? "record_stop" : "record_start");
+      },
+      settings: () => driveRef.current,
+    });
+    session.current = { tracker: null, link, drive: driver, input };
+    driver.start();
+    setPhase({ state: "streaming" });
+  }
+
+  /** Mouse mode: take Pointer Lock on this element (the twin pane's click). */
+  function requestMouse(el: HTMLElement) {
+    session.current?.drive?.requestMouse(el);
+  }
+
   async function start() {
+    const input = driveRef.current.input;
+    if (input !== "camera") {
+      startDrive(input);
+      return;
+    }
     setPhase({ state: "starting" });
     const { createMediapipeTracker } = await import("../hand/tracking");
     const tracker = createMediapipeTracker();
-    session.current = { tracker, link: null };
+    session.current = { tracker, link: null, drive: null, input };
     let lastUi = -Infinity;
     let framesSinceUi = 0; // for the fps readout (display only)
     let last: HandPoseMsg | undefined;
@@ -239,10 +321,8 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
       return;
     }
     // Open the relay only once the camera works, so a blocked camera never streams.
-    const link = new RecordLink(teleopSocketUrl(), WebSocket, { trace: latencyTraceRequested(window.location.search) });
+    const link = openLink("camera");
     link.setControl(settingsRef.current.enabled ? settingsRef.current : null);
-    link.onStatus(setRelay);
-    link.onSimStatus(setSim);
     if (session.current) session.current.link = link;
     setPhase({ state: "streaming" });
   }
@@ -321,6 +401,7 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     setRelay({ socketOpen: false, simConnected: false, lastError: null });
     setSim(null);
     setPose(null);
+    setDriveUi(null);
     resetToastAt.current = null;
     setResetToast(null);
     setPhase({ state: "idle" });
@@ -332,8 +413,14 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
   }
 
   function control(action: ControlAction) {
-    if (action === "reset_scene") resets.current++;
-    return session.current?.link?.sendControl(action);
+    const s = session.current;
+    if (action === "reset_scene") {
+      resets.current++;
+      s?.drive?.reset(); // the target goes home with the robot
+    }
+    // Before each recording, the input again: the demo is saved with it even if the sim restarted meanwhile.
+    if (action === "record_start" && s) s.link?.sendControl("set_input", s.input);
+    return s?.link?.sendControl(action);
   }
 
   const streaming = phase.state === "streaming";
@@ -355,6 +442,8 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     recentering,
     trace,
     resetToast,
+    drive,
+    driveUi,
     streaming,
     lost,
     simReady,
@@ -374,6 +463,8 @@ export function useRecordSession({ palette }: { palette?: StagePalette } = {}) {
     cancelCalibration,
     startTrace,
     repickHand,
+    updateDrive,
+    requestMouse,
   };
 }
 

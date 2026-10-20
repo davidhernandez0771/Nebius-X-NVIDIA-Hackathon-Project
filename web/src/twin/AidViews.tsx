@@ -1,7 +1,7 @@
-// The twin's recording aids (./aids.ts has the geometry): three views from one renderer, the front (the operator's
-// view, drag to turn), the side and the top (orthographic), drawn with scissor viewports into the one canvas, so
-// one WebGL context and one robot; and the top-down alignment grid beside them. Still on demand: a frame is drawn
-// only when something asks for one.
+// The twin's recording aids (./aids.ts has the geometry): three views from one renderer, the main one from behind
+// the robot, over its shoulder (the operator's view: W moves away, D to the right; drag to turn), the side and the
+// top (orthographic), drawn with scissor viewports into the one canvas, so one WebGL context and one robot; and the
+// top-down alignment grid beside them. Still on demand: a frame is drawn only when something asks for one.
 import { useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefCallback } from "react";
 import { OrthographicCamera, PerspectiveCamera } from "three";
@@ -191,7 +191,7 @@ export function ViewCells({ front, side, top, onFront }: { front: Rect; side: Re
   return (
     <>
       <div className="twin3d__cell twin3d__front" style={at(front)} ref={onFront}>
-        <span className="twin3d__tag">front</span>
+        <span className="twin3d__tag">behind the robot</span>
       </div>
       <div className="twin3d__cell" style={at(side)}>
         <span className="twin3d__tag">side</span>

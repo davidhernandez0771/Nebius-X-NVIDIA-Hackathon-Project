@@ -17,6 +17,11 @@ TeleopDriver. It follows the hand while idle too, so the person can line up befo
   whatever the wall-clock pace. human_seconds is the wall-clock time from start to stop.
 - On stop, the Demo (source "human") and the per-step StepStates go to an injected save_fn as a
   Recording. make_store_saver() writes them into a DemoStore with episode_io.
+- set_input (the Record page's input switch: "camera", "keyboard" or "mouse") is kept on the session and saved as
+  each demo's Demo.input. Keyboard and mouse targets are smoothed once more here (_smoothed: a critically
+  damped filter, SMOOTH_TAU_S): the page sends ~30 messages a second and each 50 Hz step takes the newest, so even a
+  perfectly smooth glide arrives as a staircase, and its jerk fails the rules' jitter check (~70 m/s^3 against 20).
+  The camera path is not filtered, as before.
 - record_discard ("Stop & discard" on the Record page) ends the recording and drops it: save_fn is never called.
   It also forgets the last saved demo id, so the page's "Delete last demo" can't reach back to an older one.
 - The robot twin (the Record page's 3D view): twin_scene() and twin() are the relay's sim_twin_scene and
@@ -43,7 +48,7 @@ from pydantic import ValidationError
 
 from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
 from demo_pipeline.rules import TASK_TEXT
-from demo_pipeline.schemas import Demo, Pose, Scene, SimSignals, Trajectory
+from demo_pipeline.schemas import INPUT_MODES, Demo, Pose, Scene, SimSignals, Trajectory
 from demo_pipeline.store import DemoStore
 from demo_pipeline.success import check_success
 from demo_pipeline.teleop import Calibration, GripperLatch, HandPoseMsg, to_ee_target
@@ -58,9 +63,17 @@ MIN_STEPS = 2  # a Trajectory needs at least 2 steps
 PNG_WRITERS = 8  # threads writing an episode's camera frames (16 measured no faster)
 TWIN_HZ = 30  # at most this many sim_twin messages a second (at 50 Hz control steps: every second step, 25 Hz)
 TWIN_DECIMALS = 4  # 0.1 mm / 0.1 mrad: below what the twin can show, and it keeps the message small
+SMOOTH_TAU_S = 0.08  # keyboard/mouse target filter: max jerk 4-7 m/s^3 at 0.6-1.0x real time, ~2.5 cm behind at 0.12 m/s
+SMOOTHED_INPUTS = ("keyboard", "mouse")
+# The Kit window's camera for live teleop (teleop_sink.py --kit-camera behind): behind the robot and a little to its
+# right, over its shoulder, like the Record page's twin (web/src/twin/RobotTwin.tsx View). From there the robot's right
+# is on the screen's right and forward is away. Isaac Lab's default viewer (4, -4, 3) looks at the robot from the front,
+# where moving to the robot's right shows on the screen's left: it looked mirrored.
+KIT_CAMERA_TARGET = (0.42, 0.0, 0.08)
+KIT_CAMERA_EYE = (KIT_CAMERA_TARGET[0] - 0.8, KIT_CAMERA_TARGET[1] - 0.5, KIT_CAMERA_TARGET[2] + 1.25)
 
 State = Literal["idle", "recording", "saving"]
-ACTIONS = ("record_start", "record_stop", "record_discard", "reset_scene")
+ACTIONS = ("record_start", "record_stop", "record_discard", "reset_scene", "set_input")
 
 
 @dataclass(frozen=True)
@@ -133,6 +146,7 @@ class TeleopSession:
         self.last_result: str | None = None
         self.last_demo_id: str | None = None
         self.twin_watchers = 0  # pages watching the twin, as the relay last said (relay_loop sends twins only then)
+        self.input: str | None = None  # how the page drives the arm (set_input); saved with each demo
         self._steps = 0
         self._reset()
 
@@ -143,10 +157,17 @@ class TeleopSession:
         if msg.tracking_ok:
             self._last_good_at = self.clock()
 
-    def on_control(self, action: str) -> None:
+    def on_control(self, action: str, input: str | None = None) -> None:
         if action not in ACTIONS:
             raise ValueError(f"unknown control action {action!r}; expected one of {ACTIONS}")
-        if action == "record_start":
+        if action == "set_input":
+            if input not in INPUT_MODES:
+                raise ValueError(f"set_input needs an input, one of {INPUT_MODES}; got {input!r}")
+            if input != self.input:
+                self._smooth = (np.asarray(self._cmd.pos, dtype=float), np.zeros(3))  # from where the arm is told to be
+            self.input = input
+            self.last_result = f"input: {input}"
+        elif action == "record_start":
             if self.state == "recording":
                 self.last_result = "already recording"
                 return
@@ -189,11 +210,12 @@ class TeleopSession:
             if msg.tracking_ok:
                 self._target = to_ee_target(msg, self.calib)
             self._gripper = gripper
-        self.driver.apply(self._target, self._gripper)
+        self._cmd = self._smoothed(self._target) if self.input in SMOOTHED_INPUTS else self._target
+        self.driver.apply(self._cmd, self._gripper)
         if self.state == "recording" and not self.paused:
             state = self.driver.read_state()  # only recorded steps: it syncs the GPU and copies the cameras
-            self._rec["pos"].append(self._target.pos)
-            self._rec["quat"].append(self._target.quat_wxyz)
+            self._rec["pos"].append(self._cmd.pos)
+            self._rec["quat"].append(self._cmd.quat_wxyz)
             self._rec["gripper"].append(self._gripper)
             self._rec["states"].append(state)
             self._steps += 1
@@ -243,10 +265,21 @@ class TeleopSession:
 
     # --- internals ----------------------------------------------------------------------
 
+    def _smoothed(self, target: Pose) -> Pose:
+        """One TELEOP_DT step of a critically damped filter toward the target's position (orientation as is)."""
+        pos, vel = self._smooth
+        w = 1.0 / SMOOTH_TAU_S
+        vel = vel + TELEOP_DT * (w * w * (np.asarray(target.pos) - pos) - 2.0 * w * vel)
+        pos = pos + TELEOP_DT * vel
+        self._smooth = (pos, vel)
+        return Pose(pos=tuple(float(v) for v in pos), quat_wxyz=target.quat_wxyz)
+
     def _reset(self) -> None:
         self.driver.reset(self.scene)
         start = self.driver.read_state()
         self._target = Pose(pos=tuple(float(v) for v in start.ee_pos), quat_wxyz=tuple(float(v) for v in start.ee_quat))
+        self._cmd = self._target  # what the robot is told (the target, smoothed for keyboard and mouse)
+        self._smooth = (np.asarray(self._target.pos, dtype=float), np.zeros(3))
         self._gripper = 0
         self._latch = GripperLatch()
         self._latest: HandPoseMsg | None = None
@@ -265,7 +298,7 @@ class TeleopSession:
                 np.arange(n) * TELEOP_DT, np.asarray(rec["pos"]), np.asarray(rec["quat"]), rec["gripper"]
             )
             demo = Demo(id=self.new_id(), source="human", trajectory=traj, scene=self.scene,
-                        human_seconds=human_seconds)
+                        human_seconds=human_seconds, input=self.input)
             self.last_result = self.save_fn(Recording(demo=demo, states=list(rec["states"])))
             self.last_demo_id = demo.id
         except Exception as e:  # a failed save must not wedge the session
@@ -317,7 +350,7 @@ def _dispatch_data(session: TeleopSession, data, text: str) -> str | None:
         return None
     try:
         if kind == "control":
-            session.on_control(str(data.get("action")))
+            session.on_control(str(data.get("action")), data.get("input"))
         else:
             session.on_hand(HandPoseMsg.model_validate(split_trace(data)[0] if isinstance(data, dict) else data))
     except (ValueError, ValidationError) as e:
