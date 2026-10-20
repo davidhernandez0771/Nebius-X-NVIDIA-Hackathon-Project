@@ -14,7 +14,10 @@ export function HoverTip() {
     let shown = -1;
     const move = (e: PointerEvent) => {
       if (!tip.current) return;
-      tip.current.style.transform = `translate(${e.clientX + 16}px, ${e.clientY + 14}px)`;
+      // Right of the cursor, or left of it where the tip would run off the screen's right edge.
+      const w = tip.current.offsetWidth;
+      const x = e.clientX + 16 + w > window.innerWidth ? e.clientX - 16 - w : e.clientX + 16;
+      tip.current.style.transform = `translate(${Math.max(0, x)}px, ${e.clientY + 14}px)`;
     };
     const off = subscribeSpiral(() => {
       const k = spiral.selected >= 0 ? -1 : spiral.hover;
