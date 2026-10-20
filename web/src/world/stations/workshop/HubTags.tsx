@@ -44,7 +44,8 @@ export function HubTags() {
   const [tutorial] = useState(() => !seenBefore());
   const at = useMemo(
     () => ({
-      shelf: new THREE.Vector3(0, 12.2, 0),
+      // Under the hub bar at the top of the view (1280×720), not behind it.
+      shelf: new THREE.Vector3(0, 11.5, 0),
       machine: up(MACHINE_PIVOT.position, 6.2),
       bench: up(BENCH_PIVOT.position, 5.4),
     }),
