@@ -16,6 +16,14 @@ freezes its own `preregistration.md` with every demo's hash at its `select` stag
     rules, 10 variants, 30k, 40 seeds from 5020, Fisher, α 0.05, per-demo assist) and left out a camera demo and a
     discarded take. 4 mouse demos were refused (exit 1); `--input keyboard` on the same store matched nothing.
 - **Experiment name:** `mouse20261020`, so the folder says what it holds.
+- **Exact timeline (added after the commit, for honesty):**
+  - The lead requested the amendment at about **14:35 EDT**, before any demo existed.
+  - The "no demo" listing above ran at **14:37:05**.
+  - The first mouse demo, `human_20261020183738_00ab`, was saved at **14:37:38**.
+  - The amendment commit `c7f3710` landed at **14:37:48**, 10 s after that first demo.
+  - No demo data was inspected by anyone before or during the amendment. The listing at 14:37:05 found nothing, and
+    the timestamp check behind this line read folder names and times only.
+  - The amendment changes only the input filter (`--input keyboard` → `--input mouse`).
 
 ## Question
 
