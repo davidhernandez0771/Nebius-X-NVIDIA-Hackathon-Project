@@ -4,7 +4,7 @@
 // tool instead (route()).
 import { ITEMS, TAGS, type TagId } from "../scene/items";
 
-export const SECTIONS = ["top", "story", "workshop", "machine", "bench"] as const;
+export const SECTIONS = ["top", "story", "workshop", "machine", "bench", "robots"] as const;
 export type Section = (typeof SECTIONS)[number];
 
 export type ToolName = "go_to_section" | "show_cartridges_with_tag" | "open_cartridge" | "start_tutorial";
@@ -17,7 +17,7 @@ export interface ToolSpec {
 }
 
 export const TOOLS: readonly ToolSpec[] = [
-  { name: "go_to_section", description: "Move the camera to a part of the journey: the top (logo), the story, the workshop's spiral, the machine, or the bench where new cartridges are made", values: [...SECTIONS] },
+  { name: "go_to_section", description: "Move the camera to a part of the journey: the top (logo), the story, the workshop's spiral, the machine, the bench where new cartridges are made, or the robots (the wall of robots SANT tests with, and their catalog)", values: [...SECTIONS] },
   { name: "show_cartridges_with_tag", description: "Filter the spiral to the cartridges for one job: " + TAGS.map((t) => `${t.id} (${t.label})`).join(", "), values: TAGS.map((t) => t.id) },
   { name: "open_cartridge", description: "Open one cartridge's detail: " + ITEMS.map((i) => `${i.id} (${i.title}, ${i.sub})`).join("; "), values: ITEMS.map((i) => i.id) },
   { name: "start_tutorial", description: "A short guided tour of the workshop: pick a cartridge, plug it in, make a new one", values: null },
@@ -58,6 +58,7 @@ export function route(text: string): ToolCall {
   if (/tour|tutorial|how does (it|this) work|guide|walk me/.test(q)) return { tool: "start_tutorial", arg: null };
   if (hit >= 0 && /open|show me|what is|plug/.test(q)) return { tool: "open_cartridge", arg: ITEMS[hit].id };
   if (/bench|make a (new )?cartridge|new cartridge/.test(q)) return { tool: "go_to_section", arg: "bench" };
+  if (/which robots|what robots|robot wall|the robots|robots? (do|does|can)|supported robots|robot catalog/.test(q)) return { tool: "go_to_section", arg: "robots" };
   if (/machine|projector|plug in/.test(q)) return { tool: "go_to_section", arg: "machine" };
   for (const [t, re] of TAG_WORDS) if (re.test(q)) return { tool: "show_cartridges_with_tag", arg: t };
   if (hit >= 0) return { tool: "open_cartridge", arg: ITEMS[hit].id };

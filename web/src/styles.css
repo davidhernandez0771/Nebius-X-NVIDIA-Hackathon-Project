@@ -1005,3 +1005,17 @@ button:disabled {
     scroll-behavior: auto !important;
   }
 }
+
+/* The site's own "effects off" (MotionProvider sets data-motion on <html>) reaches .sant pages through
+   sant.css; the work pages and the robots page aren't under .sant, so they get it here. */
+:root[data-motion="reduced"] :is(.work, .robots-page),
+:root[data-motion="reduced"] :is(.work, .robots-page) *,
+:root[data-motion="reduced"] :is(.work, .robots-page) *::before,
+:root[data-motion="reduced"] :is(.work, .robots-page) *::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}

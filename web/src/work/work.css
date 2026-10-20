@@ -9,7 +9,7 @@
   /* The journey's palette. */
   --w-bg: #04070a;
   --w-ink: #d8efe9;
-  --w-dim: #5f7c76;
+  --w-dim: #6f8c85; /* AA small text on the work pages' ground (was 4.4:1) */
   --w-mute: #2b3b38;
   --w-teal: #19f5c2;
   --w-amber: #ffb000;
@@ -51,7 +51,7 @@
   --inner-highlight: none;
   --font: var(--w-mono);
   --font-display: var(--w-mono);
-  --fs-xs: 0.6875rem;
+  --fs-xs: 0.75rem; /* 12 px: the site's smallest text */
   --fs-sm: 0.75rem;
   --fs-base: 0.8125rem;
   --fs-md: 0.875rem;
@@ -75,7 +75,7 @@
 
 .work-u {
   font-family: var(--w-mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -147,7 +147,7 @@
 
 .work-steps a em {
   font-style: normal;
-  color: var(--w-mute);
+  color: var(--w-dim);
   margin-right: 4px;
 }
 
@@ -228,7 +228,7 @@
 }
 
 .work h3 {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.14em;
   color: var(--w-dim);
@@ -281,7 +281,7 @@
 .work .status-pill {
   height: auto;
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   background: transparent;
@@ -297,7 +297,7 @@
 
 .work .primary-button {
   min-height: 44px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--w-teal);
   background: rgba(25, 245, 194, 0.06);
@@ -319,7 +319,7 @@
 }
 
 .work .ghost-button {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--w-dim);
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -330,7 +330,7 @@
 }
 
 .work .pill-link {
-  font-size: 11px;
+  font-size: 12px;
   background: transparent;
 }
 
@@ -353,10 +353,15 @@
   background: rgba(6, 12, 14, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
-  font: 500 11px / 1 var(--w-mono);
+  font: 500 12px / 1 var(--w-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--w-dim);
+}
+
+/* The Results charts' labels (legacy/pm/pm.css draws them at 11 px). */
+.work .pm-chart-label {
+  font-size: 12px;
 }
 
 .work .hand-toggle[data-enabled="true"] {
@@ -369,7 +374,7 @@
   background: rgba(6, 12, 14, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--w-dim);
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.1em;
 }
 

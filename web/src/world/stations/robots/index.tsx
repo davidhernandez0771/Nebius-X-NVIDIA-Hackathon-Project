@@ -15,6 +15,15 @@ import { Panel } from "./Panel";
  */
 export const ROBOTS_VIEW: CameraPose = { position: [-7.9, 6.4, 2.75], target: [-20.8, 6.1, 2.75], fov: 55 };
 
+/**
+ * A screen held upright (a phone): the panel is a sheet over the bottom half, so the camera centres on
+ * the robots' row and looks lower, which lifts the row above the sheet (view.test.ts). The portrait
+ * field of view (core/fov.ts) is narrow across: the middle robots show, the ends need a pan.
+ */
+export const ROBOTS_VIEW_PORTRAIT: CameraPose = { position: [-7.9, 6.4, -1.05], target: [-20.8, 3.2, -1.05], fov: 55 };
+
+const portrait = () => typeof window !== "undefined" && window.innerWidth < window.innerHeight * 0.8;
+
 function Overlay({ current, reduced }: StationOverlayProps) {
   return <Panel current={current} reduced={reduced} />;
 }
@@ -28,7 +37,7 @@ const robots: StationModule = {
   anchor: [0, 0, 0],
   travel: 0,
   length: 0,
-  camera: () => ROBOTS_VIEW,
+  camera: () => (portrait() ? ROBOTS_VIEW_PORTRAIT : ROBOTS_VIEW),
   Overlay,
 };
 

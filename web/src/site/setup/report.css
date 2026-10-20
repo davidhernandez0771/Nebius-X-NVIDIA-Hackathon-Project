@@ -334,7 +334,7 @@
 .byor-reach__tick {
   fill: var(--sant-muted);
   font-family: var(--sant-font-data);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .byor-reach__cap {

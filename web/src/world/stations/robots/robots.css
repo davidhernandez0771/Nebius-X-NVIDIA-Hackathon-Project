@@ -62,7 +62,7 @@
   margin: 0;
   font-size: 12px;
   line-height: 1.55;
-  color: var(--w-text-2);
+  color: var(--w-dim);
 }
 .world-robots__lede b {
   color: var(--w-ink);
@@ -153,7 +153,7 @@
   line-height: 1.5;
 }
 .world-robots__facts dt {
-  color: var(--w-text-2);
+  color: var(--w-dim);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -164,7 +164,7 @@
 .world-robots__src {
   grid-column: 1 / -1;
   font-size: 12px;
-  color: var(--w-text-2);
+  color: var(--w-dim);
 }
 .world-robots__src summary {
   cursor: pointer;
@@ -184,10 +184,11 @@
   .world-robots {
     top: auto;
     left: 12px;
-    right: 12px;
+    /* Clear of the journey rail's marks on the right edge. */
+    right: 40px;
     bottom: 12px;
     width: auto;
-    max-height: 58vh;
+    max-height: 52vh;
     padding: 14px 14px 10px;
     transform: translateY(16px);
   }

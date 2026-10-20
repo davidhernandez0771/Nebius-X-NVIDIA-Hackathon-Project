@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { PerspectiveCamera, Vector3 } from "three";
 import { ITEM_SIZE, robotSpot } from "../../scene/wallPlan";
 import { CATALOG } from "./catalog";
-import robots, { ROBOTS_VIEW } from "./index";
+import { fitFov } from "../../core/fov";
+import robots, { ROBOTS_VIEW, ROBOTS_VIEW_PORTRAIT } from "./index";
 
-function project(p: readonly number[], aspect: number) {
-  const cam = new PerspectiveCamera(ROBOTS_VIEW.fov, aspect, 0.1, 200);
-  cam.position.set(...(ROBOTS_VIEW.position as [number, number, number]));
-  cam.lookAt(...(ROBOTS_VIEW.target as [number, number, number]));
+function project(p: readonly number[], aspect: number, view = ROBOTS_VIEW) {
+  const cam = new PerspectiveCamera(fitFov(view.fov, aspect), aspect, 0.1, 200);
+  cam.position.set(...(view.position as [number, number, number]));
+  cam.lookAt(...(view.target as [number, number, number]));
   cam.updateMatrixWorld();
   return new Vector3(...(p as [number, number, number])).project(cam);
 }
@@ -39,6 +40,21 @@ describe("the robots view", () => {
           expect(p.x).toBeLessThan(0.8);
           expect(Math.abs(p.y)).toBeLessThan(0.9);
         }
+    }
+  });
+
+  // A phone held upright (390×844): the panel is a sheet over the bottom 52%, so the middle robots
+  // stand whole above it.
+  it("lifts the robots' row above the phone's bottom sheet", () => {
+    const sheetTop = 1 - 2 * 0.48;
+    for (const id of ["flexiv", "openarm", "so101"]) {
+      const { position, height } = robotSpot(id);
+      for (const dy of [0, height]) {
+        const p = project([position[0], position[1] + dy, position[2]], 390 / 844, ROBOTS_VIEW_PORTRAIT);
+        expect(p.y).toBeGreaterThan(sheetTop);
+        expect(p.y).toBeLessThan(0.95);
+        expect(Math.abs(p.x)).toBeLessThan(0.95);
+      }
     }
   });
 });
