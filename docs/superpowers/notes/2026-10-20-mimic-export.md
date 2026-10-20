@@ -1,7 +1,51 @@
 # SANT → Isaac Lab Mimic: the export and the env (`pm/mimic-export`, 2026-10-20)
 
 From `pm/live-11` (`0cc6e9d`). Not pushed or merged. Built without the GPU, then one GPU smoke test (three tries,
-13:37–13:43, holding `C:\dev\gpu.lock`).
+13:37–13:43, holding `C:\dev\gpu.lock`). Then the rerun with SANT's tracking (19:47–19:57), result just below.
+
+## The rerun's result (2026-10-20 evening): with SANT's tracking, SANT verifies Mimic's demos at the same rate as its own multiplier
+
+Code at `889fa4d`, run from a temporary worktree, holding `C:\dev\gpu.lock`, one environment. The input was
+`human10c_sources_v2.hdf5`: the same 3 repaired sources, with boundaries 213/242/253.
+
+**10 trials** (`smoke_10_tracking`, 19:47–19:48, 1 min):
+- Mimic: 10 successes, 2 failures.
+- SANT verified **9/10** of the successes, against 0/10 in the first smoke test. The one reject was
+  `unreachable`.
+- Median tool error per demo: 0.16–0.27 cm (the first run's was 3.2–3.8). The arm never touched the bin or the
+  table (0 N). That passes "most", so the 100 ran.
+
+**100 trials** (`mimic_100`, 19:48:47–19:56:54, 8.1 min, exit 0, no unreadable files):
+
+| | count | rate | Wilson 95% |
+|---|---|---|---|
+| Mimic's own success (its end-state test) | 100/111 | 90.1% | 83.1–94.4% |
+| **SANT-verified per attempt** (primary) | **91/111** | **82.0%** | 73.8–88.0% |
+| SANT-verified of Mimic's successes | 91/100 | 91.0% | 83.8–95.2% |
+| SANT's multiplier, human10c (existing, same 3 sources) | 24/30 | 80.0% | 62.7–90.5% |
+
+- **Fisher, two-sided, 91/111 vs 24/30: p = 0.79.** No detectable difference in yield.
+- **SANT's check rejected 9 of Mimic's 100 self-reported successes:**
+  - collision ×6 (340–710 N, the arm on the bin or the table);
+  - unreachable ×8;
+  - not_settled ×1.
+
+  Most rejects have several reasons. 5 of the 9 are collision + unreachable together, with 2–4 s over 2 cm, which
+  looks like the bridge catching the bin's rim.
+- Median tool error over the 100: 0.14–0.65 cm per demo, 0.19 cm overall.
+- About 5.3 s of wall-clock per SANT-verified demo, start-up included.
+
+**Caveats:**
+- **SANT's side is the existing 24/30** (10 per source). The planned 102-attempt SANT run (`human10c_cmp`, 34 per
+  source, below) was **not** run.
+- Mimic picks its sources itself and splices two sources per demo.
+- Its feed-forward is one step late (replay looks ahead).
+- Otherwise it is the same robot, sampler and physics, and `check_success` is unchanged.
+- Don't compare against the first smoke test (0/10): that run's noise and lag were configuration, not Mimic.
+
+**Files** (gitignored, `data/exports/mimic/` in `C:\dev\pm-t2`):
+- `smoke_10_tracking.hdf5`, `.log`, `_report.json`;
+- `mimic_100.hdf5` (29 MB), `_failed.hdf5`, `.log`, `_report.json`.
 
 ## The smoke test's result (2026-10-20): Mimic runs on this Windows PC; SANT rejects what it makes
 
