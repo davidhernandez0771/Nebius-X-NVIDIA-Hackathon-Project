@@ -373,3 +373,22 @@ def test_an_empty_cell_is_refused_cleanly_not_a_traceback(hx, tmp_path, capsys):
     with pytest.raises(hx.Refused, match="empty cell"):
         exp.run(until="grid")
     assert not (tmp_path / "human_exp" / "smoke1" / "grid.json").exists()
+
+
+def test_select_can_take_only_one_input_and_freezes_it(hx, tmp_path):
+    user = _user_store(tmp_path)
+    for i, id in enumerate(IDS):
+        demo = user.get_demo(id)
+        user.save_demo(demo.model_copy(update={"input": "keyboard" if i < 2 else "camera"}))
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", input="keyboard", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert config["ids"] == IDS[:2] and config["input"] == "keyboard"
+    exp.select(ids=None, tag=None, settings=SMOKE)  # a resume keeps the frozen selection and its input
+
+
+def test_a_config_frozen_without_input_still_resumes(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert "input" not in config  # unchanged for runs that don't filter

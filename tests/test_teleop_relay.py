@@ -134,13 +134,33 @@ def _sim_status(**over) -> dict:
     return status
 
 
-@pytest.mark.parametrize("action", ["record_start", "record_stop", "reset_scene"])
+@pytest.mark.parametrize("action", ["record_start", "record_stop", "record_discard", "reset_scene"])
 def test_control_message_is_forwarded_to_sim(client, action):
     with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
         browser.receive_json()
         browser.send_json(_control(action))
 
         assert sim.receive_json() == _control(action)
+
+
+@pytest.mark.parametrize("mode", ["camera", "keyboard", "mouse"])
+def test_set_input_is_forwarded_with_its_input(client, mode):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json({"type": "control", "action": "set_input", "input": mode})
+        assert sim.receive_json() == {"type": "control", "action": "set_input", "input": mode}
+
+
+def test_set_input_needs_a_known_input_and_only_set_input_takes_one(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        for bad in ({"type": "control", "action": "set_input"},
+                    {"type": "control", "action": "set_input", "input": "joystick"},
+                    {"type": "control", "action": "record_start", "input": "keyboard"}):
+            browser.send_json(bad)
+            assert browser.receive_json()["type"] == "error"
+        browser.send_json(_control("record_stop"))
+        assert sim.receive_json() == _control("record_stop")  # nothing invalid got through
 
 
 def test_invalid_control_is_rejected_and_not_forwarded(client):

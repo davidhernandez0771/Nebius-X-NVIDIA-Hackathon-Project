@@ -22,7 +22,7 @@ import hashlib
 import numpy as np
 
 from demo_pipeline.multiply import transform_trajectory
-from demo_pipeline.schemas import Demo, Scene, Trajectory
+from demo_pipeline.schemas import INPUT_MODES, Demo, Scene, Trajectory
 from demo_pipeline.stats import fisher_exact, wilson_ci
 from demo_pipeline.store import DemoStore
 from sim_worker.homeset import EVAL_SEED_MIN, rehome
@@ -34,23 +34,31 @@ INFRA_ENDINGS = ("sim_error", "policy_error")
 RAW_CONDITION, MULT_CONDITION = "raw", "perfected_multiply"
 
 
-def select_ids(store: DemoStore, ids: list[str] | None = None, tag: str | None = None) -> list[str]:
+def select_ids(store: DemoStore, ids: list[str] | None = None, tag: str | None = None,
+               input: str | None = None) -> list[str]:
     """The human demos to use: `ids` as given (in that order), or every human demo whose id matches the fnmatch
-    pattern `tag`, sorted. ValueError for a missing or derived demo, or a tag that matches nothing."""
+    pattern `tag`, sorted. With `input` ("camera" | "keyboard" | "mouse"), only demos recorded with that input
+    (Demo.input; strict, so older demos without one never match). ValueError for a missing or derived demo, an
+    id recorded with another input, or a tag that matches nothing."""
     if (ids is None) == (tag is None):
         raise ValueError("give exactly one of ids or tag")
+    if input is not None and input not in INPUT_MODES:
+        raise ValueError(f"input must be one of {INPUT_MODES}, got {input!r}")
     if ids is not None:
         for id in ids:
             if not store.has_demo(id):
                 raise ValueError(f"demo {id!r} not found in {store.root}")
             if store.get_demo(id).source != "human":
                 raise ValueError(f"demo {id!r} is not a human demo ({store.get_demo(id).source})")
+            if input is not None and store.get_demo(id).input != input:
+                raise ValueError(f"demo {id!r} was recorded with input {store.get_demo(id).input!r}, not {input!r}")
         if len(set(ids)) != len(ids):
             raise ValueError("a demo id is listed twice")
         return list(ids)
-    found = sorted(d.id for d in store.list_demos(source="human") if fnmatch.fnmatchcase(d.id, tag))
+    found = sorted(d.id for d in store.list_demos(source="human")
+                   if fnmatch.fnmatchcase(d.id, tag) and (input is None or d.input == input))
     if not found:
-        raise ValueError(f"no human demo in {store.root} matches {tag!r}")
+        raise ValueError(f"no human demo in {store.root} matches {tag!r}" + (f" with input {input!r}" if input else ""))
     return found
 
 

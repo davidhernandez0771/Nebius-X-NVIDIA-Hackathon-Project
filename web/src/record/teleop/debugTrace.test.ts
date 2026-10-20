@@ -17,6 +17,8 @@ const SIGNALS: TraceSignals = {
   victory: 0.1234567,
   size3d: 0.1111111,
   reachSize: 0.1050505,
+  stable: 0.1040404,
+  clutch: true,
   reach3d: false,
   breakthrough: 2,
   breakthroughDir: -1,
@@ -36,7 +38,8 @@ describe("traceFrame", () => {
     expect(e.world).toHaveLength(21);
     expect(e.pinch).toBe(1.23457); // the 2D pinch gap (pinch.ts)
     expect(e.victory).toBe(0.12346);
-    expect(e.reach).toEqual({ palmWidth: expect.any(Number), size3d: 0.11111, used: 0.10505, reach3d: false });
+    expect(e.reach).toEqual({ palmWidth: expect.any(Number), size3d: 0.11111, stable: 0.10404, used: 0.10505, reach3d: false });
+    expect(e.clutch).toBe(true);
     expect(e.reach.palmWidth).toBeGreaterThan(0);
     expect(e.breakthrough).toEqual({ count: 2, dir: -1 });
     expect(e.sent.tracking_ok).toBe(true);
@@ -44,8 +47,8 @@ describe("traceFrame", () => {
     expect(e.gripper).toBe(0);
   });
 
-  it("is version 4: adds the hand lock and every detection (version 3: the 2D pinch gap, hand v4)", () => {
-    expect(TRACE_VERSION).toBe(4);
+  it("is version 5: adds the pinch-stable size and the clutch (4: the hand lock and every detection)", () => {
+    expect(TRACE_VERSION).toBe(5);
   });
 
   it("records every detection (label, palm center) and the lock, so a live trace is a hand-lock fixture", () => {
@@ -91,7 +94,7 @@ describe("DebugTrace", () => {
     const trace = new DebugTrace(100);
     for (let t = 0; t <= 100; t += 33) trace.push(entry(t, hand()));
     const file = trace.toJSON({ settings: DEFAULT_TELEOP_CONTROL, startedAt: "2026-10-17T20:00:00.000Z" });
-    expect(file).toMatchObject({ kind: "pm-hand-trace", version: 4, startedAt: "2026-10-17T20:00:00.000Z", frameWidth: FRAME.w });
+    expect(file).toMatchObject({ kind: "pm-hand-trace", version: 5, startedAt: "2026-10-17T20:00:00.000Z", frameWidth: FRAME.w });
     expect(file.settings).toEqual(DEFAULT_TELEOP_CONTROL);
     expect(file.frames).toHaveLength(4);
     expect(JSON.parse(JSON.stringify(file))).toEqual(file);

@@ -3,6 +3,9 @@
     POST /demos                  body: Demo JSON -> 201 {"id"}; 409 if the id exists
     GET  /demos?source=          newest first
     GET  /demos/{id}             404 if missing
+    DELETE /demos/{id}           the Record page's "Delete last demo": moves the folder to
+                                 DATA_DIR/demos/_discarded/<id> (never deletes) -> {id, discarded_to};
+                                 404 if missing; 409 if other demos derive from it
     POST /demos/{id}/diagnose    Nemotron VL, or the rules detector if it fails -> {source, model_id, diagnosis, gated}
     GET  /demos/{id}/diagnosis   the saved one, same shape; 404 if none yet
     POST /demos/{id}/perfect?diagnoser=hybrid|nemotron|rules  (default hybrid: rules + Nemotron)
@@ -109,6 +112,19 @@ def list_demos(source: Literal["human", "repaired", "variant"] | None = None,
 @router.get("/{demo_id}")
 def get_demo(demo_id: str, store: DemoStore = Depends(get_store)) -> Demo:
     return _get_demo(store, demo_id)
+
+
+@router.delete("/{demo_id}")
+def discard_demo(demo_id: str, store: DemoStore = Depends(get_store)) -> dict:
+    _get_demo(store, demo_id)
+    children = [d.id for d in store.list_demos() if d.parent_id == demo_id]
+    if children:
+        raise HTTPException(409, f"demo {demo_id!r} has derived demos ({', '.join(children)}); it stays")
+    try:
+        moved = store.discard(demo_id)
+    except KeyError:
+        raise HTTPException(404, f"demo {demo_id!r} not found") from None
+    return {"id": demo_id, "discarded_to": moved.relative_to(store.root).as_posix()}
 
 
 @router.post("/{demo_id}/diagnose")

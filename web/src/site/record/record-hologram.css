@@ -437,6 +437,9 @@
 }
 
 .rg-hd__tag {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--rg-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -610,18 +613,19 @@
   color: var(--rg-ink-2);
 }
 
-/* ------------------------------------------------------------------ side: twin, dial, gauge */
+/* ------------------------------------------------------------------ side: twin, dial, gauges */
 
+/* The twin's pane holds its three views and the alignment grid, so it takes more of the column than the gauges. */
 .rg-side {
   display: grid;
-  grid-template-rows: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: 10px;
   min-height: 0;
 }
 
-.rg-duo {
+.rg-trio {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   min-height: 0;
 }
@@ -1074,12 +1078,16 @@
   animation-delay: 0.18s;
 }
 
-.rg[data-boot] .rg-duo > .rg-pane:nth-child(1) {
+.rg[data-boot] .rg-trio > .rg-pane:nth-child(1) {
   animation-delay: 0.26s;
 }
 
-.rg[data-boot] .rg-duo > .rg-pane:nth-child(2) {
+.rg[data-boot] .rg-trio > .rg-pane:nth-child(2) {
   animation-delay: 0.32s;
+}
+
+.rg[data-boot] .rg-trio > .rg-pane:nth-child(3) {
+  animation-delay: 0.38s;
 }
 
 .rg[data-boot] .rg-cell {
@@ -1150,7 +1158,7 @@
   }
 
   .rg-side {
-    grid-template-rows: 240px 200px;
+    grid-template-rows: 400px 180px;
   }
 
   .rg-bottom {
@@ -1165,4 +1173,202 @@
   .rg-cell--trace {
     grid-column: 1 / -1;
   }
+}
+
+/* the last "Delete last demo" outcome, under the Review link: quiet, never a banner */
+.rg-note {
+  margin: 4px 0 0;
+}
+
+.rg .rg-note:hover {
+  color: var(--rg-ink-2);
+}
+
+/* Laptop widths (to 1500 px): the input chip and Stop & discard / Delete last demo widen the right group, so the steps
+   take the space left in the middle (still centred there), with shorter joins, and the cartridge shows its code only
+   (the name is in its title). */
+@media (min-width: 961px) and (max-width: 1500px) {
+  .rg-top {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .rg-steps {
+    justify-self: center;
+    min-width: 0;
+  }
+
+  .rg-steps em {
+    width: 10px;
+  }
+
+  .rg-cart > span {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ keyboard / mouse input (DrivePanel.tsx) */
+
+.rg-switch {
+  display: inline-flex;
+  border: 1px solid var(--rg-hair);
+  border-radius: 2px;
+  background: var(--rg-glass);
+}
+
+.rg-switch__opt {
+  padding: 2px 8px;
+  font: 500 10.5px var(--rg-mono);
+  color: var(--rg-ink-3);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.rg-switch__opt + .rg-switch__opt {
+  border-left: 1px solid var(--rg-hair);
+}
+
+.rg-switch__opt[aria-checked="true"] {
+  color: var(--rg-live);
+  background: rgba(25, 245, 194, 0.06);
+}
+
+.rg-switch__opt:hover:not([aria-checked="true"]) {
+  color: var(--rg-ink);
+}
+
+.rg-drive {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  width: min(100%, 460px);
+  padding: 8px 4px;
+  font-size: 11px;
+  color: var(--rg-ink-2);
+}
+
+.rg-drive__lead {
+  margin: 0;
+  color: var(--rg-ink-2);
+}
+
+.rg-keys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rg-keys__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.rg-keys__row > span {
+  color: var(--rg-ink-3);
+}
+
+.rg-keys kbd {
+  flex: none;
+  min-width: 92px;
+  box-sizing: border-box;
+  display: inline-block;
+  padding: 1px 6px;
+  font: 500 10.5px var(--rg-mono);
+  color: var(--rg-ink);
+  border: 1px solid var(--rg-hair);
+  border-bottom-color: var(--rg-hair-hi);
+  border-radius: 2px;
+  background: var(--rg-glass);
+}
+
+.rg-drive__slider {
+  display: grid;
+  gap: 4px;
+  color: var(--rg-ink-3);
+}
+
+.rg-drive__slider b {
+  font-weight: 500;
+  color: var(--rg-ink);
+}
+
+.rg-drive__slider input {
+  width: 100%;
+  accent-color: var(--rg-live);
+}
+
+.rg-drive__state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.rg-drive__start {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.rg-take {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 6px 10px;
+  font: 500 11px var(--rg-mono);
+  color: var(--rg-ink-2);
+  background: var(--rg-glass);
+  border: 1px dashed var(--rg-hair-hi);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.rg-take:hover {
+  color: var(--rg-live);
+}
+
+/* the camera's Sensitivity slider, in the camera pane's header */
+.rg-sens {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--rg-ink-3);
+}
+
+.rg-sens input {
+  width: 72px;
+  accent-color: var(--rg-live);
+}
+
+.rg-sens b {
+  min-width: 30px;
+  font-weight: 500;
+  color: var(--rg-ink-2);
+}
+
+/* the drawer's mapping group: the gripper input and the clutch key side by side, so the drawer still fits 720 px */
+.rg .rc-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.rg .rc-pair select {
+  width: 100%;
+  padding: 2px 4px;
+  font: 500 11px var(--rg-mono);
+  color: var(--rg-ink);
+  background: var(--rg-glass);
+  border: 1px solid var(--rg-hair);
+  border-radius: 2px;
 }

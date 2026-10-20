@@ -91,6 +91,10 @@ class Scene(_Model):
     seed: int
 
 
+InputMode = Literal["camera", "keyboard", "mouse"]  # how a human demo was driven on the Record page
+INPUT_MODES: tuple[str, ...] = ("camera", "keyboard", "mouse")
+
+
 class Demo(_Model):
     id: str = Field(min_length=1)
     source: Literal["human", "repaired", "variant"]
@@ -101,6 +105,7 @@ class Demo(_Model):
     scene: Scene
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     human_seconds: float = Field(ge=0)  # wall-clock human time; 0 for derived demos
+    input: InputMode | None = None  # how it was driven (the Record page's input switch); None: not recorded (older)
 
     @model_validator(mode="after")
     def _lineage(self) -> "Demo":
@@ -113,11 +118,15 @@ class Demo(_Model):
         return self
 
     @model_serializer(mode="wrap")
-    def _drop_absent_commanded(self, handler):
-        # Demos without targets dump exactly as before the field existed (frozen sets hash their demo JSON).
+    def _omit_absent_fields(self, handler):
+        """Leave "commanded" and "input" out while they are None, so a demo without them serializes byte for byte as
+        before the fields existed (frozen sets and experiments hash demo.json). One serializer: pydantic keeps only the
+        last one a class defines."""
         data = handler(self)
-        if self.commanded is None:
-            data.pop("commanded", None)
+        if isinstance(data, dict):
+            for key in ("commanded", "input"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 

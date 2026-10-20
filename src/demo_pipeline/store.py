@@ -5,10 +5,12 @@
 <root>/demos/<id>/passport.json    Passport, optional
 <root>/demos/<id>/review_verdict.json  the Review card's ReviewVerdict (docs/design/nemotron-judge.md), optional
 <root>/demos/<id>/episode/         the recorded episode (episode_io format), optional
+<root>/demos/_discarded/<id>/      a demo thrown away on the Record page: moved here, never deleted (discard())
 
 Every write goes to a temp file in the same folder, then os.replace, so a reader
 never sees a half-written file. Ids are folder names, so only [A-Za-z0-9_-] is
-allowed; any other id is "not found" on read and a ValueError on save.
+allowed; any other id is "not found" on read and a ValueError on save. "_discarded" is the discard folder,
+never a demo id, so the list and every lookup skip what was thrown away.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +34,7 @@ from .schemas import Demo, Diagnosis, Passport
 log = logging.getLogger(__name__)
 
 REVIEW_VERDICT = "review_verdict.json"
+DISCARDED = "_discarded"
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -68,7 +72,7 @@ class DemoStore:
 
     def _dir(self, id: str) -> Path:
         """The demo's folder; KeyError for an id that could not be a folder name."""
-        if not isinstance(id, str) or not _SAFE_ID.fullmatch(id):
+        if not isinstance(id, str) or not _SAFE_ID.fullmatch(id) or id == DISCARDED:
             raise KeyError(id)
         return self.root / "demos" / id
 
@@ -129,6 +133,19 @@ class DemoStore:
                 demos.append(demo)
         demos.sort(key=lambda demo: (demo.created_at, demo.id), reverse=True)
         return demos
+
+    def discard(self, id: str) -> Path:
+        """Move the demo's whole folder to <root>/demos/_discarded/<id> (a suffix if that is taken; nothing is
+        overwritten or deleted) and return where it went. KeyError if there is no such demo."""
+        src = self._existing_dir(id)
+        bin_ = self.root / "demos" / DISCARDED
+        bin_.mkdir(parents=True, exist_ok=True)
+        dst, n = bin_ / id, 1
+        while dst.exists():
+            n += 1
+            dst = bin_ / f"{id}_{n}"
+        shutil.move(src, dst)
+        return dst
 
     # --- diagnoses -----------------------------------------------------------------
 
