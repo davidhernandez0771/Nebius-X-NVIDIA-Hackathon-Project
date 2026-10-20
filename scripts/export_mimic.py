@@ -29,7 +29,7 @@ if str(REPO / "src") not in sys.path:  # Isaac Lab's Python doesn't have SANT in
 
 from demo_pipeline import mimic  # noqa: E402
 
-DEFAULT_ENV = "SANT-PickPlace-Franka-IK-Abs-Mimic-v0"
+DEFAULT_ENV = mimic.ENV_NAME
 
 
 @dataclass(frozen=True)

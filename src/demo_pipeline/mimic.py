@@ -25,9 +25,15 @@ from __future__ import annotations
 import numpy as np
 
 from . import robota
+from .scene_geometry import BIN_INNER, BIN_WALL, CUBE_HALF
 
 #: Isaac Lab's HDF5 dataset format with (x, y, z, w) quaternions (hdf5_dataset_file_handler.DATASET_FORMAT_VERSION).
 FORMAT_VERSION = 1
+#: The gym id of SANT's Mimic env (sim_worker/mimic_env.py), written into the file as its env_name.
+ENV_NAME = "SANT-PickPlace-Franka-IK-Abs-Mimic-v0"
+#: The Franka's tool centre in the panda_hand frame (sim_worker.robots: tcp_offset; the hand is not rotated in the
+#: tool frame). The env's IK drives this point, and every pose in the file is of it.
+TCP_OFFSET = (0.0, 0.0, 0.1034)
 #: The one end effector's name in subtask_configs and datagen_info.
 EEF = "franka"
 #: The task's subtasks for the Mimic env's subtask_configs: grasp relative to the cube, then place relative to the
@@ -47,6 +53,25 @@ HOME_WXYZ = (0.0, 1.0, 0.0, 0.0)
 OPEN, CLOSE = 1.0, -1.0
 
 _POSE_KEYS = ("eef_pose", "target_eef_pose", "object_pose")
+
+# --- SANT's Franka scene (sim_worker/scene_cfg.py builds it from the same numbers; a test holds them equal) ---
+_ix, _iy, _iz = BIN_INNER
+_wall_z = BIN_WALL + _iz / 2
+#: Each bin box's centre in the bin frame (origin: the centre of the floor's underside), as scene_cfg.BIN_PARTS.
+BIN_PART_CENTERS = {
+    "bin_floor": (0.0, 0.0, BIN_WALL / 2),
+    "bin_wall_px": ((_ix + BIN_WALL) / 2, 0.0, _wall_z),
+    "bin_wall_nx": (-(_ix + BIN_WALL) / 2, 0.0, _wall_z),
+    "bin_wall_py": (0.0, (_iy + BIN_WALL) / 2, _wall_z),
+    "bin_wall_ny": (0.0, -(_iy + BIN_WALL) / 2, _wall_z),
+}
+#: scene_cfg.TABLE_CENTER.
+TABLE_CENTER = (0.575, 0.0, -0.025)
+#: Every rigid object in the Franka scene: what InteractiveScene.get_state / reset_to name.
+SCENE_OBJECTS = ("cube", "table", *BIN_PART_CENTERS)
+#: check_success's end state: the cube's centre in the bin's inner box, slower than this (m/s), the gripper open.
+SETTLE_SPEED = 0.01
+_EPS = 1e-9
 
 
 def xyzw(q_wxyz) -> np.ndarray:
@@ -131,6 +156,33 @@ def starts_at_home(trajectory: dict, pos_tol: float = 0.01, ang_tol: float = 0.0
     return bool(np.linalg.norm(p - HOME_TCP) <= pos_tol and angle <= ang_tol)
 
 
+def scene_objects(cube_pose: dict, bin_pose: dict) -> dict[str, tuple[list[float], list[float]]]:
+    """Each rigid object's (position, (w, x, y, z)) in the env frame: the cube, the table, and the five bin boxes
+    placed round the bin frame and turned with it (as sim_worker.placement.place_scene puts them)."""
+    out = {"cube": (list(map(float, cube_pose["pos"])), list(map(float, cube_pose["quat_wxyz"]))),
+           "table": (list(TABLE_CENTER), [1.0, 0.0, 0.0, 0.0])}
+    rot = _rotation(np.asarray(bin_pose["quat_wxyz"], dtype=np.float64))
+    for name, center in BIN_PART_CENTERS.items():
+        pos = np.asarray(bin_pose["pos"], dtype=np.float64) + rot @ np.asarray(center)
+        out[name] = (pos.tolist(), list(map(float, bin_pose["quat_wxyz"])))
+    return out
+
+
+def placed(cube_in_bin, speed, gripper_open):
+    """check_success's end state, per step: the cube's centre ([..., 3], bin frame) inside the bin's inner box, the
+    cube slower than SETTLE_SPEED, the gripper open. Plain operators only, so it runs on numpy arrays (SANT) and on
+    torch tensors (the Mimic env's success term) alike."""
+    x, y, z = cube_in_bin[..., 0], cube_in_bin[..., 1], cube_in_bin[..., 2]
+    inside = (abs(x) <= _ix / 2 + _EPS) & (abs(y) <= _iy / 2 + _EPS) & (z >= -_EPS) & (z <= _iz + _EPS)
+    return inside & (speed < SETTLE_SPEED) & gripper_open
+
+
+def grasped(cube_z, gripper_closed):
+    """The export's grasp signal, per step: the gripper closed and the cube at least robota.LIFT_M above its rest
+    height (numpy or torch, like placed)."""
+    return gripper_closed & (cube_z - CUBE_HALF >= robota.LIFT_M - _EPS)
+
+
 def _root_pose(pos, quat_wxyz) -> np.ndarray:
     return np.concatenate([np.asarray(pos, dtype=np.float64), xyzw(quat_wxyz)])[None].astype(np.float32)
 
@@ -173,10 +225,8 @@ def episode_to_mimic(steps: dict, trajectory: dict, cube_pos, scene: dict) -> di
                 "joint_position": np.asarray(steps["joint_pos"][:1], dtype=f32),
                 "joint_velocity": np.zeros((1, np.shape(steps["joint_pos"])[1]), f32),
             }},
-            "rigid_object": {
-                "cube": {"root_pose": _root_pose(c["pos"], c["quat_wxyz"]), "root_velocity": np.zeros((1, 6), f32)},
-                "bin": {"root_pose": _root_pose(b["pos"], b["quat_wxyz"]), "root_velocity": np.zeros((1, 6), f32)},
-            },
+            "rigid_object": {name: {"root_pose": _root_pose(p, q), "root_velocity": np.zeros((1, 6), f32)}
+                             for name, (p, q) in scene_objects(c, b).items()},
         },
         "obs": {
             "eef_pos": pre_pos.astype(f32),
