@@ -16,7 +16,10 @@ user's real takes with a stand-in sim (below). Nemotron was never called live: i
 - **The verdict:** the live `check_success`, recomputed exactly as `make_store_saver` ran it at save time: the
   same trajectory and signals, and the reached-vs-commanded residual as the reach signal.
 - **The peak:** the largest arm force on the bin or table, when it happened, and against which.
-- **The soft floor:** on or off, and how many recorded steps it held the target up (`Demo.assist`).
+- **The soft floor:** on or off, how long it held the target up (its recorded steps × 0.02 s, one decimal), and in how
+  many separate dips. Dips are runs of held steps, counted by the sim from this commit as `Assist.soft_floor_dips`.
+  Older takes have no dip count, so their line gives only the time, and their demo.json stays byte-identical
+  (checked: 20/20 real demos re-serialize unchanged).
 - **Each close:**
   - The tool point's horizontal offset from the cube centre, in mm.
   - Whether it was caught, meaning the gripper is still closed and holding the cube 0.5 s later. A finger brushing
@@ -63,7 +66,7 @@ bin, and 531 N with 5 regrasps. A test checks that the rounded fixtures give the
 
 | take | verdict | lines (abridged) |
 |---|---|---|
-| 10-20 mouse ×10 | PASS all | "No pushing; the floor held you 27–135 times" (9/10; dc3e never needed it), grabs 2–14 mm off-centre, let go 34–52 mm below the rim |
+| 10-20 mouse ×10 | PASS all | "No pushing; the floor held you for 0.5–2.7 s" (9/10; dc3e never needed it; no dip count: recorded before it), grabs 2–14 mm off-centre, let go 34–52 mm below the rim |
 | 10-19 webcam ×10 | FAIL all | 9 collisions at 379–927 N (3 also dropped), 1 drop only; c045: "Pushed 927 N into the bin at 7.8 s (the limit is 5 N): ease off when it touches." |
 
 The 10-20 rows match the lead's live report: 10/10 pass at 0 N, the floor held in 9/10.
@@ -84,16 +87,34 @@ demo" was in the top bar.
    PASS or FAIL, plus the lines.
 2. Record again: the trace should come back. Stop: the new take's review should appear.
 3. Stop & discard should give no review. Delete last demo should make the review go away.
-4. Read the lines against what you did. Is the grab offset believable? Does "the floor held you N times" match
-   the take? N counts 20 ms steps, as the lead's wording asked; say if "times" reads wrong.
+4. Read the lines against what you did. Is the grab offset believable? Does "the floor held you for 0.8 s over 3 dips"
+   match the take? This needs the sink restarted from this branch, which counts dips; the time is total held time.
 5. Optional, costs a few tokens: `curl "http://127.0.0.1:8000/demos/<id>/take-review?phrasing=nemotron"`. Check
    `source` and, if it fell back, `rejected`. The page doesn't ask for Nemotron yet.
 
 ## Tests
 
-- **Full suite** (`uv run --no-sync pytest -q` from the repo root): 2065 passed, 15 skipped. Web: 1438 passed, `tsc -b` clean.
+- **Full suite** (`uv run --no-sync pytest -q` from the repo root): 2065 passed, 15 skipped at 0750190.
+  After the wording change: 2072 passed, 1 failed, 15 skipped. The failure is the pre-existing flake
+  `test_dp_store::test_new_ids_are_unique`: 50 ids from a seconds timestamp + 4 hex digits collide ~1.9% of the time.
+  It passed 3/3 on re-run, and store.py is untouched. Web: 1438 passed, `tsc -b` clean.
 - **Python:** `tests/test_take_review.py`, 34 tests. They cover the facts on the real takes, the lines, the number
   check (good, wrong number, invented precision, too few or many lines, too long, not JSON, a failing call), and the
   route (200, the reached path, nemotron used or rejected, 404/409/422).
 - **Web:** `RecordConsole.test.tsx` covers PASS and lines after a save, the trace back while recording, FAIL,
   reviewing and errors, Delete last demo with the review gone, and Stop & discard asking for none.
+
+## Wording change (lead, 2026-10-20)
+
+The floor is no longer counted as "times", which were 20 ms steps. The line now says the held time, plus the number
+of separate dips when the take has it:
+- "No pushing; the floor held you for 0.8 s over 3 dips."
+- "…for 0.8 s." on takes from before dips were counted.
+- "…for under 0.1 s…" when it held for under 0.1 s.
+
+Nemotron's number check no longer accepts the raw step count; the seconds and the dip count are allowed.
+
+**Why the dips come from the sim.** I tried recovering dips from the saved commanded targets: the steps that sit
+exactly on the floor. That doesn't work for mouse or keyboard. The floor clamps the hand target before smoothing,
+so the saved command almost never sits on the floor: 0 matching steps in 8 of the 9 assisted takes. So the sim
+counts them as it records (`teleop_session`, tests in `tests/test_soft_floor.py`).

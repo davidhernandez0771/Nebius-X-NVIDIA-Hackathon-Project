@@ -7,7 +7,8 @@ Facts (take_facts), all from what the sim saved (demo.json + episode/signals.npz
   - the live success check, recomputed exactly as sim_worker.teleop_session.make_store_saver ran it at save time
     (the achieved path, the live signals, and the reached-vs-commanded residual as the reach signal);
   - the peak arm force on the bin or table, when, and against which;
-  - the soft floor (Demo.assist): on or off, and how many recorded steps it held the target up;
+  - the soft floor (Demo.assist): on or off, how long it held the target up (its steps x the step period), and in
+    how many separate dips (takes recorded since the sim counts them);
   - each gripper close: the tool point's horizontal offset from the cube centre, and whether it caught the cube
     (still closed and holding it half a second later);
   - each release of the held cube: the cube's bottom over the bin rim (negative: under the rim) and whether over the bin;
@@ -73,7 +74,9 @@ class TakeFacts(_Model):
     peak_force_t: float | None  # s, when; None if nothing touched
     peak_force_against: Literal["bin", "table"] | None
     soft_floor: bool | None  # None: the demo has no assist record (older, or not teleop)
-    soft_floor_steps: int
+    soft_floor_steps: int  # recorded steps it held the target up
+    soft_floor_s: float  # the same as time: steps x the step period, one decimal
+    soft_floor_dips: int | None  # separate holds; None: recorded before the sim counted them
     grabs: list[Grab]
     releases: list[Release]
     regrasps: int
@@ -153,6 +156,8 @@ def take_facts(demo: Demo, sim: SimSignals, reached: np.ndarray | None = None) -
         peak_force_against=against,
         soft_floor=assist.soft_floor if assist is not None else None,
         soft_floor_steps=assist.soft_floor_steps if assist is not None else 0,
+        soft_floor_s=round((assist.soft_floor_steps if assist is not None else 0) * dt, 1),
+        soft_floor_dips=assist.soft_floor_dips if assist is not None else None,
         grabs=grabs,
         releases=releases,
         regrasps=max(0, len(grabs) - 1),
@@ -180,7 +185,11 @@ def coach_lines(f: TakeFacts) -> list[str]:
         why = "; ".join(REASON_TEXT.get(r, r.replace("_", " ")) for r in f.reasons)
         lines.append(f"Not verified: {why}.")
 
-    floor = f"the floor held you {f.soft_floor_steps} times" if f.soft_floor_steps else None
+    floor = None
+    if f.soft_floor_steps:
+        held = f"for {_num(f.soft_floor_s)} s" if f.soft_floor_s >= 0.1 else "for under 0.1 s"
+        dips = f" over {f.soft_floor_dips} dip{'s' if f.soft_floor_dips != 1 else ''}" if f.soft_floor_dips else ""
+        floor = f"the floor held you {held}{dips}"
     if f.peak_force_n < TOUCH_N:
         push = "No pushing"
     elif f.peak_force_n <= COLLISION_FORCE_N:
@@ -222,7 +231,8 @@ _NUMBER = re.compile(r"\d+(?:\.\d+)?")
 
 def allowed_numbers(f: TakeFacts) -> set[float]:
     """Every number a line may say: the facts as shown (and rounded to whole), the check's limits."""
-    vals: list[float] = [f.duration_s, f.peak_force_n, f.soft_floor_steps, f.regrasps, len(f.grabs), len(f.releases),
+    vals: list[float] = [f.duration_s, f.peak_force_n, f.soft_floor_s, f.soft_floor_dips or 0, 0.1,  # not the step count
+                         f.regrasps, len(f.grabs), len(f.releases),
                          sum(not g.caught for g in f.grabs), COLLISION_FORCE_N, TIME_LIMIT_S, 1]
     if f.peak_force_t is not None:
         vals.append(f.peak_force_t)

@@ -54,7 +54,7 @@ def test_a_clean_mouse_take_with_the_floor():
     f = facts(MOUSE_FLOOR)
     assert f.success and f.reasons == []
     assert f.peak_force_n == 0 and f.peak_force_t is None and f.peak_force_against is None
-    assert (f.soft_floor, f.soft_floor_steps) == (True, 39)
+    assert (f.soft_floor, f.soft_floor_steps, f.soft_floor_s, f.soft_floor_dips) == (True, 39, 0.8, None)  # dips: not counted yet
     assert [(g.offset_mm, g.caught) for g in f.grabs] == [(6, True)]
     assert [(r.over_rim_mm, r.over_bin) for r in f.releases] == [(-52, True)]  # the cube's bottom 5 cm under the rim
     assert f.regrasps == 0 and f.duration_s == 8.3 and f.input == "mouse"
@@ -111,7 +111,7 @@ def test_the_fixtures_match_the_live_takes_when_they_are_here(id):
 def test_the_lines_for_a_clean_take():
     assert coach_lines(facts(MOUSE_FLOOR)) == [
         "Clean take: the cube is in the bin (8.3 s).",
-        "No pushing; the floor held you 39 times.",
+        "No pushing; the floor held you for 0.8 s.",
         "Grab 6 mm off-centre.",
         "Let go 52 mm below the rim.",
     ]
@@ -156,12 +156,13 @@ def reply(lines) -> callable:
 
 def test_nemotrons_lines_are_used_when_every_number_is_a_fact():
     f = facts(MOUSE_FLOOR)
-    mine = ["Nice and clean: in the bin in 8.3 s.", "You never pushed; the floor caught you 39 times.", "Grab was 6 mm off."]
+    mine = ["Nice and clean: in the bin in 8.3 s.", "You never pushed; the floor caught you for 0.8 s.", "Grab was 6 mm off."]
     assert phrase_review(f, reply(mine)) == (mine, None)
 
 
 @pytest.mark.parametrize("lines, why", [
     (["Clean take in 8.3 s.", "The floor held you 40 times."], "40"),  # a wrong number
+    (["Clean take in 8.3 s.", "The floor held you 39 times."], "39"),  # the step count: not a duration
     (["Clean take in 8 seconds.", "Grab 6.4 mm off-centre."], "6.4"),  # invented precision
     (["Clean take."], "1 lines"),
     (["a", "b", "c", "d", "e"], "5 lines"),
@@ -241,7 +242,7 @@ def test_the_route_reviews_a_saved_take(take_api):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["verdict"] == "PASS" and body["source"] == "rules" and body["rejected"] is None
-    assert body["lines"][1] == "No pushing; the floor held you 39 times."
+    assert body["lines"][1] == "No pushing; the floor held you for 0.8 s."
     assert body["facts"]["soft_floor_steps"] == 39 and body["facts"]["grabs"] == [{"t": 3.62, "offset_mm": 6, "caught": True}]
 
 
@@ -285,3 +286,22 @@ def test_without_steps_the_trajectory_is_used(take_api):
     api, put = take_api
     put(MOUSE_FLOOR, steps=False)
     assert api.get(f"/demos/{MOUSE_FLOOR}/take-review").json()["facts"]["grabs"][0]["offset_mm"] == 6  # same path
+
+
+# --- the soft floor as time, and its dips (the lead's wording, 2026-10-20) ------------------------
+
+@pytest.mark.parametrize("steps, dips, said", [
+    (39, 3, "No pushing; the floor held you for 0.8 s over 3 dips."),
+    (39, 1, "No pushing; the floor held you for 0.8 s over 1 dip."),
+    (135, None, "No pushing; the floor held you for 2.7 s."),  # a take from before the sim counted dips
+    (2, 1, "No pushing; the floor held you for under 0.1 s over 1 dip."),
+    (0, 0, "No pushing."),
+])
+def test_the_floor_is_said_as_time_and_dips_not_as_steps(steps, dips, said):
+    demo, sim, reached = load_take(MOUSE_FLOOR)
+    demo = demo.model_copy(update={"assist": demo.assist.model_copy(update={"soft_floor_steps": steps, "soft_floor_dips": dips})})
+    f = take_facts(demo, sim, reached)
+    assert f.soft_floor_s == round(steps * 0.02, 1)
+    lines = coach_lines(f)
+    assert lines[1] == said
+    assert check_numbers(lines, f) is None

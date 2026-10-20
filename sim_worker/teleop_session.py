@@ -31,8 +31,8 @@ TeleopDriver. It follows the hand while idle too, so the person can line up befo
   without read_twin() sends none.
 - The soft floor (demo_pipeline.soft_floor; set_assist, on by default): every step, for every input, the target can't
   go more than ~1 cm under the bin's rim inside the bin, or under the table top elsewhere. Each saved demo says so in
-  Demo.assist (on for any recorded step, and how many steps it held the target up); sim_twin's "floor" says it is
-  holding now. Contact: a driver with read_contact() adds the arm's push on the bin or table to each sim_twin (the
+  Demo.assist (on for any recorded step, how many steps it held the target up, and in how many separate holds);
+  sim_twin's "floor" says it is holding now. Contact: a driver with read_contact() adds the arm's push on the bin or table to each sim_twin (the
   twin glows), and sim_status's contact_peak_n is the take's largest arm contact force (from read_state, every
   recorded step). 9 of 10 webcam demos pressed into the bin at 75-927 N without the person noticing.
 
@@ -216,7 +216,7 @@ class TeleopSession:
             self._started_at = self.clock()
             self._rec: dict[str, list] = {"pos": [], "quat": [], "gripper": [], "states": []}
             self._steps = 0
-            self._assist = {"on": False, "steps": 0}  # the soft floor during this take's recorded steps
+            self._assist = {"on": False, "steps": 0, "dips": 0, "held": False}  # the soft floor in this take's recorded steps
             self.contact_peak = 0.0
             self.last_result = "recording"
         elif action == "record_stop":
@@ -272,6 +272,8 @@ class TeleopSession:
             self._steps += 1
             self._assist["on"] = self._assist["on"] or self.soft_floor
             self._assist["steps"] += int(floored)
+            self._assist["dips"] += int(floored and not self._assist["held"])  # a new hold starts
+            self._assist["held"] = floored
             self.contact_peak = max(self.contact_peak or 0.0, float(state.max_contact_force))
 
     def _floor(self, pose: Pose) -> tuple[Pose, bool]:
@@ -373,7 +375,8 @@ class TeleopSession:
             commanded = Trajectory.from_arrays(t, np.asarray(rec["pos"]), np.asarray(rec["quat"]), rec["gripper"])
             demo = Demo(id=self.new_id(), source="human", trajectory=achieved, commanded=commanded, scene=self.scene,
                         human_seconds=human_seconds, input=self.input,
-                        assist=Assist(soft_floor=self._assist["on"], soft_floor_steps=self._assist["steps"]))
+                        assist=Assist(soft_floor=self._assist["on"], soft_floor_steps=self._assist["steps"],
+                                      soft_floor_dips=self._assist["dips"]))
             self.last_result = self.save_fn(Recording(demo=demo, states=list(rec["states"])))
             self.last_demo_id = demo.id
         except Exception as e:  # a failed save must not wedge the session

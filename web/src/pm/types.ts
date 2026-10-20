@@ -138,6 +138,8 @@ export interface TakeReview {
     peak_force_against: "bin" | "table" | null;
     soft_floor: boolean | null;
     soft_floor_steps: number;
+    soft_floor_s: number; // held time, one decimal
+    soft_floor_dips: number | null; // separate holds; null on takes from before the sim counted them
     grabs: { t: number; offset_mm: number; caught: boolean }[];
     releases: { t: number; over_rim_mm: number; over_bin: boolean }[];
     regrasps: number;

@@ -887,12 +887,12 @@ describe("/record: the take review after each save (pm/take-review)", () => {
   const review = (over: Partial<TakeReviewT> = {}): TakeReviewT => ({
     demo_id: "human_a",
     verdict: "PASS",
-    lines: ["Clean take: the cube is in the bin (8.3 s).", "No pushing; the floor held you 39 times.", "Grab 6 mm off-centre."],
+    lines: ["Clean take: the cube is in the bin (8.3 s).", "No pushing; the floor held you for 0.8 s.", "Grab 6 mm off-centre."],
     source: "rules",
     rejected: null,
     facts: {
       success: true, reasons: [], duration_s: 8.3, peak_force_n: 0, peak_force_t: null, peak_force_against: null,
-      soft_floor: true, soft_floor_steps: 39, grabs: [{ t: 3.62, offset_mm: 6, caught: true }], releases: [], regrasps: 0, input: "mouse",
+      soft_floor: true, soft_floor_steps: 39, soft_floor_s: 0.8, soft_floor_dips: null, grabs: [{ t: 3.62, offset_mm: 6, caught: true }], releases: [], regrasps: 0, input: "mouse",
     },
     ...over,
   });
@@ -911,7 +911,7 @@ describe("/record: the take review after each save (pm/take-review)", () => {
     const link = await saveTake();
     expect(takeReview.fn).toHaveBeenCalledWith("human_a");
     expect(within(coachCell()).getByText("PASS")).toBeTruthy();
-    expect(within(coachCell()).getByRole("list", { name: "Coaching" }).textContent).toContain("No pushing; the floor held you 39 times.");
+    expect(within(coachCell()).getByRole("list", { name: "Coaching" }).textContent).toContain("No pushing; the floor held you for 0.8 s.");
     expect(screen.queryByRole("region", { name: "trace" })).toBeNull();
     // the next recording brings the trace back
     act(() => link.emitSim(sim({ recording: true, steps: 3, demoId: "human_a" })));
