@@ -59,12 +59,59 @@ def store(tmp_path):
 
 # --- ids ---------------------------------------------------------------------------
 
-def test_new_id_has_prefix_timestamp_and_four_hex(store):
-    assert re.fullmatch(r"human_\d{14}_[0-9a-f]{4}", store.new_id("human"))
+def test_new_id_has_prefix_timestamp_and_eight_hex(store):
+    """The human_YYYYMMDDHHMMSS_ prefix stays exactly as it was (experiment tags glob on it); the suffix is 8 hex."""
+    assert re.fullmatch(r"human_\d{14}_[0-9a-f]{8}", store.new_id("human"))
+    assert re.fullmatch(r"job_\d{14}_[0-9a-f]{8}", DemoStore.new_id("job"))  # on the class too, as job ids use it
 
 
 def test_new_ids_are_unique(store):
-    assert len({store.new_id("variant") for _ in range(50)}) == 50
+    # Was flaky: 50 ids in one second with 4 hex digits collided ~1.9% of runs. Now never twice in a process.
+    assert len({store.new_id("variant") for _ in range(2000)}) == 2000
+    assert len({DemoStore.new_id("variant") for _ in range(2000)}) == 2000
+
+
+def _suffixes(monkeypatch, *values):
+    """secrets.token_hex returns these, in order (to force collisions)."""
+    it = iter(values)
+    monkeypatch.setattr("demo_pipeline.store.secrets.token_hex", lambda n: next(it))
+
+
+def test_new_id_skips_a_folder_that_exists(store, monkeypatch):
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    monkeypatch.setattr("demo_pipeline.store._utc_stamp", lambda: stamp)
+    store.save_demo(_demo(f"human_{stamp}_aaaaaaaa"))
+    (store.root / "demos" / "_discarded" / f"human_{stamp}_bbbbbbbb").mkdir(parents=True)  # a thrown-away take too
+    _suffixes(monkeypatch, "aaaaaaaa", "bbbbbbbb", "cccccccc")
+    assert store.new_id("human") == f"human_{stamp}_cccccccc"
+
+
+def test_new_id_never_repeats_in_a_process_even_without_folders(monkeypatch):
+    monkeypatch.setattr("demo_pipeline.store._utc_stamp", lambda: "20261020120000")
+    _suffixes(monkeypatch, "dddddddd", "dddddddd", "eeeeeeee")
+    first = DemoStore.new_id("job")
+    assert DemoStore.new_id("job") == "job_20261020120000_eeeeeeee" != first
+
+
+def test_new_id_gives_up_loudly(store, monkeypatch):
+    monkeypatch.setattr("demo_pipeline.store._utc_stamp", lambda: "20261020120001")
+    store.save_demo(_demo("human_20261020120001_ffffffff"))
+    monkeypatch.setattr("demo_pipeline.store.secrets.token_hex", lambda n: "ffffffff")
+    with pytest.raises(RuntimeError, match="no free id"):
+        store.new_id("human")
+
+
+def test_old_four_hex_ids_stay_valid_next_to_new_ones(store):
+    """Every saved demo from before keeps working: saved, read, listed, globbed by tag, discarded."""
+    old, new = "human_20261019185902_c045", store.new_id("human")
+    store.save_demo(_demo(old))
+    store.save_demo(_demo(new, minutes=1))
+    assert store.get_demo(old).id == old and store.has_demo(new)
+    assert [d.id for d in store.list_demos()] == [new, old]
+    from sim_worker.human_exp import select_ids
+
+    assert select_ids(store, tag="human_2026*") == sorted([old, new])
+    assert store.discard(old).name == old
 
 
 def test_default_root_is_data_dir(monkeypatch, tmp_path):

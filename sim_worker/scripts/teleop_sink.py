@@ -144,7 +144,9 @@ def main() -> int:
         driver = IsaacTeleopDriver(record_cameras=not args_cli.no_cameras, robot=args_cli.robot,
                                    render=args_cli.render,
                                    sections=trace.sections if trace is not None else None)
-        session = TeleopSession(driver, scene, make_store_saver(store, bin_inner=BIN_INNER))
+        # store.new_id: never the name of a demo folder already there (live or under _discarded)
+        session = TeleopSession(driver, scene, make_store_saver(store, bin_inner=BIN_INNER),
+                                new_id=lambda: store.new_id("human"))
         if args_cli.kit_camera == "behind":
             try:
                 driver.s.sim.set_camera_view(KIT_CAMERA_EYE, KIT_CAMERA_TARGET)
