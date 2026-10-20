@@ -48,7 +48,8 @@ def main(argv: list[str] | None = None) -> int:
                                       max_rounds=args.max_rounds)
         cost += res.cost_usd
         print(f"\n{id}: {nr.verdict_text(v)}")
-        print(f"  {res.status} after {res.calls} call(s), ${res.cost_usd:.4f}")
+        print(f"  {res.status} after {res.calls} call(s), ${res.cost_usd:.4f}"
+              + (f", {len(res.rescues)} re-asked without thinking: {res.rescues}" if res.rescues else ""))
         for r in res.rounds:
             for e in r.get("errors", []):
                 print(f"  round {r['round']} rejected: {e}")

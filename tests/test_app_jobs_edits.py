@@ -36,6 +36,7 @@ def test_a_verified_edit_is_stored_as_the_repaired_demo(store, tmp_path):
     out = _run(store, sim, Model(GOOD))
     assert out["status"] == "perfected" and out["diagnoser"] == EDITS_REPAIRER
     assert out["output_demo_id"] == "human_test_edits" and out["attempts"] == 1 and out["calls"] == 1
+    assert out["rescues"] == []
     assert [r.out_name for r in sim.requests] == ["human_test_raw", "human_test_edits_v1"]
     rep = store.get_demo("human_test_edits")
     assert (rep.source, rep.parent_id) == ("repaired", "human_test")

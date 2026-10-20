@@ -48,7 +48,8 @@ class Arms:
         if self.edits_error is not None and id == self.edits_error:
             raise TokenFactoryError("503")
         return {"status": self.statuses["nemotron-edits"][id], "repairs": [], "cost_usd": self.cost,
-                "why": "lift the place 2 cm"}
+                "why": "lift the place 2 cm", "calls": 2,
+                "rescues": [{"round": 1, "reason": "length"}] if id == "standin_02" else []}
 
 
 def _setup(ab, tmp_path, arms, *, max_cost_usd=1.0, name="ab1"):
@@ -82,6 +83,8 @@ def test_both_arms_run_on_the_same_raw_replay_in_alternating_order(ab, tmp_path)
     assert s["arms"]["rules"]["pass"] == 2 and s["arms"]["nemotron-edits"]["pass"] == 2
     assert s["paired"] == {"both": 1, "only_rules": 1, "only_edits": 1, "neither": 1}
     assert s["mcnemar_p"] == 1.0 and s["nemotron_cost_usd"] == pytest.approx(0.04)
+    assert s["model_calls"] == 8
+    assert s["rescues"] == {"total": 1, "length": 1, "no_json": 0, "demos": ["standin_02"]}
     root = tmp_path / "human_exp" / "ab1"
     row = json.loads((root / "ab" / "standin_01.json").read_text())
     assert row["order"] == ["nemotron-edits", "rules"] and row["raw"]["success"] is True
@@ -90,6 +93,8 @@ def test_both_arms_run_on_the_same_raw_replay_in_alternating_order(ab, tmp_path)
     assert frozen["prompt_sha256"] == ab.prompt_sha256() and frozen["arms"] == ["rules", "nemotron-edits"]
     prereg = (root / "preregistration.md").read_text(encoding="utf-8")
     assert prereg.startswith("# Pre-registration: repairer A/B `ab1`") and "standin_03" in prereg
+    assert "Rescue: a thinking reply cut at the token cap" in prereg
+    assert frozen["rescue_suffix_sha256"] == ab.hashlib.sha256(ab.nemotron_repair.RESCUE_SUFFIX.encode()).hexdigest()
 
 
 def test_a_rerun_resumes_and_redoes_nothing(ab, tmp_path):
@@ -129,3 +134,33 @@ def test_changed_edits_settings_are_refused(ab, tmp_path, monkeypatch):
     monkeypatch.setattr(ab.nemotron_repair, "MAX_ROUNDS", 5)
     with pytest.raises(ab.hx.Refused, match="max_rounds"):
         run.run()
+
+
+def test_a_run_frozen_before_the_rescue_is_refused(ab, tmp_path):
+    arms = Arms(rules=dict.fromkeys(IDS, "kept"), edits=dict.fromkeys(IDS, "kept"))
+    run, _ = _setup(ab, tmp_path, arms)
+    old = {k: v for k, v in ab.ab_settings().items() if not k.startswith("rescue")}  # what repair_ab1 froze
+    (tmp_path / "human_exp" / "ab1" / "ab_config.json").write_text(json.dumps({**old, "commit": "1718f5f"}))
+    with pytest.raises(ab.hx.Refused, match="rescue"):
+        run.run()
+
+
+def test_a_stop_file_ends_the_run_cleanly_after_the_current_demo_and_a_rerun_resumes(ab, tmp_path):
+    arms = Arms(rules=dict.fromkeys(IDS, "kept"), edits=dict.fromkeys(IDS, "kept"))
+    run, _ = _setup(ab, tmp_path, arms)
+    stop = tmp_path / "human_exp" / "ab1" / "STOP"
+    stop.write_text("")  # a stale stop file from an earlier run is cleared at the start
+    original = arms.rules
+
+    def rules_then_stop(*a, **kw):
+        out = original(*a, **kw)
+        if a[2] == "standin_01":
+            stop.write_text("17:15")  # asked to stop while standin_01 runs: it still finishes
+        return out
+
+    run.perfect_rules = rules_then_stop
+    with pytest.raises(ab.hx.Stop, match="stop file"):
+        run.run()
+    assert list(run.rows()) == ["standin_00", "standin_01"]
+    stop.unlink()
+    assert run.run()["n"] == 4

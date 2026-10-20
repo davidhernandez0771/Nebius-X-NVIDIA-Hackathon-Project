@@ -585,6 +585,7 @@ def perfect_stored_demo_edits(
         "report": None if result is None or result.report is None else result.report.model_dump(),
         "why": None if result is None or result.plan is None else result.plan.why,
         "calls": 0 if result is None else result.calls,
+        "rescues": [] if result is None else list(result.rescues),
         "cost_usd": 0.0 if result is None else round(result.cost_usd, 5),
         "verification": None if verification is None else verification.model_dump(),
         "raw_verification": raw.verification.model_dump(),
