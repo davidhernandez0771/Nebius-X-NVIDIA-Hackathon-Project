@@ -6,6 +6,11 @@ DATA_DIR/scenes/<id>.json ({"id", "text", "created", "model", "calls", "est_cost
 Run:
   uv run python scripts/scene_from_text.py "2 bins, 3 cubes stacked in a pile, put the red one in the left bin"
   uv run python scripts/scene_from_text.py --check <plan.json>     # validate a plan file, no model call
+  uv run python scripts/scene_from_text.py --settle "..."           # also settle each valid plan in Isaac (GPU)
+
+--settle builds each plan the validator passes in Isaac and lets it settle for 1 s (sim_worker.settle): what moves,
+falls or tips goes back to the model like a validator problem. It runs Isaac's python as a subprocess, which takes
+the shared GPU lock (C:\\dev\\gpu.lock), so it waits while another GPU job runs.
 
 Spend: one call, plus up to --retries more when the plan has problems.
 """
@@ -20,6 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))  # for sim_worker (--settle)
 
 from app.ai.scene_creator import RETRIES, TIER, PlanReplyError, parse_plan, plan_from_text  # noqa: E402
 from demo_pipeline.paths import data_dir  # noqa: E402
@@ -49,6 +55,13 @@ def describe(plan: ScenePlan) -> str:
     return "\n".join(lines)
 
 
+def settle_check(plan: ScenePlan) -> list[str]:
+    """The physics settle in Isaac (a subprocess; no Isaac in this process)."""
+    from sim_worker.settle import settle_in_isaac
+
+    return settle_in_isaac(plan)
+
+
 def _report(plan: ScenePlan | None, errors: list[str]) -> None:
     if plan is not None:
         print(json.dumps(plan.model_dump(mode="json"), indent=2))
@@ -64,6 +77,7 @@ def main(argv: list[str] | None = None, *, chat_fn=None) -> int:
     p.add_argument("--robot", default="franka")
     p.add_argument("--retries", type=int, default=RETRIES)
     p.add_argument("--no-save", action="store_true")
+    p.add_argument("--settle", action="store_true", help="also settle each valid plan in Isaac (uses the GPU)")
     args = p.parse_args(argv)
 
     if args.check:
@@ -79,6 +93,8 @@ def main(argv: list[str] | None = None, *, chat_fn=None) -> int:
         p.error("give the scene in words, or --check <plan.json>")
 
     kwargs = {"chat_fn": chat_fn} if chat_fn is not None else {}
+    if args.settle:
+        kwargs["check_fn"] = lambda plan: settle_check(plan)
     res = plan_from_text(args.text, robot=args.robot, tier=args.tier, retries=args.retries, **kwargs)
     for n, a in enumerate(res.attempts[:-1], start=1):
         print(f"attempt {n}: {len(a['errors'])} problem(s), sent back: " + "; ".join(a["errors"]))

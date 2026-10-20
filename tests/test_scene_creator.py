@@ -119,3 +119,35 @@ def test_cli_checks_a_plan_file_without_the_model(tmp_path, capsys):
     path.write_text(json.dumps(OUT_OF_REACH), encoding="utf-8")
     assert _script().main(["--check", str(path)], chat_fn=None) == 1
     assert "out of reach" in capsys.readouterr().out
+
+
+# --- the physics check (sim_worker.settle) after the validator ----------------------------------------
+
+def test_a_physics_check_runs_after_the_validator_and_its_problems_go_back_too():
+    seen = []
+
+    def settle(plan):
+        seen.append(plan)
+        return ["cube_red fell off cube_green: it dropped 4.0 cm ..."] if len(seen) == 1 else []
+
+    fake = _fake(json.dumps(OUT_OF_REACH), json.dumps(GOOD), json.dumps(GOOD))
+    res = sc.plan_from_text("x", chat_fn=fake, check_fn=settle)
+    assert res.ok and res.calls == 3
+    # Not run on a plan the validator rejects (no Isaac time on it).
+    assert len(seen) == 2
+    assert "fell off cube_green" in fake.calls[2]["prompt"]
+    assert res.attempts[1]["errors"] == ["cube_red fell off cube_green: it dropped 4.0 cm ..."]
+
+
+def test_without_a_physics_check_nothing_changes():
+    res = sc.plan_from_text("x", chat_fn=_fake(json.dumps(GOOD)))
+    assert res.ok and res.calls == 1
+
+
+def test_cli_settle_flag_runs_the_physics_check(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    mod = _script()
+    called = []
+    monkeypatch.setattr(mod, "settle_check", lambda plan: called.append(plan) or [])
+    assert mod.main(["x", "--settle"], chat_fn=_fake(json.dumps(GOOD))) == 0
+    assert len(called) == 1

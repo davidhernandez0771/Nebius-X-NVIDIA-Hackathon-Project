@@ -1,0 +1,39 @@
+{
+ "version": 1,
+ "robot": "franka",
+ "objects": [
+  {
+   "id": "cube",
+   "kind": "cube",
+   "color": "red",
+   "size": 0.05,
+   "pose": {
+    "x": 0.5,
+    "y": 0.1,
+    "yaw_deg": 0.0
+   },
+   "on": null
+  },
+  {
+   "id": "bin",
+   "kind": "bin",
+   "color": "blue",
+   "inner": [
+    0.2,
+    0.2,
+    0.08
+   ],
+   "pose": {
+    "x": 0.55,
+    "y": -0.2,
+    "yaw_deg": 0.0
+   }
+  }
+ ],
+ "goals": [
+  {
+   "object": "cube",
+   "bin": "bin"
+  }
+ ]
+}

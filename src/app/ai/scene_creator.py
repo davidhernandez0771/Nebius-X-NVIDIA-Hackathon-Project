@@ -120,8 +120,12 @@ def _retry_prompt(text: str, reply: str, errors: list[str]) -> str:
 
 
 def plan_from_text(text: str, *, robot: str = "franka", chat_fn: Callable = chat, tier: str = TIER,
-                   retries: int = RETRIES) -> PlanResult:
-    """Ask Nemotron for a plan; schema and validator problems go back to it, at most `retries` more times."""
+                   retries: int = RETRIES, check_fn: Callable[[ScenePlan], list[str]] | None = None) -> PlanResult:
+    """Ask Nemotron for a plan; schema and validator problems go back to it, at most `retries` more times.
+
+    check_fn: a further check on a plan the validator passed, e.g. the physics settle in Isaac
+    (sim_worker.settle.settle_in_isaac: a stack that slides off, a cube that tips). Its problems go back to the
+    model the same way; it never runs on a plan the validator rejected."""
     res = PlanResult(plan=None, errors=[])
     system = SYSTEM_PROMPT if robot == "franka" else system_prompt(robot)
     prompt = f"Scene description: {text}"
@@ -133,6 +137,8 @@ def plan_from_text(text: str, *, robot: str = "franka", chat_fn: Callable = chat
         try:
             plan = parse_plan(reply.text, robot)
             errors = validate_plan(plan)
+            if not errors and check_fn is not None:
+                errors = list(check_fn(plan))
         except PlanReplyError as e:
             plan, errors = None, e.errors
         res.attempts.append({"reply": reply.text, "errors": errors})
