@@ -35,10 +35,26 @@ describe("App routes", () => {
   });
 
   it("frames a work page with the pipeline and the way back to the workshop", async () => {
-    at("/pm/results");
+    at("/pm/dataset");
     const nav = await screen.findByRole("navigation", { name: "Pipeline" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["01 Record", "02 Review", "03 Dataset", "04 Results"]);
-    expect(within(nav).getByRole("link", { name: "04 Results" }).className).toContain("active");
+    expect(within(nav).getByRole("link", { name: "03 Dataset" }).className).toContain("active");
     expect(screen.getByRole("link", { name: "← Workshop" }).getAttribute("href")).toBe("/");
+  });
+
+  it("points 04 Results at the measured results page, and sends the old /pm/results there", async () => {
+    at("/pm/dataset");
+    const nav = await screen.findByRole("navigation", { name: "Pipeline" });
+    expect(within(nav).getByRole("link", { name: "04 Results" }).getAttribute("href")).toBe("/site/results");
+    cleanup();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query.includes("reduce"), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    at("/pm/results");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more." }, { timeout: 8000 }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/sample data/i)).toBeNull();
   });
 });
