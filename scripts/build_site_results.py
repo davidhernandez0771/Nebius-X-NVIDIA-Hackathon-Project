@@ -41,6 +41,7 @@ NOTES = {
     "h10c": {"name": "human10c training note", "path": f"{NOTES_DIR}/2026-10-20-human10c-multiplied-only.md"},
     "repair": {"name": "Nemotron repairer note", "path": f"{NOTES_DIR}/2026-10-20-nemotron-repair.md"},
     "mouse": {"name": "Mouse demos results note", "path": f"{NOTES_DIR}/2026-10-20-mouse20261020-results.md"},
+    "floor": {"name": "Soft-floor labels investigation", "path": f"{NOTES_DIR}/2026-10-20-floor-labels.md"},
     "prereg": {"name": "Raw vs SANT pre-registration note", "path": f"{NOTES_DIR}/2026-10-20-kb-raw-vs-sant-prereg.md"},
 }
 
@@ -69,7 +70,8 @@ CITES = {
     "mouse_training": {"note": "mouse", "lines": "71–72", "quote": "final loss **0.085**"},
     "mouse_drops": {"note": "mouse", "lines": "101", "quote": "26/40 episodes record a drop"},
     "mouse_collisions": {"note": "mouse", "lines": "103", "quote": "27/40 episodes pushed the arm into the bin or table"},
-    "mouse_soft_floor": {"note": "mouse", "lines": "105–107", "quote": "T6 is investigating this"},
+    "mouse_soft_floor": {"note": "mouse", "lines": "105–113", "quote": "The collisions' cause is still unknown."},
+    "floor_labels": {"note": "floor", "lines": "11", "quote": "No training label in either dataset goes more than 3.7 mm under the soft floor."},
 }
 
 PENDING_MOUSE = ("T4's run is training and evaluating it now. It fills in when human_exp/mouse20261020/results.json "
@@ -301,11 +303,12 @@ def mouse(data: Path, read: list[Path], table: dict) -> dict:
         "caveats": ["10 demos, from one person, in one session.",
                     "The soft floor was on for every demo (9 of 10 had it hold the target up); they are labelled, not filtered.",
                     "One training run per arm.",
-                    *(["Whether the soft floor taught SANT's policy to push down is open: T6 is looking into it."]
+                    *(["The soft floor did not teach SANT's policy to push down: no training label goes more than 3.7 mm "
+                       "under it. The collisions' cause is being traced in a per-step eval."]
                       if head else [])],
         "sources": [cite("mouse_physics"), cite("mouse_table"), cite("mouse_test"), cite("mouse_amendment"),
                     *([cite("mouse_result"), cite("mouse_training"), cite("mouse_drops"), cite("mouse_collisions"),
-                       cite("mouse_soft_floor")] if head else []),
+                       cite("mouse_soft_floor"), cite("floor_labels")] if head else []),
                     {"file": _rel(data, root / "stages" / "physics")}, src],
     }
 

@@ -18,6 +18,10 @@
       "name": "Mouse demos results note",
       "path": "docs/superpowers/notes/2026-10-20-mouse20261020-results.md"
     },
+    "floor": {
+      "name": "Soft-floor labels investigation",
+      "path": "docs/superpowers/notes/2026-10-20-floor-labels.md"
+    },
     "prereg": {
       "name": "Raw vs SANT pre-registration note",
       "path": "docs/superpowers/notes/2026-10-20-kb-raw-vs-sant-prereg.md"
@@ -538,7 +542,7 @@
         "10 demos, from one person, in one session.",
         "The soft floor was on for every demo (9 of 10 had it hold the target up); they are labelled, not filtered.",
         "One training run per arm.",
-        "Whether the soft floor taught SANT's policy to push down is open: T6 is looking into it."
+        "The soft floor did not teach SANT's policy to push down: no training label goes more than 3.7 mm under it. The collisions' cause is being traced in a per-step eval."
       ],
       "sources": [
         {
@@ -575,7 +579,11 @@
         },
         {
           "note": "mouse",
-          "lines": "105–107"
+          "lines": "105–113"
+        },
+        {
+          "note": "floor",
+          "lines": "11"
         },
         {
           "file": "human_exp/mouse20261020/stages/physics"

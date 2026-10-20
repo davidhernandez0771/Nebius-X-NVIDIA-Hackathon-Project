@@ -151,7 +151,8 @@ move that further.
 |---|---|---|---|
 | **Physics check as recorded.** 10 real webcam demos, one person, live test #10 | **0/10** pass. Live, every demo put the cube in the bin. But the gripper pressed into the bin while placing (9/10, up to 927 N against a 5 N limit), and some regrasps dropped the cube | Replay of the arm's achieved path, lookahead 0 | [live-test-10-results](../superpowers/notes/2026-10-19-live-test-10-results.md), "Re-run, achieved path" |
 | **Rules repair → multiply** (`human10c`) | **3/10** repaired and verified (9f47, c045, a029) → **24/30** copies verified (6, 9, 9). Grid written: raw 10 episodes vs perfected + multiplied 27 | Frozen in `human10c/config.json` | [live-test-10-results](../superpowers/notes/2026-10-19-live-test-10-results.md), "Neaten for the human demos' failures + `human10c`" |
-| **Blind repair A/B.** Nemotron edits vs the rules, on the same 10 failed webcam demos | Nemotron edits **5/10** (24–76%) vs rules **3/10** (11–60%). Paired: both 3, only rules 0, only edits 2, neither 5. **Exact McNemar p = 0.50, not significant.** One run. Nemotron cost **$0.207** | Pre-registered (`repair_ab1`, frozen at commit `1718f5f`) | [nemotron-repair](../superpowers/notes/2026-10-20-nemotron-repair.md), "Result: the blind A/B" |
+| **Blind repair A/B.** Nemotron edits vs the rules, on the same 10 failed webcam demos | Nemotron edits **5/10** (24–76%) vs rules **3/10** (11–60%). Paired: both 3, only rules 0, only edits 2, neither 5. **Exact McNemar p = 0.50, not significant.** Nemotron cost **$0.207** | Pre-registered (`repair_ab1`, frozen at commit `1718f5f`) | [nemotron-repair](../superpowers/notes/2026-10-20-nemotron-repair.md), "Result: the blind A/B" |
+| **The A/B re-run** (`repair_ab2`), same 10 demos, with the token-cap re-ask | Nemotron edits **2/10** (6–51%) vs rules **3/10** (11–60%). Paired: both 1, only rules 2, only edits 1, neither 6. **Exact McNemar p = 1.0.** Nemotron cost **$0.278** | Pre-registered, same prompt as `repair_ab1` | [nemotron-repair](../superpowers/notes/2026-10-20-nemotron-repair.md), "Result: repair_ab2" |
 | **Training on the webcam demos, one arm.** ACT trained only on what SANT made from them: the `human10c` multiplied cell, **27 episodes from 3 repaired human roots** (7 / 10 / 10) | **3/40** (7.5%, Wilson 95% **2.6–19.9%**). All 37 failures ran out the 30 s limit; the cube was dropped in 26 of them. **One arm, not a comparison:** the raw arm would have trained on 10 failed replays | Pre-registered (commit `e979c54`), ACT 30k, batch 8, serial eval, seeds 5020–5059 | [human10c-multiplied-only](../superpowers/notes/2026-10-20-human10c-multiplied-only.md), "Result" |
 
 How to read these rows: real hands make demos that physics rejects (0/10), and that is the gap SANT is for. Repair
@@ -159,7 +160,8 @@ turned 3 (rules) or 5 (Nemotron) of those rejects into demos that pass, and a pa
 In the A/B:
 - Nemotron fixed every demo the rules fixed, plus two more (66bc, 87bd), without being shown any hand-written fix.
 - 3 of its 5 passes came only after it read a failed replay's verdict and tried again.
-- With 10 demos and one run, this is a promising sign, not proof (p = 0.50).
+- It did not replicate. The re-run gave edits 2/10 vs rules 3/10 (p = 1.0): Nemotron's plans vary from run to run.
+  That is why the next repairer runs the rules first and asks Nemotron only for the demos they fail (the hybrid).
 
 The training row is the honest bottom line for webcam demos today: a policy trained only on SANT's 27 episodes
 from 3 repaired roots succeeds 3 times in 40.
@@ -185,7 +187,8 @@ How to read the mouse rows:
 - It found no significant difference.
 - SANT's policy gets the cube into its fingers, where the raw one records no drops. But it pushes into the bin or
   table far more (27/40 vs 2/40).
-- Whether the soft floor, which held 9 of the 10 demos up, taught it to push down is open; we are looking into it.
+- It is not the soft floor teaching it to push down. T6 checked: no training label goes more than 3.7 mm under the
+  floor ([floor-labels](../superpowers/notes/2026-10-20-floor-labels.md)). The cause is being traced in a per-step eval.
 
 ### Nemotron and robots
 
@@ -248,9 +251,9 @@ verified demos as its input; we have not tried that.
 - **The rules had a home advantage in the A/B.** Their two newest ops (`release_above_bin`, the rules-emitted
   `recenter_grasp`) were written on 2026-10-19, after looking at these same 10 demos' failures. Nemotron was shown
   neither.
-- **The A/B is a single small run** (n = 10, p = 0.50). A re-run (`repair_ab2`) is pre-registered and has not run.
-- **Some Nemotron calls returned nothing.** 3 of its 23 calls hit the 16k-token thinking cap with no plan. The fix
-  is coded but not part of the A/B result.
+- **The A/B is small and didn't replicate** (n = 10): 5 vs 3 (p = 0.50), then 2 vs 3 in the re-run (p = 1.0).
+- **Some Nemotron calls returned nothing.** In run 1, 3 of its 23 calls hit the 16k-token thinking cap with no plan.
+  In the re-run, a re-ask got an answer for all 4 capped calls, but none of those answers passed.
 - **Repair is not part of the multiply result.** The scripted sources were already clean, so the multiply test
   skipped Neaten. Whether repairing noisy human demos first helps a trained policy is not measured: the webcam
   training row has one arm, because the raw arm would have trained on 10 failed replays.
@@ -261,8 +264,8 @@ verified demos as its input; we have not tried that.
   - As labeler and judge it ties simple code baselines (p = 1.0 both ways).
   - In an earlier pre-registered diagnosis test, code alone scored F1 0.90 vs 0.86 with Nemotron
     ([t4-status](../superpowers/notes/2026-10-15-t4-status.md), sprint 6 Task 1).
-  - Deciding whether a demo worked stays with physics. As a repairer, Nemotron did at least as well as the rules
-    (5 vs 3), but not significantly better.
+  - Deciding whether a demo worked stays with physics. As a repairer, Nemotron is not yet better than the rules
+    (5 vs 3, then 2 vs 3; neither significant).
 - **Narrow setup.**
   - One task (cube into bin), one robot for training (Franka), one policy type (ACT).
   - One training run per cell, so training-seed variance is unmeasured.

@@ -96,7 +96,8 @@ and never overrules the physics check.
 - **As the repairer** (the new role):
   - It got about 4k tokens of the simulator's measurements per demo and up to 3 rounds.
   - In the blind A/B, its edits repaired **5/10** failed webcam demos, against the rules' 3/10. That includes
-    every demo the rules fixed, plus two more.
+    every demo the rules fixed, plus two more. The re-run gave **2/10** vs 3/10, so it did not replicate: its plans
+    vary from run to run.
   - The 10 demos cost **$0.207** in all. 3 of the 5 passes came only after it read a failed replay's verdict and
     tried again.
   <!-- src: docs/superpowers/notes/2026-10-20-nemotron-repair.md ("Result: the blind A/B") -->
@@ -158,8 +159,8 @@ and never overrules the physics check.
   (0/10 pass), repaired (rules 3/10) and multiplied (**24/30** copies verified). A policy was trained and evaluated
   on the result.
   <!-- src: docs/superpowers/notes/2026-10-19-live-test-10-results.md; 2026-10-20-human10c-multiplied-only.md -->
-- **Nemotron as a repairer that physics keeps honest:** 5/10 vs the rules' 3/10, blind and pre-registered, for
-  $0.21.
+- **Nemotron as a repairer that physics keeps honest,** blind and pre-registered: 5/10 vs the rules' 3/10 for
+  $0.21, then 2/10 vs 3/10 in the re-run. It isn't better than the rules yet; physics decides which edits are kept.
   <!-- src: docs/superpowers/notes/2026-10-20-nemotron-repair.md -->
 - **Tests that tell on us.** We pre-registered fair tests of our own Nemotron roles and published them. Code beat
   the model as a diagnoser and tied it as a judge.
@@ -183,7 +184,8 @@ All policy numbers: ACT, 30k steps, batch 8, one training run per cell, the same
 | Grasp fix on the 10×10 data (pre-registered) | 20/40 vs 17/40, p = 0.65: no detectable difference |
 | 10 real webcam demos, physics as recorded | **0/10** pass |
 | Rules repair → multiply | **3/10** repaired → **24/30** copies verified |
-| Blind repair A/B, same 10 demos | Nemotron edits **5/10** vs rules **3/10**, exact McNemar **p = 0.50 (not significant, one run)**, $0.207 |
+| Blind repair A/B, same 10 demos | Nemotron edits **5/10** vs rules **3/10**, exact McNemar **p = 0.50 (not significant)**, $0.207 |
+| The A/B re-run (`repair_ab2`) | Nemotron edits **2/10** vs rules **3/10**, **p = 1.0**, $0.278 |
 | A policy trained only on what SANT made from the webcam demos: 27 episodes from 3 repaired demos | **3/40** (2.6–19.9%). One arm, not a comparison. 26 of the 37 failures dropped the cube |
 | 10 real mouse demos (live test #11): physics, then repair → multiply | **10/10** pass live and on replay → 10/10 cleaned → **100/100** copies verified |
 | Raw vs SANT on those mouse demos (pre-registered): 10 raw episodes vs 110 | **0/40** vs **3/40**, Fisher **p = 0.24: not significant**. SANT's policy collided in 27/40 |
@@ -202,9 +204,9 @@ All policy numbers: ACT, 30k steps, batch 8, one training run per cell, the same
 - It is our only two-arm test on human demos, and it found no significant difference: 0/40 vs 3/40, p = 0.24.
 - SANT's policy gets the cube into its fingers (26/40 lose it before the bin; the raw one records no drops), but it
   pushes into the bin or table in 27/40 episodes (raw: 2/40).
-- Whether the soft floor, which held 9 of the 10 demos up while recording, taught it to push down is open. We are
-  looking into it.
-  <!-- src: docs/superpowers/notes/2026-10-20-mouse20261020-results.md (sections 3–4) -->
+- It is not the soft floor (which held 9 of the 10 demos up while recording) teaching it to push down: no training
+  label goes more than 3.7 mm under the floor. The collisions' cause is being traced in a per-step eval.
+  <!-- src: docs/superpowers/notes/2026-10-20-mouse20261020-results.md (sections 3–4); 2026-10-20-floor-labels.md -->
 
 **Limits.**
 - **Narrow setup:** one task, one training robot, one policy type, one training run per cell.
@@ -262,7 +264,7 @@ every repair, and only then multiplied across positions."* We do not claim to be
   - keyboard and mouse modes and Record's recording aids;
   - the site's workshop journey and the workbench editor.
 - **2026-10-20:**
-  - the Nemotron repairer and its blind A/B (5/10 vs 3/10);
+  - the Nemotron repairer and its blind A/B (5/10 vs 3/10), and its re-run (2/10 vs 3/10);
   - the `human10c` training result (3/40, one arm);
   - live test #11's 10 mouse demos and the pre-registered raw vs SANT on them (0/40 vs 3/40, p = 0.24, not
     significant);
@@ -276,8 +278,12 @@ every repair, and only then multiplied across positions."* We do not claim to be
 
 - **More repaired human demos to train on:** more recordings (with the webcam, or the new keyboard mode), and
   Nemotron's repairs in the training cell. Then the two-arm test raw vs SANT on human demos, with enough roots to answer it.
-- **Re-run the repair A/B** (`repair_ab2`, pre-registered) to see how stable 5 vs 3 is. Then try the rules first,
-  then Nemotron edits on top.
+- **The hybrid repairer:** the rules first, and Nemotron's blind edits only for the demos the rules fail. The A/B
+  re-run (2/10 vs 3/10, after 5/10 vs 3/10) showed Nemotron's plans vary, so it should add to the rules, not
+  replace them.
+- **An A/B on fresh failing demos** the rules were not written for, with the hybrid as the primary arm.
+- **A self-improvement loop.**
+- **Find why the mouse-SANT policy collides** (27/40), with a traced eval. The soft floor is ruled out.
 - **Fix the drops,** the failure mode in every trained policy so far.
 - **Feed SANT's verified demos into Isaac Lab Mimic / SkillGen** and compare their generation with ours.
 <!-- src: docs/superpowers/notes/2026-10-20-human10c-multiplied-only.md ("Reading it"); 2026-10-20-nemotron-repair.md ("Open"); 2026-10-18-t3-grasp-fix.md -->

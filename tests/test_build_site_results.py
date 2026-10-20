@@ -152,7 +152,8 @@ def test_a_null_mouse_result_says_so_and_how_each_policy_failed(bsr, tmp_path):
     assert "Raw 0/40 vs SANT 3/40, p = 0.24: not significant" in e["finding"]
     assert "26/40 episodes lose it before the bin; raw: 0" in e["finding"]
     assert "above 5 N in 27/40 (raw: 2)" in e["finding"]
-    assert any("soft floor taught" in c for c in e["caveats"])
+    assert any("soft floor did not teach" in c for c in e["caveats"])
+    assert {"note": "floor", "lines": "11"} in e["sources"]
     assert {"note": "mouse", "lines": "94"} in e["sources"]
 
 
