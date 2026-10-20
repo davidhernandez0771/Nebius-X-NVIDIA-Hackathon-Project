@@ -1,5 +1,6 @@
 // The room view's three things to click, in 3D: a tag floating over each (the shelf, the machine, the
-// bench) and an invisible box round the machine and the bench that takes the click. The spiral takes
+// bench) and an invisible box round the machine and the bench that takes the click (the machine's is
+// also where a dragged cartridge drops, drag.ts DROP_ZONE). The spiral takes
 // its own clicks (Helix). Tags show only in the room view; the first visit numbers them as a mini
 // tutorial ("start here" on the shelf), and later visits show them plain.
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +10,7 @@ import * as THREE from "three";
 import { inHub } from "../../core/CameraRig";
 import { useWorld } from "../../core/WorldContext";
 import { BENCH_PIVOT, MACHINE_PIVOT } from "../../scene/layout";
+import { DROP_ZONE, hiddenInstance, subscribeDrag, wasDrag } from "./drag";
 import { openHubItem, type HubItem } from "./hubItems";
 
 const SEEN_KEY = "world.hub.seen";
@@ -32,7 +34,7 @@ type TagId = HubItem;
 
 const TAGS: { id: TagId; n: string; title: string; line: string }[] = [
   { id: "shelf", n: "01", title: "The shelf", line: "Every cartridge is a job. Pick one." },
-  { id: "machine", n: "02", title: "The machine", line: "Plug a cartridge in. It projects the robot." },
+  { id: "machine", n: "02", title: "The machine", line: "Drag a cartridge here. It projects the robot." },
   { id: "bench", n: "03", title: "The bench", line: "Make a new cartridge: name, look, robot." },
 ];
 
@@ -64,12 +66,23 @@ export function HubTags() {
     });
   }, [store, tutorial]);
 
+  // A cartridge in the hand: the tags step back, so the machine's port (where it drops) stays in view.
+  useEffect(
+    () =>
+      subscribeDrag(() => {
+        const on = String(hiddenInstance() >= 0);
+        wrap.current.forEach((el) => el && el.dataset.drag !== on && (el.dataset.drag = on));
+      }),
+    [],
+  );
+
   const open = (id: TagId) => openHubItem(id, store, goTo);
 
   // The invisible boxes round the machine and the bench: a click (and the pointer cursor) in the room view.
   const hit = (id: TagId) => ({
     onClick: (e: ThreeEvent<MouseEvent>) => {
-      if (!inHub(store)) return;
+      // Not the pointerup of a drag that started on the spiral.
+      if (!inHub(store) || wasDrag()) return;
       e.stopPropagation();
       open(id);
     },
@@ -85,8 +98,8 @@ export function HubTags() {
 
   return (
     <group name="hub">
-      <mesh position={up(MACHINE_PIVOT.position, 2.4)} rotation={[0, MACHINE_PIVOT.yaw, 0]} material={ghost} {...hit("machine")}>
-        <boxGeometry args={[7.5, 5.5, 4.5]} />
+      <mesh position={DROP_ZONE.center} rotation={[0, DROP_ZONE.yaw, 0]} material={ghost} {...hit("machine")}>
+        <boxGeometry args={[DROP_ZONE.half.x * 2, DROP_ZONE.half.y * 2, DROP_ZONE.half.z * 2]} />
       </mesh>
       <mesh position={up(BENCH_PIVOT.position, 2.0)} rotation={[0, BENCH_PIVOT.yaw, 0]} material={ghost} {...hit("bench")}>
         <boxGeometry args={[7, 4.5, 4]} />

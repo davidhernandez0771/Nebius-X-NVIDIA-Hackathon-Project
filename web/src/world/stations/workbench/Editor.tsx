@@ -1,6 +1,7 @@
 // The cartridge editor, bottom left over the bench: name it, pick its shell and its robot, and watch
 // the cartridge on the turntable follow (draft.ts, Scene.tsx). Save stands it in the next empty place
-// on the spiral (saved.ts, kept in localStorage) and the printer slides its label out. Back (or
+// on the spiral (saved.ts, kept in localStorage): it flies off the turntable to it, and the printer
+// slides its label out. Back (or
 // Escape, WorldRoot) returns to the room view. Under the controls: what is on the spiral already,
 // each with a remove.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -12,7 +13,7 @@ import { MAX_SAVED, NAME_MAX, SHELLS, removeSaved, saveCartridge, savedCartridge
 import { HELIX } from "../../scene/layout";
 import { setSelected } from "../../scene/spiral";
 import { closeShelf } from "../workshop/stepper";
-import { bench, clearPrinter, printLabel, setDraft, subscribeBench } from "./draft";
+import { bench, clearPrinter, endFlight, printLabel, setDraft, startFlight, subscribeBench } from "./draft";
 import "./bench.css";
 
 const draftNow = () => bench.draft;
@@ -31,7 +32,7 @@ export function Editor({ current }: { current: boolean }) {
   const full = saved.length >= MAX_SAVED;
 
   // Opening: the room view is what Back returns to, so let go of the shelf (and a detail view) now.
-  // Leaving: the printed label goes, and so does the last message.
+  // Leaving: the printed label goes, a cartridge still flying lands, and the last message goes.
   useEffect(() => {
     if (!current) return;
     setSelected(-1);
@@ -41,6 +42,7 @@ export function Editor({ current }: { current: boolean }) {
     return () => {
       window.clearTimeout(focus);
       clearPrinter();
+      endFlight();
       setStatus(null);
     };
   }, [current, store]);
@@ -55,11 +57,14 @@ export function Editor({ current }: { current: boolean }) {
       return;
     }
     printLabel(draftArt(r.cartridge, r.place));
+    startFlight(r.place);
     setDraft({ name: "" });
     setStatus({ tone: "ok", text: `Saved. ${r.cartridge.name.toUpperCase()} is on the spiral, place ${r.place + 1} of ${MAX_SAVED}.` });
   };
 
   const remove = (id: string, label: string) => {
+    // The places shift down: one still flying lands now.
+    endFlight();
     removeSaved(id);
     // The machine may hold a saved one; the places shift down, so give it back its default.
     if (plug.slot >= HELIX.length) {

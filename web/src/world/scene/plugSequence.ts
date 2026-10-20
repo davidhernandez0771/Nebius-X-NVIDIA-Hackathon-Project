@@ -22,6 +22,10 @@ const PORT = PIVOT.clone().add(PORT_LOCAL);
 /** The plugged-in cartridge's centre. */
 export const PLUGGED = new THREE.Vector3(PORT.x, PIVOT.y + SLOT_TOP_LOCAL - DEPTH + HALF_H, PORT.z);
 const ABOVE = PLUGGED.clone().setY(PLUGGED.y + DEPTH + 1.5);
+/** The middle of the port's opening, on the machine's top (where a drop target's light stands). */
+export const PORT_TOP: Readonly<THREE.Vector3> = PLUGGED.clone().setY(PIVOT.y + SLOT_TOP_LOCAL);
+/** Over the port, before it drops in: where a cartridge dragged onto the machine waits (held). */
+export const ABOVE_PORT: Readonly<THREE.Vector3> = ABOVE;
 /**
  * Plugged in: upright, its width along the slot (the machine's local z), its face toward the
  * machine's -x, the spiral's side: a quarter turn back from the machine's own turn.
@@ -59,8 +63,17 @@ function slotPose(slot: number) {
   return { p, q, pulled, tilted };
 }
 
-/** Where the cartridge from `slot` is at u (and how it is turned). */
-export function cartridgePose(slot: number, u: number, out: CartridgePose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }): CartridgePose {
+/**
+ * Where the cartridge from `slot` is at u (and how it is turned). `held`: it was dragged onto the
+ * machine and let go over the port, so it skips the pull and the flight and waits there, edge-on,
+ * until the insert, on the same beat as a click's (the camera's path and the slot light keep theirs).
+ */
+export function cartridgePose(slot: number, u: number, out: CartridgePose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }, held = false): CartridgePose {
+  if (held && u <= PHASE.fly[1]) {
+    out.position.copy(ABOVE);
+    out.quaternion.copy(PLUGGED_Q);
+    return out;
+  }
   const { p, q, pulled, tilted } = slotPose(slot);
   const a = span(u, PHASE.pull);
   const f = span(u, PHASE.fly);

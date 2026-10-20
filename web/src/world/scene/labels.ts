@@ -2,7 +2,8 @@
 // docs/design/blender/export). Tiles 0–4 are the five robots, in ROBOTS order; tiles 5–7 are plain
 // library labels; tiles 8–31 are the jobs on the spiral (items.ts), in ITEMS order; tiles 32–35 are
 // the cartridges saved on the workbench (saved.ts), one per empty place on the spiral, redrawn when
-// one is saved or removed. The label mesh is UV-mapped 0–1, so each instance reads its tile through a UV
+// one is saved or removed; tile 36 is the draft on the bench's turntable (the room view's copy),
+// redrawn when the bench closes on a changed draft. The label mesh is UV-mapped 0–1, so each instance reads its tile through a UV
 // offset and scale (tileUv). The look follows the B-focus render: a dark band reading "SANT · ROBOT
 // CARTRIDGE", the code large and light, the robot's line under it, a status square and a barcode.
 import { ITEMS, TAG_COLOR, tagLabel } from "./items";
@@ -12,7 +13,7 @@ import { MAX_SAVED, savedCartridges, type Draft } from "./saved";
 /** The label's printed aspect (the label mesh is scaled 1.88 x 1.38). */
 export const LABEL_ASPECT = 1.88 / 1.38;
 export const COLS = 4;
-export const ROWS = 9;
+export const ROWS = 10;
 /** 384 px per tile keeps the 36-tile atlas at 1536 x 2538 (about 16 MB on the GPU, 21 with mips). */
 export const TILE_W = 384;
 export const TILE_H = Math.round(TILE_W / LABEL_ASPECT);
@@ -21,6 +22,8 @@ export const LIBRARY_TILES = [5, 6, 7] as const;
 export const ITEM_TILE0 = 8;
 /** The first saved cartridge's tile; place i (saved.ts) is SAVED_TILE0 + i. */
 export const SAVED_TILE0 = 32;
+/** The bench's draft, standing on the turntable in the room view. */
+export const DRAFT_TILE = SAVED_TILE0 + MAX_SAVED;
 export const TILE_COUNT = COLS * ROWS;
 
 /** UV offset and scale for a tile, for a texture uploaded with flipY (row 0 at the top). */
@@ -59,8 +62,18 @@ export function draftArt(d: Draft, place = -1): LabelArt {
 /** An empty place's tile: nothing stands there on the spiral, but the tile stays valid. */
 const BLANK: LabelArt = { band: "SANT  ·  YOUR CARTRIDGE", code: "+", line: "MAKE ONE ON THE BENCH", mark: "#5E6A77", serial: "MINE-000" };
 
+/** A draft with nothing chosen yet: what the turntable holds before the bench is first opened. */
+const FRESH_DRAFT: LabelArt = draftArt({ name: "", shell: "graphite", robot: ROBOTS[0].code });
+let draftTile: LabelArt | null = null;
+
+/** What the draft tile prints from now on (null: a fresh draft). Redraw it with drawDraftTile. */
+export function setDraftTileArt(art: LabelArt | null): void {
+  draftTile = art;
+}
+
 /** What each tile prints. */
 export function labelArt(tile: number): LabelArt {
+  if (tile === DRAFT_TILE) return draftTile ?? FRESH_DRAFT;
   if (tile >= SAVED_TILE0) {
     const place = tile - SAVED_TILE0;
     const c = savedCartridges()[place];
@@ -144,6 +157,14 @@ export function drawSavedTiles(canvas: HTMLCanvasElement): boolean {
   const g = canvas.getContext("2d");
   if (!g) return false;
   for (let i = 0; i < MAX_SAVED; i++) drawTile(g, SAVED_TILE0 + i);
+  return true;
+}
+
+/** Redraws the draft tile only (the bench closed on a changed draft). */
+export function drawDraftTile(canvas: HTMLCanvasElement): boolean {
+  const g = canvas.getContext("2d");
+  if (!g) return false;
+  drawTile(g, DRAFT_TILE);
   return true;
 }
 

@@ -93,6 +93,29 @@ describe("the workbench editor", () => {
     expect(stored().map((c) => c.name)).toEqual(["arm 1", "arm 2", "arm 3", "one more"]);
   });
 
+  it("sends a saved cartridge flying to its place on the spiral", () => {
+    saveCartridge({ name: "first", shell: "bone", robot: "S101" });
+    const at = within(openBench());
+    fireEvent.change(at.getByLabelText(/name/i), { target: { value: "second" } });
+    fireEvent.click(at.getByRole("button", { name: "Save to the spiral →" }));
+    expect(bench.landing).toBe(1);
+    // Leaving the bench lands it at once.
+    fireEvent.click(at.getByRole("button", { name: "← Back" }));
+    expect(bench.landing).toBe(-1);
+  });
+
+  // The spiral's saved cartridges can be pointed at in 3D; the keyboard (and the stills) reach them
+  // through the dock, beside the robots.
+  it("gives each saved cartridge a button in the dock that plugs it into the machine", () => {
+    saveCartridge({ name: "Kitchen arm", shell: "signal", robot: "FR3" });
+    const at = within(openBench());
+    fireEvent.click(at.getByRole("button", { name: "← Back" }));
+    const robots = within(screen.getByRole("group", { name: "Robots" }));
+    fireEvent.click(robots.getByRole("button", { name: "Kitchen arm" }));
+    expect(current()).toBe("machine");
+    expect(document.querySelector('.world-station[data-station="machine"]')?.textContent).toContain("Kitchen arm plugs in");
+  });
+
   it("goes back to the room view with Back, and keeps the draft for next time", () => {
     const at = within(openBench());
     fireEvent.change(at.getByLabelText(/name/i), { target: { value: "half done" } });

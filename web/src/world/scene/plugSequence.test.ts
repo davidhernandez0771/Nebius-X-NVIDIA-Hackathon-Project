@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { OBB } from "three/examples/jsm/math/OBB.js";
 import { HELIX, MACHINE_PIVOT } from "./layout";
-import { PHASE, PLUGGED, PLUGGED_Q, PLUG_S, cartridgePose, projection, scrollU, slotGlow, timeU } from "./plugSequence";
+import { ABOVE_PORT, PHASE, PLUGGED, PLUGGED_Q, PLUG_S, cartridgePose, projection, scrollU, slotGlow, timeU } from "./plugSequence";
 
 describe("the plug-in", () => {
   it("starts in the slot and ends seated in the port, edge-on along the slot", () => {
@@ -71,5 +71,20 @@ describe("the plug-in", () => {
     expect(timeU(10, 10 + PLUG_S / 2, false)).toBeCloseTo(0.5, 6);
     expect(timeU(10, 10 + PLUG_S * 2, false)).toBe(1);
     expect(timeU(10, 10, true)).toBe(1);
+  });
+
+  it("held (a drag dropped it over the port): waits above the port, then drops in on the click's beat", () => {
+    for (const slot of [0, 11, 30]) {
+      for (const u of [0, 0.2, PHASE.fly[1]]) {
+        const held = cartridgePose(slot, u, undefined, true);
+        expect(held.position.distanceTo(ABOVE_PORT)).toBeLessThan(1e-9);
+        expect(held.quaternion.angleTo(PLUGGED_Q)).toBeLessThan(1e-6);
+      }
+      // From the insert on it is a click's, so the camera, the slot and the projector keep their timing.
+      for (const u of [PHASE.insert[0] + 0.01, PHASE.click[0], 1]) {
+        expect(cartridgePose(slot, u, undefined, true).position.distanceTo(cartridgePose(slot, u).position)).toBeLessThan(1e-9);
+      }
+      expect(cartridgePose(slot, 1, undefined, true).position.distanceTo(PLUGGED)).toBeLessThan(1e-6);
+    }
   });
 });
