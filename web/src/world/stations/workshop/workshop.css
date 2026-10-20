@@ -480,8 +480,9 @@
   pointer-events: auto;
 }
 
-/* Narrower desktops keep the bar on one line: the drag and Escape stay, the clicks go (the tags say them). */
-@media (max-width: 1100px) {
+/* Narrower desktops keep the bar on one line: the drag and Escape stay, the clicks go (the tags say them).
+   With the robot wall in the list, the whole hint is ~1060 px wide and only clears the brand (top left) from 1600 px. */
+@media (max-width: 1599px) {
   .world-hubbar__more { display: none; }
 }
 @media (max-width: 700px) {

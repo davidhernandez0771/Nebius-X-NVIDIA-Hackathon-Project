@@ -1,0 +1,132 @@
+[
+  {
+    "name": "hero",
+    "readyMs": 24,
+    "station": "intro",
+    "errors": [],
+    "shot": "p01-hero"
+  },
+  {
+    "name": "forest",
+    "station": "intro",
+    "errors": [],
+    "shot": "p02-forest"
+  },
+  {
+    "name": "reactor",
+    "station": "intro",
+    "errors": [],
+    "shot": "p03-reactor"
+  },
+  {
+    "name": "the-ring",
+    "station": "intro",
+    "errors": [],
+    "shot": "p04-the-ring"
+  },
+  {
+    "name": "build",
+    "station": "descent",
+    "errors": [],
+    "shot": "p05-build"
+  },
+  {
+    "name": "hub",
+    "hub": true,
+    "tags": [
+      "The shelf",
+      "The machine",
+      "The bench",
+      "The wall"
+    ],
+    "bar": [
+      "Shelf",
+      "Machine",
+      "Bench",
+      "Robots"
+    ],
+    "station": "workshop",
+    "errors": [],
+    "shot": "p06-hub"
+  },
+  {
+    "name": "shelf",
+    "ok": true,
+    "station": "workshop",
+    "errors": [],
+    "shot": "p07-shelf"
+  },
+  {
+    "name": "drag-to-machine",
+    "start": [
+      185.85985565185547,
+      372.3885803222656
+    ],
+    "end": [
+      340.3698486328125,
+      512.0012878417969
+    ],
+    "tip": "· click to open · drag to the machine",
+    "station": "machine",
+    "errors": [],
+    "shot": "p08-drag-to-machine"
+  },
+  {
+    "name": "hologram",
+    "panel": "MACHINE\n\n10 × 30 PLUGS IN, AND THE MACHINE PROJECTS ITS ROBOT: A REAL, PHYSICS-CHECKED DEMO, REPLAYED.\n\nINTO THE PROJECTION →\n← WORKSHOP",
+    "station": "machine",
+    "errors": [],
+    "shot": "p09-hologram"
+  },
+  {
+    "name": "bench",
+    "ok": true,
+    "station": "workbench",
+    "errors": [],
+    "shot": "p10-bench"
+  },
+  {
+    "name": "robot-wall",
+    "ok": true,
+    "entries": [
+      "Franka Panda · Tested in Isaac",
+      "Flexiv Rizon 4s · Tested in Isaac",
+      "OpenArm · Tested in Isaac",
+      "SO-101 · Planned",
+      "PiPER · Planned"
+    ],
+    "station": "robots",
+    "errors": [],
+    "shot": "p11-robot-wall"
+  },
+  {
+    "name": "robots-catalog-scrolled",
+    "station": "robots",
+    "errors": [],
+    "shot": "p12-robots-catalog-scrolled"
+  },
+  {
+    "name": "results",
+    "path": "/site/results",
+    "text": "Skip to content SANT Results Effects Try it Multiplying 10 demos made the robot better. Tripling the copies didn't help ",
+    "station": null,
+    "errors": [],
+    "shot": "p13-results"
+  },
+  {
+    "name": "review",
+    "path": "/review2",
+    "text": "Skip to content SANT S Simulate A Augment N Neaten T Train Robots Record Review Dataset Effects Review s1_0002recorded e",
+    "station": null,
+    "errors": [],
+    "shot": "p14-review"
+  },
+  {
+    "name": "record",
+    "path": "/record",
+    "text": "⏏ workshop FRANKA Franka Panda Record keyboard : stopped relay : stopped sim : no relay record 00:00.0 Keyboard Mouse Ca",
+    "station": null,
+    "errors": [],
+    "shot": "p15-record"
+  }
+]
