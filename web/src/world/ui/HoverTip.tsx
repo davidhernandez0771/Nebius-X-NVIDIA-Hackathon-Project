@@ -11,9 +11,10 @@ export function HoverTip() {
   const title = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     let shown = -1;
-    // The labels live with the spiral's 3D (Helix), which loads after the first frame; by the time a
-    // cartridge can be pointed at, it's there.
-    const labels = import("../scene/Helix").then((m) => m.instanceLabel);
+    // The labels live with the spiral's 3D (Helix), which loads after the first frame. Asked for on the
+    // first hover, not on mount (that would fetch it, and the GLTF loader, under the loader): by the
+    // time a cartridge can be pointed at, it's there.
+    let labels: Promise<(k: number) => string> | null = null;
     const move = (e: PointerEvent) => {
       if (!tip.current) return;
       // Right of the cursor, or left of it where the tip would run off the screen's right edge.
@@ -27,7 +28,7 @@ export function HoverTip() {
       shown = k;
       tip.current.dataset.on = String(k >= 0);
       if (k >= 0)
-        labels.then((label) => {
+        (labels ??= import("../scene/Helix").then((m) => m.instanceLabel)).then((label) => {
           if (shown === k && title.current) scramble(title.current, label(k), { duration: 380, reduced });
         });
     });
