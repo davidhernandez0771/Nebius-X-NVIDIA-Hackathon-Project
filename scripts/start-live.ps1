@@ -6,18 +6,27 @@
 .DESCRIPTION
   1. Refuses if port 8000 or 5173 is held by something this checkout's start.ps1 didn't start: with many
      worktrees, that is usually another checkout's backend or dev server, and the test would run its code.
+     Then restarts a backend or web that this checkout started earlier (unless -KeepRunning). The backend has no
+     reload, so one started before a merge keeps the old relay, and an old relay rejects newer sim_status fields
+     (the record-contact note).
   2. Starts both with scripts\launch\start.ps1 -Backend -Web (hidden, logs in data\logs, stop.ps1 stops them).
-     The web's predev puts the hand-tracking files in web\public (web\scripts\hand-assets.mjs).
+     The web's predev puts the hand-tracking files in web\public (web\scripts\hand-assets.mjs), so a restarted
+     web copies them again.
   3. Checks the relay at http://127.0.0.1:8000/teleop/status and that the hand-tracking files are there.
   4. Prints the sink command (Isaac Lab; it is not started here, and only one Isaac process may run) and the URL.
 
   The backend runs in -SantVenv: $env:UV_PROJECT_ENVIRONMENT if set, else this checkout's .venv (uv's default).
+  Demos: the sink saves them and the backend serves them (Delete last demo, camera video), so both must use one
+  store. -DataDir sets DATA_DIR for the backend and puts the same --data-dir in the printed sink command; without it,
+  both use $env:DATA_DIR, else this checkout's data folder. A restart is needed to change it (step 1b does it).
   Exit code: 0 when the backend, the relay, the web and the hand files are all ready; 1 otherwise.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\start-live.ps1
 #>
 param(
+    [switch]$KeepRunning,
+    [string]$DataDir = "",
     [string]$SantVenv = $env:UV_PROJECT_ENVIRONMENT,
     [string]$IsaacPython = "C:\isaac\env_isaaclab\Scripts\python.exe",
     [string]$LogDir = "",
@@ -32,6 +41,8 @@ $webPort = 5173       # start.ps1's dev server port
 $env:PM_BACKEND_URL = "http://127.0.0.1:$backendPort"
 
 if (-not $SantVenv) { $SantVenv = Join-Path $repo ".venv" }
+if ($DataDir) { $env:DATA_DIR = (New-Item -ItemType Directory -Force -Path $DataDir).FullName }
+$demoRoot = if ($env:DATA_DIR) { $env:DATA_DIR } else { Join-Path $repo "data" }
 if (-not $LogDir) { $LogDir = Get-DefaultLogDir }
 $py = Resolve-HelperPython $Python
 
@@ -61,6 +72,26 @@ foreach ($svc in @(@{ Name = "backend"; Port = $backendPort }, @{ Name = "web"; 
     }
 }
 if ($refused) { exit 1 }
+
+# 1b. What this checkout started earlier may be older code than what is checked out now: restart it
+$head = (& git -C $repo log -1 --format="%h %s" 2>$null)
+$branch = (& git -C $repo rev-parse --abbrev-ref HEAD 2>$null)
+Write-Host "[code] $branch @ $head"
+Write-Host "[data] demos: $(Join-Path $demoRoot 'demos') (the backend and the sink command below both use it)"
+$ours = @(@("backend", "web") | Where-Object { Test-Ours $_ })
+if ($ours.Count -gt 0) {
+    if ($KeepRunning) {
+        Write-Host "[restart] -KeepRunning: $($ours -join ', ') left as started earlier (they may run older code)"
+    } else {
+        Write-Host "[restart] $($ours -join ', ') started earlier by this checkout: restarting, so they run the code above"
+        & (Join-Path $PSScriptRoot "launch\stop.ps1") -Service ($ours -join ",") -LogDir $LogDir
+        if ($LASTEXITCODE -ne 0) { Write-Host "[restart] FAILED to stop them (see above)"; exit 1 }
+        foreach ($svc in @(@{ Name = "backend"; Port = $backendPort }, @{ Name = "web"; Port = $webPort })) {
+            for ($i = 0; $i -lt 40 -and (Get-Listener $svc.Port); $i++) { Start-Sleep -Milliseconds 250 }
+            if (Get-Listener $svc.Port) { Write-Host "[restart] FAILED: port $($svc.Port) still held: $(Get-Listener $svc.Port)"; exit 1 }
+        }
+    }
+}
 
 # 2. Backend + web
 $startArgs = @{ Backend = $true; Web = $true; SantVenv = $SantVenv; LogDir = $LogDir }
@@ -95,7 +126,7 @@ Write-Host ""
 Write-Host "Sink (Isaac Lab with the Kit window), in a new PowerShell:"
 Write-Host "  cd `"$repo`""
 Write-Host "  `$env:PYTHONPATH = `"$(Join-Path $repo 'src')`""
-Write-Host "  & `"$IsaacPython`" sim_worker\scripts\teleop_sink.py --viz kit"
+Write-Host "  & `"$IsaacPython`" sim_worker\scripts\teleop_sink.py --viz kit --data-dir `"$demoRoot`""
 Write-Host ""
 Write-Host "Open: http://localhost:$webPort/record"
 Write-Host "Stop: powershell -ExecutionPolicy Bypass -File scripts\launch\stop.ps1"
