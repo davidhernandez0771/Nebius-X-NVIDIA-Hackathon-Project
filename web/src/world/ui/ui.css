@@ -1,9 +1,11 @@
 /* The journey's DOM over the canvas, in the look of docs/design/prototypes/site-journey.html: one
-   squared mono face, all caps, huge for headlines and 11 px with wide tracking for UI. */
+   squared mono face, all caps, huge for headlines and 12 px with wide tracking for UI (no text on the
+   site is smaller: the accessibility floor). */
 
 .world {
   --w-ink: #d8efe9;
-  --w-dim: #5f7c76;
+  /* AA (≥ 4.5:1) as small text on the dark ground and the glass panels: 5.4:1 on #07090C. */
+  --w-dim: #6f8c85;
   --w-mute: #2b3b38;
   --w-teal: #19f5c2;
   --w-amber: #ffb000;
@@ -14,7 +16,7 @@
 
 .world-u {
   font-family: var(--w-mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -111,7 +113,7 @@
 .world-beat--stats .world-beat__foot {
   grid-column: 1 / -1;
   color: var(--w-dim);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 @media (max-width: 700px) {
@@ -158,6 +160,8 @@
 }
 
 /* The quality chip and the HUD (backtick). */
+/* .sant.world: .sant button (sant.css) would otherwise strip its padding and border. */
+.sant.world .world-q,
 .world-q {
   position: fixed;
   right: 20px;
@@ -167,7 +171,8 @@
   padding: 8px 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
-  background: rgba(6, 12, 14, 0.6);
+  /* Over the 3D: opaque enough for AA whatever is behind it. */
+  background: rgba(6, 12, 14, 0.85);
   color: var(--w-dim);
 }
 
@@ -183,7 +188,7 @@
   z-index: 9;
   margin: 0;
   font-family: var(--w-mono);
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--w-teal);
   background: rgba(0, 0, 0, 0.6);
@@ -194,6 +199,7 @@
 }
 
 @media (max-width: 700px) {
+  .sant.world .world-q,
   .world-q {
     bottom: auto;
     top: 70px;
@@ -209,6 +215,8 @@
   margin: 0;
   color: var(--w-dim);
   pointer-events: none;
+  /* Over the 3D: a dark halo keeps it readable over a lit wall. */
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.95);
 }
 
 .world-brand b {
@@ -250,8 +258,19 @@
   text-transform: uppercase;
 }
 
+/* The rail floats over the 3D (a lit robot can be right behind it): a dark glass backing keeps its
+   labels AA over anything the scene draws. A phone shows only its marks (world.css): no backing. */
+@media (min-width: 721px) {
+  .sant.world .world-rail {
+    padding: 6px 2px;
+    border-radius: 10px;
+    background: rgba(5, 9, 10, 0.78);
+    backdrop-filter: blur(6px);
+  }
+}
+
 .sant.world .world-rail button {
-  font: 500 10.5px / 1.2 var(--w-mono);
+  font: 500 12px / 1.2 var(--w-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -262,7 +281,7 @@
 
 .sant.world .sant-btn {
   font-family: var(--w-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -276,4 +295,44 @@
 .sant.world .sant-btn:hover:not(:disabled) {
   color: #02110d;
   background: var(--w-teal);
+}
+
+/* The descent's counter (stations/descent): tiny mono caps at the bottom centre. */
+.world-building {
+  position: fixed;
+  left: 50%;
+  bottom: 7vh;
+  transform: translateX(-50%);
+  margin: 0;
+  color: #7fc7d6;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+/* Skip the intro: the first thing Tab reaches, shown only while it has the focus. */
+.world-skip {
+  position: fixed;
+  z-index: 50;
+  left: 16px;
+  top: -80px;
+  padding: 10px 16px;
+  border-radius: 2px;
+  background: var(--w-teal);
+  color: #02110d;
+  text-decoration: none;
+}
+.sant.world .world-skip {
+  color: #02110d;
+}
+.world-skip:focus,
+.world-skip:focus-visible {
+  top: 16px;
+  outline: 2px solid var(--w-ink);
+  outline-offset: 3px;
+}
+
+/* One-line hints straight over the 3D (no panel behind them): a dark halo keeps them readable. */
+.world-hint,
+.world-detail-hint {
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.95);
 }

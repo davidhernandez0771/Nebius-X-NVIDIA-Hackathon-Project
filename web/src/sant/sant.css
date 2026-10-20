@@ -87,6 +87,11 @@
   border-radius: var(--sant-radius-sm);
 }
 
+.sant .sant-skip,
+.sant .sant-skip:focus {
+  color: var(--sant-on-accent);
+}
+
 .sant .sant-skip:focus {
   top: var(--sant-space-3);
 }
@@ -856,6 +861,11 @@
   .sant-app-grid { grid-template-columns: minmax(0, 1fr); }
   .sant-nav { flex-wrap: wrap; gap: var(--sant-space-3); }
   .sant-nav__end { gap: var(--sant-space-3); }
+  /* The pages pill on a phone: tighter, and if it still doesn't fit it scrolls sideways instead of
+     widening the page (it overflowed a 390 px screen by 15 px on /review2). */
+  .sant-pill { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .sant-pill__join { width: 12px; }
+  .sant .sant-pill__link { padding: 6px 10px; }
 }
 
 /* ---------------------------------------------------------- tracking HUD */
@@ -921,7 +931,7 @@
   position: absolute;
   right: 32px;
   bottom: 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sant-muted);
 }
 
@@ -972,7 +982,7 @@
   border-radius: 2px 2px 2px 0;
   background: var(--hud-tone);
   color: var(--sant-on-accent);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   white-space: nowrap;
 }
@@ -981,7 +991,7 @@
   position: absolute;
   left: 0;
   top: calc(100% + 4px);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--sant-muted);
   white-space: nowrap;
 }
@@ -1268,7 +1278,7 @@
 .sant-dial__num {
   fill: var(--sant-muted);
   font-family: var(--sant-font-data);
-  font-size: 9px;
+  font-size: 12px;
   text-anchor: middle;
   dominant-baseline: middle;
 }

@@ -29,6 +29,9 @@ describe("the keyword fallback", () => {
     expect(route("give me a tour")).toEqual({ tool: "start_tutorial", arg: null });
     expect(route("back to the beginning")).toEqual({ tool: "go_to_section", arg: "top" });
     expect(route("I want to make a new cartridge")).toEqual({ tool: "go_to_section", arg: "bench" });
+    expect(route("Which robots does SANT support?")).toEqual({ tool: "go_to_section", arg: "robots" });
+    expect(route("show me the robot wall")).toEqual({ tool: "go_to_section", arg: "robots" });
+    expect(route("bring your robot")).toEqual({ tool: "show_cartridges_with_tag", arg: "robot" });
     expect(route("hmm")).toEqual({ tool: "go_to_section", arg: "workshop" });
   });
 

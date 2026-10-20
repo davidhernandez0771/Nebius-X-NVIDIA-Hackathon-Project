@@ -261,3 +261,32 @@ describe("TeleopCalibrator", () => {
     expect(state.error).toMatch(/closer|near|far/i);
   });
 });
+
+describe("the view, sensitivity, gripper input and clutch key (live test after #10)", () => {
+  const d = DEFAULT_TELEOP_CONTROL;
+
+  it("default to the robot's view, sensitivity 1, the pinch and Shift", () => {
+    expect([d.view, d.gain, d.gripperInput, d.clutchKey]).toEqual(["behind", 1, "pinch", "Shift"]);
+  });
+
+  it("keep valid stored values", () => {
+    const s = sanitizeTeleopControl({ ...d, view: "facing", gain: 2.2, gripperInput: "space", clutchKey: "Control" });
+    expect([s.view, s.gain, s.gripperInput, s.clutchKey]).toEqual(["facing", 2.2, "space", "Control"]);
+  });
+
+  it("fall back per field, and clamp the sensitivity into its range", () => {
+    const s = sanitizeTeleopControl({ ...d, view: "sideways", gain: "fast", gripperInput: "foot", clutchKey: " " });
+    expect([s.view, s.gain, s.gripperInput, s.clutchKey]).toEqual(["behind", 1, "pinch", "Shift"]);
+    expect(sanitizeTeleopControl({ ...d, gain: 99 }).gain).toBe(3);
+    expect(sanitizeTeleopControl({ ...d, gain: 0.01 }).gain).toBe(0.5);
+  });
+
+  it("a stored file from before these settings loads with the defaults", () => {
+    const old = { ...d } as Partial<TeleopControlSettings>;
+    delete old.view;
+    delete old.gain;
+    delete old.gripperInput;
+    delete old.clutchKey;
+    expect(sanitizeTeleopControl(old)).toEqual(d);
+  });
+});

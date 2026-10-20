@@ -19,3 +19,6 @@ BIN_FOOTPRINT_HALF = BIN_INNER[0] / 2 + BIN_WALL  # half the outside width (the 
 # the rim with room for tracking error (the replay follows the tool to ~5 mm), and the drop from there must stay a
 # placement, not a throw: check_success's high_release limit is the cube centre 0.18 m above the bin origin.
 RELEASE_CLEARANCE = 0.02  # m
+
+# The table top is the env frame's z = 0 (sim_worker/scene_cfg.py places the table box from it).
+TABLE_TOP_Z = 0.0  # m

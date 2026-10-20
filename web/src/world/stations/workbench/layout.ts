@@ -4,7 +4,7 @@
 // cartridge stands on, and the label printer's slot. Pure, so it is tested.
 import * as THREE from "three";
 import { LABEL_ASPECT } from "../../scene/labels";
-import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
+import { BENCH_PIVOT, SPARE, stopFrom } from "../../scene/layout";
 
 /** bx_B_Turntable's centre; its top (with the teal ring) is TURNTABLE_TOP. */
 export const TURNTABLE = new THREE.Vector3(-0.1878, 3.37, 0.3532);
@@ -23,6 +23,60 @@ export function benchCartridge(): { position: THREE.Vector3; yaw: number } {
   const eye = EDIT_VIEW.position;
   const yaw = Math.atan2(eye[0] - TURNTABLE.x, eye[2] - TURNTABLE.z);
   return { position: new THREE.Vector3(TURNTABLE.x, TURNTABLE_TOP + HALF_H * BENCH_SCALE, TURNTABLE.z), yaw };
+}
+
+const ANCHOR = new THREE.Vector3(...BENCH_PIVOT.position);
+const UP = new THREE.Vector3(0, 1, 0);
+
+/** The turntable's cartridge in world space, as the room view shows it (one of the spiral's instances). */
+export function benchMatrix(out = new THREE.Matrix4()): THREE.Matrix4 {
+  const { position, yaw } = benchCartridge();
+  return out.compose(position.add(ANCHOR), new THREE.Quaternion().setFromAxisAngle(UP, yaw), new THREE.Vector3().setScalar(BENCH_SCALE));
+}
+
+/** Seconds a saved cartridge takes from the turntable to its place on the spiral. */
+export const FLIGHT_S = 1.4;
+/** Straight up off the turntable first (metres), then in to the spiral from outside its place. */
+const LIFT = 2.4;
+const APPROACH = 1.8;
+
+export interface FlightPose {
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  scale: number;
+}
+
+const _m = new THREE.Matrix4();
+const _p = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+const _q0 = new THREE.Quaternion();
+const _q1 = new THREE.Quaternion();
+const _s = new THREE.Vector3();
+
+/**
+ * A save's flight, world space: up off the turntable, across the room, and into its empty place on the
+ * spiral (layout.ts SPARE[place]) from outside, along the way its label faces. One eased cubic Bezier;
+ * it turns and grows to the spiral's size on the way.
+ */
+export function flightPose(place: number, u: number, out: FlightPose): FlightPose {
+  const slot = SPARE[place];
+  if (!slot) throw new Error(`world: no empty place ${place} on the spiral`);
+  const k = Math.min(1, Math.max(0, u));
+  const e = k * k * (3 - 2 * k);
+  benchMatrix(_m).decompose(_p[0], _q0, _s);
+  _q1.set(...slot.quaternion);
+  _p[3].set(...slot.position);
+  _p[1].copy(_p[0]).addScaledVector(UP, LIFT);
+  _p[2].set(0, 0, 1).applyQuaternion(_q1).multiplyScalar(APPROACH).add(_p[3]).addScaledVector(UP, 0.6);
+  const a = 1 - e;
+  out.position
+    .copy(_p[0])
+    .multiplyScalar(a * a * a)
+    .addScaledVector(_p[1], 3 * a * a * e)
+    .addScaledVector(_p[2], 3 * a * e * e)
+    .addScaledVector(_p[3], e * e * e);
+  out.quaternion.slerpQuaternions(_q0, _q1, e);
+  out.scale = BENCH_SCALE + (slot.scale - BENCH_SCALE) * e;
+  return out;
 }
 
 /**

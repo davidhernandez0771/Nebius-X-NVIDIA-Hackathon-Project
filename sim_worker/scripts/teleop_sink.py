@@ -44,6 +44,9 @@ parser.add_argument("--latency-log", type=Path, default=None, help="also append 
 parser.add_argument("--high-qos", action=argparse.BooleanOptionalAction, default=True,
                     help="opt out of Windows power throttling, so the sim keeps full speed while the browser is "
                          "in front (sim_worker.teleop_qos)")
+parser.add_argument("--kit-camera", choices=["behind", "isaac"], default="behind",
+                    help="the window's camera: behind the robot, over its shoulder (as the Record page's twin), or Isaac's "
+                         "default view from the front")
 parser.add_argument("--render", choices=["fast", "legacy", "fastest"], default=RENDER_DEFAULT,
                     help="fast: while not recording, render the window once per control step and pause the "
                          "recording cameras; recording renders as legacy (frames unchanged). legacy: render "
@@ -64,7 +67,8 @@ from sim_worker.replay import bin_pose_for, make_sim_cfg, replay  # noqa: E402
 from sim_worker.scene_cfg import BIN_INNER  # noqa: E402
 from sim_worker.scripted import scripted_expert  # noqa: E402
 from sim_worker.teleop_isaac import IsaacTeleopDriver  # noqa: E402
-from sim_worker.teleop_session import TELEOP_DT, TeleopSession, make_store_saver, relay_loop, scripted_hand  # noqa: E402
+from sim_worker.teleop_session import (KIT_CAMERA_EYE, KIT_CAMERA_TARGET, TELEOP_DT, TeleopSession,  # noqa: E402
+                                       make_store_saver, relay_loop, scripted_hand)
 from sim_worker.teleop_qos import high_qos  # noqa: E402
 from sim_worker.teleop_trace import LatencyTrace, now_ms  # noqa: E402
 
@@ -141,6 +145,11 @@ def main() -> int:
                                    render=args_cli.render,
                                    sections=trace.sections if trace is not None else None)
         session = TeleopSession(driver, scene, make_store_saver(store, bin_inner=BIN_INNER))
+        if args_cli.kit_camera == "behind":
+            try:
+                driver.s.sim.set_camera_view(KIT_CAMERA_EYE, KIT_CAMERA_TARGET)
+            except Exception as e:  # a viewer that can't be aimed must never stop the sink
+                print(f"[teleop] could not aim the window camera: {type(e).__name__}: {e}", flush=True)
         # print and exit inside the context: closing the app ends the process
         if args_cli.fake_hand:
             return fake_hand_smoke(session, store, scene, trace, qos)

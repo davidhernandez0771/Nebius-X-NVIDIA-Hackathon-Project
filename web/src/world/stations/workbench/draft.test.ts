@@ -31,3 +31,25 @@ describe("the bench's draft", () => {
     expect(bench.printed).toBeNull();
   });
 });
+
+describe("a save's flight to the spiral", () => {
+  beforeEach(() => resetBench());
+
+  it("marks the saved place as landing until the flight ends, and tells subscribers", async () => {
+    const { endFlight, startFlight } = await import("./draft");
+    let heard = 0;
+    const off = subscribeBench(() => heard++);
+    expect(bench.landing).toBe(-1);
+    startFlight(2);
+    expect(bench.landing).toBe(2);
+    expect(bench.flights).toBe(1);
+    endFlight();
+    endFlight();
+    expect(bench.landing).toBe(-1);
+    expect(heard).toBe(2);
+    startFlight(0);
+    resetBench();
+    expect(bench.landing).toBe(-1);
+    off();
+  });
+});

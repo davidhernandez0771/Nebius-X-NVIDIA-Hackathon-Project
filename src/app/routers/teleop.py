@@ -9,7 +9,10 @@ forwarded verbatim to the sim (or dropped if no sim is connected); an invalid on
 connects or disconnects.
 
 Control (sprint 3c): a browser message with a "type" key must be a ControlMsg,
-{"type": "control", "action": "record_start" | "record_stop" | "reset_scene"}. A valid one is
+{"type": "control", "action": "record_start" | "record_stop" | "record_discard" | "reset_scene"}, or
+{"type": "control", "action": "set_input", "input": "camera" | "keyboard" | "mouse"} (how the page drives the arm:
+the sim smooths keyboard and mouse targets and saves the input with each demo), or
+{"type": "control", "action": "set_assist", "soft_floor": bool} (demo_pipeline.soft_floor, on by default). A valid one is
 forwarded verbatim to the sim; an invalid one, or one sent while no sim is connected, gets an
 error back. Controls are not counted in messages_forwarded (that counts hand poses only).
 
@@ -44,8 +47,9 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError, field_validator, model_validator
 
+from demo_pipeline.schemas import InputMode
 from demo_pipeline.teleop import HandPoseMsg
 
 router = APIRouter(tags=["teleop"])
@@ -64,7 +68,17 @@ class ControlMsg(_Msg):
     """Browser -> sim: drive the sim-side TeleopSession (sim_worker/teleop_session.py)."""
 
     type: Literal["control"]
-    action: Literal["record_start", "record_stop", "reset_scene"]
+    action: Literal["record_start", "record_stop", "record_discard", "reset_scene", "set_input", "set_assist"]
+    input: InputMode | None = None  # set_input only
+    soft_floor: StrictBool | None = None  # set_assist only: the soft floor on or off (demo_pipeline.soft_floor)
+
+    @model_validator(mode="after")
+    def _input_with_set_input(self) -> "ControlMsg":
+        if (self.action == "set_input") != (self.input is not None):
+            raise ValueError("set_input needs an input, and only set_input takes one")
+        if (self.action == "set_assist") != (self.soft_floor is not None):
+            raise ValueError("set_assist needs soft_floor, and only set_assist takes one")
+        return self
 
 
 class SimStatusMsg(_Msg):
@@ -76,6 +90,16 @@ class SimStatusMsg(_Msg):
     demo_id: str | None = None  # the last saved demo
     last_result: str | None = None  # one human-readable line about the last action
     paused: bool = False  # recording, but held because hand tracking was lost
+    soft_floor: bool | None = None  # the soft floor is on (None: a sim from before it)
+    contact_peak_n: float | None = Field(default=None, ge=0)  # the take's largest arm contact force, N
+
+
+class ContactMsg(_Msg):
+    """The arm's hardest push on the bin or table over the last control step (sim_worker.teleop_session.ContactReading)."""
+
+    force_n: float = Field(ge=0)
+    body: str | None = None  # the robot link pushing (the twin's URDF link name)
+    against: Literal["bin", "table"] | None = None
 
 
 def _pose7(v: list[float]) -> list[float]:
@@ -103,8 +127,23 @@ class SimTwinMsg(_Msg):
     q: list[float] = Field(min_length=1, max_length=64)
     gripper: Literal[0, 1]  # the gripper sent: 0 open, 1 closed
     cube: list[float]  # [x, y, z, qw, qx, qy, qz]
+    floor: bool | None = None  # the soft floor is holding the target up now
+    contact: ContactMsg | None = None  # from a sim that reads contacts: the twin glows where the arm pushes
 
     _check_cube = field_validator("cube")(_pose7)
+
+
+# Fields added later: left out of what the relay forwards while a sim doesn't send them, so older sims' messages
+# go through exactly as before.
+_OPTIONAL = ("soft_floor", "contact_peak_n", "floor", "contact")
+
+
+def _forward(msg: BaseModel) -> dict:
+    out = msg.model_dump(mode="json")
+    for key in _OPTIONAL:
+        if out.get(key, 0) is None:
+            out.pop(key)
+    return out
 
 
 def _parse(text: str):
@@ -229,7 +268,7 @@ async def _run_sim(ws: WebSocket) -> None:
         if kind in _TWIN_MSGS:
             model, memory = _TWIN_MSGS[kind]
             try:
-                msg = model.model_validate(data).model_dump(mode="json")
+                msg = _forward(model.model_validate(data))
             except ValidationError as e:
                 await ws.send_json({"type": "error", "detail": str(e)})
                 continue
@@ -241,7 +280,7 @@ async def _run_sim(ws: WebSocket) -> None:
         except ValidationError as e:
             await ws.send_json({"type": "error", "detail": str(e)})
             continue
-        _relay.last_sim_status = status.model_dump(mode="json")
+        _relay.last_sim_status = _forward(status)
         browser = _relay.browser
         if browser is not None:
             try:

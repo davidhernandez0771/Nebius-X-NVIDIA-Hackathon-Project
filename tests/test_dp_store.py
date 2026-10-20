@@ -345,3 +345,48 @@ def test_an_unknown_source_is_still_rejected(store):
         store.save_diagnosis("human_1", _diagnosis(), "gpt-5", None)
     with pytest.raises(ValueError):
         Passport.model_validate(_passport("human_1", ["human_1"]).model_dump() | {"diagnosis_source": "gpt-5"})
+
+
+# --- discarding ----------------------------------------------------------------------
+
+
+def test_discard_moves_the_folder_under_discarded_and_keeps_every_file(store):
+    store.save_demo(_demo("human_1"))
+    store.save_demo(_demo("human_2", minutes=1))
+    (store.episode_dir("human_1")).mkdir(parents=True)
+    (store.episode_dir("human_1") / "episode.json").write_text("{}", encoding="utf-8")
+
+    moved = store.discard("human_1")
+
+    assert moved == store.root / "demos" / "_discarded" / "human_1"
+    assert (moved / "demo.json").is_file() and (moved / "episode" / "episode.json").is_file()
+    assert not (store.root / "demos" / "human_1").exists()
+    assert not store.has_demo("human_1")
+    assert [d.id for d in store.list_demos()] == ["human_2"]
+    assert [d.id for d in store.list_demos("human")] == ["human_2"]
+
+
+def test_discard_never_overwrites_an_earlier_discard(store):
+    store.save_demo(_demo("human_1"))
+    first = store.discard("human_1")
+    store.save_demo(_demo("human_1", minutes=3))
+    second = store.discard("human_1")
+    assert first != second and first.is_dir() and second.is_dir()
+    assert second.parent == first.parent and second.name.startswith("human_1")
+
+
+def test_discard_of_a_missing_demo_raises_key_error(store):
+    with pytest.raises(KeyError):
+        store.discard("nope")
+    with pytest.raises(KeyError):
+        store.discard("../escape")
+
+
+def test_the_discarded_folder_is_not_a_demo_id(store):
+    store.save_demo(_demo("human_1"))
+    store.discard("human_1")
+    assert not store.has_demo("_discarded")
+    with pytest.raises(KeyError):
+        store.discard("_discarded")
+    with pytest.raises(ValueError):
+        store.save_demo(_demo("_discarded"))

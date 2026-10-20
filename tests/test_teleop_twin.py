@@ -332,3 +332,18 @@ def test_relay_loop_streams_the_twin_to_a_watcher_at_most_30_a_second(relay_serv
     assert first[0]["joint_names"] == NAMES
     assert 10 <= len(frames) <= 31  # ~25 a second at 50 Hz steps; never more than 30
     assert len({f["q"][0] for f in frames}) > 5  # the joints moved with the hand
+
+
+def test_the_twin_frame_carries_the_contact_and_the_floor(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(TWIN) as w:
+        w.receive_json()
+        sim.receive_json()  # twin_watchers 1
+        sim.send_text(json.dumps(SCENE_MSG))
+        frame = {**FRAME, "floor": True, "contact": {"force_n": 7.3, "body": "panda_hand", "against": "bin"}}
+        sim.send_text(json.dumps(frame))
+        w.receive_json()  # the scene
+        assert w.receive_json() == frame
+        sim.send_text(json.dumps({**FRAME, "contact": {"force_n": 3, "against": "floor"}}))
+        assert sim.receive_json()["type"] == "error"
+        sim.send_text(json.dumps(FRAME))
+        assert w.receive_json() == FRAME  # an older sim's frame goes through as before

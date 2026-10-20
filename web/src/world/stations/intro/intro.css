@@ -48,3 +48,195 @@
 [data-motion-world="reduced"] .world-loader__cart span {
   transition: none;
 }
+
+/* ------------------------------------------------------------------ the story (Story.tsx)
+   Active Theory's hero: huge mono type on one side, a small mono column on the other, straight on the
+   dark space. Nothing sits behind the words. Story.tsx sets each beat's opacity and its lines' and
+   items' transforms from the scroll. The journey rail takes the right edge, so the right-hand block
+   keeps clear of it. */
+.intro-story {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.intro-beat {
+  --edge: max(28px, 6vw);
+  --rail: clamp(120px, 12vw, 170px);
+  position: fixed;
+  inset: 0;
+  will-change: opacity, transform;
+}
+
+.intro-beat__main,
+.intro-beat__col {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.intro-beat[data-side="left"] .intro-beat__main {
+  left: var(--edge);
+}
+
+.intro-beat[data-side="left"] .intro-beat__col {
+  right: var(--rail);
+}
+
+.intro-beat[data-side="right"] .intro-beat__main {
+  right: var(--rail);
+  text-align: right;
+}
+
+.intro-beat[data-side="right"] .intro-beat__col {
+  left: var(--edge);
+}
+
+.intro-beat__kicker {
+  margin: 0 0 18px;
+  color: var(--w-teal);
+}
+
+.intro-beat__head {
+  margin: 0;
+  font-family: var(--w-mono);
+  font-weight: 300;
+  font-size: clamp(44px, 6.6vw, 124px);
+  line-height: 0.94;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  color: #eaf7f3;
+  text-shadow: 0 0 34px rgba(25, 245, 194, 0.16);
+}
+
+/* Each line is its own mask: the text rises into it. */
+.intro-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.04em;
+}
+
+.intro-line__in {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.intro-beat--sant .intro-line__in::first-letter {
+  color: var(--w-teal);
+}
+
+.intro-beat--proof .intro-beat__head {
+  font-size: clamp(52px, 8vw, 150px);
+}
+
+.intro-beat__col {
+  width: min(320px, 25vw);
+  display: grid;
+  gap: 14px;
+  font-family: var(--w-mono);
+  font-size: 12.5px;
+  line-height: 1.65;
+  letter-spacing: 0.02em;
+  color: #a9c9c1;
+}
+
+.intro-item {
+  padding-left: 14px;
+  border-left: 1px solid var(--w-line);
+  will-change: opacity, transform;
+}
+
+.intro-item p {
+  margin: 0;
+}
+
+.intro-item b {
+  color: var(--w-ink);
+  font-weight: 500;
+}
+
+.intro-beat--sant .intro-item b {
+  display: inline-block;
+  min-width: 1.4em;
+  color: var(--w-teal);
+}
+
+.intro-item:has(.intro-beat__foot) {
+  border-left-color: transparent;
+}
+
+.intro-beat__foot {
+  color: var(--w-teal);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+}
+
+.intro-story .world-hint,
+.intro-down {
+  position: fixed;
+  left: 50%;
+  top: auto;
+  bottom: 7vh;
+  transform: translateX(-50%);
+  margin: 0;
+  color: #7fc7d6;
+  opacity: 0;
+}
+
+/* Phones: the big lines on top, the logo in the middle, the column under it. */
+@media (max-width: 700px) {
+  .intro-beat__main,
+  .intro-beat__col {
+    transform: none;
+    left: 20px !important;
+    right: 20px !important;
+    text-align: left !important;
+  }
+
+  .intro-beat__main {
+    top: 11vh;
+  }
+
+  .intro-beat__head {
+    font-size: clamp(34px, 10.5vw, 56px);
+  }
+
+  .intro-beat--proof .intro-beat__head {
+    font-size: clamp(40px, 13vw, 64px);
+  }
+
+  .intro-beat__col {
+    top: auto;
+    bottom: 9vh;
+    width: auto;
+    gap: 8px;
+    font-size: 11.5px;
+    line-height: 1.55;
+  }
+
+  .intro-story .world-hint,
+  .intro-down {
+    bottom: 3vh;
+  }
+}
+
+/* The reactor's power readout (Story.tsx), a small mono line like the descent's building counter. */
+.intro-power {
+  position: fixed;
+  left: max(28px, 6vw);
+  bottom: 6vh;
+  margin: 0;
+  color: var(--w-teal);
+  opacity: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .intro-power {
+    left: 20px;
+    bottom: auto;
+    top: calc(11vh - 28px);
+  }
+}

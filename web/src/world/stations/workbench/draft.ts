@@ -13,6 +13,10 @@ export const bench = {
   prints: 0,
   /** Goes up with every change to the draft (the 3D cartridge gives a little turn). */
   edits: 0,
+  /** The saved place a cartridge is flying to from the turntable (the spiral keeps it hidden till it lands), or -1. */
+  landing: -1,
+  /** A count that goes up with every flight (the 3D starts one on a change). */
+  flights: 0,
 };
 
 const fns = new Set<() => void>();
@@ -44,6 +48,20 @@ export function clearPrinter(): void {
   notify();
 }
 
+/** A save: the cartridge leaves the turntable for its place on the spiral. */
+export function startFlight(place: number): void {
+  bench.landing = place;
+  bench.flights++;
+  notify();
+}
+
+/** It landed (or the bench closed under it): the spiral shows it. */
+export function endFlight(): void {
+  if (bench.landing < 0) return;
+  bench.landing = -1;
+  notify();
+}
+
 /** What the bench's cartridge prints now. */
 export const draftLabel = () => draftArt(bench.draft);
 
@@ -52,5 +70,6 @@ export function resetBench(): void {
   bench.draft = { ...FRESH };
   bench.printed = null;
   bench.edits = 0;
+  bench.landing = -1;
   notify();
 }

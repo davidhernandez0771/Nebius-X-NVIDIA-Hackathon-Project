@@ -50,7 +50,7 @@ from . import replay as _replay
 from .replay import CAMERA_WARMUP_STEPS, CONTACT_N, PHYSICS_DT
 from .scene_cfg import ARM_CONTACT_SENSORS
 from .teleop_render import SubstepSim
-from .teleop_session import TELEOP_DT, StepState, TwinState
+from .teleop_session import TELEOP_DT, ContactReading, StepState, TwinState, peak_contact
 from .teleop_trace import Sections
 from .tracking import CONTROL_DT
 
@@ -160,6 +160,23 @@ class IsaacTeleopDriver:
             v = row.cpu().numpy().astype(np.float64)
         n = v.shape[0] - 7
         return TwinState(joint_pos=v[:n], cube_pose=np.concatenate([v[n:n + 3], _replay._wxyz(v[n + 3:])]))
+
+    def read_contact(self) -> ContactReading:
+        """The arm's hardest push on the bin or table over the last control step, and which body: the success
+        check's sensors (ARM_CONTACT_SENSORS), whose filter columns are the arm bodies in the order the scene lists
+        them (scene_cfg ARM_BODIES); a body's name is its prim's last path segment, the twin's URDF link name."""
+        with self._time("contact"):
+            s = self.s
+            forces: dict[str, list[np.ndarray]] = {}
+            bodies: list[str] | None = None
+            for group, sensors in ARM_CONTACT_SENSORS.items():
+                for name in sensors:
+                    sensor = s.scene[name]
+                    hist = sensor.data.normal_force_matrix_w_history
+                    t = hist.torch if hist is not None else sensor.data.normal_force_matrix_w.torch
+                    forces.setdefault(group, []).append(t.cpu().numpy())
+                    bodies = bodies or [p.rsplit("/", 1)[-1] for p in sensor.cfg.filter_prim_paths_expr]
+        return peak_contact(forces, bodies or [])
 
     def read_state(self) -> StepState:
         with self._time("read"):

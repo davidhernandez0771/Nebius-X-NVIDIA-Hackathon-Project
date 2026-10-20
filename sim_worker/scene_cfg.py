@@ -19,7 +19,7 @@ from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
 from isaaclab_assets.robots.flexiv import FLEXIV_RIZON4S_CFG, FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort:skip
 from isaaclab_assets.robots.openarm import OPENARM_UNI_HIGH_PD_CFG  # isort:skip
 
-from demo_pipeline.scene_geometry import BIN_INNER, BIN_WALL, CUBE_SIZE
+from demo_pipeline.scene_geometry import BIN_INNER, BIN_WALL, CUBE_SIZE, TABLE_TOP_Z
 
 from .robots import robot_spec
 
@@ -62,7 +62,7 @@ BIN_PRIMS = {"bin_floor": "BinFloor", "bin_wall_px": "BinWallPX", "bin_wall_nx":
 
 # Table top at z = 0; it starts in front of the robot base so panda_link0 never touches it.
 TABLE_SIZE = (0.85, 1.2, 0.05)
-TABLE_CENTER = (0.575, 0.0, -0.025)
+TABLE_CENTER = (0.575, 0.0, TABLE_TOP_Z - TABLE_SIZE[2] / 2)  # top at TABLE_TOP_Z (-0.025 centre)
 
 FRONT_EYE = (1.35, 0.15, 0.65)
 FRONT_TARGET = (0.45, 0.15, 0.05)

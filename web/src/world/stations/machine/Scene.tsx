@@ -16,7 +16,7 @@ import { useWorld, useWorldState } from "../../core/WorldContext";
 import { HoloTwin } from "../../scene/HoloTwin";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL } from "../../scene/assets";
-import { BelowRoof } from "../../scene/BelowRoof";
+import { Materialize } from "../../scene/Materialize";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
 import { slotLook } from "../../scene/Helix";
 import { tileUv } from "../../scene/labels";
@@ -259,9 +259,11 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
       hero.dress(plug.slot);
       s.dressed = plug.slot;
     }
-    hero.group.visible = u > 0;
-    if (u > 0) {
-      cartridgePose(plug.slot, u, s.pose);
+    // A drop over the port (plug.held) is there from its first frame: the drag hands it over in place.
+    const shown = u > 0 || (s.clicked && plug.held);
+    hero.group.visible = shown;
+    if (shown) {
+      cartridgePose(plug.slot, u, s.pose, s.clicked && plug.held);
       hero.group.position.copy(s.pose.position).sub(ANCHOR);
       hero.group.quaternion.copy(s.pose.quaternion);
     }
@@ -290,10 +292,10 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
   });
 
   return (
-    <BelowRoof>
+    <Materialize>
       <primitive object={built.root} />
       <primitive object={hero.group} />
       {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} label={label} position={[built.lensAt.x, built.lensAt.y + 0.35, built.lensAt.z]} /> : null}
-    </BelowRoof>
+    </Materialize>
   );
 }

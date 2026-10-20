@@ -3,7 +3,7 @@
 // - fonts: Geist Mono for the loader, the beats and the labels;
 // - assets: what three's loading manager fetches for the intro (the mark image), via drei's useProgress;
 // - build: the particles are made for the tier;
-// - compile: renderer.compileAsync() finished every shader on screen, so the first scroll never hitches.
+// - compile: every shader on screen compiled (three/compileSafe.ts), so the first scroll never hitches.
 export const STEPS = { canvas: 0.25, fonts: 0.15, assets: 0.2, build: 0.15, compile: 0.25 } as const;
 export type Step = keyof typeof STEPS;
 

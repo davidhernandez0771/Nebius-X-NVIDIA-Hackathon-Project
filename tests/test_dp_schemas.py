@@ -103,6 +103,16 @@ def test_demo_keeps_the_commanded_targets_next_to_the_achieved_path():
         Demo(id="h2", source="human", trajectory=_traj(5), commanded=_traj(4), scene=_scene(), human_seconds=1.0)
 
 
+def test_a_demo_records_how_it_was_driven_or_nothing_for_older_demos():
+    d = Demo(id="h1", source="human", trajectory=_traj(), scene=_scene(), human_seconds=12.0)
+    assert d.input is None
+    assert Demo.model_validate_json(d.model_dump_json(exclude={"input"})).input is None  # an older demo.json
+    for mode in ("camera", "keyboard", "mouse"):
+        assert Demo(id="h1", source="human", trajectory=_traj(), scene=_scene(), human_seconds=1.0, input=mode).input == mode
+    with pytest.raises(ValidationError):
+        Demo(id="h1", source="human", trajectory=_traj(), scene=_scene(), human_seconds=1.0, input="joystick")
+
+
 # --- Diagnosis (Nemotron output) -----------------------------------------------------------
 
 GOOD_DIAGNOSIS = {
@@ -216,3 +226,11 @@ def test_episode_save_rejects_arrays_with_wrong_length(tmp_path):
     arrays["gripper"] = np.zeros(2, dtype=np.int8)
     with pytest.raises(ValueError):
         save_episode(tmp_path / "bad", meta, arrays)
+
+
+def test_a_demo_without_input_serializes_as_before_the_field_existed():
+    d = Demo(id="h1", source="human", trajectory=_traj(), scene=_scene(), human_seconds=12.0)
+    assert '"input"' not in d.model_dump_json() and "input" not in d.model_dump()
+    with_input = d.model_copy(update={"input": "keyboard"})
+    assert '"input":"keyboard"' in with_input.model_dump_json()
+    assert Demo.model_validate_json(with_input.model_dump_json()).input == "keyboard"

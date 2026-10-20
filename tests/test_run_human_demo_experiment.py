@@ -375,6 +375,38 @@ def test_an_empty_cell_is_refused_cleanly_not_a_traceback(hx, tmp_path, capsys):
     assert not (tmp_path / "human_exp" / "smoke1" / "grid.json").exists()
 
 
+def test_select_can_take_only_one_input_and_freezes_it(hx, tmp_path):
+    user = _user_store(tmp_path)
+    for i, id in enumerate(IDS):
+        demo = user.get_demo(id)
+        user.save_demo(demo.model_copy(update={"input": "keyboard" if i < 2 else "camera"}))
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", input="keyboard", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert config["ids"] == IDS[:2] and config["input"] == "keyboard"
+    exp.select(ids=None, tag=None, settings=SMOKE)  # a resume keeps the frozen selection and its input
+
+
+def test_a_config_frozen_without_input_still_resumes(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert "input" not in config  # unchanged for runs that don't filter
+
+
+def test_a_config_frozen_before_the_repairer_flag_resumes_with_the_default_repairer(hx, tmp_path):
+    # Configs have carried "repair": "rules" since the script's first commit (b489476), so the CLI now passing
+    # repair="rules" (the --repairer default) changes no frozen setting: human10c's resume is not refused.
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)  # as the CLI froze it before --repairer existed
+    path = tmp_path / "human_exp" / "smoke1" / "config.json"
+    before = json.loads(path.read_text(encoding="utf-8"))
+    assert before["repair"] == "rules"
+    exp.select(ids=None, tag=None, settings={**SMOKE, "repair": "rules"})  # today's CLI default: not refused
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert after == before  # nothing re-frozen, frozen_at kept
+
+
 def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
     exp, sim, _ = _exp(hx, tmp_path)
     exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "nemotron-edits"})
@@ -398,3 +430,69 @@ def test_repairer_hybrid_routes_the_repair_step(hx, tmp_path):
     assert marks and all(m["diagnoser"] == "hybrid" and m["stage"] == "rules" for m in marks)  # the fakes pass
     assert "rules first; Nemotron's trajectory edits for a demo the rules discard" in (
         root / "preregistration.md").read_text(encoding="utf-8")
+
+
+def test_multiplied_only_trains_and_evals_one_cell_and_reports_it_alone(hx, tmp_path):
+    exp, _, stages = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "multiplied_only": True})
+    exp.run()
+    root = tmp_path / "human_exp" / "smoke1"
+
+    assert [c.name for c in load_grid(root / "grid.json").cells] == ["perfected_multiply_3"]
+    assert stages == ["human-exp:smoke1:sim", "human-exp:smoke1:train", "human-exp:smoke1:eval"]
+    train_cmd, eval_cmd = exp.deps.run.cmds
+    assert eval_cmd[eval_cmd.index("--cells") + 1] == "perfected_multiply_3"
+    assert eval_cmd[eval_cmd.index("--start-state") + 1].endswith("perfected_multiply_3")
+    res = json.loads((root / "results.json").read_text(encoding="utf-8"))
+    head = res["experiment"]["headline"]
+    assert "raw" not in head and "fisher_p" not in head
+    assert head["multiplied"]["successes"] == 3 and head["multiplied"]["n"] == 5
+    assert head["multiplied"]["ci"] == pytest.approx([0.2307, 0.8824], abs=1e-3)
+    assert head["multiplied"]["successful_seeds"] == [5020, 5022, 5023]
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "Absolute test" in prereg and "Fisher" not in prereg and "raw_3" not in prereg
+    with pytest.raises(hx.Refused, match="one arm"):
+        exp.results(publish=True)
+
+
+def test_multiplied_only_is_left_out_of_the_config_unless_set(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    assert "multiplied_only" not in json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    with pytest.raises(hx.Refused, match="multiplied_only"):
+        exp.select(ids=None, tag=None, settings={**SMOKE, "multiplied_only": True})
+
+
+def test_min_demos_refuses_a_short_selection_and_writes_nothing(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    with pytest.raises(hx.Refused, match="3 demos.*at least 5"):
+        exp.select(ids=None, tag="standin_*", settings={**SMOKE, "min_demos": 5})
+    assert not (tmp_path / "human_exp" / "smoke1" / "config.json").exists()
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "min_demos": 3})  # enough: frozen with the rule
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert config["min_demos"] == 3
+
+
+def test_soft_floor_assist_is_frozen_and_reported_not_filtered(hx, tmp_path):
+    from demo_pipeline.schemas import Assist
+
+    user = _user_store(tmp_path)
+    for i, id in enumerate(IDS[:2]):
+        user.save_demo(user.get_demo(id).model_copy(update={"assist": Assist(soft_floor=i == 0,
+                                                                            soft_floor_steps=40 if i == 0 else 0)}))
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    root = tmp_path / "human_exp" / "smoke1"
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    assert config["ids"] == IDS  # nothing filtered out
+    assert config["assist"] == {"standin_00": {"soft_floor": True, "soft_floor_steps": 40},
+                                "standin_01": {"soft_floor": False, "soft_floor_steps": 0}, "standin_02": None}
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "1 of 3 demos were recorded with the soft floor holding" in prereg and "`standin_00` (40 steps)" in prereg
+
+
+def test_no_assist_key_for_demos_recorded_before_it(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert "assist" not in config and "min_demos" not in config

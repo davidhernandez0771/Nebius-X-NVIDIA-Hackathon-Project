@@ -5,7 +5,9 @@
 // unplugged camera, wedged worker) is still caught -- see STALE_FRAME_MS in
 // contracts.ts.
 
-import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
+// MediaPipe itself (~130 KB of JS) is imported on start(), so the pages that offer hand control
+// don't carry it until it's switched on.
+import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../contracts";
 import { checkHandAssets, loadFailureMessage } from "./assets";
 import { STALE_FRAME_MS } from "../contracts";
@@ -110,6 +112,8 @@ export function createMediapipeTracker(): TrackingAdapter {
           camera = acquired;
         }
         if (!landmarker) {
+          const { FilesetResolver, HandLandmarker } = await import("@mediapipe/tasks-vision");
+          if (cleanedUp) return;
           const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
           if (cleanedUp) return;
           // Say which file is missing, rather than MediaPipe's bare "[object Event]" (assets.ts).
@@ -181,6 +185,10 @@ export function createMediapipeTracker(): TrackingAdapter {
     onStatus(cb) {
       statusListeners.add(cb);
       return () => statusListeners.delete(cb);
+    },
+
+    stream() {
+      return camera?.stream ?? null;
     },
   };
 }

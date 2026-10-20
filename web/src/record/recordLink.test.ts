@@ -176,3 +176,36 @@ describe("latencyTraceRequested", () => {
     expect(latencyTraceRequested("?latency=0")).toBe(false);
   });
 });
+
+describe("keyboard and mouse driving through the same link", () => {
+  it("sends a ready-made HandPoseMsg with its grip, throttled like the camera path (~30 Hz)", async () => {
+    const { driveMessage } = await import("./drive/drive");
+    const link = new RecordLink("ws://relay", Impl);
+    const sock = FakeSocket.last!;
+    sock.open();
+    link.send(driveMessage([0.5, 0, 0.2], 1, 0), 1);
+    link.send(driveMessage([0.5, 0, 0.21], 1, 10), 1); // 10 ms later: too soon, dropped
+    link.send(driveMessage([0.5, 0, 0.22], 0, 40), 0);
+    const sent = sock.sent.map((m) => JSON.parse(m));
+    expect(sent.map((m) => [m.t_ms, m.grip, m.tracking_ok])).toEqual([
+      [0, 1, true],
+      [40, 0, true],
+    ]);
+    expect(sent[0].control).toHaveLength(3);
+    link.close();
+  });
+
+  it("set_input carries the input; other controls don't", () => {
+    expect(JSON.parse(controlMessage("set_input", "keyboard"))).toEqual({ type: "control", action: "set_input", input: "keyboard" });
+    expect(JSON.parse(controlMessage("record_start"))).toEqual({ type: "control", action: "record_start" });
+  });
+});
+
+describe("parseSimStatus: the soft floor and the take's peak contact force", () => {
+  it("reads them from a sim that sends them", () => {
+    const s = parseSimStatus(JSON.stringify({ type: "sim_status", recording: true, steps: 3, soft_floor: false, contact_peak_n: 312 }));
+    expect(s).toMatchObject({ softFloor: false, contactPeakN: 312 });
+    const none = parseSimStatus(JSON.stringify({ type: "sim_status", recording: false, steps: 0, soft_floor: true, contact_peak_n: null }));
+    expect(none).toMatchObject({ softFloor: true, contactPeakN: null });
+  });
+});

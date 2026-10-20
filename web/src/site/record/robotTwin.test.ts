@@ -12,6 +12,8 @@ const sim = (over: Partial<LiveTwin> = {}): LiveTwin => ({
   bin: null,
   base: null,
   robot: null,
+  contact: null,
+  floor: null,
   ...over,
 });
 
@@ -34,7 +36,7 @@ describe("chooseTwin", () => {
     const t = chooseTwin(sim({ status: "live", joints: { panda_joint1: 0.2 }, gripper: 1, bin: pose }), replay({ status: "ready" }));
     expect(t.mode).toBe("live");
     expect(t.caption).toBe("live from the sim");
-    expect(t.view).toEqual({ joints: { panda_joint1: 0.2 }, gripper: 1, cube: null, bin: pose, base: null });
+    expect(t.view).toEqual({ joints: { panda_joint1: 0.2 }, gripper: 1, cube: null, bin: pose, base: null, contact: null });
   });
 
   it("replays the demo episode otherwise, named in the caption", () => {
@@ -54,5 +56,17 @@ describe("chooseTwin", () => {
     const failed = chooseTwin(sim({ status: "connecting", joints: { panda_joint1: 1 } }), replay({ status: "error", error: "x" }));
     expect(failed.caption).toMatch(/didn't load/);
     expect(failed.view.joints).toBeNull();
+  });
+});
+
+describe("chooseTwin: the contact glow and the soft floor", () => {
+  it("live carries the arm's push and the floor; a replay never does", () => {
+    const contact = { forceN: 312, body: "panda_hand", against: "bin" as const };
+    const live = chooseTwin(sim({ status: "live", joints: {}, contact, floor: true }), replay({ status: "ready" }));
+    expect(live.view.contact).toEqual(contact);
+    expect(live.floor).toBe(true);
+    const stand = chooseTwin(sim({ status: "offline", contact, floor: true }), replay({ status: "ready", episode: { demoId: "d" } as ReplayTwin["episode"] }));
+    expect(stand.view.contact).toBeNull();
+    expect(stand.floor).toBeNull();
   });
 });
