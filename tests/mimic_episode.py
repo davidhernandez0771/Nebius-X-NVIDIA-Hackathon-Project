@@ -71,3 +71,30 @@ def write_demo(store: Path, demo_id: str, *, success=True, variant_seed=None, st
     (ep / "verification.json").write_text(json.dumps(passport["verification"]), encoding="utf-8")
     (d / "passport.json").write_text(json.dumps(passport), encoding="utf-8")
     return d
+
+
+def generated(hold=40, **change):
+    """A demo as the SANT Mimic env records it while generating: actions, obs/eef_pos (before each step), obs/sant
+    (after each step: the cube and the contact forces) and initial_state. Built from arrays(), held still `hold`
+    steps at the end; `change` maps an obs/sant key to a function of its array."""
+    from demo_pipeline import mimic
+
+    a = arrays()
+    d = mimic.episode_to_mimic(a["steps"], a["trajectory"], a["cube_pos"], a["scene"])
+    n = N + hold
+
+    def pad(x):
+        return np.concatenate([x, np.repeat(x[-1:], hold, axis=0)])
+
+    actions = pad(d["actions"])
+    forces = np.zeros((n, 3), np.float32)
+    forces[:, 0] = np.where(actions[:, 7] < 0, 2.0, 0.0)  # the fingers on the cube while closed
+    g = {
+        "actions": actions,
+        "obs": {"eef_pos": pad(d["obs"]["eef_pos"]),
+                "sant": {"cube_pos": pad(a["cube_pos"]).astype(np.float32), "contact_forces": forces}},
+        "initial_state": d["initial_state"],
+    }
+    for k, fn in change.items():
+        g["obs"]["sant"][k] = fn(g["obs"]["sant"][k])
+    return g

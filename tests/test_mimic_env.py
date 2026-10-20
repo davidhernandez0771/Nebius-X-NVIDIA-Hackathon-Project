@@ -186,3 +186,46 @@ def test_the_reset_scene_is_sampled_in_sants_ranges_with_the_bin_boxes_round_it(
     assert 0.40 <= cx <= 0.60 and -0.20 <= cy <= 0.20
     fx, fy, fz = poses["bin_floor"][0]
     assert 0.40 <= fx <= 0.65 and -0.30 <= fy <= 0.30 and fz == pytest.approx(0.005)
+
+
+# --- what the env records for SANT's re-verification -------------------------------------------------------
+
+
+def test_the_sant_group_and_its_recorder_ride_along_with_mimics_default_recording(cfg):
+    assert set(vars(cfg.observations.sant)) >= {"cube_pos", "contact_forces"}
+    rec = cfg.mimic_recorder_config
+    assert isinstance(rec, me.SantRecorderManagerCfg)
+    # Isaac Lab's own recording stays (generation writes actions, policy obs, states and the initial state).
+    assert rec.record_pre_step_actions is not None and rec.record_initial_state is not None
+    assert rec.record_post_step_sant.class_type is me.SantSignalsRecorder
+
+
+def test_the_recorder_writes_the_sant_group_after_each_step():
+    sant = {"cube_pos": torch.zeros(1, 3), "contact_forces": torch.zeros(1, 3)}
+    key, value = me.SantSignalsRecorder.record_post_step(NS(_env=NS(obs_buf={"sant": sant})))
+    assert key == "obs/sant" and value is sant
+
+
+def _sensor(*forces_n):
+    """A contact sensor whose filtered pair forces over the substeps have these magnitudes (newtons, along z)."""
+    f = torch.zeros(1, len(forces_n), 1, 1, 3)
+    f[0, :, 0, 0, 2] = torch.tensor(forces_n)
+    return NS(data=NS(normal_force_matrix_w_history=NS(torch=f), normal_force_matrix_w=None))
+
+
+def test_contact_forces_are_the_largest_pair_force_per_group_as_replay_reads_them(cfg):
+    e = _stub(cfg)
+    e.scene.update({"cube_contact": _sensor(0.5, 1.5), "table_contact": _sensor(0.0, 0.0)})
+    for i, name in enumerate(scene_cfg.ARM_CONTACT_SENSORS["bin"]):
+        e.scene[name] = _sensor(0.0, 3.0 if i == 2 else 0.1)
+    f = me.sant_contact_forces(e)
+    assert f.shape == (1, 3)
+    assert f[0].tolist() == pytest.approx([1.5, 3.0, 0.0])
+
+
+def test_the_contact_threshold_is_replays():
+    try:
+        from sim_worker import replay
+    except Exception as e:  # replay needs more of Isaac Sim than the config does
+        pytest.skip(f"sim_worker.replay doesn't import without the app: {e}")
+    assert mimic.CONTACT_N == replay.CONTACT_N

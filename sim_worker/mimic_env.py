@@ -12,6 +12,9 @@ the cube, the five-box bin, the table; no cameras) with what Mimic needs, matchi
   Mimic stops a generated demo at the first step it holds. check_success's history checks (collision force,
   drops, the release height, the time limit) need the whole run: re-verify Mimic's output with SANT afterwards.
 - reset: the robot at its default joints, the cube and bin sampled in SANT's Franka ranges (multiply.sample_scene).
+- recording: besides Isaac Lab's default (actions, policy observations, states), the `sant` group after each step
+  (the cube and the contact forces, read as sim_worker.replay reads them), so demo_pipeline.mimic.verify_generated
+  can run SANT's check_success on the generated demos without a GPU.
 
 It steps at SANT's 50 Hz (physics 0.01 s, decimation 2). Registered by sim_worker/mimic_register.py. Importing it
 needs Isaac Lab, not the app: the tests build the config and run the methods on stand-in tensors.
@@ -30,18 +33,19 @@ import isaaclab.utils.math as PoseUtils
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.actions.actions_cfg import BinaryJointPositionActionCfg, DifferentialInverseKinematicsActionCfg
+from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import RecorderTerm, RecorderTermCfg, SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
 from demo_pipeline import mimic
 from demo_pipeline.multiply import sample_scene
 
-from .scene_cfg import make_scene_cfg
+from .scene_cfg import ARM_CONTACT_SENSORS, make_scene_cfg
 
 HAND = "panda_hand"
 PHYSICS_DT = 0.01
@@ -97,6 +101,20 @@ def sant_success(env) -> torch.Tensor:
 def grasp_signal(env) -> torch.Tensor:
     """The grasp subtask is done: the gripper closed and the cube a centimetre up (the export's signal)."""
     return mimic.grasped(_cube_pos(env)[:, 2], _gripper_command(env) < 0)
+
+
+def _pair_force(sensor) -> torch.Tensor:
+    """Per environment: the largest filtered normal-force magnitude over the last control step's substeps
+    (sim_worker.replay._max_pair_force, per environment)."""
+    hist = sensor.data.normal_force_matrix_w_history
+    forces = hist.torch if hist is not None else sensor.data.normal_force_matrix_w.torch
+    return torch.linalg.norm(forces, dim=-1).flatten(1).amax(dim=1)
+
+
+def sant_contact_forces(env) -> torch.Tensor:
+    """[num_envs, 3]: the fingers on the cube, the arm on the bin (any of its boxes), the arm on the table (N)."""
+    groups = [("cube_contact",), ARM_CONTACT_SENSORS["bin"], ARM_CONTACT_SENSORS["table"]]
+    return torch.stack([torch.stack([_pair_force(env.scene[n]) for n in names]).amax(dim=0) for names in groups], dim=1)
 
 
 def sampled_scene_poses(rng: np.random.Generator) -> dict[str, tuple[list[float], list[float]]]:
@@ -166,8 +184,34 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
+    @configclass
+    class SantCfg(ObsGroup):
+        """What SANT's check_success needs, recorded after each step (SantSignalsRecorder)."""
+
+        cube_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("cube")})
+        contact_forces = ObsTerm(func=sant_contact_forces)
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
     policy: PolicyCfg = PolicyCfg()
     subtask_terms: SubtaskCfg = SubtaskCfg()
+    sant: SantCfg = SantCfg()
+
+
+class SantSignalsRecorder(RecorderTerm):
+    """Records the `sant` observation group after each step, as obs/sant/..."""
+
+    def record_post_step(self):
+        return "obs/sant", self._env.obs_buf["sant"]
+
+
+@configclass
+class SantRecorderManagerCfg(ActionStateRecorderManagerCfg):
+    """Isaac Lab's default recording for generation, plus the sant group."""
+
+    record_post_step_sant = RecorderTermCfg(class_type=SantSignalsRecorder)
 
 
 @configclass
@@ -191,6 +235,7 @@ class SantPickPlaceMimicEnvCfg(ManagerBasedRLEnvCfg, MimicEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     rewards = None
     commands = None
+    mimic_recorder_config: SantRecorderManagerCfg = SantRecorderManagerCfg()
 
     def __post_init__(self):
         self.decimation = DECIMATION

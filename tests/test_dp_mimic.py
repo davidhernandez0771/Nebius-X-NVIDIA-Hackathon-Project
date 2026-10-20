@@ -186,3 +186,48 @@ def test_placed_agrees_with_check_success_on_where_the_bin_is():
 def test_grasped_is_the_exports_grasp_signal_closed_and_the_cube_a_centimetre_up():
     z = np.array([0.025, 0.034, 0.036, 0.2])
     assert mimic.grasped(z, np.array([True, True, True, False])).tolist() == [False, False, True, False]
+
+
+# --- re-verifying Mimic's generated demos with SANT's check_success (CPU) ----------------------------------
+
+
+_generated = fx.generated
+
+
+def test_a_generated_demo_that_places_the_cube_cleanly_passes_check_success():
+    r = mimic.verify_generated(_generated())
+    assert r.success, r.reasons
+
+
+def test_the_bin_pose_is_read_back_from_the_floor_box():
+    pose = mimic.bin_pose_from_state(_generated()["initial_state"])
+    assert pose.pos == pytest.approx(tuple(fx.BIN), abs=1e-6)
+    assert pose.quat_wxyz == pytest.approx((1.0, 0.0, 0.0, 0.0))
+
+
+def _force(col, value, start=0):
+    def f(x):
+        x = x.copy()
+        x[start:, col] = value
+        return x
+    return f
+
+
+def _cube_off(x):
+    x = x.copy()
+    x[fx.RELEASE:] = [0.5, 0.0, 0.025]  # back on the table, not in the bin
+    return x
+
+
+@pytest.mark.parametrize(
+    "change, reason",
+    [
+        ({"contact_forces": _force(1, 12.0, fx.RELEASE)}, "collision"),  # the arm presses on the bin
+        ({"cube_pos": _cube_off}, "not_in_bin"),
+        ({"contact_forces": _force(0, 0.0, 30)}, "dropped"),  # the fingers lose it mid-carry
+    ],
+)
+def test_a_generated_demo_is_failed_for_what_check_success_fails_it_for(change, reason):
+    r = mimic.verify_generated(_generated(**change))
+    assert not r.success
+    assert reason in r.reasons

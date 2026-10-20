@@ -279,3 +279,52 @@ def check(demo: dict, term_offset: tuple[int, int] | None = None) -> list[tuple[
             raise ValueError(f"subtask {i - 1} ends at {bounds[i - 1][1]}: with Mimic's largest offset ({hi}) it "
                              f"would run past subtask {i}'s end ({bounds[i][1]})")
     return bounds
+
+
+# --- re-verifying Mimic's generated demos with SANT's check_success (CPU) ----------------------------------
+
+#: sim_worker.replay's contact threshold: a pair below this (N) is "not in contact".
+CONTACT_N = 0.1
+#: The SANT Mimic env's control rate (Hz).
+RATE_HZ = 50
+
+
+def bin_pose_from_state(initial_state: dict):
+    """The bin's Pose (its origin, (w, x, y, z)) from a demo's initial_state: the floor box, less its centre."""
+    from .schemas import Pose
+
+    root = np.asarray(initial_state["rigid_object"]["bin_floor"]["root_pose"], dtype=np.float64)[0]
+    q_wxyz = np.concatenate([root[6:7], root[3:6]])
+    origin = root[:3] - _rotation(q_wxyz) @ np.asarray(BIN_PART_CENTERS["bin_floor"])
+    return Pose(pos=tuple(origin.tolist()), quat_wxyz=tuple((q_wxyz / np.linalg.norm(q_wxyz)).tolist()))
+
+
+def verify_generated(demo: dict):
+    """SANT's check_success on one demo the SANT Mimic env generated (sim_worker/mimic_env.py records it):
+
+    actions [N, 8]            the commanded tool pose (xyzw) and gripper: the trajectory, at RATE_HZ;
+    obs/eef_pos [N, 3]        the tool before each step, so the reached pose after step t is row t + 1;
+    obs/sant/cube_pos [N, 3]  the cube after each step;
+    obs/sant/contact_forces   [N, 3] after each step: fingers on the cube, arm on the bin, arm on the table (N);
+    initial_state             the bin, from its floor box.
+
+    The arm's tracking error (`unreachable`) is |commanded - reached| per step. Returns the VerificationResult.
+    """
+    from .schemas import SimSignals, Trajectory
+    from .success import check_success
+
+    a = np.asarray(demo["actions"], dtype=np.float64)
+    n = len(a)
+    q = a[:, 3:7]
+    traj = Trajectory(t=(np.arange(n) / RATE_HZ).tolist(), ee_pos=a[:, :3].tolist(),
+                      ee_quat=np.concatenate([q[:, 3:4], q[:, :3]], axis=1).tolist(),
+                      gripper=(a[:, 7] < 0).astype(int).tolist())
+    sant = demo["obs"]["sant"]
+    f = np.asarray(sant["contact_forces"], dtype=np.float64)
+    sim = SimSignals(cube_pos=np.asarray(sant["cube_pos"], dtype=np.float64), contact_gripper_cube=f[:, 0] > CONTACT_N,
+                     contact_arm_bin=f[:, 1] > CONTACT_N, contact_arm_table=f[:, 2] > CONTACT_N,
+                     max_contact_force=f[:, 1:].max(axis=1))
+    eef = np.asarray(demo["obs"]["eef_pos"], dtype=np.float64)
+    reached = np.vstack([eef[1:], eef[-1:]])
+    tcp_error = np.linalg.norm(a[:, :3] - reached, axis=1)
+    return check_success(traj, sim, bin_pose_from_state(demo["initial_state"]), tcp_error=tcp_error)

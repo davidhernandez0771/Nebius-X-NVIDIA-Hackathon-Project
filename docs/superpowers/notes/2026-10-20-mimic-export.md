@@ -192,41 +192,66 @@ sim_worker.mimic_register.register`; it registers by name only, so nothing heavy
   - 5 interpolation steps;
   - keep failed demos (in a separate file).
 
-## GPU smoke test (later; not run). Take the GPU lock first
+## GPU smoke test (prepared; not run yet)
 
-Read `C:\dev\gpu.lock`, as `sim_worker/gpu_lock.py` describes: wait while it names a live process, then write your
-own line and delete it when done. PowerShell, from anywhere:
+One command, with Isaac Lab's Python (no install; PYTHONPATH is set for the child):
 
 ```
-$env:PYTHONPATH = "C:\dev\pm-t2;C:\dev\pm-t2\src;C:\isaac\IsaacLab\source\isaaclab_mimic"
-C:\isaac\env_isaaclab\Scripts\python.exe C:\isaac\IsaacLab\scripts\imitation_learning\isaaclab_mimic\generate_dataset.py `
-  --device cpu --num_envs 1 --generation_num_trials 10 --max_num_failures 30 `
-  --input_file C:\dev\pm-t2\data\exports\mimic\human10c_sources.hdf5 `
-  --output_file C:\dev\pm-t2\data\exports\mimic\smoke_10.hdf5 `
-  --external_callback sim_worker.mimic_register.register
+C:isaacenv_isaaclabScriptspython.exe scriptsmimic_smoke.py
 ```
 
-- `--task` defaults to the file's env name.
-- `--max_num_failures` bounds the run if nothing succeeds: generation guarantee is on, so otherwise it would
-  try forever.
-- Add `--viz kit` to watch.
-- **Pass:** it prints "10/N successful demos generated". `smoke_10.hdf5` holds the successes; the failures go
-  to a separate file (`generation_keep_failed`).
-- **Then:** replay them through SANT's verifier.
-- **Optional cross-check of our annotation against Mimic's auto mode:** same `PYTHONPATH`, then
-  `...\annotate_demos.py --auto --task SANT-PickPlace-Franka-IK-Abs-Mimic-v0 --input_file ...sources.hdf5
-  --output_file ...reannotated.hdf5 --external_callback sim_worker.mimic_register.register`.
-  - It replays our actions from `initial_state` and records Mimic's own `grasp` flags.
-  - It fails a demo if the env's success never holds.
+Defaults: `--input dataexportsmimichuman10c_sources.hdf5 --output dataexportsmimicsmoke_10.hdf5 --trials 10
+--max-failures 30 --timeout-s 1800`. Add `--viz` to watch; `--dry-run` prints the command and stops.
+
+1. **The lock.** It takes `C:devgpu.lock` with `sim_worker.gpu_lock.GpuLock` (O_EXCL). It waits up to 10 min
+   (`--lock-wait-s`) while a live process holds it, and releases it when the generator ends, fails or times out
+   (tested with a fake generator).
+2. **The generator.** It runs Isaac Lab's `generate_dataset.py` with:
+   - `--device cpu --num_envs 1`;
+   - `--generation_num_trials 10 --max_num_failures 30`;
+   - our file in;
+   - `--external_callback sim_worker.mimic_register.register`;
+   - `PYTHONPATH` = repo, `src`, `C:isaacIsaacLabsourceisaaclab_mimic`.
+
+   There is no `--headless` flag; this Isaac Lab doesn't have one. The output goes to `<output>.log`.
+   - `--max_num_failures` bounds the run: generation guarantee is on, so otherwise it would try until 10
+     succeed.
+   - Mimic's successes go to `smoke_10.hdf5`, its failures to `smoke_10_failed.hdf5` (`generation_keep_failed`).
+3. **SANT's verdict (CPU).** `report()` runs `demo_pipeline.mimic.verify_generated` on each success, i.e. the real
+   `check_success`. The inputs are rebuilt from what the env records:
+   - `actions` → the trajectory and the gripper;
+   - `obs/sant/cube_pos` and `obs/sant/contact_forces` (after each step) → the SimSignals (fingers-cube,
+     arm-bin and arm-table forces as replay reads them, 0.1 N contact threshold);
+   - `obs/eef_pos` → the tracking error for `unreachable`;
+   - `initial_state`'s floor box → the bin pose.
+
+   It writes `smoke_10_report.json`: Mimic's succeeded and failed counts, SANT-verified count, reasons per
+   demo, and any demo it can't read, which is a wiring error.
+
+**What the env records for that:**
+- the `sant` observation group (`cube_pos`, `contact_forces`);
+- its `SantSignalsRecorder` (post-step, `obs/sant/…`), added through `mimic_recorder_config`
+  (`SantRecorderManagerCfg`).
+
+That config keeps Isaac Lab's default generation recording: actions, policy observations, states and the initial
+state.
+
+**Optional cross-check of our annotation against Mimic's auto mode:** same `PYTHONPATH`, then
+`...annotate_demos.py --auto --task SANT-PickPlace-Franka-IK-Abs-Mimic-v0 --input_file ...sources.hdf5
+--output_file ...reannotated.hdf5 --external_callback sim_worker.mimic_register.register`.
+- It replays our actions from `initial_state` and records Mimic's own `grasp` flags.
+- It fails a demo if the env's success never holds.
 
 ## Tests (the export and the env)
 
 | where | command | result |
 |---|---|---|
-| SANT venv | `uv run pytest tests/test_dp_mimic.py tests/test_export_mimic.py tests/test_mimic_env.py` | 21 passed, 6 skipped (h5py; the env file needs Isaac Lab) |
-| Isaac Lab's Python, CPU, no app | `set PYTHONPATH=.;src;C:\isaac\IsaacLab\source\isaaclab_mimic` then `C:\isaac\env_isaaclab\Scripts\python.exe -m pytest --noconftest -p no:cacheprovider tests\test_mimic_env.py tests\test_dp_mimic.py tests\test_export_mimic.py` | **44 passed** |
+| SANT venv | `uv run pytest tests/test_dp_mimic.py tests/test_export_mimic.py tests/test_mimic_env.py tests/test_mimic_smoke.py` | 31 passed, 8 skipped (h5py; the env file needs Isaac Lab) |
+| Isaac Lab's Python, CPU, no app | `set PYTHONPATH=.;src;C:\isaac\IsaacLab\source\isaaclab_mimic` then `C:\isaac\env_isaaclab\Scripts\python.exe -m pytest --noconftest -p no:cacheprovider tests\test_mimic_smoke.py tests\test_mimic_env.py tests\test_dp_mimic.py tests\test_export_mimic.py` | **60 passed** |
 
-`test_mimic_env.py` (18 tests):
+`test_dp_mimic.py` adds 5 tests that `verify_generated` passes a clean generated demo and fails one for each of collision, not in bin, and dropped. `test_mimic_smoke.py` (7 tests) covers the runner: the command, PYTHONPATH, the lock held during the run and released after success or failure, no overwrite, and the report on fake generated files.
+
+`test_mimic_env.py` (22 tests):
 - **The config:**
   - action and offset;
   - 50 Hz and 30 s;
