@@ -94,4 +94,35 @@ script takes `C:\dev\gpu.lock` itself for train and eval and holds KeepAwake.
 
 ## Result
 
-(pending)
+**3/40 successes (7.5%), Wilson 95% CI [2.6%, 19.9%].** Successful seeds: 5050, 5056, 5057.
+
+- **Run.** `hx_human10c_20261020_112039`, ran 11:20–12:37 local, one command, exit 0.
+  - Training: 27 episodes, 11,313 frames. 1619 s for 30k steps; final loss 0.065. The 30k checkpoint was evaluated.
+  - Eval: serial, 11:50–12:37, 68 s wall per episode.
+  - Start pose `dataset_mean` over the 27 training starts.
+  - All 40 registered seeds are valid: no `sim_error` / `policy_error`, none missing.
+- **Failures** (37 episodes, every one ended by the 30 s limit; the eval's reasons, one episode can have several):
+
+  | Reasons | Episodes |
+  |---|---|
+  | not_in_bin, dropped | 19 |
+  | not_in_bin only | 9 |
+  | not_in_bin, collision, dropped | 3 |
+  | not_in_bin, gripper_closed, collision, dropped | 3 |
+  | not_in_bin, gripper_closed | 2 |
+  | not_in_bin, gripper_closed, dropped | 1 |
+
+  - Totals: not_in_bin 37, dropped 26, gripper_closed 6, collision 6.
+  - Drops dominate, as in the sprint 7/8 and grasp-fix runs ([grasp fix](2026-10-18-t3-grasp-fix.md)).
+- **Files.**
+  - `C:\dev\pm-t6\data\human_exp\human10c\results.json`.
+  - `C:\dev\pm-t6\data\evals\hx_human10c_20261020_112039\perfected_multiply_10.json`, with per-seed episodes and
+    the eval log.
+  - The registry row in `C:\dev\pm-t6\data\results\registry.jsonl`.
+- **Reading it.** This is a single arm, so it shows how well the policy does, not that it beats anything.
+  - The data is small and narrow: 27 episodes from 3 human roots (7 / 10 / 10).
+  - For reference only, not a comparison: the scripted-expert runs got 17/40 from 110 episodes over 10 roots
+    (sprint 7, 10×10), with a different source, size and spread.
+  - The interval's upper end (about 20%) caps what this data gives today. More verified roots, from re-recorded or
+    keyboard demos, is the obvious lever; the drops are the failure to fix.
+- **Not done.** Nothing was published (`--publish-results` refuses a one-arm run), and nothing was pushed.
