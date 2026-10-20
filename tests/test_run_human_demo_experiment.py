@@ -450,3 +450,38 @@ def test_multiplied_only_is_left_out_of_the_config_unless_set(hx, tmp_path):
     assert "multiplied_only" not in json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
     with pytest.raises(hx.Refused, match="multiplied_only"):
         exp.select(ids=None, tag=None, settings={**SMOKE, "multiplied_only": True})
+
+
+def test_min_demos_refuses_a_short_selection_and_writes_nothing(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    with pytest.raises(hx.Refused, match="3 demos.*at least 5"):
+        exp.select(ids=None, tag="standin_*", settings={**SMOKE, "min_demos": 5})
+    assert not (tmp_path / "human_exp" / "smoke1" / "config.json").exists()
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "min_demos": 3})  # enough: frozen with the rule
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert config["min_demos"] == 3
+
+
+def test_soft_floor_assist_is_frozen_and_reported_not_filtered(hx, tmp_path):
+    from demo_pipeline.schemas import Assist
+
+    user = _user_store(tmp_path)
+    for i, id in enumerate(IDS[:2]):
+        user.save_demo(user.get_demo(id).model_copy(update={"assist": Assist(soft_floor=i == 0,
+                                                                            soft_floor_steps=40 if i == 0 else 0)}))
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    root = tmp_path / "human_exp" / "smoke1"
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    assert config["ids"] == IDS  # nothing filtered out
+    assert config["assist"] == {"standin_00": {"soft_floor": True, "soft_floor_steps": 40},
+                                "standin_01": {"soft_floor": False, "soft_floor_steps": 0}, "standin_02": None}
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "1 of 3 demos were recorded with the soft floor holding" in prereg and "`standin_00` (40 steps)" in prereg
+
+
+def test_no_assist_key_for_demos_recorded_before_it(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert "assist" not in config and "min_demos" not in config

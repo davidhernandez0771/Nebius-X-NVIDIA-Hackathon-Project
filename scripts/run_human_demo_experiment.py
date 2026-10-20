@@ -195,6 +195,10 @@ class Experiment:
             chosen, tag, input = old["ids"], old.get("tag"), old.get("input")
         else:
             chosen = select_ids(self.deps.user_store, ids=ids, tag=tag, input=input)
+        min_n = settings.get("min_demos")
+        if min_n and len(chosen) < min_n:  # pre-registered: too few demos refuses, nothing is frozen
+            raise Refused(f"{len(chosen)} demos selected ({tag or ','.join(chosen)}"
+                          f"{f', input {input}' if input else ''}); this run needs at least {min_n} (--min-demos)")
         config = {
             "name": self.name, "ids": chosen, "n_human": len(chosen), "tag": tag,
             **({"input": input} if input is not None else {}),  # only when filtered: older frozen configs still match
@@ -206,6 +210,9 @@ class Experiment:
             "test": "fisher_exact_two_sided", "alpha": 0.05, "ci": "wilson_95",
             "pipeline_version": PIPELINE_VERSION, **settings,
         }
+        assists = {id: a.model_dump() if (a := self.deps.user_store.get_demo(id).assist) else None for id in chosen}
+        if any(a is not None for a in assists.values()):  # reported, never filtered; absent for older demos
+            config["assist"] = assists
         if config["repair"] not in REPAIRERS:
             raise Refused(f"repair must be one of {REPAIRERS}, got {config['repair']!r}")
         config["replay_path"] = settings.get("replay_path", "achieved")
@@ -688,7 +695,7 @@ def nemotron_summary(cards: dict) -> dict:
 def preregistration(config: dict) -> str:
     """The pre-registration, filled from the frozen config. Written at select, before any training."""
     n, s0, ne = config["n_human"], config["eval_seed0"], config["eval_n"]
-    ids = "\n".join(f"  - `{id}` sha256 `{config['demo_sha256'][id]}`" for id in config["ids"])
+    ids = "\n".join(f"  - `{id}` sha256 `{config['demo_sha256'][id]}`" for id in config["ids"]) + assist_text(config)
     if config.get("multiplied_only"):
         return preregistration_one_arm(config, ids)
     return f"""# Pre-registration: human-demo experiment `{config['name']}`
@@ -735,6 +742,20 @@ trained on the same {n} demos as recorded?
 - the multiply yield;
 - Nemotron's labels and matches (shown, never deciding).
 """
+
+
+def assist_text(config: dict) -> str:
+    """The soft floor's help, per demo (Demo.assist): reported in the pre-registration, never a filter."""
+    assist = config.get("assist")
+    if not assist:
+        return ""
+    held = [(id, a["soft_floor_steps"]) for id, a in assist.items() if a and a["soft_floor"] and a["soft_floor_steps"]]
+    idle = sum(bool(a and a["soft_floor"] and not a["soft_floor_steps"]) for a in assist.values())
+    unknown = sum(a is None for a in assist.values())
+    return (f"\n\n**Assist (reported, not filtered).** {len(held)} of {len(assist)} demos were recorded with the soft floor "
+            f"holding the target up" + (": " + ", ".join(f"`{id}` ({n} steps)" for id, n in held) if held else "")
+            + f". {idle} more had it on without it engaging; {unknown} carry no assist record. Both arms use every "
+            f"selected demo either way, and the per-demo record is in config.json.")
 
 
 def preregistration_one_arm(config: dict, ids: str) -> str:
@@ -928,6 +949,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="only demos recorded with this input (the Record page's switch; older demos have none)")
     p.add_argument("--data-dir", type=Path, default=None, help="DATA_DIR (default: the DATA_DIR env var, or data/)")
     p.add_argument("--smoke", action="store_true", help="2000 steps, 5 eval seeds, results marked sample")
+    p.add_argument("--min-demos", type=int, default=None,
+                   help="refuse at select (nothing frozen) if fewer human demos match; frozen in config.json")
     p.add_argument("--variants", type=int)
     p.add_argument("--steps", type=int)
     p.add_argument("--save-freq", type=int)
@@ -963,6 +986,8 @@ def main(argv: list[str] | None = None) -> int:
     settings["replay_lookahead"] = args.replay_lookahead if args.replay_lookahead is not None else 0
     if args.multiplied_only:  # only when set: configs frozen before the flag existed resume unchanged
         settings["multiplied_only"] = True
+    if args.min_demos is not None:  # likewise
+        settings["min_demos"] = args.min_demos
     if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
         p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")
