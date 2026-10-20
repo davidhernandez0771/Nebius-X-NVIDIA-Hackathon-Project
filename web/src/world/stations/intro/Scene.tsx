@@ -1,13 +1,13 @@
 // The opening in 3D, after Active Theory's hero: a clean dark space (the backdrop, sparse dust) with
 // the SANT logo turning slowly in the middle as a glass object, built from mark.svg (logo3d.ts). The
-// scroll turns and leans it (storyPlan.ts) while the words come and go beside it (Story.tsx); at the end
-// it becomes the ring: the core spins away into the centre and the ring's tube grows round the arcs.
-// As the descent starts, the ring bursts into the particles that build the workshop
-// (stations/descent/Generator.tsx), its tube shrinking to nothing. High and ultra draw real glass
-// (transmission, with dispersion on ultra); low and phones get polished iridescent chrome, no refraction.
-// It is also the loader's real work: the mark, the logo built for the tier, and every shader compiled
-// before the loader lets go (progress.ts).
-import { useEffect, useMemo, useRef, useState } from "react";
+// scroll turns and leans it (storyPlan.ts) while the hero's words sit beside it (Story.tsx); then the
+// camera sinks below it (path.ts) and the hero goes out into the dark. Below are the places the story
+// descends through, the forest and the reactor (Places.tsx), loaded once the loader is done; the
+// reactor's top ring is THE RING the descent bursts. High and ultra draw real glass (transmission, with
+// dispersion on ultra); low and phones get polished iridescent chrome, no refraction. It is also the
+// loader's real work: the mark, the logo built for the tier, and every shader compiled before the
+// loader lets go (progress.ts).
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -18,23 +18,22 @@ import type { QualityTier } from "../../core/quality";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { onPointer, pointer } from "../../ui/pointer";
-import { DUST, LOGO, LOGO_R, RING } from "./layout";
+import { DUST, LOGO, LOGO_R } from "./layout";
 import { extrudeLogo, logoShapes } from "./logo3d";
 import { MARK_URL } from "./mark";
 import { dustBuffers } from "./particles";
 import { load } from "./progress";
 import { backdropFrag, backdropVert, dustFrag, dustVert } from "./shaders";
-import { INTRO_VH, logoPose } from "./storyPlan";
+import { INTRO_VH, logoPose, placeLights } from "./storyPlan";
+
+// The forest and the reactor: after the first frame, with their STL loader and shaders.
+const Places = lazy(() => import("./Places"));
 
 /** Seconds for the logo to grow in once the loader lets go. */
 export const GATHER_S = 1.6;
 /** The slow turn of its own, radians a second (on top of the scroll's turn), where idle loops run. */
 const SPIN = 0.12;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-const smooth = (a: number, b: number, v: number) => {
-  const t = clamp01((v - a) / (b - a));
-  return t * t * (3 - 2 * t);
-};
 const easeOutBack = (u: number) => 1 + 2.2 * (u - 1) ** 3 + 1.2 * (u - 1) ** 2;
 
 /** The mark's SVG text, through three's loading manager (so the loader counts it). Null until it arrives. */
@@ -135,41 +134,6 @@ function makeLogo(svg: string, q: QualityTier, env: THREE.Texture): Logo {
   };
 }
 
-/** The portal's ring: iridescent chrome whose tube grows from nothing (uTube 0–1) in the morph. */
-function makeRing(lowTier: boolean, env: THREE.Texture) {
-  const mat = new THREE.MeshPhysicalMaterial({
-    color: 0x8e979b,
-    metalness: 1,
-    roughness: 0.2,
-    iridescence: 1,
-    iridescenceIOR: 1.8,
-    iridescenceThicknessRange: [180, 820],
-    envMap: env,
-    envMapIntensity: 0.9,
-  });
-  const tube = { value: 0 };
-  mat.onBeforeCompile = (s) => {
-    s.uniforms.uTube = tube;
-    s.vertexShader = s.vertexShader
-      .replace("#include <common>", "#include <common>\nuniform float uTube;")
-      .replace(
-        "#include <begin_vertex>",
-        // The tube scaled about its own centre line (the ring's circle), so it thickens in place.
-        `#include <begin_vertex>
-  vec3 ringC = vec3(normalize(transformed.xy) * ${RING.radius.toFixed(3)}, 0.0);
-  transformed = ringC + (transformed - ringC) * uTube;`,
-      );
-  };
-  const geo = new THREE.TorusGeometry(RING.radius, RING.tube, lowTier ? 24 : 48, lowTier ? 96 : 200);
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(...LOGO);
-  mesh.scale.setScalar(LOGO_R / RING.radius);
-  mesh.name = "intro:ring";
-  mesh.raycast = () => {};
-  mesh.visible = false;
-  return { mesh, mat, tube, dispose: () => (geo.dispose(), mat.dispose()) };
-}
-
 function makeBackdrop() {
   const mat = new THREE.ShaderMaterial({
     vertexShader: backdropVert,
@@ -232,9 +196,8 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   const invalidate = useThree((s) => s.invalidate);
   const svg = useMarkSvg();
   const env = useStudio();
-  const low = quality.name === "low";
   const logo = useMemo(() => (svg ? makeLogo(svg, quality, env) : null), [svg, quality, env]);
-  const ring = useMemo(() => makeRing(low, env), [low, env]);
+  const loaded = useSyncExternalStore(store.subscribe, () => store.getCoarse().ready);
   const backdrop = useMemo(() => makeBackdrop(), []);
   // Sparse: a third of the tier's dust, so the space reads empty and deep.
   const dust = useMemo(() => makeDust(Math.round(quality.dustParticles / 3)), [quality.dustParticles]);
@@ -249,7 +212,6 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     report(useProgress.getState());
     return useProgress.subscribe(report);
   }, []);
-  useEffect(() => () => ring.dispose(), [ring]);
   useEffect(() => () => backdrop.dispose(), [backdrop]);
   useEffect(() => () => dust.geometry.dispose(), [dust]);
   useEffect(() => () => logo?.dispose(), [logo]);
@@ -286,33 +248,23 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
 
     const vh = frame.t * INTRO_VH;
     const pose = logoPose(vh);
-    // The descent's first moments: the ring bursts into the generator's particles.
-    const burst = smooth(0.02, 0.2, store.frames.descent.t);
+    // The hero goes out into the dark as the camera sinks below it (held with reduced motion).
+    const light = reduced ? 1 : placeLights(vh).hero;
     const idle = quality.idleMotion && !reduced;
 
     if (logo) {
-      const free = 1 - pose.morph;
-      // Its own slow turn: it slows to a stop in the morph and unwinds (the short way) to square on.
-      if (idle) s.spin = (s.spin + dt * SPIN * free) % (Math.PI * 2);
-      const spin = (s.spin > Math.PI ? s.spin - Math.PI * 2 : s.spin) * free;
-      logo.group.rotation.set(pose.tilt - s.my * 0.14 * free, pose.turn + spin + s.mx * 0.22 * free, 0);
+      if (idle) s.spin = (s.spin + dt * SPIN) % (Math.PI * 2);
+      logo.group.rotation.set(pose.tilt - s.my * 0.14, pose.turn + s.spin + s.mx * 0.22, 0);
       logo.group.scale.setScalar(LOGO_R * (reduced ? 1 : Math.max(0.001, easeOutBack(grow))));
-      // The core spins away into the centre; the arcs stay until the ring's tube has closed over them.
-      const coreK = 1 - smooth(0, 0.6, pose.morph);
-      logo.core.scale.setScalar(Math.max(0.001, coreK));
-      logo.core.rotation.z = (1 - coreK) * Math.PI;
-      logo.core.visible = coreK > 0.002;
-      logo.group.visible = grow > 0 && pose.morph < 0.97 && burst < 1;
+      const m = logo.core.material as THREE.MeshPhysicalMaterial;
+      m.envMapIntensity = (quality.name === "low" ? 1.2 : 1.5) * light;
+      logo.group.visible = grow > 0 && light > 0;
     }
-    ring.tube.value = smooth(0.12, 0.85, pose.morph) * (1 - burst);
-    ring.mesh.visible = ring.tube.value > 0.002;
-    ring.mesh.rotation.z = now * 0.08;
-    ring.mat.iridescenceThicknessRange[1] = 700 + 220 * Math.sin(now * 0.7 + s.mx * 2);
 
     const b = backdrop.mat.uniforms;
-    // The dark space gives way as the camera drops toward the room.
-    b.uDim.value = smooth(0.3, 0.7, store.frames.descent.t);
-    backdrop.mesh.visible = b.uDim.value < 1;
+    b.uDim.value = 1 - light;
+    backdrop.mesh.visible = light > 0;
+    dust.visible = light > 0;
 
     const du = dust.material.uniforms;
     du.uTime.value = now;
@@ -321,15 +273,19 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     // Growing plays on every tier; the turn of its own only where idle loops are allowed.
     const branch = store.getCoarse().branch !== null;
     if ((ready && grow < 1) || Math.abs(pointer.x - s.mx) + Math.abs(pointer.y - s.my) > 0.002) invalidate();
-    else if (idle && !branch && frame.near) ambient(invalidate);
+    else if (idle && !branch && frame.near && light > 0) ambient(invalidate);
   });
 
   return (
     <group>
       <primitive object={backdrop.mesh} />
-      <primitive object={ring.mesh} />
       {logo ? <primitive object={logo.group} /> : null}
       <primitive object={dust} />
+      {loaded && !reduced ? (
+        <Suspense fallback={null}>
+          <Places quality={quality} reduced={reduced} />
+        </Suspense>
+      ) : null}
     </group>
   );
 }

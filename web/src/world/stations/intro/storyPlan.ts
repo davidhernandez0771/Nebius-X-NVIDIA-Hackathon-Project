@@ -1,36 +1,62 @@
-// The intro's plan, in viewport heights of scroll (vh): the hero, then four beats (the problem,
-// S·A·N·T, the proof, Nemotron's jobs), then the morph where the glass logo becomes the ring. Like
-// Active Theory's "About": one dark space, the logo spinning in the middle, the words next to it
-// (Story.tsx) and nothing else; the scroll drives the logo's turn and pose and each beat's reveal.
-// Pure, so the timing is tested; Scene.tsx and Story.tsx read it every frame. (Not story.ts: next to
-// Story.tsx that name breaks Windows, see fileNames.test.ts.)
-import { mixPose, smoother } from "../../core/rail";
-import { stop } from "../../scene/layout";
-import type { CameraPose, Vec3 } from "../../core/types";
-import { LOGO } from "./layout";
+// The intro's plan, in viewport heights of scroll (vh): a story you descend through, like Active
+// Theory's forest → spine → reactor → lab. The hero (the glass logo in the dark), the sink below it, the
+// forest floor (the problem), the drop down the crack, the reactor powering up (S·A·N·T, the proof,
+// Nemotron), then the ring stage, where the core's top ring lifts off at full power and becomes THE RING
+// the descent dives through. Everything is a pure function of the scroll, so every drop plays backwards
+// on the way up, and the places are lit one at a time with full dark between them (placeLights), so one
+// never shows through another. The camera is path.ts; Scene.tsx, Places.tsx and Story.tsx read these.
+// (Not story.ts: next to Story.tsx that name breaks Windows, see fileNames.test.ts.)
+import { smoother } from "../../core/rail";
 
-export const PLAN = { hero: 1.2, beat: 1.5, beats: 4, morph: 1 } as const;
+/** The stages, top to bottom, with their scroll lengths (vh). */
+export const PLAN = [
+  { id: "hero", vh: 1.2 },
+  { id: "sink", vh: 1.5 },
+  { id: "forest", vh: 1.9 },
+  { id: "crack", vh: 1.5 },
+  { id: "reactor", vh: 4.5 },
+  { id: "ring", vh: 1.1 },
+] as const;
 
-/** The hero and the four beats. */
-export const BEATS = 1 + PLAN.beats;
+export type Stage = (typeof PLAN)[number]["id"];
 
-/** Where the beats end and the morph starts. */
-export const BEATS_END = PLAN.hero + PLAN.beats * PLAN.beat;
+const STARTS = PLAN.map((_, i) => PLAN.slice(0, i).reduce((s, p) => s + p.vh, 0));
+
+/** A stage's span [start, end) in vh. */
+export function span(id: Stage): [number, number] {
+  const i = PLAN.findIndex((p) => p.id === id);
+  return [STARTS[i], STARTS[i] + PLAN[i].vh];
+}
 
 /** The intro's dwell in vh. */
-export const INTRO_VH = BEATS_END + PLAN.morph;
+export const INTRO_VH = STARTS[STARTS.length - 1] + PLAN[PLAN.length - 1].vh;
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const smooth = (a: number, b: number, v: number) => {
   const t = clamp01((v - a) / (b - a));
   return t * t * (3 - 2 * t);
 };
+/** 0–1 through a stage. */
+export const progress = (id: Stage, vh: number) => {
+  const [a, b] = span(id);
+  return clamp01((vh - a) / (b - a));
+};
+/** The vh at fraction k of a stage. */
+const at = (id: Stage, k: number) => {
+  const [a, b] = span(id);
+  return a + (b - a) * k;
+};
+
+/** The hero and the four beats: the problem in the forest, then three as the reactor powers up. */
+export const BEATS = 5;
 
 /** Beat i's span [start, end) in vh. Beat 0 is the hero. */
 export function beatSpan(i: number): [number, number] {
-  if (i === 0) return [0, PLAN.hero];
-  const a = PLAN.hero + (i - 1) * PLAN.beat;
-  return [a, a + PLAN.beat];
+  if (i === 0) return span("hero");
+  if (i === 1) return span("forest");
+  const [a, b] = span("reactor");
+  const len = (b - a) / 3;
+  return [a + (i - 2) * len, a + (i - 1) * len];
 }
 
 export interface BeatState {
@@ -42,7 +68,7 @@ export interface BeatState {
   reveal: number;
 }
 
-/** How beat i shows at scroll `vh`. Only one beat is ever on screen: the next starts as the last ends. */
+/** How beat i shows at scroll `vh`. Only one beat is ever on screen, and none on the way down. */
 export function beatState(vh: number, i: number): BeatState {
   const [a, b] = beatSpan(i);
   const len = b - a;
@@ -52,69 +78,44 @@ export function beatState(vh: number, i: number): BeatState {
   return { k, shown, reveal: clamp01((vh - a) / (len * 0.36)) };
 }
 
-/** Whole turns the logo makes over the beats: it ends square to the camera for the morph. */
-const TURNS = 2;
+/** The places that are drawn; the drops between them are dark. */
+export const PLACES = ["hero", "forest", "reactor"] as const;
+export type Place = (typeof PLACES)[number];
 
-/** The logo's lean toward the camera at each beat's middle (radians about x), back to 0 for the morph. */
-const TILTS = [0.16, -0.3, 0.28, -0.22, 0.24];
+/**
+ * How lit each place is (0 is not drawn at all). The hero goes out as the camera sinks below it, the
+ * forest comes up out of the dark as the camera reaches the trunks, goes out as it drops into the crack,
+ * and the reactor's glow comes up near the fissure's bottom. Between, nothing is lit. The reactor stays
+ * lit to the end: the descent's burst takes it (Places.tsx).
+ */
+export function placeLights(vh: number): Record<Place, number> {
+  return {
+    hero: 1 - smooth(at("sink", 0), at("sink", 0.4), vh),
+    forest: smooth(at("sink", 0.6), at("sink", 1), vh) * (1 - smooth(at("crack", 0.3), at("crack", 0.45), vh)),
+    reactor: smooth(at("crack", 0.78), at("crack", 1), vh),
+  };
+}
+
+/** The reactor's power, 0–1: dormant as the camera arrives, climbing through its three beats, full for the ring. */
+export function power(vh: number): number {
+  return progress("reactor", vh) ** 1.1;
+}
+
+/** 0–1: the top ring lifting off the core into THE RING, once the power is full. */
+export function ringLift(vh: number): number {
+  const [a, b] = span("ring");
+  return smoother((vh - a) / ((b - a) * 0.75));
+}
 
 export interface LogoPose {
   /** Turn about its vertical axis (radians), only ever forward with the scroll. */
   turn: number;
   /** Lean about its horizontal axis (radians). */
   tilt: number;
-  /** 0–1: the glass logo becoming the ring (Scene.tsx). */
-  morph: number;
 }
 
+/** The hero logo: one whole turn and a lean that settles while the camera sinks away from it. */
 export function logoPose(vh: number): LogoPose {
-  const turn = TURNS * Math.PI * 2 * smoother(clamp01(vh / BEATS_END));
-  const keys: [number, number][] = TILTS.map((tilt, i) => {
-    const [a, b] = beatSpan(i);
-    return [i === 0 ? 0 : (a + b) / 2, tilt];
-  });
-  keys.push([BEATS_END, 0]);
-  let tilt = 0;
-  if (vh <= keys[0][0]) tilt = keys[0][1];
-  else if (vh >= BEATS_END) tilt = 0;
-  else
-    for (let i = 1; i < keys.length; i++)
-      if (vh <= keys[i][0]) {
-        const [a, ta] = keys[i - 1];
-        const [b, tb] = keys[i];
-        tilt = ta + (tb - ta) * smoother((vh - a) / (b - a));
-        break;
-      }
-  return { turn, tilt, morph: smooth(BEATS_END, INTRO_VH, vh) };
-}
-
-const at = (x: number, y: number, z: number): CameraPose => ({ position: [x, y, z], target: LOGO as Vec3, fov: 40 });
-
-/**
- * The camera, by vh: square on for the hero, drifting a little to each side as the beats change
- * (the words sit on alternate sides), and square on again, nearer, for the morph into the ring.
- */
-const CAMERA_KEYS: [number, CameraPose][] = [
-  // Blender's "Title" stop: the hero, the logo big in the middle.
-  [0, stop("Title")],
-  [beatSpan(1)[0] + 0.4, at(-2.4, 37.1, 31)],
-  [beatSpan(2)[0] + 0.4, at(2.4, 35.8, 31)],
-  [beatSpan(3)[0] + 0.4, at(-1.6, 37.3, 31.5)],
-  [beatSpan(4)[0] + 0.4, at(2, 36.4, 30.5)],
-  [BEATS_END + PLAN.morph * 0.6, at(0, 36, 27)],
-];
-
-/** Where the intro ends: the ring square on. The descent starts from here. */
-export const PORTAL_VIEW: CameraPose = CAMERA_KEYS[CAMERA_KEYS.length - 1][1];
-
-export function cameraAt(vh: number): CameraPose {
-  if (vh <= CAMERA_KEYS[0][0]) return CAMERA_KEYS[0][1];
-  for (let i = 1; i < CAMERA_KEYS.length; i++) {
-    const [b, pb] = CAMERA_KEYS[i];
-    if (vh <= b) {
-      const [a, pa] = CAMERA_KEYS[i - 1];
-      return mixPose(pa, pb, smoother((vh - a) / (b - a)));
-    }
-  }
-  return PORTAL_VIEW;
+  const k = smoother(vh / span("sink")[1]);
+  return { turn: Math.PI * 2 * k, tilt: 0.16 * (1 - k) };
 }

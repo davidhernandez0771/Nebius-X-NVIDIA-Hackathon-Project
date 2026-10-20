@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { burstAt, convergeAt, POINTS, sampleBox, sampleTriangles, SHARES, splitBudget } from "./generatorPlan";
+import { THE_RING, RING_TUBE } from "../intro/layout";
+import { burstAt, burstPoints, convergeAt, POINTS, sampleBox, sampleTriangles, SHARES, splitBudget } from "./generatorPlan";
 
 /** A seeded generator, so the sampling tests are repeatable. */
 function seeded(seed = 7) {
@@ -106,5 +107,35 @@ describe("the burst and the convergence (mirrored in the shader)", () => {
 
   it("builds from the floor up: low targets land first", () => {
     expect(convergeAt(0.6, 0.5, 0)).toBeGreaterThan(convergeAt(0.6, 0.5, 1));
+  });
+});
+
+describe("burstPoints: where each particle starts and where the burst throws it", () => {
+  const n = 4000;
+  const b = burstPoints(n, THE_RING, RING_TUBE, seeded(3));
+  const [cx, cy, cz] = THE_RING.center;
+
+  it("starts every particle on THE RING's surface (its tube round the horizontal circle)", () => {
+    for (let i = 0; i < n; i++) {
+      const x = b.start[i * 3] - cx;
+      const y = b.start[i * 3 + 1] - cy;
+      const z = b.start[i * 3 + 2] - cz;
+      expect(Math.hypot(Math.hypot(x, z) - THE_RING.radius, y)).toBeCloseTo(RING_TUBE, 4);
+    }
+  });
+
+  it("throws them round and below the ring, into the camera's dive, never up out of the frame", () => {
+    let near = 0;
+    for (let i = 0; i < n; i++) {
+      const x = b.mid[i * 3] - cx;
+      const y = b.mid[i * 3 + 1] - cy;
+      const z = b.mid[i * 3 + 2] - cz;
+      expect(y).toBeLessThan(4);
+      expect(y).toBeGreaterThan(-30);
+      expect(Math.hypot(x, z)).toBeLessThan(32);
+      if (Math.hypot(x, z) < THE_RING.radius) near++;
+    }
+    // Some fill the opening itself, so the camera dives through particles.
+    expect(near / n).toBeGreaterThan(0.1);
   });
 });

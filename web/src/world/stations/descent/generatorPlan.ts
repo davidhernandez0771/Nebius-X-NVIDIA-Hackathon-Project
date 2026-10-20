@@ -132,3 +132,36 @@ export function convergeAt(t: number, r: number, h: number): number {
 
 /** The target's height 0–1, as the shader computes it (the floor at -0.6, the ceiling at 14.4). */
 export const heightOf = (y: number) => clamp01((y + 0.6) / 15);
+
+/** A horizontal ring: its centre and radius (world metres). */
+export interface RingAt {
+  center: readonly [number, number, number];
+  radius: number;
+}
+
+/**
+ * Where each particle starts and where the burst throws it: on THE RING's surface (its tube round the
+ * horizontal circle), then out round it and down the shaft the camera dives into, a fifth of them
+ * into the opening itself, so the camera falls through particles.
+ */
+export function burstPoints(n: number, ring: RingAt, tube: number, rnd: () => number): { start: Float32Array; mid: Float32Array } {
+  const [cx, cy, cz] = ring.center;
+  const R = ring.radius;
+  const start = new Float32Array(n * 3);
+  const mid = new Float32Array(n * 3);
+  const g = () => (rnd() + rnd() + rnd() - 1.5) * 4;
+  for (let i = 0; i < n; i++) {
+    const a = rnd() * Math.PI * 2;
+    const b = rnd() * Math.PI * 2;
+    const rr = R + tube * Math.cos(b);
+    start[i * 3] = cx + rr * Math.cos(a);
+    start[i * 3 + 1] = cy + tube * Math.sin(b);
+    start[i * 3 + 2] = cz + rr * Math.sin(a);
+    const rad = rnd() < 0.2 ? rnd() * R * 0.9 : R + rnd() ** 0.7 * 18;
+    const fall = rnd() ** 0.8 * 24;
+    mid[i * 3] = cx + Math.cos(a) * rad + g();
+    mid[i * 3 + 1] = cy + 2 - fall + (rnd() + rnd() - 1) * 1.5;
+    mid[i * 3 + 2] = cz + Math.sin(a) * rad + g();
+  }
+  return { start, mid };
+}

@@ -1,8 +1,9 @@
-// Descent (core): the generator. The ring the intro ends on bursts into particles that fill the dark;
-// the camera pushes into them, then drops down in front of the room's open wall while every particle
-// streams onto its point of the workshop (Generator.tsx). By the end the room stands there in light,
-// and the workshop's travel materializes the real one over it (scene/dissolve.ts). A small mono
-// counter at the bottom says what is happening, as Active Theory's loader does.
+// Descent (core): the generator. THE RING the intro ends over (the reactor's top ring) bursts into
+// particles that fill the dark as the reactor goes out; the camera dives down through it, then falls in
+// front of the room's open wall while every particle streams onto its point of the workshop
+// (Generator.tsx). By the end the room stands there in light, and the workshop's travel materializes
+// the real one over it (scene/dissolve.ts). A small mono counter at the bottom says what is happening,
+// as Active Theory's loader does.
 import { Suspense, useRef } from "react";
 import { useStationFrame } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps, StationSceneProps } from "../../core/types";
@@ -28,7 +29,7 @@ function Overlay(_: StationOverlayProps) {
   });
   return (
     <>
-      <p className="world-sr">The ring breaks into particles, and they build the workshop.</p>
+      <p className="world-sr">The ring breaks into particles, and they fall to build the workshop.</p>
       <p ref={line} className="world-building world-u" aria-hidden="true" />
     </>
   );
@@ -41,7 +42,7 @@ const descent: StationModule = {
   owner: "core",
   kind: "rail",
   anchor: [0, 0, 0],
-  // The intro ends on the ring, square on: the burst starts right there.
+  // The intro ends above THE RING, looking down into it: the burst starts right there.
   travel: 0,
   length: 3,
   camera: descentCamera,

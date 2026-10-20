@@ -1,5 +1,6 @@
-// The transition's particles (generatorPlan.ts): one Points draw. Over the descent the ring bursts into a
-// cloud that fills the dark around the camera, then every particle streams down onto its point of the
+// The transition's particles (generatorPlan.ts): one Points draw. Over the descent THE RING (the reactor's
+// top ring, lifted off the core: stations/intro) bursts into a cloud that fills the shaft round the
+// camera as it dives through, then every particle streams down onto its point of the
 // workshop, sampled from the baked GLBs with the colour of the atlas there, and the cartridges on the
 // spiral and the shelves as boxes. The room is a glittering sculpture before it is a room. As the
 // workshop's travel materializes the real surfaces (scene/dissolve.ts), each particle fades exactly
@@ -15,9 +16,9 @@ import type { StationFrame } from "../../core/types";
 import { BAKED, bakedUrl, type BakedName } from "../../scene/assets";
 import { DISSOLVE_EDGE, DISSOLVE_GLSL, dissolve, FIELD_MAX } from "../../scene/dissolve";
 import { HELIX, LIBRARY, type Slot } from "../../scene/layout";
-import { LOGO, LOGO_R, LOGO_SCALE, RING } from "../intro/layout";
+import { RING_TUBE, THE_RING } from "../intro/layout";
 import { seeded } from "../intro/particles";
-import { POINTS, SHARES, sampleBox, sampleTriangles, splitBudget, type Piece } from "./generatorPlan";
+import { burstPoints, POINTS, SHARES, sampleBox, sampleTriangles, splitBudget, type Piece } from "./generatorPlan";
 
 const vert = /* glsl */ `
 attribute vec3 aStart; attribute vec3 aMid; attribute vec3 aColor; attribute vec4 aRand;
@@ -158,24 +159,10 @@ function build(scenes: Record<BakedName, THREE.Object3D>, n: number): Buffers {
   // A piece whose mesh is missing leaves its share unused.
   const used = at;
 
-  // Start on the ring (its surface), burst outward and toward the camera into the cloud.
-  const start = new Float32Array(used * 3);
-  const mid = new Float32Array(used * 3);
+  // Start on THE RING (its surface), burst round it and down the shaft into the cloud.
+  const { start, mid } = burstPoints(used, THE_RING, RING_TUBE, rnd);
   const rand = new Float32Array(used * 4);
-  const tube = RING.tube * LOGO_SCALE;
-  for (let i = 0; i < used; i++) {
-    const a = rnd() * Math.PI * 2;
-    const b = rnd() * Math.PI * 2;
-    const rr = LOGO_R + tube * Math.cos(b);
-    const sx = LOGO[0] + rr * Math.cos(a);
-    const sy = LOGO[1] + rr * Math.sin(a);
-    const sz = LOGO[2] + tube * Math.sin(b);
-    start.set([sx, sy, sz], i * 3);
-    const out = 4 + rnd() ** 0.7 * 20;
-    const g = () => (rnd() + rnd() + rnd() - 1.5) * 4;
-    mid.set([LOGO[0] + Math.cos(a) * (LOGO_R + out) + g(), LOGO[1] + Math.sin(a) * (LOGO_R + out) * 0.8 - rnd() * 6 + g(), LOGO[2] - 4 + rnd() * 20 + g()], i * 3);
-    rand.set([rnd(), rnd(), rnd(), rnd()], i * 4);
-  }
+  for (let i = 0; i < used; i++) rand.set([rnd(), rnd(), rnd(), rnd()], i * 4);
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(target.subarray(0, used * 3), 3));
@@ -183,7 +170,7 @@ function build(scenes: Record<BakedName, THREE.Object3D>, n: number): Buffers {
   geometry.setAttribute("aStart", new THREE.BufferAttribute(start, 3));
   geometry.setAttribute("aMid", new THREE.BufferAttribute(mid, 3));
   geometry.setAttribute("aRand", new THREE.BufferAttribute(rand, 4));
-  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 18, 0), 70);
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 26, 10), 70);
   return { geometry };
 }
 
