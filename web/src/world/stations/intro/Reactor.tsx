@@ -12,7 +12,8 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import type { QualityTier } from "../../core/quality";
 import { CAVERN, CORE, RING } from "./layout";
 import { seeded } from "./particles";
-import { CABLES, cablePoint, particleSpeed, RINGS, ringPose, ringSpeed } from "./reactorPlan";
+import { CABLES, cablePoint, particleSpeed, pulseSpeed, RINGS, ringPose, ringSpeed, sparkRate } from "./reactorPlan";
+import { buildReactorDetail } from "./reactorGeometry";
 import { OUT, placeUniforms, surfaceFrag, surfaceMaterial } from "./placeShaders";
 
 const [AX, AZ] = CAVERN.axis;
@@ -86,12 +87,22 @@ void main(){
 const ringFrag = /* glsl */ `
 uniform float uPower; uniform vec3 uTeal;
 void main(){
-  // Segments of light on the ring's outer face, so its spin shows; dark metal between.
-  float dash = step(.3, fract(vUv.x * 44.)) * smoothstep(.35, .8, cos(vUv.y * 6.2832));
-  float lit = (.05 + uPower) * dash;
-  vec3 c = mix(vec3(.007, .0075, .0085), mix(uTeal, vec3(1.), .3), clamp(lit, 0., 1.));
   vec3 v = normalize(cameraPosition - vW);
-  c += vec3(.04, .05, .055) * pow(1. - max(0., dot(normalize(vN), v)), 3.);
+  float rim = pow(1. - max(0., dot(normalize(vN), v)), 3.);
+  vec3 c;
+  if (vUv.y < -.5) {
+    // A bolt head: bright steel catching the core's light.
+    c = vec3(.03, .034, .038) + mix(uTeal, vec3(1.), .5) * (.03 + .25 * uPower) * rim + vec3(.05) * rim;
+  } else if (vUv.y > 2.5) {
+    // The inner flange: dark steel.
+    c = vec3(.006, .0065, .0072) + vec3(.03, .036, .04) * rim;
+  } else {
+    // Segments of light on the ring's outer face, so its spin shows; dark metal between.
+    float dash = step(.3, fract(vUv.x * 44.)) * smoothstep(.35, .8, cos(vUv.y * 6.2832));
+    float lit = (.05 + uPower) * dash;
+    c = mix(vec3(.007, .0075, .0085), mix(uTeal, vec3(1.), .3), clamp(lit, 0., 1.));
+    c += vec3(.04, .05, .055) * rim;
+  }
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
 }`;
@@ -105,20 +116,107 @@ void main(){
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
-// reactorPlan.ts cableLight, mirrored.
+// reactorPlan.ts cableLight and cableFront, mirrored. The charge fills a cable from its junction box (s 0) to the
+// core (s 1) as the power climbs (the scroll), with a bright head at the front; pulses run along the lit part toward
+// the core, quickening with the power (uPulse integrates reactorPlan.pulseSpeed, so a change of speed never jumps).
 const cableFrag = /* glsl */ `
 varying float vCable;
-uniform float uPower, uN; uniform vec3 uTeal;
+uniform float uPower, uN, uPulse; uniform vec3 uTeal;
 void main(){
   float on = .06 + .8 * vCable / max(1., uN - 1.);
   float lit = smoothstep(on, on + .08, uPower);
-  float pulse = pow(.5 + .5 * sin(vUv.x * 40. - uTime * (2. + 5. * uPower)), 10.);
+  float front = smoothstep(on - .04, on + .06, uPower);
+  float s = vUv.x;
+  float charged = smoothstep(front + .02, front - .02, s) * step(.001, front);
+  float head = exp(-pow((s - front) * 30., 2.)) * step(.001, front) * (1. - step(.999, front));
+  float pulse = pow(.5 + .5 * sin(s * 34. - uPulse * 6.2832 * 2. + vCable * 1.7), 12.);
   vec3 v = normalize(cameraPosition - vW);
   vec3 c = vec3(.004, .0045, .005) + vec3(.025, .03, .033) * pow(1. - max(0., dot(normalize(vN), v)), 3.);
-  c += mix(uTeal, vec3(1.), .2) * lit * (.12 + .8 * pulse) * (.5 + .5 * vUv.x);
+  vec3 energy = mix(uTeal, vec3(1.), .2);
+  c += energy * charged * (.06 + .14 * lit + .8 * pulse * lit) * (.55 + .45 * s);
+  c += mix(energy, vec3(1.), .5) * head * .9;
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
 }`;
+
+// The core's cladding: dark steel panels with rows of vents that glow with the power, a bolt in each corner, and a
+// lit seam along their edges once the reactor is running.
+const panelFrag = /* glsl */ `
+uniform float uPower, uFlow; uniform vec3 uTeal;
+void main(){
+  vec3 n = normalize(vN);
+  vec3 v = normalize(cameraPosition - vW);
+  float x = vUv.x, y = vUv.y;
+  vec3 c = vec3(.0065, .007, .008) * (.75 + .5 * fbm3(vW * 4.));
+  float vent = step(.22, x) * step(x, .78) * step(.5, fract(y * 14.)) * step(.08, y) * step(y, .92);
+  float breathe = .65 + .35 * sin(uFlow * 3. + vW.y * .8);
+  c += mix(uTeal, vec3(1.), .25) * vent * (.02 + .9 * uPower * uPower) * breathe;
+  vec2 corner = vec2(min(x, 1. - x), min(y, 1. - y) * 4.);
+  float bolt = smoothstep(.05, .03, length(corner - vec2(.08, .2)));
+  c += vec3(.04, .045, .05) * bolt;
+  float edge = smoothstep(.03, 0., min(x, 1. - x));
+  c += uTeal * edge * .25 * uPower;
+  c += vec3(.03, .036, .04) * pow(1. - max(0., abs(dot(n, v))), 3.);
+  gl_FragColor = vec4(place(c, vW), 1.);
+  ${OUT}
+}`;
+
+// The junction boxes: steel; a lamp strip that lights with the first of its cables.
+const junctionFrag = /* glsl */ `
+uniform float uPower, uN; uniform vec3 uTeal, uWarm;
+void main(){
+  vec3 n = normalize(vN);
+  vec3 v = normalize(cameraPosition - vW);
+  vec3 c = vec3(.0055, .006, .007) * (.7 + .6 * fbm3(vW * 3.));
+  c += vec3(.03, .036, .04) * pow(1. - max(0., dot(n, v)), 3.);
+  if (vUv.y > 1.5) {
+    float on = .06 + .8 * (vUv.x * 4.) / max(1., uN - 1.);
+    float lit = smoothstep(on, on + .08, uPower);
+    c = mix(uWarm * .25, mix(uTeal, vec3(1.), .3), lit) * (.3 + .9 * lit);
+  }
+  gl_FragColor = vec4(place(c, vW), 1.);
+  ${OUT}
+}`;
+
+// Sparks at full power: each point is born on the top ring (as it lifts into THE RING) or a ring below, flies out and
+// falls under gravity in its own cycle, and only a sparkRate share of them is live.
+const flareVert = /* glsl */ `
+attribute vec4 aRand;
+uniform float uTime, uRate, uPR; uniform vec3 uTop; uniform float uTopR; uniform vec2 uAxis; uniform vec4 uRingY, uRingR;
+varying float vA;
+void main(){
+  float period = .7 + aRand.x * .9;
+  float t = fract(uTime / period + aRand.y);
+  float fromTop = step(.45, aRand.z);
+  float a = aRand.w * 6.2832;
+  int k = int(aRand.z * 7.99);
+  float ry = k == 0 ? uRingY.x : k == 1 ? uRingY.y : k == 2 ? uRingY.z : uRingY.w;
+  float rr = k == 0 ? uRingR.x : k == 1 ? uRingR.y : k == 2 ? uRingR.z : uRingR.w;
+  vec3 origin = mix(vec3(uAxis.x + cos(a) * rr, ry, uAxis.y + sin(a) * rr), uTop + vec3(cos(a), 0., sin(a)) * uTopR, fromTop);
+  vec3 vel = vec3(cos(a), 0., sin(a)) * (2. + 4. * aRand.x) + vec3(0., 2.5 + 4. * aRand.y, 0.);
+  vec3 p = origin + vel * t + vec3(0., -9.8, 0.) * t * t * .5;
+  vec4 mv = modelViewMatrix * vec4(p, 1.);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = min(2.4 * uPR * (30. / max(.5, -mv.z)), 4. * uPR);
+  vA = step(aRand.x, uRate) * (1. - t) * (1. - t);
+}`;
+
+const flareFrag = /* glsl */ `
+varying float vA; uniform float uLight;
+void main(){ vec2 c = gl_PointCoord - .5; float r = dot(c, c) * 4.; if (r > 1.) discard;
+  gl_FragColor = vec4(mix(vec3(1., .75, .45), vec3(.8, 1., .95), r), (1. - r) * vA * uLight);
+  ${OUT}
+}`;
+
+function flares(n: number): THREE.BufferGeometry {
+  const rnd = seeded(61);
+  const rand = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) rand.set([rnd(), rnd(), rnd(), rnd()], i * 4);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  g.setAttribute("aRand", new THREE.BufferAttribute(rand, 4));
+  return g;
+}
 
 const sparkVert = /* glsl */ `
 attribute vec4 aOrbit; attribute vec4 aRand;
@@ -285,19 +383,48 @@ export function useReactor(quality: QualityTier): ReactorHandle {
     const metalMat = surfaceMaterial(u, cu, metalFrag);
     add(new THREE.Mesh(metalGeo, metalMat), "reactor:cage");
 
-    const ringGeo = new THREE.TorusGeometry(1, 0.05, low ? 8 : 12, low ? 128 : 220);
+    const detail = Object.fromEntries(buildReactorDetail(quality.name).map((p) => [p.name, p]));
+    const ringGeo = detail.rings.geometry;
     const ringMat = surfaceMaterial(u, cu, ringFrag);
     const rings = add(new THREE.InstancedMesh(ringGeo, ringMat, RINGS.length), "reactor:rings");
     rings.frustumCulled = false;
     const spins = RINGS.map(() => 0);
 
+    const pulse = { value: 0 };
     const cableGeo = cableGeometry(low ? 4 : 6);
     const cableMat = new THREE.ShaderMaterial({
       vertexShader: cableVert,
       fragmentShader: surfaceFrag(cableFrag),
-      uniforms: { ...u, ...cu, uN: { value: CABLES.length } },
+      uniforms: { ...u, ...cu, uN: { value: CABLES.length }, uPulse: pulse },
     });
     add(new THREE.Mesh(cableGeo, cableMat), "reactor:cables");
+
+    // The detail: panels on the core, junction boxes on the wall, clamps along the cables.
+    const panelMat = surfaceMaterial(u, { ...cu, uFlow: flow }, panelFrag, { side: THREE.DoubleSide });
+    add(new THREE.Mesh(detail.panels.geometry, panelMat), "reactor:panels");
+    const junctionMat = surfaceMaterial(u, { ...cu, uN: { value: CABLES.length } }, junctionFrag);
+    add(new THREE.Mesh(detail.junctions.geometry, junctionMat), "reactor:junctions");
+    const clampMat = surfaceMaterial(u, cu, metalFrag);
+    const clamps = add(new THREE.InstancedMesh(detail.clamps.geometry, clampMat, detail.clamps.instances!), "reactor:clamps");
+    detail.clamps.matrices!.forEach((mx, i) => clamps.setMatrixAt(i, mx));
+    clamps.frustumCulled = false;
+
+    const rate = { value: 0 };
+    const topC = { value: new THREE.Vector3() };
+    const topR = { value: 1 };
+    const flareGeo = flares(low ? 160 : 600);
+    const flareMat = new THREE.ShaderMaterial({
+      vertexShader: flareVert,
+      fragmentShader: flareFrag,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uLight: u.uLight, uTime: u.uTime, uRate: rate, uPR: pr, uTop: topC, uTopR: topR, uAxis: cu.uAxis,
+                  uRingY: { value: new THREE.Vector4(...RINGS.map((r) => r.y)) },
+                  uRingR: { value: new THREE.Vector4(...RINGS.map((r) => r.radius)) } },
+    });
+    const flarePts = add(new THREE.Points(flareGeo, flareMat), "reactor:sparks");
+    flarePts.frustumCulled = false;
 
     const sparkGeo = sparks(low ? 3000 : 12000);
     const sparkMat = new THREE.ShaderMaterial({
@@ -320,7 +447,8 @@ export function useReactor(quality: QualityTier): ReactorHandle {
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const e = new THREE.Euler();
-    const disposables = [cavernGeo, cavernMat, coreGeo, coreMat, metalGeo, metalMat, ringGeo, ringMat, cableGeo, cableMat, sparkGeo, sparkMat, env];
+    const disposables = [cavernGeo, cavernMat, coreGeo, coreMat, metalGeo, metalMat, ringGeo, ringMat, cableGeo, cableMat, sparkGeo, sparkMat, env,
+      detail.panels.geometry, panelMat, detail.junctions.geometry, junctionMat, detail.clamps.geometry, clampMat, clamps, flareGeo, flareMat];
 
     return {
       group,
@@ -332,6 +460,12 @@ export function useReactor(quality: QualityTier): ReactorHandle {
         pr.value = s.pr;
         flow.value += s.dt * (0.15 + 2.6 * p);
         phase.value += s.dt * particleSpeed(p);
+        pulse.value += s.dt * pulseSpeed(p);
+        rate.value = sparkRate(p, s.lift);
+        const top = ringPose(s.lift);
+        topC.value.set(...top.center);
+        topR.value = top.radius;
+        flarePts.visible = rate.value > 0 && s.light > 0;
         RINGS.forEach((r, i) => {
           spins[i] += s.dt * ringSpeed(p) * r.dir * (1 + i * 0.15);
           e.set(-Math.PI / 2 + r.tilt * Math.sin(spins[i] * 0.37), 0, spins[i]);
@@ -339,9 +473,8 @@ export function useReactor(quality: QualityTier): ReactorHandle {
           rings.setMatrixAt(i, m);
         });
         rings.instanceMatrix.needsUpdate = true;
-        const rp = ringPose(s.lift);
-        ring.mesh.position.set(...rp.center);
-        ring.mesh.scale.setScalar(rp.radius / RING.radius);
+        ring.mesh.position.set(...top.center);
+        ring.mesh.scale.setScalar(top.radius / RING.radius);
         ring.mesh.rotation.set(-Math.PI / 2, 0, s.time * 0.08 + spins[0] * 0.2);
         ring.tube.value = 1 - s.burst;
         ring.mat.envMapIntensity = 0.9 * s.ringLight;
@@ -349,7 +482,7 @@ export function useReactor(quality: QualityTier): ReactorHandle {
         ring.mat.iridescenceThicknessRange[1] = 700 + 220 * Math.sin(s.time * 0.7);
         ring.mesh.visible = s.ringLight > 0 && s.burst < 0.999;
         // The rest of the reactor only while its light is up.
-        for (const c of group.children) if (c !== ring.mesh) c.visible = s.light > 0;
+        for (const c of group.children) if (c !== ring.mesh && c !== flarePts) c.visible = s.light > 0;
         group.visible = s.light > 0 || ring.mesh.visible;
       },
       dispose() {
@@ -358,7 +491,7 @@ export function useReactor(quality: QualityTier): ReactorHandle {
         disposables.forEach((d) => d.dispose());
       },
     };
-  }, [gl, low]);
+  }, [gl, low, quality.name]);
   useEffect(() => () => handle.dispose(), [handle]);
   return handle;
 }
