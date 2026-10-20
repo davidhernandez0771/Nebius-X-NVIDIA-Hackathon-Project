@@ -1,0 +1,964 @@
+[
+ {
+  "id": "human_20261019184959_7b1f",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "not_in_bin",
+    "collision",
+    "dropped"
+   ],
+   "duration": 10.700000000000001,
+   "path_length": 3.8843299786995655,
+   "max_contact_force": 103.87310028076172,
+   "settle_time": 6.840000000000002
+  },
+  "status": "failed",
+  "calls": 3,
+  "cost_usd": 0.01417,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": null,
+  "report": null,
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 3.5,\n      \"t1\": 3.7,\n      \"dx\": -0.04,\n      \"dy\": 0.0,\n      \"dz\": 0.0\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 6.0,\n      \"t1\": 8.0,\n      \"dx\": 0.0,\n      \"dy\": 0.02,\n      \"dz\": 0.04\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 8.8,\n      \"state\": \"open\"\n    }\n  ],\n  \"why\": \"The grasp was too far ahead in X, causing the cube to slip immediately; shifting the tool backward early improves grip. Later the arm descended too low, hitting the bin floor; lifting the tool and moving it slightly inward keeps the cube inside the bin and avoids collisions. Delaying the gripper opening until after the lift prevents premature contact with the bin.\"\n}",
+    "errors": [
+     "not smooth: the motion's jerk_rms reaches 29 m/s^3 around t = 3.50-4.00 s (the demo's own worst is 27); cut only where the tool is still, and retime less"
+    ]
+   },
+   {
+    "round": 2,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 3.4,\n      \"t1\": 3.6,\n      \"dx\": -0.03,\n      \"dy\": 0.005,\n      \"dz\": 0.01\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 6.0,\n      \"t1\": 8.0,\n      \"dx\": -0.01,\n      \"dy\": 0.0,\n      \"dz\": 0.02\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 9.0,\n      \"state\": \"open\"\n    }\n  ],\n  \"why\": \"The initial grasp was misaligned (tool too far ahead in X), causing the cube to slip immediately after closing. A small backward\u2011right\u2011up shift at 3.4\u20113.6\u202fs improves contact and secure grasp. During transport the arm ran low and contacted the bin walls/floor; a slight leftward lift from 6.0\u20118.0\u202fs raises the tool and clears the obstruction. Keeping the gripper closed until 9.0\u202fs (after the lift) ensures the cube stays attached and is released inside the bin without high\u2011speed throw.\"\n}",
+    "errors": [
+     "not smooth: the motion's jerk_rms reaches 27 m/s^3 around t = 2.50-3.00 s (the demo's own worst is 27); cut only where the tool is still, and retime less"
+    ]
+   },
+   {
+    "round": 3,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 2.5,\n      \"t1\": 3.5,\n      \"dx\": -0.02,\n      \"dy\": 0.0,\n      \"dz\": 0.02\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t1\": 8.5,\n      \"t0\": 6.0,\n      \"dx\": 0.0,\n      \"dy\": 0.0,\n      \"dz\": 0.03\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 9.0,\n      \"state\": \"open\"\n    }\n  ],\n  \"why\": \"The initial grasp was misaligned (tool too far forward in X) causing the cube to slip; a backward\u2011upward shift during 2.5\u20113.5\u202fs improves contact and lifts the cube. During transport the arm ran low and hit the bin floor; a upward lift of 3\u202fcm from 6.0\u20118.5\u202fs keeps the cube clear of the floor. Keeping the gripper closed until 9.0\u202fs (after the lift) ensures the cube stays grasped and is released inside the bin.\"\n}",
+    "errors": [
+     "not smooth: the motion's jerk_rms reaches 27 m/s^3 around t = 3.50-4.00 s (the demo's own worst is 27); cut only where the tool is still, and retime less"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185223_66bc",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "collision",
+    "dropped"
+   ],
+   "duration": 12.120000000000001,
+   "path_length": 4.132582832636859,
+   "max_contact_force": 311.85479736328125,
+   "settle_time": 1.8000000000000007
+  },
+  "status": "unverified",
+  "calls": 1,
+  "cost_usd": 0.00447,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 8.0,
+     "t1": 10.0,
+     "op": "shift_segment",
+     "dx": 0.0,
+     "dy": 0.0,
+     "dz": 0.03
+    }
+   ],
+   "why": "During the place phase (\u22488\u201110\u202fs) the arm presses against the bin walls because the tool is too low (z\u22480.04\u20110.07\u202fm). Raising the tool by 3\u202fcm clears the bin walls, reducing contact forces and preventing the cube from slipping while the gripper is closed."
+  },
+  "report": {
+   "n_edits": 1,
+   "max_moved_cm": 3.0,
+   "mean_moved_cm": 0.6337614841303774,
+   "moved_steps": 147,
+   "max_moved_at": 8.0,
+   "duration_before_s": 12.120000000000001,
+   "duration_after_s": 12.120000000000001,
+   "timing": [],
+   "gripper": []
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\"edits\": [{\"op\": \"shift_segment\", \"t0\": 8.0, \"t1\": 10.0, \"dx\": 0.0, \"dy\": 0.0, \"dz\": 0.03}], \"why\": \"During the place phase (\u22488\u201110\u202fs) the arm presses against the bin walls because the tool is too low (z\u22480.04\u20110.07\u202fm). Raising the tool by 3\u202fcm clears the bin walls, reducing contact forces and preventing the cube from slipping while the gripper is closed.\"}",
+    "plan": {
+     "edits": [
+      {
+       "t0": 8.0,
+       "t1": 10.0,
+       "op": "shift_segment",
+       "dx": 0.0,
+       "dy": 0.0,
+       "dz": 0.03
+      }
+     ],
+     "why": "During the place phase (\u22488\u201110\u202fs) the arm presses against the bin walls because the tool is too low (z\u22480.04\u20110.07\u202fm). Raising the tool by 3\u202fcm clears the bin walls, reducing contact forces and preventing the cube from slipping while the gripper is closed."
+    },
+    "report": {
+     "n_edits": 1,
+     "max_moved_cm": 3.0,
+     "mean_moved_cm": 0.6337614841303774,
+     "moved_steps": 147,
+     "max_moved_at": 8.0,
+     "duration_before_s": 12.120000000000001,
+     "duration_after_s": 12.120000000000001,
+     "timing": [],
+     "gripper": []
+    },
+    "report_text": "moved up to 3.0 cm (mean 0.63 cm, 147 steps over 1 mm); duration 12.12 s -> 12.12 s"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185258_9f47",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "collision"
+   ],
+   "duration": 6.4,
+   "path_length": 2.8768118571498755,
+   "max_contact_force": 70.89895629882812,
+   "settle_time": 1.1000000000000005
+  },
+  "status": "unverified",
+  "calls": 1,
+  "cost_usd": 0.00253,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 4.0,
+     "t1": 5.2,
+     "op": "shift_segment",
+     "dx": 0.02,
+     "dy": 0.0,
+     "dz": 0.0
+    },
+    {
+     "t0": 5.4,
+     "t1": 6.0,
+     "op": "shift_segment",
+     "dx": 0.0,
+     "dy": 0.0,
+     "dz": 0.02
+    }
+   ],
+   "why": "Early collision with bin's left inner wall while carrying the cube (closed gripper) and later collision with the bin rim after release (open gripper). Shift the carry/place segment right by 2\u202fcm to clear the wall, and lift the post\u2011release segment by 2\u202fcm to clear the rim."
+  },
+  "report": {
+   "n_edits": 2,
+   "max_moved_cm": 2.65859138467227,
+   "mean_moved_cm": 0.8024361310190445,
+   "moved_steps": 139,
+   "max_moved_at": 5.3,
+   "duration_before_s": 6.4,
+   "duration_after_s": 6.4,
+   "timing": [],
+   "gripper": []
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\"edits\": [{\"op\": \"shift_segment\", \"t0\": 4.0, \"t1\": 5.2, \"dx\": 0.02, \"dy\": 0.0, \"dz\": 0.0}, {\"op\": \"shift_segment\", \"t1\": 6.0, \"t0\": 5.4, \"dx\": 0.0, \"dy\": 0.0, \"dz\": 0.02}], \"why\": \"Early collision with bin's left inner wall while carrying the cube (closed gripper) and later collision with the bin rim after release (open gripper). Shift the carry/place segment right by 2\u202fcm to clear the wall, and lift the post\u2011release segment by 2\u202fcm to clear the rim.\"}",
+    "plan": {
+     "edits": [
+      {
+       "t0": 4.0,
+       "t1": 5.2,
+       "op": "shift_segment",
+       "dx": 0.02,
+       "dy": 0.0,
+       "dz": 0.0
+      },
+      {
+       "t0": 5.4,
+       "t1": 6.0,
+       "op": "shift_segment",
+       "dx": 0.0,
+       "dy": 0.0,
+       "dz": 0.02
+      }
+     ],
+     "why": "Early collision with bin's left inner wall while carrying the cube (closed gripper) and later collision with the bin rim after release (open gripper). Shift the carry/place segment right by 2\u202fcm to clear the wall, and lift the post\u2011release segment by 2\u202fcm to clear the rim."
+    },
+    "report": {
+     "n_edits": 2,
+     "max_moved_cm": 2.65859138467227,
+     "mean_moved_cm": 0.8024361310190445,
+     "moved_steps": 139,
+     "max_moved_at": 5.3,
+     "duration_before_s": 6.4,
+     "duration_after_s": 6.4,
+     "timing": [],
+     "gripper": []
+    },
+    "report_text": "moved up to 2.7 cm (mean 0.80 cm, 139 steps over 1 mm); duration 6.40 s -> 6.40 s"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185341_0576",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "not_in_bin",
+    "dropped"
+   ],
+   "duration": 9.040000000000001,
+   "path_length": 3.439984828902592,
+   "max_contact_force": 0.0,
+   "settle_time": 5.32
+  },
+  "status": "gave_up",
+  "calls": 1,
+  "cost_usd": 0.00778,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [],
+   "why": "The demo never achieves a successful grasp; any adjustment limited to 5\u202fcm per step cannot reduce the hand\u2019s height enough to keep the cube within the bin\u2019s vertical range while transporting it to the bin."
+  },
+  "report": {
+   "n_edits": 0,
+   "max_moved_cm": 0.0,
+   "mean_moved_cm": 0.0,
+   "moved_steps": 0,
+   "max_moved_at": null,
+   "duration_before_s": 9.040000000000001,
+   "duration_after_s": 9.040000000000001,
+   "timing": [],
+   "gripper": []
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\"edits\": [], \"why\": \"The demo never achieves a successful grasp; any adjustment limited to 5\u202fcm per step cannot reduce the hand\u2019s height enough to keep the cube within the bin\u2019s vertical range while transporting it to the bin.\"}",
+    "plan": {
+     "edits": [],
+     "why": "The demo never achieves a successful grasp; any adjustment limited to 5\u202fcm per step cannot reduce the hand\u2019s height enough to keep the cube within the bin\u2019s vertical range while transporting it to the bin."
+    },
+    "report": {
+     "n_edits": 0,
+     "max_moved_cm": 0.0,
+     "mean_moved_cm": 0.0,
+     "moved_steps": 0,
+     "max_moved_at": null,
+     "duration_before_s": 9.040000000000001,
+     "duration_after_s": 9.040000000000001,
+     "timing": [],
+     "gripper": []
+    },
+    "report_text": "moved up to 0.0 cm (mean 0.00 cm, 0 steps over 1 mm); duration 9.04 s -> 9.04 s"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185503_a029",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "not_in_bin",
+    "dropped"
+   ],
+   "duration": 7.0600000000000005,
+   "path_length": 2.6087976828527912,
+   "max_contact_force": 0.0,
+   "settle_time": 4.540000000000001
+  },
+  "status": "unverified",
+  "calls": 2,
+  "cost_usd": 0.01054,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 2.42,
+     "t1": 3.0,
+     "op": "shift_segment",
+     "dx": 0.04,
+     "dy": 0.0,
+     "dz": 0.02
+    }
+   ],
+   "why": "The grasp closed just before the tool moved backward, causing the cube to slip. Applying a small forward shift and lift during the early carry keeps the gripper aligned with the cube and raises it, so the cube stays grasped and is carried into the bin where it is released."
+  },
+  "report": {
+   "n_edits": 1,
+   "max_moved_cm": 4.472135954999583,
+   "mean_moved_cm": 0.7737764851091115,
+   "moved_steps": 84,
+   "max_moved_at": 3.0,
+   "duration_before_s": 7.0600000000000005,
+   "duration_after_s": 7.0600000000000005,
+   "timing": [],
+   "gripper": []
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 2.42,\n      \"t1\": 6.0,\n      \"dx\": 0.019,\n      \"dy\": -0.005,\n      \"dz\": -0.013\n    }\n  ],\n  \"why\": \"The initial grasp was misaligned (tool ~19\u202fmm left, 5\u202fmm forward, 13\u202fmm high of the cube), causing the cube to slip. Shifting the tool during grasp and carry aligns the gripper with the cube center, letting it be lifted and carried to the bin where it is released.\"\n}",
+    "errors": [
+     "not smooth: the motion's jerk_rms reaches 23 m/s^3 around t = 6.00-6.50 s (the demo's own worst is 22); cut only where the tool is still, and retime less"
+    ]
+   },
+   {
+    "round": 2,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 2.42,\n      \"t1\": 3.0,\n      \"dx\": 0.04,\n      \"dy\": 0.0,\n      \"dz\": 0.02\n    }\n  ],\n  \"why\": \"The grasp closed just before the tool moved backward, causing the cube to slip. Applying a small forward shift and lift during the early carry keeps the gripper aligned with the cube and raises it, so the cube stays grasped and is carried into the bin where it is released.\"\n}",
+    "plan": {
+     "edits": [
+      {
+       "t0": 2.42,
+       "t1": 3.0,
+       "op": "shift_segment",
+       "dx": 0.04,
+       "dy": 0.0,
+       "dz": 0.02
+      }
+     ],
+     "why": "The grasp closed just before the tool moved backward, causing the cube to slip. Applying a small forward shift and lift during the early carry keeps the gripper aligned with the cube and raises it, so the cube stays grasped and is carried into the bin where it is released."
+    },
+    "report": {
+     "n_edits": 1,
+     "max_moved_cm": 4.472135954999583,
+     "mean_moved_cm": 0.7737764851091115,
+     "moved_steps": 84,
+     "max_moved_at": 3.0,
+     "duration_before_s": 7.0600000000000005,
+     "duration_after_s": 7.0600000000000005,
+     "timing": [],
+     "gripper": []
+    },
+    "report_text": "moved up to 4.5 cm (mean 0.77 cm, 84 steps over 1 mm); duration 7.06 s -> 7.06 s"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185540_87bd",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "not_in_bin",
+    "collision"
+   ],
+   "duration": 7.76,
+   "path_length": 3.2901687137962403,
+   "max_contact_force": 75.0051498413086,
+   "settle_time": 4.34
+  },
+  "status": "unverified",
+  "calls": 2,
+  "cost_usd": 0.00971,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 5.8,
+     "t1": 6.2,
+     "op": "shift_segment",
+     "dx": -0.01,
+     "dy": 0.0,
+     "dz": 0.02
+    }
+   ],
+   "why": "The original demo pressed the gripper into the bin floor (~6.1\u20116.3\u202fs) causing high force and left the cube outside the bin. Shifting the tool 1\u202fcm left and 2\u202fcm higher during the approach avoids the floor collision and carries the cube inside the bin before release."
+  },
+  "report": {
+   "n_edits": 1,
+   "max_moved_cm": 2.2360679774997902,
+   "mean_moved_cm": 0.26210034318060016,
+   "moved_steps": 61,
+   "max_moved_at": 5.8,
+   "duration_before_s": 7.76,
+   "duration_after_s": 7.76,
+   "timing": [],
+   "gripper": []
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 3.4,\n      \"t1\": 4.2,\n      \"dx\": 0.0,\n      \"dy\": 0.0,\n      \"dz\": 0.04\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 5.0,\n      \"t1\": 5.6,\n      \"dx\": -0.035,\n      \"dy\": 0.023,\n      \"dz\": -0.038\n    }\n  ],\n  \"why\": \"The grasp at 3.4\u202fs did not lift the cube, so it slid while the arm moved, ending outside the bin and causing collisions. Lifting the tool 4\u202fcm during the grasp secures the cube, then a constant shift from 5.0\u20115.6\u202fs guides it into the bin where the existing release at ~6.4\u202fs deposits it inside.\"\n}",
+    "errors": [
+     "over the repair budget: a step moves 5.7 cm (max 5 cm per step) between t = 4.82 and 5.78 s"
+    ]
+   },
+   {
+    "round": 2,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 5.8,\n      \"t1\": 6.2,\n      \"dx\": -0.01,\n      \"dy\": 0.0,\n      \"dz\": 0.02\n    }\n  ],\n  \"why\": \"The original demo pressed the gripper into the bin floor (~6.1\u20116.3\u202fs) causing high force and left the cube outside the bin. Shifting the tool 1\u202fcm left and 2\u202fcm higher during the approach avoids the floor collision and carries the cube inside the bin before release.\"\n}",
+    "plan": {
+     "edits": [
+      {
+       "t0": 5.8,
+       "t1": 6.2,
+       "op": "shift_segment",
+       "dx": -0.01,
+       "dy": 0.0,
+       "dz": 0.02
+      }
+     ],
+     "why": "The original demo pressed the gripper into the bin floor (~6.1\u20116.3\u202fs) causing high force and left the cube outside the bin. Shifting the tool 1\u202fcm left and 2\u202fcm higher during the approach avoids the floor collision and carries the cube inside the bin before release."
+    },
+    "report": {
+     "n_edits": 1,
+     "max_moved_cm": 2.2360679774997902,
+     "mean_moved_cm": 0.26210034318060016,
+     "moved_steps": 61,
+     "max_moved_at": 5.8,
+     "duration_before_s": 7.76,
+     "duration_after_s": 7.76,
+     "timing": [],
+     "gripper": []
+    },
+    "report_text": "moved up to 2.2 cm (mean 0.26 cm, 61 steps over 1 mm); duration 7.76 s -> 7.76 s"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185613_fb12",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "not_in_bin",
+    "collision"
+   ],
+   "duration": 7.24,
+   "path_length": 3.3335026693472045,
+   "max_contact_force": 37.95636749267578,
+   "settle_time": 3.3200000000000003
+  },
+  "status": "unverified",
+  "calls": 2,
+  "cost_usd": 0.01321,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 3.36,
+     "t1": 5.9,
+     "op": "shift_segment",
+     "dx": 0.04,
+     "dy": -0.02,
+     "dz": 0.005
+    },
+    {
+     "t0": 5.9,
+     "t1": 7.24,
+     "op": "shift_segment",
+     "dx": -0.02,
+     "dy": 0.0,
+     "dz": 0.03
+    },
+    {
+     "op": "set_gripper",
+     "t": 5.9,
+     "state": "open"
+    }
+   ],
+   "why": "The initial grasp slipped because the tool was misaligned with the cube; shifting the grasp segment aligns the gripper and lifts the cube. Keeping the gripper closed, we then shift the post\u2011grasp path to lift over the bin rim and move sideways, and delay opening until the cube is inside the bin."
+  },
+  "report": {
+   "n_edits": 3,
+   "max_moved_cm": 4.5000000000000036,
+   "mean_moved_cm": 2.4469568310916148,
+   "moved_steps": 222,
+   "max_moved_at": 4.9,
+   "duration_before_s": 7.24,
+   "duration_after_s": 7.24,
+   "timing": [],
+   "gripper": [
+    {
+     "t": 5.9,
+     "state": "open",
+     "moved_from": 5.94
+    }
+   ]
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 3.88,\n      \"t1\": 5.92,\n      \"dx\": 0.04,\n      \"dy\": 0.06,\n      \"dz\": 0.02\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 3.88,\n      \"t1\": 5.92,\n      \"dx\": 0.0,\n      \"dy\": 0.06,\n      \"dz\": 0.0\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 5.94,\n      \"t1\": 7.24,\n      \"dx\": -0.04,\n      \"dy\": -0.05,\n      \"dz\": 0.0\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 5.94,\n      \"t1\": 7.24,\n      \"dx\": 0.0,\n      \"dy\": -0.05,\n      \"dz\": 0.0\n    }\n  ],\n  \"why\": \"The grasp slipped because the tool was misaligned with the cube; shifting the grasp segment forward in x and upward improves contact and lifts the cube. After release the arm drove into the bin wall; shifting the post\u2011release segment away prevents collisions while keeping the cube inside the bin.\"\n}",
+    "errors": [
+     "edits.0.shift_segment.dy: Input should be less than or equal to 0.05",
+     "edits.1.shift_segment.dy: Input should be less than or equal to 0.05"
+    ]
+   },
+   {
+    "round": 2,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 3.36,\n      \"t1\": 5.9,\n      \"dx\": 0.04,\n      \"dy\": -0.02,\n      \"dz\": 0.005\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 5.9,\n      \"t1\": 7.24,\n      \"dx\": -0.02,\n      \"dy\": 0,\n      \"dz\": 0.03\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 5.9,\n      \"state\": \"open\"\n    }\n  ],\n  \"why\": \"The initial grasp slipped because the tool was misaligned with the cube; shifting the grasp segment aligns the gripper and lifts the cube. Keeping the gripper closed, we then shift the post\u2011grasp path to lift over the bin rim and move sideways, and delay opening until the cube is inside the bin.\"\n}",
+    "plan": {
+     "edits": [
+      {
+       "t0": 3.36,
+       "t1": 5.9,
+       "op": "shift_segment",
+       "dx": 0.04,
+       "dy": -0.02,
+       "dz": 0.005
+      },
+      {
+       "t0": 5.9,
+       "t1": 7.24,
+       "op": "shift_segment",
+       "dx": -0.02,
+       "dy": 0.0,
+       "dz": 0.03
+      },
+      {
+       "op": "set_gripper",
+       "t": 5.9,
+       "state": "open"
+      }
+     ],
+     "why": "The initial grasp slipped because the tool was misaligned with the cube; shifting the grasp segment aligns the gripper and lifts the cube. Keeping the gripper closed, we then shift the post\u2011grasp path to lift over the bin rim and move sideways, and delay opening until the cube is inside the bin."
+    },
+    "report": {
+     "n_edits": 3,
+     "max_moved_cm": 4.5000000000000036,
+     "mean_moved_cm": 2.4469568310916148,
+     "moved_steps": 222,
+     "max_moved_at": 4.9,
+     "duration_before_s": 7.24,
+     "duration_after_s": 7.24,
+     "timing": [],
+     "gripper": [
+      {
+       "t": 5.9,
+       "state": "open",
+       "moved_from": 5.94
+      }
+     ]
+    },
+    "report_text": "moved up to 4.5 cm (mean 2.45 cm, 222 steps over 1 mm); duration 7.24 s -> 7.24 s; gripper open at 5.90 (was 5.94)"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185745_a67b",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "not_in_bin",
+    "collision",
+    "dropped"
+   ],
+   "duration": 16.18,
+   "path_length": 6.466963566844195,
+   "max_contact_force": 74.14324951171875,
+   "settle_time": 3.0
+  },
+  "status": "unverified",
+  "calls": 1,
+  "cost_usd": 0.01294,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 2.8,
+     "t1": 3.2,
+     "op": "shift_segment",
+     "dx": 0.0,
+     "dy": 0.0,
+     "dz": -0.02
+    },
+    {
+     "t0": 3.2,
+     "t1": 5.5,
+     "op": "shift_segment",
+     "dx": 0.0,
+     "dy": 0.0,
+     "dz": 0.04
+    },
+    {
+     "t0": 14.8,
+     "t1": 15.4,
+     "op": "shift_segment",
+     "dx": 0.0,
+     "dy": 0.0,
+     "dz": 0.04
+    },
+    {
+     "op": "set_gripper",
+     "t": 5.58,
+     "state": "closed"
+    },
+    {
+     "op": "set_gripper",
+     "t": 7.38,
+     "state": "closed"
+    },
+    {
+     "op": "set_gripper",
+     "t": 9.4,
+     "state": "closed"
+    },
+    {
+     "op": "set_gripper",
+     "t": 10.66,
+     "state": "closed"
+    },
+    {
+     "op": "set_gripper",
+     "t": 11.2,
+     "state": "closed"
+    }
+   ],
+   "why": "Initial grasp was aligned but too high; lowering the tool before closing improves grip. Lifting after grasp and raising the arm while crossing the bin prevents collisions. Keeping the gripper closed from grasp through transport ensures the cube is held and released over the bin interior."
+  },
+  "report": {
+   "n_edits": 8,
+   "max_moved_cm": 4.0000000000000036,
+   "mean_moved_cm": 0.9716463332183805,
+   "moved_steps": 264,
+   "max_moved_at": 14.8,
+   "duration_before_s": 16.18,
+   "duration_after_s": 16.18,
+   "timing": [],
+   "gripper": [
+    {
+     "t": 5.58,
+     "state": "closed",
+     "moved_from": 7.12
+    },
+    {
+     "t": 7.38,
+     "state": "closed",
+     "moved_from": 9.1
+    },
+    {
+     "t": 9.4,
+     "state": "closed",
+     "moved_from": 10.44
+    },
+    {
+     "t": 10.66,
+     "state": "closed",
+     "moved_from": 10.9
+    },
+    {
+     "t": 11.200000000000001,
+     "state": "closed",
+     "moved_from": 13.16
+    }
+   ]
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 2.8,\n      \"t1\": 3.2,\n      \"dx\": 0.0,\n      \"dy\": 0.0,\n      \"dz\": -0.02\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 3.2,\n      \"t1\": 5.5,\n      \"dx\": 0.0,\n      \"dy\": 0.0,\n      \"dz\": 0.04\n    },\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 14.8,\n      \"t1\": 15.4,\n      \"dx\": 0.0,\n      \"dy\": 0.0,\n      \"dz\": 0.04\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 5.58,\n      \"state\": \"closed\"\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 7.38,\n      \"state\": \"closed\"\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 9.4,\n      \"state\": \"closed\"\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 10.66,\n      \"state\": \"closed\"\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 11.2,\n      \"state\": \"closed\"\n    }\n  ],\n  \"why\": \"Initial grasp was aligned but too high; lowering the tool before closing improves grip. Lifting after grasp and raising the arm while crossing the bin prevents collisions. Keeping the gripper closed from grasp through transport ensures the cube is held and released over the bin interior.\"\n}\n\n</|analysis|>Final answer: JSON as above.",
+    "plan": {
+     "edits": [
+      {
+       "t0": 2.8,
+       "t1": 3.2,
+       "op": "shift_segment",
+       "dx": 0.0,
+       "dy": 0.0,
+       "dz": -0.02
+      },
+      {
+       "t0": 3.2,
+       "t1": 5.5,
+       "op": "shift_segment",
+       "dx": 0.0,
+       "dy": 0.0,
+       "dz": 0.04
+      },
+      {
+       "t0": 14.8,
+       "t1": 15.4,
+       "op": "shift_segment",
+       "dx": 0.0,
+       "dy": 0.0,
+       "dz": 0.04
+      },
+      {
+       "op": "set_gripper",
+       "t": 5.58,
+       "state": "closed"
+      },
+      {
+       "op": "set_gripper",
+       "t": 7.38,
+       "state": "closed"
+      },
+      {
+       "op": "set_gripper",
+       "t": 9.4,
+       "state": "closed"
+      },
+      {
+       "op": "set_gripper",
+       "t": 10.66,
+       "state": "closed"
+      },
+      {
+       "op": "set_gripper",
+       "t": 11.2,
+       "state": "closed"
+      }
+     ],
+     "why": "Initial grasp was aligned but too high; lowering the tool before closing improves grip. Lifting after grasp and raising the arm while crossing the bin prevents collisions. Keeping the gripper closed from grasp through transport ensures the cube is held and released over the bin interior."
+    },
+    "report": {
+     "n_edits": 8,
+     "max_moved_cm": 4.0000000000000036,
+     "mean_moved_cm": 0.9716463332183805,
+     "moved_steps": 264,
+     "max_moved_at": 14.8,
+     "duration_before_s": 16.18,
+     "duration_after_s": 16.18,
+     "timing": [],
+     "gripper": [
+      {
+       "t": 5.58,
+       "state": "closed",
+       "moved_from": 7.12
+      },
+      {
+       "t": 7.38,
+       "state": "closed",
+       "moved_from": 9.1
+      },
+      {
+       "t": 9.4,
+       "state": "closed",
+       "moved_from": 10.44
+      },
+      {
+       "t": 10.66,
+       "state": "closed",
+       "moved_from": 10.9
+      },
+      {
+       "t": 11.200000000000001,
+       "state": "closed",
+       "moved_from": 13.16
+      }
+     ]
+    },
+    "report_text": "moved up to 4.0 cm (mean 0.97 cm, 264 steps over 1 mm); duration 16.18 s -> 16.18 s; gripper closed at 5.58 (was 7.12); gripper closed at 7.38 (was 9.10); gripper closed at 9.40 (was 10.44); gripper closed at 10.66 (was 10.90); gripper closed at 11.20 (was 13.16)"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185902_c045",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "collision"
+   ],
+   "duration": 8.76,
+   "path_length": 3.1470778962108095,
+   "max_contact_force": 93.99374389648438,
+   "settle_time": 0.5
+  },
+  "status": "unverified",
+  "calls": 1,
+  "cost_usd": 0.00262,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 6.3,
+     "t1": 7.88,
+     "op": "shift_segment",
+     "dx": 0.0,
+     "dy": 0.0,
+     "dz": 0.02
+    },
+    {
+     "op": "set_gripper",
+     "t": 7.5,
+     "state": "open"
+    }
+   ],
+   "why": "The arm hit the bin floor during the final placement while the gripper was still closed, and again after opening as the tool continued downward. Raising the tool 2\u202fcm during the place segment and opening the gripper earlier (~7.5\u202fs) keeps the tool above the bin floor and releases the cube before contact."
+  },
+  "report": {
+   "n_edits": 2,
+   "max_moved_cm": 2.0000000000000018,
+   "mean_moved_cm": 0.47226471250959073,
+   "moved_steps": 118,
+   "max_moved_at": 6.3,
+   "duration_before_s": 8.76,
+   "duration_after_s": 8.76,
+   "timing": [],
+   "gripper": [
+    {
+     "t": 7.5,
+     "state": "open",
+     "moved_from": 7.9
+    }
+   ]
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\n  \"edits\": [\n    {\n      \"op\": \"shift_segment\",\n      \"t0\": 6.3,\n      \"t1\": 7.88,\n      \"dx\": 0.0,\n      \"dy\": 0.0,\n      \"dz\": 0.02\n    },\n    {\n      \"op\": \"set_gripper\",\n      \"t\": 7.5,\n      \"state\": \"open\"\n    }\n  ],\n  \"why\": \"The arm hit the bin floor during the final placement while the gripper was still closed, and again after opening as the tool continued downward. Raising the tool 2\u202fcm during the place segment and opening the gripper earlier (~7.5\u202fs) keeps the tool above the bin floor and releases the cube before contact.\"\n}",
+    "plan": {
+     "edits": [
+      {
+       "t0": 6.3,
+       "t1": 7.88,
+       "op": "shift_segment",
+       "dx": 0.0,
+       "dy": 0.0,
+       "dz": 0.02
+      },
+      {
+       "op": "set_gripper",
+       "t": 7.5,
+       "state": "open"
+      }
+     ],
+     "why": "The arm hit the bin floor during the final placement while the gripper was still closed, and again after opening as the tool continued downward. Raising the tool 2\u202fcm during the place segment and opening the gripper earlier (~7.5\u202fs) keeps the tool above the bin floor and releases the cube before contact."
+    },
+    "report": {
+     "n_edits": 2,
+     "max_moved_cm": 2.0000000000000018,
+     "mean_moved_cm": 0.47226471250959073,
+     "moved_steps": 118,
+     "max_moved_at": 6.3,
+     "duration_before_s": 8.76,
+     "duration_after_s": 8.76,
+     "timing": [],
+     "gripper": [
+      {
+       "t": 7.5,
+       "state": "open",
+       "moved_from": 7.9
+      }
+     ]
+    },
+    "report_text": "moved up to 2.0 cm (mean 0.47 cm, 118 steps over 1 mm); duration 8.76 s -> 8.76 s; gripper open at 7.50 (was 7.90)"
+   }
+  ]
+ },
+ {
+  "id": "human_20261019185956_3997",
+  "verdict": {
+   "success": false,
+   "reasons": [
+    "not_in_bin",
+    "collision"
+   ],
+   "duration": 13.120000000000001,
+   "path_length": 5.139413175805394,
+   "max_contact_force": 255.26004028320312,
+   "settle_time": 5.040000000000001
+  },
+  "status": "unverified",
+  "calls": 1,
+  "cost_usd": 0.00796,
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "plan": {
+   "edits": [
+    {
+     "t0": 8.0,
+     "t1": 8.2,
+     "op": "shift_segment",
+     "dx": 0.035,
+     "dy": 0.0,
+     "dz": 0.0
+    },
+    {
+     "op": "set_gripper",
+     "t": 8.0,
+     "state": "closed"
+    },
+    {
+     "t0": 10.3,
+     "t1": 11.0,
+     "op": "shift_segment",
+     "dx": 0.015,
+     "dy": 0.0,
+     "dz": 0.0
+    }
+   ],
+   "why": "The grasp at ~8.1 s was misaligned (tool left of cube), causing slip. Shifting the tool right by 3.5 cm during 8.0\u20118.2 s and closing the gripper at 8.0 s achieves a solid grasp. A subsequent right shift of 1.5 cm during 10.3\u201111.0 s moves the arm clear of the bin\u2019s left wall, preventing high-force contacts while transporting the cube to the bin."
+  },
+  "report": {
+   "n_edits": 3,
+   "max_moved_cm": 3.500000000000003,
+   "mean_moved_cm": 0.3426622587607184,
+   "moved_steps": 131,
+   "max_moved_at": 8.0,
+   "duration_before_s": 13.120000000000001,
+   "duration_after_s": 13.120000000000001,
+   "timing": [],
+   "gripper": [
+    {
+     "t": 8.0,
+     "state": "closed",
+     "moved_from": 8.1
+    }
+   ]
+  },
+  "verification": null,
+  "rounds": [
+   {
+    "round": 1,
+    "reply": "\n\n{\n  \"edits\": [\n    {\"op\": \"shift_segment\", \"t0\": 8.0, \"t1\": 8.2, \"dx\": 0.035, \"dy\": 0.0, \"dz\": 0.0},\n    {\"op\": \"set_gripper\", \"t\": 8.0, \"state\": \"closed\"},\n    {\"op\": \"shift_segment\", \"t0\": 10.3, \"t1\": 11.0, \"dx\": 0.015, \"dy\": 0.0, \"dz\": 0.0}\n  ],\n  \"why\": \"The grasp at ~8.1 s was misaligned (tool left of cube), causing slip. Shifting the tool right by 3.5 cm during 8.0\u20118.2 s and closing the gripper at 8.0 s achieves a solid grasp. A subsequent right shift of 1.5 cm during 10.3\u201111.0 s moves the arm clear of the bin\u2019s left wall, preventing high-force contacts while transporting the cube to the bin.\"\n}",
+    "plan": {
+     "edits": [
+      {
+       "t0": 8.0,
+       "t1": 8.2,
+       "op": "shift_segment",
+       "dx": 0.035,
+       "dy": 0.0,
+       "dz": 0.0
+      },
+      {
+       "op": "set_gripper",
+       "t": 8.0,
+       "state": "closed"
+      },
+      {
+       "t0": 10.3,
+       "t1": 11.0,
+       "op": "shift_segment",
+       "dx": 0.015,
+       "dy": 0.0,
+       "dz": 0.0
+      }
+     ],
+     "why": "The grasp at ~8.1 s was misaligned (tool left of cube), causing slip. Shifting the tool right by 3.5 cm during 8.0\u20118.2 s and closing the gripper at 8.0 s achieves a solid grasp. A subsequent right shift of 1.5 cm during 10.3\u201111.0 s moves the arm clear of the bin\u2019s left wall, preventing high-force contacts while transporting the cube to the bin."
+    },
+    "report": {
+     "n_edits": 3,
+     "max_moved_cm": 3.500000000000003,
+     "mean_moved_cm": 0.3426622587607184,
+     "moved_steps": 131,
+     "max_moved_at": 8.0,
+     "duration_before_s": 13.120000000000001,
+     "duration_after_s": 13.120000000000001,
+     "timing": [],
+     "gripper": [
+      {
+       "t": 8.0,
+       "state": "closed",
+       "moved_from": 8.1
+      }
+     ]
+    },
+    "report_text": "moved up to 3.5 cm (mean 0.34 cm, 131 steps over 1 mm); duration 13.12 s -> 13.12 s; gripper closed at 8.00 (was 8.10)"
+   }
+  ]
+ }
+]

@@ -392,3 +392,17 @@ def test_a_config_frozen_without_input_still_resumes(hx, tmp_path):
     exp.select(ids=None, tag="standin_*", settings=SMOKE)
     config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
     assert "input" not in config  # unchanged for runs that don't filter
+
+
+def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "nemotron-edits"})
+    exp.run(until="grid", sim_until="repair")
+    root = tmp_path / "human_exp" / "smoke1"
+    marks = [json.loads(p.read_text()) for p in sorted((root / "stages" / "repair").glob("*.json"))]
+    assert marks and all(m["diagnoser"] == "nemotron-edits" for m in marks)
+    assert all(m["output_demo_id"].endswith("_edits") for m in marks if m["status"] == "kept")
+    assert json.loads((root / "config.json").read_text())["repair"] == "nemotron-edits"
+    assert "repaired with Nemotron's trajectory edits" in (root / "preregistration.md").read_text(encoding="utf-8")
+    with pytest.raises(hx.Refused, match="repair must be one of"):
+        _exp(hx, tmp_path, name="other")[0].select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "magic"})
