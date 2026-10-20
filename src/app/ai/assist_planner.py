@@ -3,7 +3,8 @@ placement targets and how high to release over them; which objects are obstacles
 speed cap near them), as strict JSON (demo_pipeline.assist_rules). Code validates them; problems go back to the model
 with its own reply, at most ROUNDS calls in all. If Nemotron is off, errors, or never gives valid rules, the rules
 fallback (assist_rules.rules_fallback) is used and the reason is kept. The geometric soft floor
-(demo_pipeline.soft_floor) is always under whatever comes out: the rules can only add to it.
+(demo_pipeline.soft_floor) is always under whatever comes out, and so are the rules' protections
+(assist_rules.rules_floor: a speed cap near every tall stack): Nemotron can add or tighten, never remove.
 """
 from __future__ import annotations
 
@@ -71,6 +72,7 @@ class AssistResult:
     cost: float = 0.0
     model: str | None = None
     attempts: list[dict] = field(default_factory=list)
+    floor_rules: AssistRules | None = None  # the rules kept under Nemotron's (None when the rules fallback is used)
 
 
 def _fallback(plan: ScenePlan, reason: str, res: AssistResult | None = None) -> AssistResult:
@@ -104,7 +106,9 @@ def plan_assist(text: str, plan: ScenePlan, *, chat_fn: Callable | None = chat, 
         res.attempts.append({"reply": reply.text, "errors": errors})
         res.errors = errors
         if not errors:
-            res.rules, res.zones, res.source = rules, zones_from_rules(plan, rules, "nemotron"), "nemotron"
+            res.floor_rules = rules_fallback(plan)
+            res.rules, res.source = rules, "nemotron"
+            res.zones = zones_from_rules(plan, rules, "nemotron", floor=res.floor_rules)
             return res
         problems = "\n".join(f"- {e}" for e in errors)
         prompt = (f"Scene description: {text}\n\n{scene}\n\nYour previous reply:\n{reply.text.strip()}\n\n"

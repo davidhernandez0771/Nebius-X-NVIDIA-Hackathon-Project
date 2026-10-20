@@ -3,7 +3,7 @@ rules on top (app.ai.assist_planner, demo_pipeline.assist_rules, demo_pipeline.s
 
 The plan file is a ScenePlan JSON (e.g. sim_worker/scene_examples/*.json) or a scene creator file
 (DATA_DIR/scenes/<id>.json: {"text", "plan", ...}). Prints the rules, the source and every zone; --out saves
-{"rules", "zones", "source", "fallback_reason", "calls"}.
+{"rules", "floor_rules", "zones", "source", "fallback_reason", "calls"}.
 
 Run:
   uv run python scripts/assist_zones.py sim_worker/scene_examples/2_stack_of_three_two_bins.json --text "..."
@@ -57,12 +57,16 @@ def main(argv: list[str] | None = None, *, chat_fn=_DEFAULT) -> int:
     print(f"source: {res.source}" + (f" ({res.fallback_reason})" if res.fallback_reason else "")
           + f"; calls {res.calls}, est. cost ${res.cost:.4f}")
     print("rules: " + res.rules.model_dump_json())
+    if res.floor_rules is not None:
+        print("rules kept under them: " + res.floor_rules.model_dump_json())
     for z in res.zones.zones:
         cap = f", speed cap {z.speed_cap} m/s" if z.speed_cap is not None else ""
         print(f"  {z.id:24s} {z.kind:9s} floor {z.floor:.3f} m over {2 * z.half[0] * 100:.0f} x {2 * z.half[1] * 100:.0f} cm "
               f"at ({z.center[0]:.3f}, {z.center[1]:.3f}){cap}  [{z.source}]")
     if args.out:
-        args.out.write_text(json.dumps({"rules": json.loads(res.rules.model_dump_json()), "zones": res.zones.to_dict(),
+        floor = json.loads(res.floor_rules.model_dump_json()) if res.floor_rules is not None else None
+        args.out.write_text(json.dumps({"rules": json.loads(res.rules.model_dump_json()), "floor_rules": floor,
+                                        "zones": res.zones.to_dict(),
                                         "source": res.source, "fallback_reason": res.fallback_reason, "calls": res.calls},
                                        indent=1), encoding="utf-8")
         print(f"saved {args.out}")

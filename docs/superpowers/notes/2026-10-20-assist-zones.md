@@ -10,8 +10,8 @@ generalized to any ScenePlan. Code only, no GPU.
 | Piece | File | Tests |
 |---|---|---|
 | Geometry, always on | `demo_pipeline/soft_floor.py` (extended, not forked) | `test_assist_zones.py` (7), `test_soft_floor.py` (existing + 4) |
-| Semantic rules: schema, validation, rules fallback, zones | `demo_pipeline/assist_rules.py` | `test_assist_rules.py` (13) |
-| Nemotron planner (3 calls max, errors fed back) | `app/ai/assist_planner.py` | `test_assist_planner.py` (7, Nemotron faked) |
+| Semantic rules: schema, validation, rules fallback, zones | `demo_pipeline/assist_rules.py` | `test_assist_rules.py` (16) |
+| Nemotron planner (3 calls max, errors fed back) | `app/ai/assist_planner.py` | `test_assist_planner.py` (8, Nemotron faked) |
 | The label on every demo | `schemas.Assist.zones` | `test_soft_floor.py` |
 | Teleop consumes the zones | `sim_worker/teleop_session.py` | `test_soft_floor.py`, `test_sim_teleop_session.py` (unchanged, passing) |
 | CLI | `scripts/assist_zones.py` | `test_assist_planner.py` |
@@ -64,12 +64,21 @@ clamps.
 
 **The rules fallback** takes over, with the reason kept, when Nemotron is off, errors out, or never validates:
 - every goal's bin is a target, on the geometric floor alone;
-- a 0.1 m/s speed cap near any stack 10 cm or taller.
+- a 0.1 m/s speed cap near any stack 10 cm or taller (`rules_floor()`).
+
+**The rules are a floor, not just a fallback** (the lead's decision after plan 2, below):
+- Under valid Nemotron rules, `plan_assist` still applies the rules fallback, recorded as `AssistResult.floor_rules`.
+- Both layers' zones are kept: `zones_from_rules(plan, rules, "nemotron", floor=rules_fallback(plan))`.
+- Floors combine by max and speed caps by min, so Nemotron can add or tighten, never remove. A looser cap near the
+  tall stack (0.3 m/s) still gives 0.1 m/s; a tighter one (0.05) wins.
+- Every semantic zone's id carries its source (`slow:red@rules`, `release:bin_left@nemotron`). Geometry ids stay
+  `bin:<id>` and `top:<id>`.
 
 ### 3. The label
 
-- `Demo.assist.zones` is `AssistZones.to_dict()` (source, every zone's footprint, floor and speed cap) whenever the
-  soft floor was on; `None` when it was off.
+- `Demo.assist.zones` is `AssistZones.to_dict()` whenever the soft floor was on; `None` when it was off.
+- It holds every zone's footprint, floor, speed cap and source (`geometry`, `rules` or `nemotron`), so both
+  semantic layers are in the label.
 - A label without zones serializes byte for byte as before (a model serializer), so older demos hash the same.
 - The one existing test that pinned the label's exact JSON now also expects the zones; that was the requested
   change.
@@ -99,11 +108,15 @@ clamps.
 - Even so, on plan 2 ("careful with the tall pile") its second reply dropped the caution: no speed cap, just a
   note. The rules fallback would have added the 0.1 m/s cap.
 
-**Open choice for the lead:** keep the fallback's tall-stack speed caps always on, like the geometric floor.
+**Decided (lead):** the rules' protections stay on under Nemotron's rules (the section above).
+- Rerun of plan 2 with the floor (1 real call pair, $0.0007): Nemotron again proposed keep-outs over the moved
+  stack, was refused, and its fixed reply had no cap.
+- The zones still hold `slow:cube_blue@rules` at 0.1 m/s next to `release:bin_left@nemotron`.
 
 ## Checks
 
-- **Python:** 2159 passed, 16 skipped, 0 failed (without `test_launch_health.py`).
+- **Python:** 2163 passed, 16 skipped, 0 failed (`tests` without `test_launch_health.py`, plus `lerobot_tools`
+  and `sim_eval` tests).
 - **pyflakes:** clean on the new and changed files.
 
 ## Not done

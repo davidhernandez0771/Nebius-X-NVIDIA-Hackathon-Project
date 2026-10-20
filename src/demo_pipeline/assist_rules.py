@@ -2,7 +2,8 @@
 over them, which objects are obstacles (a keep-out height over them, a speed cap near them). Nemotron proposes them
 (app.ai.assist_planner); code validates them here, and rules_fallback() is the plan-only version when Nemotron is off.
 zones_from_rules() turns them into assist zones (demo_pipeline.soft_floor) on top of the geometric floor: they can
-raise a floor, never lower one.
+raise a floor, never lower one. The rules' own protections (rules_floor(): a speed cap near every tall stack) are a
+floor too, kept under Nemotron's rules whatever they say: Nemotron can add or tighten, never remove.
 
 Bounds (validate_rules):
 - a release clearance (the held cube's bottom above the rim or the cube's top) is 0 to 5 cm, and the held cube's
@@ -167,27 +168,45 @@ def _stack_members(plan: ScenePlan, obj_id: str) -> list[str]:
         out.append(cur)
 
 
+def rules_floor(plan: ScenePlan) -> list[ObstacleRule]:
+    """The rules' protections, always on (under Nemotron's rules too): a speed cap near any stack TALL_STACK_M or
+    taller (no keep-out: its cubes may be the ones to move)."""
+    placed = resolve(plan)
+    return [ObstacleRule(object=oid, speed_cap_mps=FALLBACK_SPEED) for oid, p in placed.items()
+            if p.support is None and any(o.id == oid and o.kind == "cube" for o in plan.objects)
+            and _stack_top(plan, oid) - TABLE_TOP_Z >= TALL_STACK_M - 1e-9]
+
+
 def rules_fallback(plan: ScenePlan) -> AssistRules:
-    """Without Nemotron: every goal's bin is a target on the geometric floor alone, and a speed cap near any stack
-    TALL_STACK_M or taller (no keep-out: its cubes may be the ones to move)."""
+    """Without Nemotron: every goal's bin is a target on the geometric floor alone, plus rules_floor()."""
     targets, seen = [], set()
     for g in plan.goals:
         if g.bin not in seen:
             seen.add(g.bin)
             targets.append(TargetRule(object=g.bin))
-    placed = resolve(plan)
-    obstacles = [ObstacleRule(object=oid, speed_cap_mps=FALLBACK_SPEED) for oid, p in placed.items()
-                 if p.support is None and any(o.id == oid and o.kind == "cube" for o in plan.objects)
-                 and _stack_top(plan, oid) - TABLE_TOP_Z >= TALL_STACK_M - 1e-9]
-    return AssistRules(targets=targets, obstacles=obstacles, notes="rules fallback (no Nemotron)")
+    return AssistRules(targets=targets, obstacles=rules_floor(plan), notes="rules fallback (no Nemotron)")
 
 
-def zones_from_rules(plan: ScenePlan, rules: AssistRules, source: ZoneSource) -> AssistZones:
+def zones_from_rules(plan: ScenePlan, rules: AssistRules, source: ZoneSource, *,
+                     floor: AssistRules | None = None) -> AssistZones:
     """The geometric zones (every bin, plus the tops of cube targets) and, on top, a release floor per target with a
-    clearance, a keep-out and/or a speed-capped zone per obstacle. Call validate_rules first."""
+    clearance, a keep-out and/or a speed-capped zone per obstacle. Call validate_rules first.
+
+    `floor` (the rules fallback, under Nemotron's rules) is applied too, whatever `rules` say. Both layers' zones are
+    kept, each with its source in its id ("slow:red@rules", "release:bin@nemotron"); floors combine by max and speed
+    caps by min, so `rules` can only add or tighten."""
     by_id = {o.id: o for o in plan.objects}
-    cube_targets = [t.object for t in rules.targets if by_id[t.object].kind == "cube"]
-    geo = zones_for_plan(plan, cube_targets=cube_targets)
+    layers = ([(floor, "rules")] if floor is not None else []) + [(rules, source)]
+    cube_targets = dict.fromkeys(t.object for r, _ in layers for t in r.targets if by_id[t.object].kind == "cube")
+    geo = zones_for_plan(plan, cube_targets=list(cube_targets))
+    extra = {s: _semantic_zones(plan, r, s, geo) for r, s in layers}
+    zones = tuple(geo.zones) + tuple(z for zs in extra.values() for z in zs)
+    top = next((s for s in (source, "rules") if extra.get(s)), "geometry")
+    return AssistZones(zones, source=top)
+
+
+def _semantic_zones(plan: ScenePlan, rules: AssistRules, source: ZoneSource, geo: AssistZones) -> list[Zone]:
+    by_id = {o.id: o for o in plan.objects}
     placed = resolve(plan)
     extra: list[Zone] = []
     for t in rules.targets:
@@ -195,7 +214,7 @@ def zones_from_rules(plan: ScenePlan, rules: AssistRules, source: ZoneSource) ->
             continue
         base = geo.zone(f"bin:{t.object}" if by_id[t.object].kind == "bin" else f"top:{t.object}")
         floor = _surface(plan, t.object) + t.release_clearance_m + _held_size(plan, t.object) / 2
-        extra.append(Zone(f"release:{t.object}", "release", base.center, base.yaw, base.half, floor, source))
+        extra.append(Zone(f"release:{t.object}@{source}", "release", base.center, base.yaw, base.half, floor, source))
     for ob in rules.obstacles:
         o, p = by_id[ob.object], placed[ob.object]
         if o.kind == "bin":
@@ -205,10 +224,10 @@ def zones_from_rules(plan: ScenePlan, rules: AssistRules, source: ZoneSource) ->
         yaw = math.radians(p.yaw_deg)
         if ob.keep_out_clearance_m is not None:
             top = _stack_top(plan, ob.object) if o.kind == "cube" else _surface(plan, ob.object)
-            extra.append(Zone(f"keep_out:{ob.object}", "keep_out", p.pos[:2], yaw, half, top + ob.keep_out_clearance_m, source))
+            extra.append(Zone(f"keep_out:{ob.object}@{source}", "keep_out", p.pos[:2], yaw, half,
+                              top + ob.keep_out_clearance_m, source))
         if ob.speed_cap_mps is not None:
-            extra.append(Zone(f"slow:{ob.object}", "slow", p.pos[:2], yaw, (half[0] + SLOW_MARGIN, half[1] + SLOW_MARGIN),
-                              TABLE_TOP_Z, source, ob.speed_cap_mps))
-    zones = tuple(geo.zones) + tuple(Zone(z.id, z.kind, (float(z.center[0]), float(z.center[1])), z.yaw, z.half, z.floor,
-                                          z.source, z.speed_cap) for z in extra)
-    return AssistZones(zones, source=source if extra else "geometry")
+            extra.append(Zone(f"slow:{ob.object}@{source}", "slow", p.pos[:2], yaw,
+                              (half[0] + SLOW_MARGIN, half[1] + SLOW_MARGIN), TABLE_TOP_Z, source, ob.speed_cap_mps))
+    return [Zone(z.id, z.kind, (float(z.center[0]), float(z.center[1])), z.yaw, z.half, z.floor, z.source, z.speed_cap)
+            for z in extra]

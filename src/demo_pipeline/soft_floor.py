@@ -55,7 +55,7 @@ ZoneSource = Literal["geometry", "rules", "nemotron"]
 
 @dataclass(frozen=True)
 class Zone:
-    id: str  # "bin:<id>", "top:<id>", "release:<id>", "keep_out:<id>", "slow:<id>"
+    id: str  # geometry: "bin:<id>", "top:<id>"; rules: "release:<id>@<source>", "keep_out:<id>@<source>", "slow:<id>@<source>"
     kind: ZoneKind
     center: tuple[float, float]  # world x, y
     yaw: float  # rad about z

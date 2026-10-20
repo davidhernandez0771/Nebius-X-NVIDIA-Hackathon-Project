@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from demo_pipeline.assist_rules import (
-    CLEARANCE_RANGE, KEEP_OUT_RANGE, SPEED_RANGE, AssistRules, parse_rules, rules_fallback, validate_rules, zones_from_rules,
+    CLEARANCE_RANGE, FALLBACK_SPEED, KEEP_OUT_RANGE, SPEED_RANGE, AssistRules, parse_rules, rules_fallback, validate_rules, zones_from_rules,
 )
 from demo_pipeline.scene_plan import ScenePlan
 from demo_pipeline.soft_floor import FOOTPRINT_MARGIN, zones_for_plan
@@ -110,9 +110,9 @@ def test_rules_only_add_to_the_geometric_floor():
     assert zones.source == "nemotron"
     # Every geometric zone is still there, unchanged; semantic ones come on top.
     assert set(geo.zones) <= set(zones.zones)
-    release = zones.zone("release:left_bin")
+    release = zones.zone("release:left_bin@nemotron")
     assert release.floor == pytest.approx(0.09 + 0.015 + 0.02)  # rim + clearance + half the largest cube going in
-    keep = zones.zone("keep_out:blue")
+    keep = zones.zone("keep_out:blue@nemotron")
     assert keep.floor == pytest.approx(0.06 + 0.02) and keep.half == pytest.approx((0.03 + FOOTPRINT_MARGIN,) * 2)
     assert zones.speed_cap_at((0.58, 0.05, 0.1)) == 0.1
     for x in (0.4, 0.45, 0.5, 0.58):
@@ -123,4 +123,30 @@ def test_rules_only_add_to_the_geometric_floor():
 def test_a_cube_target_gets_its_top_floor():
     zones = zones_from_rules(_plan(), _rules(targets=[{"object": "left_bin"}, {"object": "blue", "release_clearance_m": 0.005}]), source="rules")
     assert zones.zone("top:blue").floor == pytest.approx(0.06 + 0.04 / 2)  # rests on it: the largest cube is 6 cm, held ones 4 cm
-    assert zones.zone("release:blue").floor == pytest.approx(0.06 + 0.005 + 0.02)
+    assert zones.zone("release:blue@rules").floor == pytest.approx(0.06 + 0.005 + 0.02)
+
+
+def test_the_rules_floor_stays_under_nemotrons_rules():
+    # Nemotron's rules leave out the tall stack's speed cap; the rules' protections are a floor under them, not a fallback.
+    plan, floor = _plan(), rules_fallback(_plan())
+    zones = zones_from_rules(plan, _rules(), source="nemotron", floor=floor)
+    slow = zones.zone("slow:red@rules")
+    assert slow.source == "rules" and slow.speed_cap == FALLBACK_SPEED
+    assert zones.speed_cap_at((0.45, -0.1, 0.2)) == FALLBACK_SPEED
+    assert zones.zone("release:left_bin@nemotron").source == "nemotron" and zones.source == "nemotron"
+    # Both layers go into the label, each zone with its source.
+    sources = {z["id"]: z["source"] for z in zones.to_dict()["zones"]}
+    assert sources["slow:red@rules"] == "rules" and sources["release:left_bin@nemotron"] == "nemotron"
+    assert sources["bin:left_bin"] == "geometry"
+
+
+@pytest.mark.parametrize("cap, active", [(0.3, FALLBACK_SPEED), (0.05, 0.05)])
+def test_nemotron_can_only_tighten_the_rules_floor(cap, active):
+    plan = _plan()
+    zones = zones_from_rules(plan, _rules(obstacles=[{"object": "red", "speed_cap_mps": cap}]), source="nemotron",
+                             floor=rules_fallback(plan))
+    assert zones.speed_cap_at((0.45, -0.1, 0.2)) == active
+    without_floor = zones_from_rules(plan, _rules(obstacles=[{"object": "red", "speed_cap_mps": cap}]), source="nemotron")
+    for x in (0.4, 0.45, 0.5, 0.58):
+        for y in (-0.28, -0.1, 0.05, 0.25):
+            assert zones.floor_at((x, y, 0)) >= without_floor.floor_at((x, y, 0))

@@ -43,8 +43,8 @@ def test_good_rules_on_the_first_call():
     fake = _fake(json.dumps(GOOD))
     res = ap.plan_assist("put the green cube in the yellow bin; mind the blue one", PLAN, chat_fn=fake)
     assert res.source == "nemotron" and res.calls == 1 and res.errors == []
-    assert res.zones.zone("release:left_bin").floor == pytest.approx(0.09 + 0.015 + 0.02)
-    assert res.zones.zone("keep_out:blue").floor == pytest.approx(0.06 + 0.02)
+    assert res.zones.zone("release:left_bin@nemotron").floor == pytest.approx(0.09 + 0.015 + 0.02)
+    assert res.zones.zone("keep_out:blue@nemotron").floor == pytest.approx(0.06 + 0.02)
     prompt = fake.calls[0]["prompt"]
     assert "put the green cube" in prompt and "left_bin" in prompt and "blue" in prompt
     assert fake.calls[0]["system"] == ap.SYSTEM_PROMPT
@@ -78,6 +78,18 @@ def test_nemotron_errors_and_nemotron_off_use_the_rules():
 def test_the_system_prompt_states_the_bounds_the_validator_checks():
     for needle in ("release_clearance_m", "keep_out_clearance_m", "speed_cap_mps", "0 to 5 cm", "0.02 to 0.5", "0.18", "JSON"):
         assert needle in ap.SYSTEM_PROMPT
+
+
+def test_a_nemotron_plan_without_the_tall_stack_cap_still_gets_it():
+    tall = ScenePlan.model_validate({**json.loads(PLAN.model_dump_json()), "objects": [
+        *json.loads(PLAN.model_dump_json())["objects"],
+        {"id": "white", "kind": "cube", "color": "white", "size": 0.04, "on": "green"}]})
+    res = ap.plan_assist("put the green cube in the yellow bin; careful with the tall pile", tall,
+                         chat_fn=_fake(json.dumps({"targets": [{"object": "left_bin", "release_clearance_m": 0.015}]})))
+    assert res.source == "nemotron" and res.calls == 1
+    slow = res.zones.zone("slow:red@rules")  # red + green + white = 13 cm: the rules' cap, under Nemotron's rules
+    assert slow.speed_cap == 0.1 and slow.source == "rules"
+    assert [o.object for o in res.floor_rules.obstacles] == ["red"]
 
 
 # --- the CLI ---------------------------------------------------------------------------------------------
