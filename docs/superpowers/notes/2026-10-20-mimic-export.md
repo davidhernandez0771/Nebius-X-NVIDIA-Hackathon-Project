@@ -1,4 +1,4 @@
-# SANT → Isaac Lab Mimic export (`pm/mimic-export`, 2026-10-20)
+# SANT → Isaac Lab Mimic: the export and the env (`pm/mimic-export`, 2026-10-20)
 
 From `pm/live-11` (`0cc6e9d`). Code only, no GPU: Isaac never started. Not pushed or merged.
 
@@ -51,7 +51,7 @@ a verified episode, so the export writes the **annotated** file directly (no ann
 | `object_pose/bin` | `scene.json` bin pose, constant |
 | `subtask_term_signals/grasp` | on from the first step `robota.phases` says the cube is lifted (carry or place) |
 | `subtask_term_signals/place` | on from the first release after that (exported for completeness; the last subtask needs none) |
-| `initial_state` | robot (base at the origin, first joint positions), `cube`, `bin` root poses, zero velocities |
+| `initial_state` | robot (base at the origin, first joint positions) and every rigid object of SANT's Franka scene (`cube`, `table`, the five bin boxes, posed round the bin frame), zero velocities: `reset_to` needs them all |
 | `obs/{eef_pos, eef_quat, joint_pos, cube_pos}` | low-dimensional observations, before each step |
 | attributes `sant_demo_id`, `sant_lineage`, `sant_repairs`, `sant_verification` | provenance (Isaac's reader ignores them) |
 
@@ -92,87 +92,174 @@ Spot checks on the 3 sources:
 - All 3 start at (0.45, 0, 0.35).
 - Mimic's `DataGenInfoPool` loads both files and splits every demo into grasp then place.
 
-## Tests
+## What the export's tests check
 
-- **SANT venv** (`uv run pytest tests/test_dp_mimic.py tests/test_export_mimic.py`): 16 passed, 5 skipped. The
-  skipped tests need h5py.
-- **Isaac Lab's Python, CPU only:**
-  ```
-  set PYTHONPATH=src
-  C:\isaac\env_isaaclab\Scripts\python.exe -m pytest --noconftest -p no:cacheprovider tests\test_dp_mimic.py tests\test_export_mimic.py
-  ```
-  Result: **21 passed**. `--noconftest` because tests/conftest.py needs FastAPI.
-  - Isaac Lab's own `HDF5DatasetFileHandler` reads the file: env name, 2 demos, not the legacy quaternion
-    format, `success`, the datagen_info keys.
-  - Mimic's own `DataGenInfoPool` gets the subtask boundaries we expect. `isaaclab_mimic` isn't installed in
-    that Python; the test adds `C:\isaac\IsaacLab\source\isaaclab_mimic` to the path (`ISAACLAB_MIMIC_SRC`
-    overrides it).
-  - The pool's env is a stub with the two things it calls: the subtask configs and
-    `actions_to_gripper_actions`. Nothing else of the env is exercised.
+- Isaac Lab's own `HDF5DatasetFileHandler` reads the file: env name, demos, not the legacy quaternion format,
+  `success`, the datagen_info keys.
+- Mimic's own `DataGenInfoPool` gets the subtask boundaries we expect. `isaaclab_mimic` isn't installed in
+  Isaac's Python; the test adds `C:isaacIsaacLabsourceisaaclab_mimic` to the path (`ISAACLAB_MIMIC_SRC`
+  overrides it).
+- The pool's env is a stub with the two things it calls: the subtask configs and `actions_to_gripper_actions`.
+- `--noconftest` under Isaac's Python, because tests/conftest.py needs FastAPI.
+- Commands and counts for every test: "Tests", below.
 
-## Later, on the GPU (not run)
+## Does Mimic run on Windows? (checked on disk, 2026-10-20, no GPU)
 
-No annotation step: the file is already annotated. Once a SANT Mimic env is registered (below):
+**Short answer:** NVIDIA supports it on Linux only. Nothing in the path SANT uses is Linux-only, though: every
+module the generator needs imports on this PC. Only a GPU smoke test will prove it runs.
+
+- **What says "Linux-only":**
+  - `docs/source/features/imitation-learning/teleop_imitation.rst`: "Isaac Lab Mimic is only supported on
+    Linux."
+  - `humanoids_imitation.rst`: Mimic and Pink IK tasks are Linux-only, because "Pink IK and its dependencies are
+    not available on Windows". That's the humanoid (GR1T2) path, not ours.
+  - So T7's README is right about the support statement. It is not a statement that the code breaks on Windows.
+- **What the code says:**
+  - Mimic's changelog 1.0.7: GR1T2 was moved out "to prevent import of pinocchio when not needed. This allows
+    use of IsaacLab Mimic in windows."
+  - Changelog 1.2.4 pins h5py 3.15.1 "to prevent package import errors on Windows with version 3.16.0". This
+    PC's Isaac venv has h5py 3.16.0, and it writes and reads our files fine, so that error didn't show here.
+- **The installer:**
+  - `pyproject.toml`'s `mimic` extra installs `isaaclab-mimic` and `isaaclab-teleop` on every platform.
+  - Only these are gated to Linux:
+    - `robomimic` (policy *training*, not generation);
+    - `isaacteleop` (XR);
+    - `dex-retargeting`;
+    - Pink IK / pinocchio.
+  - cuRobo is only imported with `--use_skillgen`.
+- **The generation path:** `generate_dataset.py`, `datagen/generation.py`, `data_generator.py` and
+  `waypoint.py` use only asyncio, torch, gymnasium and h5py. There is no fork, no POSIX signals and no `/dev` path.
+- **Tried here (CPU, no app), in `C:\isaac\env_isaaclab`:** all of these import fine:
+  - `isaaclab_mimic` (with its warp shim);
+  - `ManagerBasedRLMimicEnv`, `MimicEnvCfg`;
+  - `isaaclab_mimic.datagen.generation`;
+  - Mimic's env registrations;
+  - SANT's `scene_cfg`;
+  - this env's config.
+- **What would break on this PC as it stands:**
+  - **`isaaclab_mimic` is not installed** in `env_isaaclab`, so `generate_dataset.py` would fail on
+    `import isaaclab_mimic`.
+    - Workaround with no install: put `C:\isaac\IsaacLab\source\isaaclab_mimic` on `PYTHONPATH`; it is pure
+      Python. Shown to work above.
+    - The proper fix: `isaaclab.bat -i mimic`. That's an install (it also brings `isaaclab_teleop` and
+      ipywidgets), so it needs the user's OK.
+  - **`--headless` doesn't exist** in this Isaac Lab (headless is the default; `--viz kit` opens a window).
+    With our callback returning None, an unknown flag is a hard error. The command in this note's first draft
+    had it; it's fixed below.
+- **If the smoke test fails for a Windows reason:**
+  - WSL2 with Ubuntu, Isaac Lab installed there, using the same exported file;
+  - or Docker (Isaac Lab ships `docker/`);
+  - or compare our multiplier to Mimic's method on paper. Both transform source segments by the object's pose
+    change. Mimic also interpolates between segments, picks a source per subtask by nearest object pose, and
+    adds action noise. SANT re-verifies each variant with physics.
+
+## The SANT Mimic env (built; not run)
+
+`sim_worker/mimic_env.py`, registered by `sim_worker/mimic_register.py` (`--external_callback
+sim_worker.mimic_register.register`; it registers by name only, so nothing heavy loads before the app).
+`SANT-PickPlace-Franka-IK-Abs-Mimic-v0` (`demo_pipeline.mimic.ENV_NAME`, also the export's env name):
+
+- **Scene:** `make_scene_cfg(cameras=False)`: Franka high PD, cube, the five bin boxes, table. Its rigid
+  objects are exactly the export's `initial_state` names (tested), so `annotate_demos` can `reset_to` our files.
+  The export now writes all seven: cube, table, five bin boxes, posed from the bin frame.
+- **Action:** `DifferentialInverseKinematicsActionCfg(body_name="panda_hand", pose, absolute,
+  body_offset=(0, 0, 0.1034))` + `BinaryJointPositionActionCfg` (fingers 0.04 open / 0.0 closed).
+  50 Hz: dt 0.01, decimation 2. Episodes are 30 s (check_success's limit).
+- **Observations:**
+  - `policy`: `eef_pos`/`eef_quat` (the tool centre: the hand pose plus the offset, env frame), `joint_pos`,
+    `cube_pos`, `actions`.
+  - `subtask_terms`: `grasp`.
+- **Mimic methods:**
+  - `get_robot_eef_pose` (from the tool observations);
+  - `target_eef_pose_to_action` / `action_to_target_eef_pose` ([pos, quat xyzw, gripper]). Noise jitters the
+    position and turns the target by a small random rotation, so quaternions stay unit;
+  - `actions_to_gripper_actions` (the last column);
+  - `get_object_poses` → `cube` and `bin` (the bin frame from the floor box);
+  - `get_subtask_term_signals` → `grasp`.
+- **Success, per step** (`sant_success` → `mimic.placed`, shared with SANT and tested against `check_success` on
+  40 random cube positions): the cube's centre in the bin's inner box, the cube slower than 0.01 m/s, and the
+  last gripper command open.
+  - Mimic counts a generated demo as a success at the first step this holds.
+  - check_success's **history** checks can't be one step's state: collision > 5 N, drops, high release,
+    unreachable.
+  - So **re-verify Mimic's output with SANT** before calling any of it verified.
+- **Reset:** `reset_scene_to_default` (robot at its default joints), then `reset_sant_scene`, which samples the
+  cube and bin as SANT does (`multiply.sample_scene`: SANT's Franka ranges, 0.15 m apart) and places the bin
+  boxes round the bin.
+- **Datagen:**
+  - as Isaac's Franka IK-abs stack task: select a source per subtask, `nearest_neighbor_object` (k = 3);
+  - action noise 0.01;
+  - 5 interpolation steps;
+  - keep failed demos (in a separate file).
+
+## GPU smoke test (later; not run). Take the GPU lock first
+
+Read `C:\dev\gpu.lock`, as `sim_worker/gpu_lock.py` describes: wait while it names a live process, then write your
+own line and delete it when done. PowerShell, from anywhere:
 
 ```
-cd C:\isaac\IsaacLab
-isaaclab.bat -p scripts\imitation_learning\isaaclab_mimic\generate_dataset.py ^
-  --device cpu --num_envs 10 --generation_num_trials 100 ^
-  --input_file C:\dev\pm-t2\data\exports\mimic\human10c_sources.hdf5 ^
-  --output_file C:\dev\pm-t2\data\exports\mimic\human10c_mimic_100.hdf5 ^
-  --external_callback <module>.<register function> --headless
+$env:PYTHONPATH = "C:\dev\pm-t2;C:\dev\pm-t2\src;C:\isaac\IsaacLab\source\isaaclab_mimic"
+C:\isaac\env_isaaclab\Scripts\python.exe C:\isaac\IsaacLab\scripts\imitation_learning\isaaclab_mimic\generate_dataset.py `
+  --device cpu --num_envs 1 --generation_num_trials 10 --max_num_failures 30 `
+  --input_file C:\dev\pm-t2\data\exports\mimic\human10c_sources.hdf5 `
+  --output_file C:\dev\pm-t2\data\exports\mimic\smoke_10.hdf5 `
+  --external_callback sim_worker.mimic_register.register
 ```
 
-- `--task` defaults to the file's env name, `SANT-PickPlace-Franka-IK-Abs-Mimic-v0`.
-- `--external_callback` imports a function that registers the gym id. The env isn't in Isaac Lab, so this is
-  how it gets in.
-- `--device cpu` runs physics on the CPU, as the docs' example does, but Isaac Sim still starts: take the
-  GPU lock.
-- To check our annotation against Mimic's own auto-annotation, if the env implements
-  `get_subtask_term_signals`:
-  ```
-  isaaclab.bat -p scripts\imitation_learning\isaaclab_mimic\annotate_demos.py --auto --task SANT-PickPlace-Franka-IK-Abs-Mimic-v0 --input_file ...sources.hdf5 --output_file ...reannotated.hdf5 --headless
-  ```
-  It replays the actions from `initial_state`.
-- **Then the loop the pitch needs:** run SANT's own physics check (5 N contact, cube in bin) over Mimic's output.
-  Mimic only checks the env's `success` term.
+- `--task` defaults to the file's env name.
+- `--max_num_failures` bounds the run if nothing succeeds: generation guarantee is on, so otherwise it would
+  try forever.
+- Add `--viz kit` to watch.
+- **Pass:** it prints "10/N successful demos generated". `smoke_10.hdf5` holds the successes; the failures go
+  to a separate file (`generation_keep_failed`).
+- **Then:** replay them through SANT's verifier.
+- **Optional cross-check of our annotation against Mimic's auto mode:** same `PYTHONPATH`, then
+  `...\annotate_demos.py --auto --task SANT-PickPlace-Franka-IK-Abs-Mimic-v0 --input_file ...sources.hdf5
+  --output_file ...reannotated.hdf5 --external_callback sim_worker.mimic_register.register`.
+  - It replays our actions from `initial_state` and records Mimic's own `grasp` flags.
+  - It fails a demo if the env's success never holds.
 
-## What the SANT Mimic env needs (not written yet: the honest gap)
+## Tests (the export and the env)
 
-A `ManagerBasedRLMimicEnv` + `MimicEnvCfg` on SANT's scene (`sim_worker/scene_cfg.py`: Franka high PD, cube,
-the five-box bin, table), registered as `SANT-PickPlace-Franka-IK-Abs-Mimic-v0`:
+| where | command | result |
+|---|---|---|
+| SANT venv | `uv run pytest tests/test_dp_mimic.py tests/test_export_mimic.py tests/test_mimic_env.py` | 21 passed, 6 skipped (h5py; the env file needs Isaac Lab) |
+| Isaac Lab's Python, CPU, no app | `set PYTHONPATH=.;src;C:\isaac\IsaacLab\source\isaaclab_mimic` then `C:\isaac\env_isaaclab\Scripts\python.exe -m pytest --noconftest -p no:cacheprovider tests\test_mimic_env.py tests\test_dp_mimic.py tests\test_export_mimic.py` | **44 passed** |
 
-1. **Action:** `DifferentialInverseKinematicsActionCfg(body_name="panda_hand", controller=pose, use_relative_mode=False,
-   body_offset=(0, 0, 0.1034))` plus a `BinaryJointPositionActionCfg` for the fingers (open 0.04, close 0.0).
-   - Isaac's own IK-abs stack env has **no** body offset (it drives `panda_hand` itself). With our tool-frame
-     actions that would land 10 cm off.
-   - It must step at 50 Hz (physics dt 0.01, decimation 2), SANT's rate.
-2. **Mimic methods:**
-   - `get_robot_eef_pose`: the tool frame as 4×4 (xyzw).
-   - `action_to_target_eef_pose` / `target_eef_pose_to_action`: [pos, quat xyzw] + gripper, as in
-     `FrankaCubeStackIKAbsMimicEnv`.
-   - `actions_to_gripper_actions`: the last column.
-   - `get_object_poses`: must return `cube` and `bin`. The base class lists rigid objects, and SANT's bin is
-     five boxes with other names, so override it to return the bin frame.
-   - `get_subtask_term_signals`: only for `annotate_demos --auto`. `grasp` = closed and the cube ≥ 1 cm up.
-3. **Config:**
-   - `subtask_configs["franka"]` from `mimic.SUBTASKS`.
-   - `datagen_config` as `FrankaCubeStackIKAbsMimicEnvCfg`'s.
-   - A `success` termination: the cube in the bin, like SANT's check.
-   - Reset events: randomize the cube (and bin) in SANT's ranges; robot at the home joints, whose tool pose
-     is `HOME_TCP`.
-4. **`initial_state`** names `robot`, `cube` and `bin`. Only annotation's replay (`reset_to`) uses it, so a
-   five-box bin needs a rename or a one-body bin there. Generation doesn't read it.
+`test_mimic_env.py` (18 tests):
+- **The config:**
+  - action and offset;
+  - 50 Hz and 30 s;
+  - the scene's rigid objects equal the export's;
+  - the export's bin and table poses equal `scene_cfg`'s;
+  - subtasks;
+  - terms.
+- **The registration:** gym spec, and the config loads through `load_cfg_from_registry`.
+- **Methods and terms on stand-in tensors:**
+  - the tool pose from the hand pose;
+  - action ↔ target round trip;
+  - eef pose;
+  - object poses;
+  - success in 5 cases (placed / beside / above the rim / still falling / still held);
+  - the grasp signal;
+  - the reset sampler's ranges.
+
+Nothing builds a simulation, so the IK, the physics, the events' writes to the sim and the managers' wiring are
+**unverified until the smoke test**.
 
 ## Other gaps, honestly
 
-- **Nothing has run in Isaac:** no generation, no annotation, no env. The file is checked only by Isaac Lab's
-  reader and Mimic's pool.
+- **Nothing has run in Isaac:** no generation, no annotation, no env instance.
+- **The default joints:**
+  - The robot resets to the Franka config's default joints, as SANT's replay does. Its tool pose may differ from
+    `HOME_TCP`, which the sources start from.
+  - Mimic interpolates from wherever the robot is to the first segment (5 steps), so a small gap is fine. A
+    large one would show in the smoke test.
 - **Approximations:**
   - The cube's rotation is its start rotation throughout. Mimic reads it at the grasp's start, where it is
     true. The place subtask references the bin.
   - Step 0's eef pose is the commanded start, not a measured reset pose. It's within 1 cm by the home check.
-- **No camera images** are exported (SANT has front/wrist PNGs). Mimic's generated demos record whatever the
-  env observes.
+- **No camera images** are exported or observed (cameras off). Add them to the env if a visuomotor dataset is
+  wanted.
 - **Only 3 sources.** Isaac Lab's docs generate from "a handful of annotated demonstrations" (their humanoid
   examples record 5, SkillGen's 10). Whether 3 is enough for this task is untested.
