@@ -1,0 +1,383 @@
+/* The data (/data). Volt, inside the SANT app shell: a black stage, thin ink frames, teal for what physics verified,
+   amber for what it rejected. Every rule sits under .sant .data-*, so nothing leaks. Tokens: web/src/sant/tokens.css. */
+
+.sant .data-page {
+  display: grid;
+  gap: var(--sant-space-5);
+  min-width: 0;
+}
+
+.sant .data-lede {
+  max-width: var(--sant-measure);
+  margin: 0;
+  color: var(--sant-muted);
+}
+
+.sant .data-note { margin: 0; color: var(--sant-muted); }
+.sant .data-note--error { color: var(--sant-issue); }
+
+.sant .data-h2 {
+  margin: 0;
+  font-family: var(--sant-font-display);
+  font-size: var(--sant-fs-3);
+  font-weight: 400;
+}
+
+.sant .data-h3 {
+  margin: 0 0 var(--sant-space-3);
+  font-size: var(--sant-fs-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sant-muted);
+}
+
+/* ------------------------------------------------------------ modes and sets */
+
+.sant .data-modes,
+.sant .data-sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-2);
+}
+
+.sant .data-mode,
+.sant .data-set,
+.sant .data-btn {
+  padding: var(--sant-space-2) var(--sant-space-4);
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-pill);
+  background: transparent;
+  color: var(--sant-text);
+  font: inherit;
+  font-size: var(--sant-fs-small);
+  cursor: pointer;
+}
+
+.sant .data-mode[aria-selected="true"],
+.sant .data-set[aria-pressed="true"] {
+  border-color: var(--sant-accent);
+  color: var(--sant-accent);
+}
+
+.sant .data-set { display: inline-flex; gap: var(--sant-space-2); align-items: baseline; }
+.sant .data-set__name { font-family: var(--sant-font-data); }
+.sant .data-set__input { color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+.sant .data-btn--quiet { border-color: transparent; color: var(--sant-muted); }
+
+.sant .data-summary {
+  margin: 0;
+  font-family: var(--sant-font-data);
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+/* ------------------------------------------------------------ showcase layout */
+
+.sant .data-showcase {
+  display: grid;
+  grid-template-columns: minmax(170px, 210px) minmax(0, 1fr);
+  gap: var(--sant-space-6);
+  align-items: start;
+}
+
+.sant .data-showcase__main {
+  display: grid;
+  gap: var(--sant-space-5);
+  min-width: 0;
+}
+
+.sant .data-demos {
+  display: grid;
+  gap: var(--sant-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant .data-demo {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: var(--sant-space-2) var(--sant-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--sant-radius-sm);
+  background: transparent;
+  color: var(--sant-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sant .data-demo:hover { border-color: var(--sant-line); }
+.sant .data-demo[aria-pressed="true"] { border-color: var(--sant-accent); }
+.sant .data-demo__name { font-family: var(--sant-font-data); font-size: var(--sant-fs-small); }
+.sant .data-demo__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.sant .data-chip {
+  padding: 0 6px;
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-xs);
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+  white-space: nowrap;
+}
+
+.sant .data-chip.is-pass { border-color: var(--sant-accent); color: var(--sant-accent); }
+.sant .data-chip.is-fail { border-color: var(--sant-issue); color: var(--sant-issue); }
+.sant .data-chip.is-wait { border-style: dashed; }
+
+/* ------------------------------------------------------------ panes */
+
+.sant .data-panes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sant-space-4);
+}
+
+.sant .data-pane {
+  display: grid;
+  gap: var(--sant-space-2);
+  padding: var(--sant-space-3);
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-md);
+  background: var(--sant-surface);
+  min-width: 0;
+}
+
+.sant .data-pane__head {
+  display: flex;
+  gap: var(--sant-space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sant .data-pane__title { margin: 0; font-size: var(--sant-fs-5); font-weight: 600; }
+
+.sant .data-pane__pick select {
+  max-width: 14rem;
+  padding: 2px var(--sant-space-2);
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-sm);
+  background: var(--sant-bg);
+  color: var(--sant-text);
+  font: inherit;
+  font-size: var(--sant-fs-small);
+}
+
+.sant .data-pane__what { margin: 0; font-size: var(--sant-fs-caption); color: var(--sant-muted); }
+
+.sant .data-pane__stage {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--sant-space-2);
+  align-items: stretch;
+}
+
+.sant .data-pane__twin {
+  position: relative;
+  min-height: 15rem;
+  border-radius: var(--sant-radius-sm);
+  overflow: hidden;
+  background: var(--sant-bg);
+}
+
+.sant .data-pane__twin > * { position: absolute; inset: 0; }
+
+.sant .data-pane__wait {
+  display: grid;
+  place-items: center;
+  padding: var(--sant-space-3);
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+  text-align: center;
+}
+
+.sant .data-pane__cam { display: grid; gap: 4px; align-content: start; margin: 0; }
+.sant .data-pane__cam figcaption { font-size: var(--sant-fs-caption); color: var(--sant-muted); }
+
+.sant .data-footage {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--sant-radius-sm);
+  background-color: var(--sant-bg);
+  background-repeat: no-repeat;
+  image-rendering: auto;
+}
+
+.sant .data-footage--empty {
+  border: 1px dashed var(--sant-line);
+}
+
+.sant .data-badge {
+  justify-self: start;
+  padding: 2px var(--sant-space-2);
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-pill);
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant .data-badge--pass { border-color: var(--sant-accent); color: var(--sant-accent); }
+.sant .data-badge--fail { border-color: var(--sant-issue); color: var(--sant-issue); }
+
+/* ------------------------------------------------------------ transport */
+
+.sant .data-transport {
+  display: flex;
+  gap: var(--sant-space-3);
+  align-items: center;
+}
+
+.sant .data-transport__scrub { flex: 1; }
+.sant .data-transport__scrub input { width: 100%; accent-color: var(--sant-accent); }
+.sant .data-transport__time { min-width: 4.5ch; font-family: var(--sant-font-data); font-size: var(--sant-fs-caption); color: var(--sant-muted); text-align: right; }
+
+/* ------------------------------------------------------------ what changed */
+
+.sant .data-changed { display: grid; gap: var(--sant-space-3); }
+
+.sant .data-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: var(--sant-fs-small);
+}
+
+.sant .data-table {
+  width: 100%;
+  max-width: 40rem;
+  border-collapse: collapse;
+  font-size: var(--sant-fs-small);
+}
+
+.sant .data-table th,
+.sant .data-table td {
+  padding: var(--sant-space-1) var(--sant-space-3) var(--sant-space-1) 0;
+  border-bottom: 1px solid var(--sant-line);
+  text-align: left;
+  font-weight: 400;
+}
+
+.sant .data-table td { font-family: var(--sant-font-data); }
+.sant .data-table thead th { color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+
+/* ------------------------------------------------------------ variants */
+
+.sant .data-variants__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--sant-space-3);
+  margin: 0 0 var(--sant-space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.sant .data-variant { display: grid; gap: 4px; min-width: 0; align-content: start; }
+/* A failure badge can run to two lines under a thumbnail: a rounded box, not a stretched pill. */
+.sant .data-variant .data-badge { border-radius: var(--sant-radius-sm); }
+
+.sant .data-variant > button {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sant-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sant .data-variant__name { font-family: var(--sant-font-data); font-size: var(--sant-fs-caption); }
+
+.sant .data-variant--live { animation: data-pop var(--sant-dur-3) var(--sant-ease-out) both; }
+
+@keyframes data-pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------ live */
+
+.sant .data-live { display: grid; gap: var(--sant-space-5); }
+.sant .data-live__conn { margin: 0; font-size: var(--sant-fs-caption); color: var(--sant-muted); }
+
+.sant .data-stages {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sant-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: stage;
+}
+
+.sant .data-stage {
+  display: grid;
+  gap: 4px;
+  padding: var(--sant-space-3);
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-md);
+  color: var(--sant-muted);
+  transition: border-color var(--sant-dur-2) var(--sant-ease-out), color var(--sant-dur-2) var(--sant-ease-out);
+}
+
+.sant .data-stage__dot {
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.sant .data-stage__label { font-weight: 600; font-size: var(--sant-fs-small); }
+.sant .data-stage__status { font-size: var(--sant-fs-caption); }
+
+.sant .data-stage[data-status="running"] { border-color: var(--sant-accent); color: var(--sant-text); }
+.sant .data-stage[data-status="running"] .data-stage__dot { background: var(--sant-accent); border-color: var(--sant-accent); animation: data-pulse 1.2s ease-in-out infinite; }
+.sant .data-stage[data-status="done"] { color: var(--sant-accent); }
+.sant .data-stage[data-status="done"] .data-stage__dot { background: var(--sant-accent); border-color: var(--sant-accent); }
+
+@keyframes data-pulse {
+  50% { opacity: 0.35; }
+}
+
+.sant .data-live__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--sant-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sant .data-live__demo {
+  display: grid;
+  gap: 4px;
+  padding: var(--sant-space-2) var(--sant-space-3);
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-sm);
+}
+
+.sant .data-live__demo[data-done="true"] { border-color: var(--sant-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sant .data-variant--live,
+  .sant .data-stage[data-status="running"] .data-stage__dot { animation: none; }
+}
+
+/* ------------------------------------------------------------ narrow screens */
+
+@media (max-width: 900px) {
+  .sant .data-showcase { grid-template-columns: minmax(0, 1fr); }
+  .sant .data-demos { grid-auto-flow: column; grid-auto-columns: minmax(11rem, 1fr); overflow-x: auto; padding-bottom: var(--sant-space-2); }
+  .sant .data-panes { grid-template-columns: minmax(0, 1fr); }
+  .sant .data-stages { grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .sant .data-pane__stage { grid-template-columns: minmax(0, 1fr); }
+  .sant .data-pane__head { flex-wrap: wrap; }
+}
