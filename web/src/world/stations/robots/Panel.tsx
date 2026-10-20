@@ -1,7 +1,7 @@
 // The robots catalog, beside the robot wall: one entry per robot, with only what the repo knows
 // (catalog.ts). Hovering or focusing an entry lights its robot on the wall; a robot clicked on the wall
 // brings its entry into view and focus. Back (or Escape, WorldRoot) returns to the room view.
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useRef, useSyncExternalStore } from "react";
 import { useWorld } from "../../core/WorldContext";
 import { CATALOG, STATUS_LABEL, type CatalogRobot } from "./catalog";
 import { robotsView } from "./hot";
@@ -54,6 +54,19 @@ function Entry({ r, n, hot, buttonRef }: { r: CatalogRobot; n: number; hot: bool
             </>
           ) : null}
         </dl>
+        {r.limits ? (
+          <details className="world-robots__src">
+            <summary>Joint limits</summary>
+            <dl className="world-robots__facts">
+              {r.limits.map((l) => (
+                <Fragment key={l.joint}>
+                  <dt>{l.joint}</dt>
+                  <dd>{l.range}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          </details>
+        ) : null}
         <details className="world-robots__src">
           <summary>Sources</summary>
           <ul>
@@ -105,8 +118,9 @@ export function Panel({ current, reduced }: { current: boolean; reduced: boolean
         ))}
       </ol>
       <p className="world-robots__note">
-        On the wall, the Franka is built from its URDF&apos;s collision meshes; the others are simple stand-ins, not their real shape or size. A
-        field is left out when the repo doesn&apos;t record it (no payloads).
+        On the wall, the Franka is built from its URDF&apos;s collision meshes; the others are simple stand-ins, not their real shape or size. Reach is
+        shoulder to flange, the most over the joint limits, computed from each robot&apos;s URDF chain (brochures measure
+        it differently). A field is left out when the sources don&apos;t record it (no payloads).
       </p>
     </aside>
   );

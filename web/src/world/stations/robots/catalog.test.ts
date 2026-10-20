@@ -26,15 +26,28 @@ describe("the robots catalog", () => {
     }
   });
 
-  it("leaves a field out when the repo doesn't have it (no payload anywhere; no reach for the planned arms)", () => {
+  it("leaves a field out when the sources don't have it: no payload anywhere (none of the repos states one)", () => {
     for (const r of CATALOG) expect(r.arm).not.toHaveProperty("payload");
-    expect(robotById("so101").arm.reach).toBeUndefined();
-    expect(robotById("piper").arm.reach).toBeUndefined();
+  });
+
+  it("takes DoF, reach and joint limits from each robot's own URDF chain where it was downloaded", () => {
+    // specs.json: scripts/robot_asset_manifest.py over C:/dev/assets/robots (franka_description, SO-ARM100,
+    // piper_ros, openarm_description at pinned commits).
+    expect(robotById("franka").arm.reach).toBe("0.86 m");
+    expect(robotById("so101").arm.reach).toBe("0.31 m");
+    expect(robotById("piper").arm.reach).toBe("0.63 m");
+    expect(robotById("openarm").arm.reach).toBe("0.44 m");
+    expect(robotById("franka").limits?.map((l) => l.joint)).toEqual(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]);
+    expect(robotById("franka").limits?.[3].range).toBe("-176° to -4°");
+    expect(robotById("piper").limits).toHaveLength(6);
+    // The Flexiv wasn't downloaded: its numbers stay the notes' (no URDF limits).
+    expect(robotById("flexiv").arm.reach).toMatch(/0\.78 m/);
+    expect(robotById("flexiv").limits).toBeUndefined();
+    for (const id of ["franka", "so101", "piper", "openarm"]) expect(robotById(id).sources.join(" ")).toMatch(/@[0-9a-f]{7}/);
   });
 
   it("keeps the repo's numbers", () => {
     expect(robotById("franka").arm.dof).toBe("7");
-    expect(robotById("franka").arm.reach).toMatch(/0\.85 m/);
     expect(robotById("flexiv").arm.reach).toMatch(/0\.78 m/);
     expect(robotById("flexiv").result).toMatch(/9\/30/);
     expect(robotById("openarm").result).toMatch(/0\/30/);
@@ -43,8 +56,8 @@ describe("the robots catalog", () => {
   });
 
   it("writes a short spec line from the fields it has", () => {
-    expect(specLine(robotById("franka"))).toBe("DoF 7 · reach ≈ 0.85 m");
-    expect(specLine(robotById("so101"))).toBe("DoF 5 + jaw");
+    expect(specLine(robotById("franka"))).toBe("DoF 7 · reach 0.86 m");
+    expect(specLine(robotById("so101"))).toBe("DoF 5 + jaw · reach 0.31 m");
   });
 
   it("throws on an unknown robot", () => {

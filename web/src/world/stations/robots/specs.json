@@ -1,0 +1,343 @@
+{
+ "franka": {
+  "label": "Franka Panda (FER)",
+  "repo": "frankarobotics/franka_description",
+  "commit": "7aeeddc",
+  "licence": "Apache-2.0",
+  "dof": 7,
+  "reach_m": 0.858,
+  "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+  "joints": [
+   {
+    "name": "joint1",
+    "type": "revolute",
+    "lower": -2.8973,
+    "upper": 2.8973
+   },
+   {
+    "name": "joint2",
+    "type": "revolute",
+    "lower": -1.7628,
+    "upper": 1.7628
+   },
+   {
+    "name": "joint3",
+    "type": "revolute",
+    "lower": -2.8973,
+    "upper": 2.8973
+   },
+   {
+    "name": "joint4",
+    "type": "revolute",
+    "lower": -3.0718,
+    "upper": -0.0698
+   },
+   {
+    "name": "joint5",
+    "type": "revolute",
+    "lower": -2.8973,
+    "upper": 2.8973
+   },
+   {
+    "name": "joint6",
+    "type": "revolute",
+    "lower": -0.0175,
+    "upper": 3.7525
+   },
+   {
+    "name": "joint7",
+    "type": "revolute",
+    "lower": -2.8973,
+    "upper": 2.8973
+   }
+  ]
+ },
+ "fr3": {
+  "label": "Franka Research 3",
+  "repo": "frankarobotics/franka_description",
+  "commit": "7aeeddc",
+  "licence": "Apache-2.0",
+  "dof": 7,
+  "reach_m": 0.858,
+  "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+  "joints": [
+   {
+    "name": "joint1",
+    "type": "revolute",
+    "lower": -2.9007,
+    "upper": 2.9007
+   },
+   {
+    "name": "joint2",
+    "type": "revolute",
+    "lower": -1.8361,
+    "upper": 1.8361
+   },
+   {
+    "name": "joint3",
+    "type": "revolute",
+    "lower": -2.9007,
+    "upper": 2.9007
+   },
+   {
+    "name": "joint4",
+    "type": "revolute",
+    "lower": -3.077,
+    "upper": -0.1169
+   },
+   {
+    "name": "joint5",
+    "type": "revolute",
+    "lower": -2.8763,
+    "upper": 2.8763
+   },
+   {
+    "name": "joint6",
+    "type": "revolute",
+    "lower": 0.4398,
+    "upper": 4.6216
+   },
+   {
+    "name": "joint7",
+    "type": "revolute",
+    "lower": -3.0508,
+    "upper": 3.0508
+   }
+  ]
+ },
+ "ur5e": {
+  "label": "Universal Robots UR5e",
+  "repo": "UniversalRobots/Universal_Robots_ROS2_Description",
+  "commit": "d4042c1",
+  "licence": "BSD-3-Clause",
+  "dof": 6,
+  "reach_m": 0.969,
+  "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+  "joints": [
+   {
+    "name": "shoulder_pan_joint",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   },
+   {
+    "name": "shoulder_lift_joint",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   },
+   {
+    "name": "elbow_joint",
+    "type": "revolute",
+    "lower": -3.141593,
+    "upper": 3.141593
+   },
+   {
+    "name": "wrist_1_joint",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   },
+   {
+    "name": "wrist_2_joint",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   },
+   {
+    "name": "wrist_3_joint",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   }
+  ]
+ },
+ "xarm6": {
+  "label": "UFACTORY xArm 6 + xArm gripper",
+  "repo": "xArm-Developer/xarm_ros2",
+  "commit": "ac736c9",
+  "licence": "BSD-3-Clause",
+  "dof": 6,
+  "reach_m": 0.764,
+  "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+  "joints": [
+   {
+    "name": "joint1",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   },
+   {
+    "name": "joint2",
+    "type": "revolute",
+    "lower": -2.059,
+    "upper": 2.0944
+   },
+   {
+    "name": "joint3",
+    "type": "revolute",
+    "lower": -3.927,
+    "upper": 0.19198
+   },
+   {
+    "name": "joint4",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   },
+   {
+    "name": "joint5",
+    "type": "revolute",
+    "lower": -1.69297,
+    "upper": 3.141593
+   },
+   {
+    "name": "joint6",
+    "type": "revolute",
+    "lower": -6.283185,
+    "upper": 6.283185
+   }
+  ]
+ },
+ "so101": {
+  "label": "SO-101 (TheRobotStudio)",
+  "repo": "TheRobotStudio/SO-ARM100",
+  "commit": "a758567",
+  "licence": "Apache-2.0",
+  "dof": 5,
+  "reach_m": 0.313,
+  "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+  "joints": [
+   {
+    "name": "shoulder_pan",
+    "type": "revolute",
+    "lower": -1.91986,
+    "upper": 1.91986
+   },
+   {
+    "name": "shoulder_lift",
+    "type": "revolute",
+    "lower": -1.74533,
+    "upper": 1.74533
+   },
+   {
+    "name": "elbow_flex",
+    "type": "revolute",
+    "lower": -1.69,
+    "upper": 1.69
+   },
+   {
+    "name": "wrist_flex",
+    "type": "revolute",
+    "lower": -1.65806,
+    "upper": 1.65806
+   },
+   {
+    "name": "wrist_roll",
+    "type": "revolute",
+    "lower": -2.74385,
+    "upper": 2.84121
+   }
+  ]
+ },
+ "piper": {
+  "label": "AgileX PiPER",
+  "repo": "agilexrobotics/piper_ros",
+  "commit": "ac41fcb",
+  "licence": "MIT",
+  "dof": 6,
+  "reach_m": 0.628,
+  "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+  "joints": [
+   {
+    "name": "joint1",
+    "type": "revolute",
+    "lower": -2.618,
+    "upper": 2.618
+   },
+   {
+    "name": "joint2",
+    "type": "revolute",
+    "lower": 0.0,
+    "upper": 3.14
+   },
+   {
+    "name": "joint3",
+    "type": "revolute",
+    "lower": -2.967,
+    "upper": 0.0
+   },
+   {
+    "name": "joint4",
+    "type": "revolute",
+    "lower": -1.745,
+    "upper": 1.745
+   },
+   {
+    "name": "joint5",
+    "type": "revolute",
+    "lower": -1.22,
+    "upper": 1.22
+   },
+   {
+    "name": "joint6",
+    "type": "revolute",
+    "lower": -2.0944,
+    "upper": 2.0944
+   }
+  ]
+ },
+ "openarm": {
+  "label": "OpenArm v1.0 (Enactic)",
+  "repo": "enactic/openarm_description",
+  "commit": "206eb8a",
+  "licence": "Apache-2.0",
+  "dof": 7,
+  "reach_m": 0.438,
+  "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+  "joints": [
+   {
+    "name": "openarm_right_joint1",
+    "type": "revolute",
+    "lower": -1.396263,
+    "upper": 3.490659
+   },
+   {
+    "name": "openarm_right_joint2",
+    "type": "revolute",
+    "lower": -0.174533,
+    "upper": 3.316125
+   },
+   {
+    "name": "openarm_right_joint3",
+    "type": "revolute",
+    "lower": -1.570796,
+    "upper": 1.570796
+   },
+   {
+    "name": "openarm_right_joint4",
+    "type": "revolute",
+    "lower": 0.0,
+    "upper": 2.443461
+   },
+   {
+    "name": "openarm_right_joint5",
+    "type": "revolute",
+    "lower": -1.570796,
+    "upper": 1.570796
+   },
+   {
+    "name": "openarm_right_joint6",
+    "type": "revolute",
+    "lower": -0.785398,
+    "upper": 0.785398
+   },
+   {
+    "name": "openarm_right_joint7",
+    "type": "revolute",
+    "lower": -1.570796,
+    "upper": 1.570796
+   }
+  ]
+ }
+}
