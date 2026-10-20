@@ -1,0 +1,3869 @@
+{
+ "version": 1,
+ "assets_root": "C:/dev/assets/robots (see its SOURCES.md)",
+ "wall_target_tris": 105000,
+ "robots": {
+  "franka": {
+   "label": "Franka Panda (FER)",
+   "source": {
+    "repo": "frankarobotics/franka_description",
+    "commit": "7aeeddc449edf8d62b594f9e36a81da53e7796f9",
+    "licence": "Apache-2.0",
+    "github_licence": "Apache-2.0",
+    "folder": "franka"
+   },
+   "base": "link0",
+   "flange": "link8",
+   "dof": 7,
+   "reach_m": 0.858,
+   "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+   "payload_kg": null,
+   "payload_note": "not stated in the repo",
+   "joints": [
+    {
+     "name": "joint1",
+     "type": "revolute",
+     "parent": "link0",
+     "child": "link1",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.333
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.8973,
+     "upper": 2.8973,
+     "velocity": 2.175,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint2",
+     "type": "revolute",
+     "parent": "link1",
+     "child": "link2",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       -1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.7628,
+     "upper": 1.7628,
+     "velocity": 2.175,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint3",
+     "type": "revolute",
+     "parent": "link2",
+     "child": "link3",
+     "origin": {
+      "xyz": [
+       0.0,
+       -0.316,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.8973,
+     "upper": 2.8973,
+     "velocity": 2.175,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint4",
+     "type": "revolute",
+     "parent": "link3",
+     "child": "link4",
+     "origin": {
+      "xyz": [
+       0.0825,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -3.0718,
+     "upper": -0.0698,
+     "velocity": 2.175,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint5",
+     "type": "revolute",
+     "parent": "link4",
+     "child": "link5",
+     "origin": {
+      "xyz": [
+       -0.0825,
+       0.384,
+       0.0
+      ],
+      "rpy": [
+       -1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.8973,
+     "upper": 2.8973,
+     "velocity": 2.61,
+     "effort": 12.0,
+     "mimic": null
+    },
+    {
+     "name": "joint6",
+     "type": "revolute",
+     "parent": "link5",
+     "child": "link6",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -0.0175,
+     "upper": 3.7525,
+     "velocity": 2.61,
+     "effort": 12.0,
+     "mimic": null
+    },
+    {
+     "name": "joint7",
+     "type": "revolute",
+     "parent": "link6",
+     "child": "link7",
+     "origin": {
+      "xyz": [
+       0.088,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.8973,
+     "upper": 2.8973,
+     "velocity": 2.61,
+     "effort": 12.0,
+     "mimic": null
+    },
+    {
+     "name": "finger_joint1",
+     "type": "prismatic",
+     "parent": "hand",
+     "child": "leftfinger",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0584
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "lower": 0.0,
+     "upper": 0.04,
+     "velocity": 0.2,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "finger_joint2",
+     "type": "prismatic",
+     "parent": "hand",
+     "child": "rightfinger",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0584
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       3.141593
+      ]
+     },
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "lower": 0.0,
+     "upper": 0.04,
+     "velocity": 0.2,
+     "effort": 100.0,
+     "mimic": "finger_joint1"
+    }
+   ],
+   "rest": {
+    "values": {
+     "joint1": 0.0,
+     "joint2": -0.569,
+     "joint3": 0.0,
+     "joint4": -2.81,
+     "joint5": 0.0,
+     "joint6": 3.037,
+     "joint7": 0.741,
+     "finger_joint1": 0.04,
+     "finger_joint2": 0.04
+    },
+    "source": "Isaac Lab's Franka start pose (web/src/twin/model.ts)"
+   },
+   "meshes": {
+    "link0": [
+     {
+      "file": "meshes/robots/fer/visual/link0.dae",
+      "path": "franka/meshes/robots/fer/visual/link0.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1592724,
+      "tris": 20483,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link1": [
+     {
+      "file": "meshes/robots/fer/visual/link1.dae",
+      "path": "franka/meshes/robots/fer/visual/link1.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 979605,
+      "tris": 12516,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link2": [
+     {
+      "file": "meshes/robots/fer/visual/link2.dae",
+      "path": "franka/meshes/robots/fer/visual/link2.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 999676,
+      "tris": 12716,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link3": [
+     {
+      "file": "meshes/robots/fer/visual/link3.dae",
+      "path": "franka/meshes/robots/fer/visual/link3.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1101015,
+      "tris": 14233,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link4": [
+     {
+      "file": "meshes/robots/fer/visual/link4.dae",
+      "path": "franka/meshes/robots/fer/visual/link4.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1146855,
+      "tris": 14621,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link5": [
+     {
+      "file": "meshes/robots/fer/visual/link5.dae",
+      "path": "franka/meshes/robots/fer/visual/link5.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1439475,
+      "tris": 18327,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link6": [
+     {
+      "file": "meshes/robots/fer/visual/link6.dae",
+      "path": "franka/meshes/robots/fer/visual/link6.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1729885,
+      "tris": 21620,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link7": [
+     {
+      "file": "meshes/robots/fer/visual/link7.dae",
+      "path": "franka/meshes/robots/fer/visual/link7.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 937548,
+      "tris": 12082,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "hand": [
+     {
+      "file": "meshes/robot_ee/franka_hand_white/visual/hand.dae",
+      "path": "franka/meshes/robot_ee/franka_hand_white/visual/hand.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 550371,
+      "tris": 7078,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "leftfinger": [
+     {
+      "file": "meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "path": "franka/meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 52371,
+      "tris": 624,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "rightfinger": [
+     {
+      "file": "meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "path": "franka/meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 52371,
+      "tris": 624,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ]
+   },
+   "mesh_totals": {
+    "files": 11,
+    "tris": 134924,
+    "bytes": 10581896
+   },
+   "blender": {
+    "target_tris": 15000,
+    "decimate_ratio": 0.1112
+   },
+   "notes": []
+  },
+  "fr3": {
+   "label": "Franka Research 3",
+   "source": {
+    "repo": "frankarobotics/franka_description",
+    "commit": "7aeeddc449edf8d62b594f9e36a81da53e7796f9",
+    "licence": "Apache-2.0",
+    "github_licence": "Apache-2.0",
+    "folder": "franka"
+   },
+   "base": "link0",
+   "flange": "link8",
+   "dof": 7,
+   "reach_m": 0.858,
+   "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+   "payload_kg": null,
+   "payload_note": "not stated in the repo",
+   "joints": [
+    {
+     "name": "joint1",
+     "type": "revolute",
+     "parent": "link0",
+     "child": "link1",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.333
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.9007,
+     "upper": 2.9007,
+     "velocity": 2.62,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint2",
+     "type": "revolute",
+     "parent": "link1",
+     "child": "link2",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       -1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.8361,
+     "upper": 1.8361,
+     "velocity": 2.62,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint3",
+     "type": "revolute",
+     "parent": "link2",
+     "child": "link3",
+     "origin": {
+      "xyz": [
+       0.0,
+       -0.316,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.9007,
+     "upper": 2.9007,
+     "velocity": 2.62,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint4",
+     "type": "revolute",
+     "parent": "link3",
+     "child": "link4",
+     "origin": {
+      "xyz": [
+       0.0825,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -3.077,
+     "upper": -0.1169,
+     "velocity": 2.62,
+     "effort": 87.0,
+     "mimic": null
+    },
+    {
+     "name": "joint5",
+     "type": "revolute",
+     "parent": "link4",
+     "child": "link5",
+     "origin": {
+      "xyz": [
+       -0.0825,
+       0.384,
+       0.0
+      ],
+      "rpy": [
+       -1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.8763,
+     "upper": 2.8763,
+     "velocity": 5.26,
+     "effort": 12.0,
+     "mimic": null
+    },
+    {
+     "name": "joint6",
+     "type": "revolute",
+     "parent": "link5",
+     "child": "link6",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": 0.4398,
+     "upper": 4.6216,
+     "velocity": 4.18,
+     "effort": 12.0,
+     "mimic": null
+    },
+    {
+     "name": "joint7",
+     "type": "revolute",
+     "parent": "link6",
+     "child": "link7",
+     "origin": {
+      "xyz": [
+       0.088,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -3.0508,
+     "upper": 3.0508,
+     "velocity": 5.26,
+     "effort": 12.0,
+     "mimic": null
+    },
+    {
+     "name": "finger_joint1",
+     "type": "prismatic",
+     "parent": "hand",
+     "child": "leftfinger",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0584
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "lower": 0.0,
+     "upper": 0.04,
+     "velocity": 0.2,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "finger_joint2",
+     "type": "prismatic",
+     "parent": "hand",
+     "child": "rightfinger",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0584
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       3.141593
+      ]
+     },
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "lower": 0.0,
+     "upper": 0.04,
+     "velocity": 0.2,
+     "effort": 100.0,
+     "mimic": "finger_joint1"
+    }
+   ],
+   "rest": {
+    "values": {
+     "joint1": 0.0,
+     "joint2": 0.0,
+     "joint3": 0.0,
+     "joint4": -0.1169,
+     "joint5": 0.0,
+     "joint6": 0.4398,
+     "joint7": 0.0
+    },
+    "source": "none in the repo: each joint at the value nearest 0 within its limits"
+   },
+   "meshes": {
+    "link0": [
+     {
+      "file": "meshes/robots/fr3/visual/link0.dae",
+      "path": "franka/meshes/robots/fr3/visual/link0.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 7079719,
+      "tris": 63170,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link1": [
+     {
+      "file": "meshes/robots/fr3/visual/link1.dae",
+      "path": "franka/meshes/robots/fr3/visual/link1.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 906843,
+      "tris": 8028,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link2": [
+     {
+      "file": "meshes/robots/fr3/visual/link2.dae",
+      "path": "franka/meshes/robots/fr3/visual/link2.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 921715,
+      "tris": 8028,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link3": [
+     {
+      "file": "meshes/robots/fr3/visual/link3.dae",
+      "path": "franka/meshes/robots/fr3/visual/link3.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 2475274,
+      "tris": 21566,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link4": [
+     {
+      "file": "meshes/robots/fr3/visual/link4.dae",
+      "path": "franka/meshes/robots/fr3/visual/link4.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 2533228,
+      "tris": 21566,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link5": [
+     {
+      "file": "meshes/robots/fr3/visual/link5.dae",
+      "path": "franka/meshes/robots/fr3/visual/link5.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 3259292,
+      "tris": 27145,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link6": [
+     {
+      "file": "meshes/robots/fr3/visual/link6.dae",
+      "path": "franka/meshes/robots/fr3/visual/link6.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 5252660,
+      "tris": 44837,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "link7": [
+     {
+      "file": "meshes/robots/fr3/visual/link7.dae",
+      "path": "franka/meshes/robots/fr3/visual/link7.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 4243523,
+      "tris": 37958,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "hand": [
+     {
+      "file": "meshes/robot_ee/franka_hand_white/visual/hand.dae",
+      "path": "franka/meshes/robot_ee/franka_hand_white/visual/hand.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 550371,
+      "tris": 7078,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "leftfinger": [
+     {
+      "file": "meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "path": "franka/meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 52371,
+      "tris": 624,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "rightfinger": [
+     {
+      "file": "meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "path": "franka/meshes/robot_ee/franka_hand_white/visual/finger.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 52371,
+      "tris": 624,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ]
+   },
+   "mesh_totals": {
+    "files": 11,
+    "tris": 240624,
+    "bytes": 27327367
+   },
+   "blender": {
+    "target_tris": 15000,
+    "decimate_ratio": 0.0623
+   },
+   "notes": []
+  },
+  "ur5e": {
+   "label": "Universal Robots UR5e",
+   "source": {
+    "repo": "UniversalRobots/Universal_Robots_ROS2_Description",
+    "commit": "d4042c1f5123c86645cc5dbd650b4f461f697ee9",
+    "licence": "BSD-3-Clause",
+    "github_licence": "BSD-3-Clause",
+    "folder": "ur5e"
+   },
+   "base": "base_link",
+   "flange": "flange",
+   "dof": 6,
+   "reach_m": 0.969,
+   "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+   "payload_kg": null,
+   "payload_note": "not stated in the repo",
+   "joints": [
+    {
+     "name": "shoulder_pan_joint",
+     "type": "revolute",
+     "parent": "base_link_inertia",
+     "child": "shoulder_link",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.1625
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": 3.141593,
+     "effort": 150.0,
+     "mimic": null
+    },
+    {
+     "name": "shoulder_lift_joint",
+     "type": "revolute",
+     "parent": "shoulder_link",
+     "child": "upper_arm_link",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": 3.141593,
+     "effort": 150.0,
+     "mimic": null
+    },
+    {
+     "name": "elbow_joint",
+     "type": "revolute",
+     "parent": "upper_arm_link",
+     "child": "forearm_link",
+     "origin": {
+      "xyz": [
+       -0.425,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -3.141593,
+     "upper": 3.141593,
+     "velocity": 3.141593,
+     "effort": 150.0,
+     "mimic": null
+    },
+    {
+     "name": "wrist_1_joint",
+     "type": "revolute",
+     "parent": "forearm_link",
+     "child": "wrist_1_link",
+     "origin": {
+      "xyz": [
+       -0.3922,
+       0.0,
+       0.1333
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": 3.141593,
+     "effort": 28.0,
+     "mimic": null
+    },
+    {
+     "name": "wrist_2_joint",
+     "type": "revolute",
+     "parent": "wrist_1_link",
+     "child": "wrist_2_link",
+     "origin": {
+      "xyz": [
+       0.0,
+       -0.0997,
+       -0.0
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": 3.141593,
+     "effort": 28.0,
+     "mimic": null
+    },
+    {
+     "name": "wrist_3_joint",
+     "type": "revolute",
+     "parent": "wrist_2_link",
+     "child": "wrist_3_link",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0996,
+       -0.0
+      ],
+      "rpy": [
+       1.570796,
+       3.141593,
+       3.141593
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": 3.141593,
+     "effort": 28.0,
+     "mimic": null
+    }
+   ],
+   "rest": {
+    "values": {
+     "shoulder_pan_joint": 0.0,
+     "shoulder_lift_joint": -1.57,
+     "elbow_joint": 0.0,
+     "wrist_1_joint": -1.57,
+     "wrist_2_joint": 0.0,
+     "wrist_3_joint": 0.0
+    },
+    "source": "config/initial_positions.yaml"
+   },
+   "meshes": {
+    "base_link_inertia": [
+     {
+      "file": "meshes/ur5e/visual/base.dae",
+      "path": "ur5e/meshes/ur5e/visual/base.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        3.141592653589793
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 358056,
+      "tris": 4838,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "shoulder_link": [
+     {
+      "file": "meshes/ur5e/visual/shoulder.dae",
+      "path": "ur5e/meshes/ur5e/visual/shoulder.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        3.141592653589793
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1797083,
+      "tris": 23290,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "upper_arm_link": [
+     {
+      "file": "meshes/ur5e/visual/upperarm.dae",
+      "path": "ur5e/meshes/ur5e/visual/upperarm.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.138
+       ],
+       "rpy": [
+        1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 3082486,
+      "tris": 40124,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "forearm_link": [
+     {
+      "file": "meshes/ur5e/visual/forearm.dae",
+      "path": "ur5e/meshes/ur5e/visual/forearm.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.007
+       ],
+       "rpy": [
+        1.5707963267948966,
+        0.0,
+        -1.5707963267948966
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1140937,
+      "tris": 15058,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "wrist_1_link": [
+     {
+      "file": "meshes/ur5e/visual/wrist1.dae",
+      "path": "ur5e/meshes/ur5e/visual/wrist1.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        -0.127
+       ],
+       "rpy": [
+        1.5707963267948966,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1334663,
+      "tris": 17288,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "wrist_2_link": [
+     {
+      "file": "meshes/ur5e/visual/wrist2.dae",
+      "path": "ur5e/meshes/ur5e/visual/wrist2.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        -0.0997
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 1554839,
+      "tris": 20280,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "wrist_3_link": [
+     {
+      "file": "meshes/ur5e/visual/wrist3.dae",
+      "path": "ur5e/meshes/ur5e/visual/wrist3.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        -0.0005,
+        -0.0989
+       ],
+       "rpy": [
+        1.5707963267948966,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "dae",
+      "bytes": 66077,
+      "tris": 911,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ]
+   },
+   "mesh_totals": {
+    "files": 7,
+    "tris": 121789,
+    "bytes": 9334141
+   },
+   "blender": {
+    "target_tris": 15000,
+    "decimate_ratio": 0.1232
+   },
+   "notes": []
+  },
+  "xarm6": {
+   "label": "UFACTORY xArm 6 + xArm gripper",
+   "source": {
+    "repo": "xArm-Developer/xarm_ros2",
+    "commit": "ac736c92b02de7ca7e0be6f737d77d46707464d8",
+    "licence": "BSD-3-Clause",
+    "github_licence": "BSD-3-Clause",
+    "folder": "xarm6"
+   },
+   "base": "link_base",
+   "flange": "link6",
+   "dof": 6,
+   "reach_m": 0.764,
+   "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+   "payload_kg": null,
+   "payload_note": "not stated in the repo",
+   "joints": [
+    {
+     "name": "joint1",
+     "type": "revolute",
+     "parent": "link_base",
+     "child": "link1",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.267
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": null,
+     "effort": 163.2,
+     "mimic": null
+    },
+    {
+     "name": "joint2",
+     "type": "revolute",
+     "parent": "link1",
+     "child": "link2",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       -1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.059,
+     "upper": 2.0944,
+     "velocity": null,
+     "effort": 163.2,
+     "mimic": null
+    },
+    {
+     "name": "joint3",
+     "type": "revolute",
+     "parent": "link2",
+     "child": "link3",
+     "origin": {
+      "xyz": [
+       0.0535,
+       -0.2845,
+       0.0
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -3.927,
+     "upper": 0.19198,
+     "velocity": null,
+     "effort": 81.6,
+     "mimic": null
+    },
+    {
+     "name": "joint4",
+     "type": "revolute",
+     "parent": "link3",
+     "child": "link4",
+     "origin": {
+      "xyz": [
+       0.0775,
+       0.3425,
+       0.0
+      ],
+      "rpy": [
+       -1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": null,
+     "effort": 81.6,
+     "mimic": null
+    },
+    {
+     "name": "joint5",
+     "type": "revolute",
+     "parent": "link4",
+     "child": "link5",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.69297,
+     "upper": 3.141593,
+     "velocity": null,
+     "effort": 30.6,
+     "mimic": null
+    },
+    {
+     "name": "joint6",
+     "type": "revolute",
+     "parent": "link5",
+     "child": "link6",
+     "origin": {
+      "xyz": [
+       0.076,
+       0.097,
+       0.0
+      ],
+      "rpy": [
+       -1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -6.283185,
+     "upper": 6.283185,
+     "velocity": null,
+     "effort": 30.6,
+     "mimic": null
+    }
+   ],
+   "rest": {
+    "values": {
+     "joint1": 0.0,
+     "joint2": 0.0,
+     "joint3": 0.0,
+     "joint4": 0.0,
+     "joint5": 0.0,
+     "joint6": 0.0
+    },
+    "source": "none in the repo: each joint at the value nearest 0 within its limits"
+   },
+   "meshes": {
+    "link_base": [
+     {
+      "file": "xarm_description/meshes/xarm6/visual/link_base.stl",
+      "path": "xarm6/xarm_description/meshes/xarm6/visual/link_base.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 123284,
+      "tris": 2464,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link1": [
+     {
+      "file": "xarm_description/meshes/xarm6/visual/link1.stl",
+      "path": "xarm6/xarm_description/meshes/xarm6/visual/link1.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 188084,
+      "tris": 3760,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link2": [
+     {
+      "file": "xarm_description/meshes/xarm6/visual/link2.stl",
+      "path": "xarm6/xarm_description/meshes/xarm6/visual/link2.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1305984,
+      "tris": 26118,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link3": [
+     {
+      "file": "xarm_description/meshes/xarm6/visual/link3.stl",
+      "path": "xarm6/xarm_description/meshes/xarm6/visual/link3.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 212484,
+      "tris": 4248,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link4": [
+     {
+      "file": "xarm_description/meshes/xarm6/visual/link4.stl",
+      "path": "xarm6/xarm_description/meshes/xarm6/visual/link4.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 228984,
+      "tris": 4578,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link5": [
+     {
+      "file": "xarm_description/meshes/xarm6/visual/link5.stl",
+      "path": "xarm6/xarm_description/meshes/xarm6/visual/link5.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 383034,
+      "tris": 7659,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link6": [
+     {
+      "file": "xarm_description/meshes/xarm6/visual/link6.stl",
+      "path": "xarm6/xarm_description/meshes/xarm6/visual/link6.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 129884,
+      "tris": 2596,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "xarm_description/meshes/gripper/xarm/base_link.stl",
+      "path": "xarm6/xarm_description/meshes/gripper/xarm/base_link.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1211434,
+      "tris": 24227,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ]
+   },
+   "mesh_totals": {
+    "files": 8,
+    "tris": 75650,
+    "bytes": 3783172
+   },
+   "blender": {
+    "target_tris": 15000,
+    "decimate_ratio": 0.1983
+   },
+   "notes": [
+    "gripper fingers (meshes/gripper/xarm/*finger*, *knuckle*) are parts: the linkage that poses them is in the gripper's xacro and isn't resolved here"
+   ]
+  },
+  "so101": {
+   "label": "SO-101 (TheRobotStudio)",
+   "source": {
+    "repo": "TheRobotStudio/SO-ARM100",
+    "commit": "a758567c3978dfeefe282ede0500085a48fe8f78",
+    "licence": "Apache-2.0",
+    "github_licence": "Apache-2.0",
+    "folder": "so101"
+   },
+   "base": "base_link",
+   "flange": "gripper_link",
+   "dof": 5,
+   "reach_m": 0.313,
+   "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+   "payload_kg": null,
+   "payload_note": "not stated in the repo",
+   "joints": [
+    {
+     "name": "shoulder_pan",
+     "type": "revolute",
+     "parent": "base_link",
+     "child": "shoulder_link",
+     "origin": {
+      "xyz": [
+       0.038835,
+       -0.0,
+       0.0624
+      ],
+      "rpy": [
+       3.14159,
+       0.0,
+       -3.14159
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.91986,
+     "upper": 1.91986,
+     "velocity": 10.0,
+     "effort": 10.0,
+     "mimic": null
+    },
+    {
+     "name": "shoulder_lift",
+     "type": "revolute",
+     "parent": "shoulder_link",
+     "child": "upper_arm_link",
+     "origin": {
+      "xyz": [
+       -0.030399,
+       -0.018278,
+       -0.0542
+      ],
+      "rpy": [
+       -1.5708,
+       -1.5708,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.74533,
+     "upper": 1.74533,
+     "velocity": 10.0,
+     "effort": 10.0,
+     "mimic": null
+    },
+    {
+     "name": "elbow_flex",
+     "type": "revolute",
+     "parent": "upper_arm_link",
+     "child": "lower_arm_link",
+     "origin": {
+      "xyz": [
+       -0.11257,
+       -0.028,
+       0.0
+      ],
+      "rpy": [
+       -0.0,
+       0.0,
+       1.5708
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.69,
+     "upper": 1.69,
+     "velocity": 10.0,
+     "effort": 10.0,
+     "mimic": null
+    },
+    {
+     "name": "wrist_flex",
+     "type": "revolute",
+     "parent": "lower_arm_link",
+     "child": "wrist_link",
+     "origin": {
+      "xyz": [
+       -0.1349,
+       0.0052,
+       0.0
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       -1.5708
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.65806,
+     "upper": 1.65806,
+     "velocity": 10.0,
+     "effort": 10.0,
+     "mimic": null
+    },
+    {
+     "name": "wrist_roll",
+     "type": "revolute",
+     "parent": "wrist_link",
+     "child": "gripper_link",
+     "origin": {
+      "xyz": [
+       0.0,
+       -0.0611,
+       0.0181
+      ],
+      "rpy": [
+       1.5708,
+       0.04868,
+       3.14159
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.74385,
+     "upper": 2.84121,
+     "velocity": 10.0,
+     "effort": 10.0,
+     "mimic": null
+    },
+    {
+     "name": "gripper",
+     "type": "revolute",
+     "parent": "gripper_link",
+     "child": "moving_jaw_so101_v1_link",
+     "origin": {
+      "xyz": [
+       0.0202,
+       0.0188,
+       -0.0234
+      ],
+      "rpy": [
+       1.5708,
+       -0.0,
+       -0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -0.174533,
+     "upper": 1.74533,
+     "velocity": 10.0,
+     "effort": 10.0,
+     "mimic": null
+    }
+   ],
+   "rest": {
+    "values": {
+     "shoulder_pan": 0.0,
+     "shoulder_lift": 0.0,
+     "elbow_flex": 0.0,
+     "wrist_flex": 0.0,
+     "wrist_roll": 0.0
+    },
+    "source": "none in the repo: each joint at the value nearest 0 within its limits"
+   },
+   "meshes": {
+    "base_link": [
+     {
+      "file": "Simulation/SO101/assets/base_motor_holder_so101_v1.stl",
+      "path": "so101/Simulation/SO101/assets/base_motor_holder_so101_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.00636471,
+        -9.94414e-05,
+        -0.0024
+       ],
+       "rpy": [
+        1.5708,
+        -1.67685e-15,
+        1.5708
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1877084,
+      "tris": 37540,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/base_so101_v2.stl",
+      "path": "so101/Simulation/SO101/assets/base_so101_v2.stl",
+      "origin": {
+       "xyz": [
+        -0.00636471,
+        -8.97657e-09,
+        -0.0024
+       ],
+       "rpy": [
+        1.5708,
+        -2.78073e-29,
+        1.5708
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 471584,
+      "tris": 9430,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "path": "so101/Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "origin": {
+       "xyz": [
+        0.0263353,
+        -8.97657e-09,
+        0.0437
+       ],
+       "rpy": [
+        -8.21148e-16,
+        7.84513e-18,
+        1.249e-15
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 954084,
+      "tris": 19080,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/waveshare_mounting_plate_so101_v2.stl",
+      "path": "so101/Simulation/SO101/assets/waveshare_mounting_plate_so101_v2.stl",
+      "origin": {
+       "xyz": [
+        -0.0309827,
+        -0.000199441,
+        0.0474
+       ],
+       "rpy": [
+        1.5708,
+        -1.35493e-14,
+        1.5708
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 62784,
+      "tris": 1254,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "shoulder_link": [
+     {
+      "file": "Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "path": "so101/Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.0303992,
+        0.000422241,
+        -0.0417
+       ],
+       "rpy": [
+        1.5708,
+        1.5708,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 954084,
+      "tris": 19080,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/motor_holder_so101_base_v1.stl",
+      "path": "so101/Simulation/SO101/assets/motor_holder_so101_base_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.0675992,
+        -0.000177759,
+        0.0158499
+       ],
+       "rpy": [
+        1.5708,
+        -1.5708,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1129384,
+      "tris": 22586,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/rotation_pitch_so101_v1.stl",
+      "path": "so101/Simulation/SO101/assets/rotation_pitch_so101_v1.stl",
+      "origin": {
+       "xyz": [
+        0.0122008,
+        2.22413e-05,
+        0.0464
+       ],
+       "rpy": [
+        -1.5708,
+        2.35221e-33,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 883684,
+      "tris": 17672,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "upper_arm_link": [
+     {
+      "file": "Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "path": "so101/Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.11257,
+        -0.0155,
+        0.0187
+       ],
+       "rpy": [
+        -3.14159,
+        -5.27356e-16,
+        -1.5708
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 954084,
+      "tris": 19080,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/upper_arm_so101_v1.stl",
+      "path": "so101/Simulation/SO101/assets/upper_arm_so101_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.065085,
+        0.012,
+        0.0182
+       ],
+       "rpy": [
+        3.14159,
+        -0.0,
+        -1.30911e-30
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1303484,
+      "tris": 26068,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "lower_arm_link": [
+     {
+      "file": "Simulation/SO101/assets/under_arm_so101_v1.stl",
+      "path": "so101/Simulation/SO101/assets/under_arm_so101_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.0648499,
+        -0.032,
+        0.0182
+       ],
+       "rpy": [
+        3.14159,
+        -0.0,
+        6.67202e-31
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1975884,
+      "tris": 39516,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/motor_holder_so101_wrist_v1.stl",
+      "path": "so101/Simulation/SO101/assets/motor_holder_so101_wrist_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.0648499,
+        -0.032,
+        0.018
+       ],
+       "rpy": [
+        -3.14159,
+        -2.55351e-15,
+        -1.83387e-30
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1052184,
+      "tris": 21042,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "path": "so101/Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "origin": {
+       "xyz": [
+        -0.1224,
+        0.0052,
+        0.0187
+       ],
+       "rpy": [
+        -3.14159,
+        -7.88861e-31,
+        -3.14159
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 954084,
+      "tris": 19080,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "wrist_link": [
+     {
+      "file": "Simulation/SO101/assets/sts3215_03a_no_horn_v1.stl",
+      "path": "so101/Simulation/SO101/assets/sts3215_03a_no_horn_v1.stl",
+      "origin": {
+       "xyz": [
+        8.32667e-17,
+        -0.0424,
+        0.0306
+       ],
+       "rpy": [
+        1.5708,
+        1.5708,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 865884,
+      "tris": 17316,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/wrist_roll_pitch_so101_v2.stl",
+      "path": "so101/Simulation/SO101/assets/wrist_roll_pitch_so101_v2.stl",
+      "origin": {
+       "xyz": [
+        0.0,
+        -0.028,
+        0.0181
+       ],
+       "rpy": [
+        -1.5708,
+        -1.5708,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 2699784,
+      "tris": 53994,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "gripper_link": [
+     {
+      "file": "Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "path": "so101/Simulation/SO101/assets/sts3215_03a_v1.stl",
+      "origin": {
+       "xyz": [
+        0.0077,
+        0.0001,
+        -0.0234
+       ],
+       "rpy": [
+        -1.5708,
+        -5.19179e-17,
+        -1.66533e-16
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 954084,
+      "tris": 19080,
+      "unit_m": null,
+      "up_axis": null
+     },
+     {
+      "file": "Simulation/SO101/assets/wrist_roll_follower_so101_v1.stl",
+      "path": "so101/Simulation/SO101/assets/wrist_roll_follower_so101_v1.stl",
+      "origin": {
+       "xyz": [
+        8.32667e-17,
+        -0.000218214,
+        0.000949706
+       ],
+       "rpy": [
+        -3.14159,
+        -5.55112e-17,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1439884,
+      "tris": 28796,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "moving_jaw_so101_v1_link": [
+     {
+      "file": "Simulation/SO101/assets/moving_jaw_so101_v1.stl",
+      "path": "so101/Simulation/SO101/assets/moving_jaw_so101_v1.stl",
+      "origin": {
+       "xyz": [
+        -5.55112e-17,
+        -5.55112e-17,
+        0.0189
+       ],
+       "rpy": [
+        9.53145e-17,
+        6.93889e-18,
+        1.24077e-24
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1413584,
+      "tris": 28270,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ]
+   },
+   "mesh_totals": {
+    "files": 17,
+    "tris": 398884,
+    "bytes": 19945628
+   },
+   "blender": {
+    "target_tris": 15000,
+    "decimate_ratio": 0.0376
+   },
+   "notes": []
+  },
+  "piper": {
+   "label": "AgileX PiPER",
+   "source": {
+    "repo": "agilexrobotics/piper_ros",
+    "commit": "ac41fcbcdda598f01b51cf6175ed9a24d0dacadc",
+    "licence": "MIT",
+    "github_licence": "MIT",
+    "folder": "piper"
+   },
+   "base": "base_link",
+   "flange": "link6",
+   "dof": 6,
+   "reach_m": 0.628,
+   "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+   "payload_kg": null,
+   "payload_note": "not stated in the repo",
+   "joints": [
+    {
+     "name": "joint1",
+     "type": "revolute",
+     "parent": "base_link",
+     "child": "link1",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.123
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.618,
+     "upper": 2.618,
+     "velocity": 5.0,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "joint2",
+     "type": "revolute",
+     "parent": "link1",
+     "child": "link2",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       1.5708,
+       -0.1359,
+       -3.1416
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": 0.0,
+     "upper": 3.14,
+     "velocity": 5.0,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "joint3",
+     "type": "revolute",
+     "parent": "link2",
+     "child": "link3",
+     "origin": {
+      "xyz": [
+       0.28503,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       -1.7939
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.967,
+     "upper": 0.0,
+     "velocity": 5.0,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "joint4",
+     "type": "revolute",
+     "parent": "link3",
+     "child": "link4",
+     "origin": {
+      "xyz": [
+       -0.021984,
+       -0.25075,
+       0.0
+      ],
+      "rpy": [
+       1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.745,
+     "upper": 1.745,
+     "velocity": 5.0,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "joint5",
+     "type": "revolute",
+     "parent": "link4",
+     "child": "link5",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       -1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.22,
+     "upper": 1.22,
+     "velocity": 5.0,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "joint6",
+     "type": "revolute",
+     "parent": "link5",
+     "child": "link6",
+     "origin": {
+      "xyz": [
+       8.8e-05,
+       -0.091,
+       0.0
+      ],
+      "rpy": [
+       1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -2.0944,
+     "upper": 2.0944,
+     "velocity": 3.0,
+     "effort": 100.0,
+     "mimic": null
+    },
+    {
+     "name": "joint7",
+     "type": "prismatic",
+     "parent": "gripper_base",
+     "child": "link7",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.1358
+      ],
+      "rpy": [
+       1.5708,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": 0.0,
+     "upper": 0.035,
+     "velocity": 1.0,
+     "effort": 10.0,
+     "mimic": null
+    },
+    {
+     "name": "joint8",
+     "type": "prismatic",
+     "parent": "gripper_base",
+     "child": "link8",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.1358
+      ],
+      "rpy": [
+       1.5708,
+       0.0,
+       -3.1416
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     "lower": -0.035,
+     "upper": 0.0,
+     "velocity": 1.0,
+     "effort": 10.0,
+     "mimic": null
+    }
+   ],
+   "rest": {
+    "values": {
+     "joint1": 0.0,
+     "joint2": 0.0,
+     "joint3": 0.0,
+     "joint4": 0.0,
+     "joint5": 0.0,
+     "joint6": 0.0
+    },
+    "source": "none in the repo: each joint at the value nearest 0 within its limits"
+   },
+   "meshes": {
+    "base_link": [
+     {
+      "file": "src/piper_description/meshes/base_link.STL",
+      "path": "piper/src/piper_description/meshes/base_link.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 607384,
+      "tris": 12146,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link1": [
+     {
+      "file": "src/piper_description/meshes/link1.STL",
+      "path": "piper/src/piper_description/meshes/link1.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 447784,
+      "tris": 8954,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link2": [
+     {
+      "file": "src/piper_description/meshes/link2.STL",
+      "path": "piper/src/piper_description/meshes/link2.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 3658384,
+      "tris": 73166,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link3": [
+     {
+      "file": "src/piper_description/meshes/link3.STL",
+      "path": "piper/src/piper_description/meshes/link3.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 1845784,
+      "tris": 36914,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link4": [
+     {
+      "file": "src/piper_description/meshes/link4.STL",
+      "path": "piper/src/piper_description/meshes/link4.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 877984,
+      "tris": 17558,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link5": [
+     {
+      "file": "src/piper_description/meshes/link5.STL",
+      "path": "piper/src/piper_description/meshes/link5.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 833684,
+      "tris": 16672,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link6": [
+     {
+      "file": "src/piper_description/meshes/link6.STL",
+      "path": "piper/src/piper_description/meshes/link6.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 58884,
+      "tris": 1176,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "gripper_base": [
+     {
+      "file": "src/piper_description/meshes/gripper_base.STL",
+      "path": "piper/src/piper_description/meshes/gripper_base.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 649484,
+      "tris": 12988,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link7": [
+     {
+      "file": "src/piper_description/meshes/link7.STL",
+      "path": "piper/src/piper_description/meshes/link7.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 104384,
+      "tris": 2086,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ],
+    "link8": [
+     {
+      "file": "src/piper_description/meshes/link8.STL",
+      "path": "piper/src/piper_description/meshes/link8.STL",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "format": "stl",
+      "bytes": 104384,
+      "tris": 2086,
+      "unit_m": null,
+      "up_axis": null
+     }
+    ]
+   },
+   "mesh_totals": {
+    "files": 10,
+    "tris": 183746,
+    "bytes": 9188140
+   },
+   "blender": {
+    "target_tris": 15000,
+    "decimate_ratio": 0.0816
+   },
+   "notes": []
+  },
+  "openarm": {
+   "label": "OpenArm v1.0 (Enactic)",
+   "source": {
+    "repo": "enactic/openarm_description",
+    "commit": "206eb8a4cf2e5e564536b4f5366ef369843a4aa7",
+    "licence": "Apache-2.0",
+    "github_licence": "Apache-2.0",
+    "folder": "openarm"
+   },
+   "base": "openarm_right_link0",
+   "flange": "openarm_right_link7",
+   "dof": 7,
+   "reach_m": 0.438,
+   "reach_definition": "max distance from the shoulder (2nd arm joint's frame) to the flange over the joint limits",
+   "payload_kg": null,
+   "payload_note": "not stated in the repo",
+   "joints": [
+    {
+     "name": "openarm_right_joint1",
+     "type": "revolute",
+     "parent": "openarm_right_link0",
+     "child": "openarm_right_link1",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.0,
+       0.0625
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.396263,
+     "upper": 3.490659,
+     "velocity": 16.754666,
+     "effort": 40.0,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_joint2",
+     "type": "revolute",
+     "parent": "openarm_right_link1",
+     "child": "openarm_right_link2",
+     "origin": {
+      "xyz": [
+       -0.0301,
+       0.0,
+       0.06
+      ],
+      "rpy": [
+       1.570796,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      -1.0,
+      0.0,
+      0.0
+     ],
+     "lower": -0.174533,
+     "upper": 3.316125,
+     "velocity": 16.754666,
+     "effort": 40.0,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_joint3",
+     "type": "revolute",
+     "parent": "openarm_right_link2",
+     "child": "openarm_right_link3",
+     "origin": {
+      "xyz": [
+       0.0301,
+       0.0,
+       0.06625
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.570796,
+     "upper": 1.570796,
+     "velocity": 5.445426,
+     "effort": 27.0,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_joint4",
+     "type": "revolute",
+     "parent": "openarm_right_link3",
+     "child": "openarm_right_link4",
+     "origin": {
+      "xyz": [
+       -0.0,
+       0.0315,
+       0.15375
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "lower": 0.0,
+     "upper": 2.443461,
+     "velocity": 5.445426,
+     "effort": 27.0,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_joint5",
+     "type": "revolute",
+     "parent": "openarm_right_link4",
+     "child": "openarm_right_link5",
+     "origin": {
+      "xyz": [
+       0.0,
+       -0.0315,
+       0.0955
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      0.0,
+      1.0
+     ],
+     "lower": -1.570796,
+     "upper": 1.570796,
+     "velocity": 20.943946,
+     "effort": 7.0,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_joint6",
+     "type": "revolute",
+     "parent": "openarm_right_link5",
+     "child": "openarm_right_link6",
+     "origin": {
+      "xyz": [
+       0.0375,
+       0.0,
+       0.1205
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      1.0,
+      0.0,
+      0.0
+     ],
+     "lower": -0.785398,
+     "upper": 0.785398,
+     "velocity": 20.943946,
+     "effort": 7.0,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_joint7",
+     "type": "revolute",
+     "parent": "openarm_right_link6",
+     "child": "openarm_right_link7",
+     "origin": {
+      "xyz": [
+       -0.0375,
+       0.0,
+       0.0
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "lower": -1.570796,
+     "upper": 1.570796,
+     "velocity": 20.943946,
+     "effort": 7.0,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_finger_joint1",
+     "type": "prismatic",
+     "parent": "openarm_right_hand",
+     "child": "openarm_right_right_finger",
+     "origin": {
+      "xyz": [
+       0.0,
+       -0.005,
+       0.015
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      -1.0,
+      0.0
+     ],
+     "lower": 0.0,
+     "upper": 0.044,
+     "velocity": 0.661,
+     "effort": 150.75,
+     "mimic": null
+    },
+    {
+     "name": "openarm_right_finger_joint2",
+     "type": "prismatic",
+     "parent": "openarm_right_hand",
+     "child": "openarm_right_left_finger",
+     "origin": {
+      "xyz": [
+       0.0,
+       0.005,
+       0.015
+      ],
+      "rpy": [
+       0.0,
+       0.0,
+       0.0
+      ]
+     },
+     "axis": [
+      0.0,
+      1.0,
+      0.0
+     ],
+     "lower": 0.0,
+     "upper": 0.044,
+     "velocity": 0.661,
+     "effort": 150.75,
+     "mimic": "openarm_right_finger_joint1"
+    }
+   ],
+   "rest": {
+    "values": {
+     "openarm_right_joint1": 0.0,
+     "openarm_right_joint2": 0.0,
+     "openarm_right_joint3": 0.0,
+     "openarm_right_joint4": 0.0,
+     "openarm_right_joint5": 0.0,
+     "openarm_right_joint6": 0.0,
+     "openarm_right_joint7": 0.0
+    },
+    "source": "none in the repo: each joint at the value nearest 0 within its limits"
+   },
+   "meshes": {
+    "openarm_right_link0": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link0.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link0.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        0.0
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 5353682,
+      "tris": 82963,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_link1": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link1.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link1.dae",
+      "origin": {
+       "xyz": [
+        -0.0,
+        0.0,
+        -0.0625
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 7655919,
+      "tris": 114829,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_link2": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link2.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link2.dae",
+      "origin": {
+       "xyz": [
+        0.0301,
+        0.0,
+        -0.1225
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 6288652,
+      "tris": 90869,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_link3": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link3.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link3.dae",
+      "origin": {
+       "xyz": [
+        -0.0,
+        -0.0,
+        -0.18875
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 6846210,
+      "tris": 99575,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_link4": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link4.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link4.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        -0.0315,
+        -0.3425
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 6644484,
+      "tris": 98892,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_link5": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link5.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link5.dae",
+      "origin": {
+       "xyz": [
+        -0.0,
+        -0.0,
+        -0.438
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 9034473,
+      "tris": 126458,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_link6": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link6.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link6.dae",
+      "origin": {
+       "xyz": [
+        -0.0375,
+        -0.0,
+        -0.5585
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 6133097,
+      "tris": 96367,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_link7": [
+     {
+      "file": "assets/robot/openarm_v1.0/mesh/arm/visual/link7.dae",
+      "path": "openarm/assets/robot/openarm_v1.0/mesh/arm/visual/link7.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        -0.0,
+        -0.5585
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 6288812,
+      "tris": 102294,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_hand": [
+     {
+      "file": "assets/end_effector/parallel_link/meshes/visual/hand.dae",
+      "path": "openarm/assets/end_effector/parallel_link/meshes/visual/hand.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.0,
+        -0.6586
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 1549205,
+      "tris": 28508,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_left_finger": [
+     {
+      "file": "assets/end_effector/parallel_link/meshes/visual/finger.dae",
+      "path": "openarm/assets/end_effector/parallel_link/meshes/visual/finger.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        -0.05,
+        -0.673001
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 6021838,
+      "tris": 82856,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ],
+    "openarm_right_right_finger": [
+     {
+      "file": "assets/end_effector/parallel_link/meshes/visual/finger.dae",
+      "path": "openarm/assets/end_effector/parallel_link/meshes/visual/finger.dae",
+      "origin": {
+       "xyz": [
+        0.0,
+        0.05,
+        -0.673001
+       ],
+       "rpy": [
+        0.0,
+        0.0,
+        0.0
+       ]
+      },
+      "scale": [
+       0.001,
+       -0.001,
+       0.001
+      ],
+      "format": "dae",
+      "bytes": 6021838,
+      "tris": 82856,
+      "unit_m": 1.0,
+      "up_axis": "Z_UP"
+     }
+    ]
+   },
+   "mesh_totals": {
+    "files": 11,
+    "tris": 1006467,
+    "bytes": 67838210
+   },
+   "blender": {
+    "target_tris": 15000,
+    "decimate_ratio": 0.0149
+   },
+   "notes": []
+  }
+ }
+}

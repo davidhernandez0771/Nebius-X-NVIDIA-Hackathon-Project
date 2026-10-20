@@ -1,7 +1,11 @@
 // The robots SANT tests with, as the robot wall's catalog lists them. Every field comes from the repo
 // (or the robot catalog note it cites), and a field the sources don't have is left out, never guessed:
-// no payload for any of them, no reach for the two arms that haven't run yet. "Tested in Isaac" means
-// SANT's pick-and-place ran on it in Isaac Lab; "planned" means nothing of SANT has run on it yet.
+// no payload for any of them (none of their repos states one). DoF, reach and joint limits come from each
+// robot's own URDF chain where its description was downloaded (specs.json, written by
+// scripts/robot_asset_manifest.py from C:/dev/assets/robots); the Flexiv's stay the notes'. "Tested in Isaac"
+// means SANT's pick-and-place ran on it in Isaac Lab; "planned" means nothing of SANT has run on it yet.
+import specs from "./specs.json";
+
 export type RobotStatus = "tested" | "planned";
 
 export const STATUS_LABEL: Record<RobotStatus, string> = { tested: "Tested in Isaac", planned: "Planned" };
@@ -21,9 +25,26 @@ export interface CatalogRobot {
   status: RobotStatus;
   /** The measured outcome in Isaac (tested robots only). */
   result?: string;
+  /** The arm joints' ranges, from its URDF chain (none when its description wasn't downloaded). */
+  limits?: readonly { joint: string; range: string }[];
   /** Where each fact comes from: repo paths, the notes, or the catalog note's upstream repos. */
   sources: readonly string[];
 }
+
+type Spec = (typeof specs)[keyof typeof specs];
+
+const deg = (rad: number) => `${Math.round((rad * 180) / Math.PI)}°`;
+
+/** What a robot's URDF chain gives the catalog: the reach, each arm joint's range, and the source line. */
+function fromUrdf(spec: Spec) {
+  return {
+    reach: `${spec.reach_m.toFixed(2)} m`,
+    limits: spec.joints.map((j) => ({ joint: j.name, range: `${deg(j.lower)} to ${deg(j.upper)}` })),
+    source: `${spec.repo}@${spec.commit} (${spec.licence}): DoF, reach (${spec.reach_definition}) and joint limits from its URDF chain`,
+  };
+}
+
+const URDF = { franka: fromUrdf(specs.franka), so101: fromUrdf(specs.so101), piper: fromUrdf(specs.piper), openarm: fromUrdf(specs.openarm) };
 
 const T2 = "docs/superpowers/notes/2026-10-15-t2-status.md";
 const BYOR = "docs/superpowers/notes/2026-10-18-byor-backend.md";
@@ -34,7 +55,8 @@ export const CATALOG: readonly CatalogRobot[] = [
     id: "franka",
     name: "Franka Panda",
     maker: "Franka Emika",
-    arm: { dof: "7", reach: "≈ 0.85 m" },
+    arm: { dof: "7", reach: URDF.franka.reach },
+    limits: URDF.franka.limits,
     gripper: "Parallel two-finger hand; each finger slides 0–4 cm.",
     today: "SANT's main robot: record a demo, check it in physics, multiply it, train on it. The Record page's twin and the machine's hologram are this arm.",
     status: "tested",
@@ -42,7 +64,8 @@ export const CATALOG: readonly CatalogRobot[] = [
     sources: [
       "web/public/robots/franka_description (package.xml, panda_arm_hand.urdf)",
       "sim_worker/robots.py, sim_worker/scene_cfg.py (FRANKA_PANDA_HIGH_PD_CFG)",
-      `${T2} (Task 3: reach)`,
+      `${T2} (Task 3: reach ≈ 0.85 m, which the chain agrees with)`,
+      URDF.franka.source,
       `${BYOR} (built-in rerun, 30/30)`,
       "docs/superpowers/notes/2026-10-15-t3-status.md (sprint 7: 3/40 vs 17/40)",
     ],
@@ -62,32 +85,36 @@ export const CATALOG: readonly CatalogRobot[] = [
     id: "openarm",
     name: "OpenArm",
     maker: "Enactic",
-    arm: { dof: "7", reach: "0.44 m shoulder to wrist, + 0.19 m to the fingertips" },
+    arm: { dof: "7", reach: URDF.openarm.reach },
+    limits: URDF.openarm.limits,
     gripper: "Parallel two-finger gripper, 4.4 cm per finger.",
     today: "Runs the replay and multiply in Isaac (robot \"openarm\"), and was a test robot for Bring your robot.",
     status: "tested",
     result: "Multiply 0/30 (2026-10-16), 0/30 again through Bring your robot (2026-10-18): its ±45° wrist can't keep the gripper vertical over the table.",
-    sources: ["sim_worker/robots.py, sim_worker/scene_cfg.py (OPENARM_UNI_HIGH_PD_CFG)", `${T2} (Task 5)`, BYOR, `${CATALOG_NOTE} (maker)`],
+    sources: ["sim_worker/robots.py, sim_worker/scene_cfg.py (OPENARM_UNI_HIGH_PD_CFG)", `${T2} (Task 5: shoulder to wrist <= 0.44 m)`, BYOR,
+      `${CATALOG_NOTE} (maker)`, URDF.openarm.source],
   },
   {
     id: "so101",
     name: "SO-101",
     maker: "TheRobotStudio",
-    arm: { dof: "5 + jaw" },
+    arm: { dof: "5 + jaw", reach: URDF.so101.reach },
+    limits: URDF.so101.limits,
     gripper: "One revolute jaw.",
-    today: "Nothing yet. Planned through Bring your robot (its URDF, Apache-2.0); the URDF isn't on this machine yet.",
+    today: "Nothing yet. Planned through Bring your robot (its URDF, Apache-2.0); the URDF and meshes are downloaded, not imported yet.",
     status: "planned",
-    sources: [`${CATALOG_NOTE}: github.com/TheRobotStudio/SO-ARM100`, `${BYOR} (SO-101 skipped)`],
+    sources: [`${CATALOG_NOTE}: github.com/TheRobotStudio/SO-ARM100`, `${BYOR} (SO-101 skipped)`, URDF.so101.source],
   },
   {
     id: "piper",
     name: "PiPER",
     maker: "AgileX Robotics",
-    arm: { dof: "6" },
+    arm: { dof: "6", reach: URDF.piper.reach },
+    limits: URDF.piper.limits,
     gripper: "Two sliding fingers.",
     today: "Nothing yet. Planned through Bring your robot (its URDF, MIT); Isaac doesn't ship it.",
     status: "planned",
-    sources: [`${CATALOG_NOTE}: github.com/agilexrobotics/piper_ros`],
+    sources: [`${CATALOG_NOTE}: github.com/agilexrobotics/piper_ros`, URDF.piper.source],
   },
 ];
 
@@ -99,7 +126,7 @@ export function robotById(id: string): CatalogRobot {
   return r;
 }
 
-/** "DoF 7 · reach ≈ 0.85 m": the arm in one line, from the fields it has. */
+/** "DoF 7 · reach 0.86 m": the arm in one line, from the fields it has. */
 export function specLine(r: CatalogRobot): string {
-  return [`DoF ${r.arm.dof}`, r.arm.reach && !r.arm.reach.includes(",") ? `reach ${r.arm.reach}` : null].filter(Boolean).join(" · ");
+  return [`DoF ${r.arm.dof}`, r.arm.reach ? `reach ${r.arm.reach}` : null].filter(Boolean).join(" · ");
 }
