@@ -16,7 +16,7 @@ import { useWorld, useWorldState } from "../../core/WorldContext";
 import { HoloTwin } from "../../scene/HoloTwin";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL } from "../../scene/assets";
-import { BelowRoof } from "../../scene/BelowRoof";
+import { Materialize } from "../../scene/Materialize";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
 import { slotLook } from "../../scene/Helix";
 import { tileUv } from "../../scene/labels";
@@ -290,10 +290,10 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
   });
 
   return (
-    <BelowRoof>
+    <Materialize>
       <primitive object={built.root} />
       <primitive object={hero.group} />
       {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} label={label} position={[built.lensAt.x, built.lensAt.y + 0.35, built.lensAt.z]} /> : null}
-    </BelowRoof>
+    </Materialize>
   );
 }

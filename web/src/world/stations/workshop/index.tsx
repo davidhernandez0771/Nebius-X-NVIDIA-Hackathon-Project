@@ -1,4 +1,6 @@
-// Workshop: the room the descent comes down into, and where the scroll ends. From here the site is a
+// Workshop: the room the descent builds out of particles, and where the scroll ends. Its travel is the
+// materialize: the camera pushes in a little while the real room appears over the particles through a
+// glowing noise edge (scene/dissolve.ts), then the lamps flicker on and the hub is live. From here the site is a
 // game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and three things to
 // click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
 // and projects the robot), and the bench (make a new cartridge). Escape always goes back one level.
@@ -10,7 +12,6 @@ import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { stop } from "../../scene/layout";
 import { HoverTip } from "../../ui/HoverTip";
-import { CUT_AT, diveEnter } from "./dive";
 import { WorkshopScene } from "./Scene";
 import "./workshop.css";
 import { AskBox } from "../../ask/AskBox";
@@ -70,10 +71,8 @@ const workshop: StationModule = {
   owner: "T6",
   kind: "rail",
   anchor: [0, 0, 0],
-  // In through the skylight, behind a mask (dive.ts): a longer travel, so the dive reads.
-  travel: 1.1,
-  enter: diveEnter,
-  cutAt: CUT_AT,
+  // The materialize (scene/dissolve.ts revealAt), from just behind the room view (descent/path.ts).
+  travel: 1.4,
   // The end of the scroll: the room view. From here it's clicks (the shelf, the machine, the bench).
   length: 0.25,
   camera: still(HUB),

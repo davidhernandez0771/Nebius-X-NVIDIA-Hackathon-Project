@@ -1,43 +1,25 @@
 // Intro (core): the opening, a station before the workshop. The slash-cartridge loader runs on real
-// progress; then the logo (the mark and two plumes, as particles) gathers in front of the iridescent
-// ring. Scrolling plays the breaks over it (ui/Breaks.tsx: dark slabs with a slanted edge that uncover
-// the problem, the four steps, the proof and what you can do, then hand the 3D back) while the
-// particles fly up and settle as the roof's lattice over the ceiling, and the ring becomes the
-// skylight's rim; the camera turns round the logo and ends on Blender's "Descent" stop, looking down
-// through the skylight (storyline.ts spreads that over the breaks). Dust drifts through all of it.
-import { useRef } from "react";
-import { through } from "../../core/rail";
-import { useStationFrame } from "../../core/WorldContext";
+// progress; then the SANT logo grows in as a glass object turning in a clean dark space (Scene.tsx),
+// and scrolling plays the story beside it (Story.tsx: the problem, S·A·N·T, the proof, Nemotron's
+// jobs), turning and leaning the logo as it goes (storyPlan.ts). At the end the logo becomes the ring,
+// square to the camera; the descent bursts it into the particles that build the workshop.
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
-import { Breaks } from "../../ui/Breaks";
-import { INTRO_STOPS } from "./layout";
 import { Loader } from "./Loader";
 import { IntroScene } from "./Scene";
-import { SECTIONS } from "./sections";
-import { INTRO_VH, story } from "./storyline";
+import { Story } from "./Story";
+import { cameraAt, INTRO_VH } from "./storyPlan";
 import "./intro.css";
 
-/** The page's one line, for the h1 (read by screen readers; the breaks carry the story). */
+/** The page's one line, for the h1 (read by screen readers; the beats carry the story). */
 export const TITLE = "Show a robot once. Get the data to teach it.";
 
-/** The camera through Blender's stops, by the story's 0–1. */
-const path = through(...INTRO_STOPS);
-
 function Overlay(_: StationOverlayProps) {
-  const hint = useRef<HTMLParagraphElement>(null);
-  useStationFrame("intro", (f) => {
-    // Gone within the first half viewport of scroll, before the first edge comes up.
-    if (hint.current) hint.current.style.opacity = String(1 - Math.min(1, f.t * INTRO_VH * 2));
-  });
   return (
     <>
       <Loader />
       <h1 className="world-sr">{TITLE}</h1>
-      <p ref={hint} className="world-hint world-u">
-        Scroll down
-      </p>
-      <Breaks station="intro" length={INTRO_VH} sections={SECTIONS} />
+      <Story />
     </>
   );
 }
@@ -50,12 +32,12 @@ const intro: StationModule = {
   kind: "rail",
   anchor: [0, 0, 0],
   travel: 0,
-  // The hero, then each break's wipe and dwell (ui/wipe.ts PLAN): about 1.5 viewports per section.
+  // The hero, the four beats and the morph (storyPlan.ts PLAN).
   length: INTRO_VH,
-  camera: (t) => path(story(t)),
-  rest: INTRO_STOPS[0],
-  // The roof lattice, the skylight ring and the dust stay drawn along the whole rail.
-  reach: 4,
+  camera: (t) => cameraAt(t * INTRO_VH),
+  rest: cameraAt(0),
+  // Drawn while the descent bursts the ring; gone once the workshop is being built.
+  reach: 1,
   Scene: IntroScene,
   Overlay,
 };
