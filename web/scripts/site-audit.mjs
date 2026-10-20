@@ -481,7 +481,9 @@ async function inspect(page) {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) continue;
       const cs = getComputedStyle(el);
-      if (cs.visibility === "hidden" || cs.position === "fixed" && cs.pointerEvents === "none" && el.getAttribute("aria-hidden") === "true") continue;
+      // Hidden (by an ancestor's opacity too) or decoration that takes no clicks: not a layout problem.
+      if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+      if (cs.visibility === "hidden" || (cs.position === "fixed" && cs.pointerEvents === "none" && el.getAttribute("aria-hidden") === "true")) continue;
       if (r.right > w + 1 && r.left < w) {
         // Inside a scroller that clips it on purpose: fine.
         let p = el.parentElement;
@@ -532,7 +534,18 @@ async function walkWorld(page, base, vp, shots) {
   });
   for (const [tag, wait] of [["The shelf", 6000], ["The machine", 9000], ["The bench", 6000]]) {
     await step(tag.slice(4), async () => {
-      await page.locator(`.world-hubtag button[aria-label^="${tag}"]`).click({ force: true, timeout: 5000 });
+      await settleHub(page);
+      const btn = page.locator(`.world-hubtag button[aria-label^="${tag}"]`);
+      const box = await btn.boundingBox();
+      const { width, height } = page.viewportSize();
+      const seen = box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= height;
+      // A tag off the screen (a phone held upright frames only the shelf): the hub bar's button, if any.
+      if (seen) await btn.click({ force: true, timeout: 5000 });
+      else {
+        const alt = page.locator(".world-hubbar__go button", { hasText: tag.slice(4) });
+        if (!(await alt.isVisible().catch(() => false))) throw new Error(`"${tag}" is off the screen and has no other way in`);
+        await alt.click({ force: true, timeout: 5000 });
+      }
       await page.waitForTimeout(wait);
     });
     await page.keyboard.press("Escape");
@@ -544,11 +557,27 @@ async function walkWorld(page, base, vp, shots) {
     }
   }
   await step("story", async () => {
-    await page.locator(".world-hubbar button").click({ force: true, timeout: 5000 });
+    await settleHub(page);
+    await page.getByRole("button", { name: "↑ Story" }).click({ force: true, timeout: 5000 });
     await page.waitForFunction(() => window.scrollY < 50, null, { timeout: 30000 });
     await page.waitForTimeout(2000);
   });
   return steps;
+}
+
+/** Back in the room view and the camera at rest: the tags have stopped moving. */
+async function settleHub(page, timeout = 30000) {
+  const t0 = Date.now();
+  let last = "";
+  while (Date.now() - t0 < timeout) {
+    const now = await page.evaluate(
+      (hub) => (new Function(`return ${hub}`)() ? [...document.querySelectorAll(".world-hubtag")].map((t) => { const r = t.getBoundingClientRect(); return `${Math.round(r.x)},${Math.round(r.y)}`; }).join(" ") : ""),
+      HUB_JS,
+    );
+    if (now && now === last) return;
+    last = now;
+    await page.waitForTimeout(700);
+  }
 }
 
 async function auditWalk(browser, base, vp, shots) {
