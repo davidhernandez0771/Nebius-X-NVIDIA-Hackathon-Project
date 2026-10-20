@@ -17,6 +17,7 @@ never a demo id, so the list and every lookup skip what was thrown away.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -95,6 +96,26 @@ class VideoTooLarge(ValueError):
     pass
 
 
+ID_SUFFIX_BYTES = 4  # 8 hex digits (was 2: 50 ids in one second collided ~1.9% of the time)
+ID_TRIES = 20
+_ISSUED: set[str] = set()  # every id this process handed out
+
+
+def _utc_stamp() -> str:
+    return f"{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
+
+
+class _store_or_class:
+    """A method callable on the class (self is None) or on an instance, so DemoStore.new_id(...) keeps working."""
+
+    def __init__(self, fn):
+        self.fn = fn
+        self.__doc__ = fn.__doc__
+
+    def __get__(self, obj, cls=None):
+        return functools.partial(self.fn, obj)
+
+
 def write_atomic(path: Path, text: str) -> None:
     """Write to a temp file in the same folder, then os.replace: readers never see half a file, and a
     hard-linked file at `path` is replaced, never modified in place."""
@@ -132,10 +153,26 @@ class DemoStore:
 
     # --- ids -----------------------------------------------------------------------
 
-    @staticmethod
-    def new_id(prefix: str) -> str:
-        """<prefix>_<yyyymmddHHMMSS UTC>_<4 hex>."""
-        return f"{prefix}_{datetime.now(timezone.utc):%Y%m%d%H%M%S}_{secrets.token_hex(2)}"
+    @_store_or_class
+    def new_id(self: "DemoStore | None", prefix: str) -> str:
+        """<prefix>_<yyyymmddHHMMSS UTC>_<8 hex>. The prefix and timestamp are as they always were (experiment tags
+        glob on human_YYYYMMDD...); ids saved with the older 4-hex suffix stay valid everywhere.
+
+        Never the same id twice in a process. Called on a store (store.new_id), also never the name of a folder that
+        exists, live or thrown away under _discarded; called on the class (DemoStore.new_id, e.g. job ids), no folder
+        check. RuntimeError after ID_TRIES draws that are all taken (it can't happen by chance)."""
+        stamp = _utc_stamp()
+        for _ in range(ID_TRIES):
+            id = f"{prefix}_{stamp}_{secrets.token_hex(ID_SUFFIX_BYTES)}"
+            if id in _ISSUED or (self is not None and self._taken(id)):
+                continue
+            _ISSUED.add(id)
+            return id
+        raise RuntimeError(f"no free id for {prefix!r} after {ID_TRIES} tries")
+
+    def _taken(self, id: str) -> bool:
+        demos = self.root / "demos"
+        return (demos / id).exists() or (demos / DISCARDED / id).exists()
 
     # --- demos ---------------------------------------------------------------------
 
