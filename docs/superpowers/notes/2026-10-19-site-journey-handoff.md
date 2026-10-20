@@ -1,5 +1,10 @@
 # Site journey: handoff
 
+> **Superseded in part (2026-10-20):** the intro's breaks, the skylight well and the dive are gone.
+> The intro is now a dark space round a glass logo, and the way into the workshop is a particle
+> transition. See [2026-10-20-overnight-site.md](2026-10-20-overnight-site.md); the journey table and
+> "How the transitions work" below are updated, the rest of this note still holds.
+
 The state of the website at the end of the cloud session that built it, for whoever takes over the
 next changes to the site and the Blender scene. The full build record is
 [2026-10-19-site-journey.md](2026-10-19-site-journey.md), and the real-PC measurement checklist is
@@ -43,13 +48,14 @@ one with `scrollTo(0, innerHeight * VH)` in the console.
 
 | vh | Stop | Files (under `web/src/world`) |
 |---|---|---|
-| 0 | Loader, then the logo's particles and ring | `stations/intro/*` |
-| 1–8 | The breaks: slabs with a slanted edge uncover the problem (2), S·A·N·T (3.5), the proof (5), what you can do (6.5), then hand the 3D back (7–8) | `stations/intro/sections.tsx`, `ui/Breaks.tsx`, `ui/wipe.ts`, `stations/intro/storyline.ts` |
-| 8–10.5 | The descent over the skylight well (no copy: the stats are the third break) | `stations/descent/index.tsx`, `stations/workshop/Well.tsx` |
-| 11.05 | The dive into the workshop | `stations/workshop/dive.ts`, `Portal.tsx`, `scene/BelowRoof.tsx` |
-| 12.3–19.2 | The spiral of 24 cartridges, the dock, the filters, the detail view | `stations/workshop/*`, `scene/Helix.tsx`, `scene/spiral.ts` |
-| 20.8 | The machine: plug in | `stations/machine/Scene.tsx`, `scene/plugSequence.ts` |
-| 21.6–22.9 | The projection, then the zoom that opens Record | `stations/zoom/index.tsx`, `core/handoff.ts` |
+| 0 | Loader, then the glass logo grows in | `stations/intro/*` |
+| 0–7.2 | The hero and four beats beside the turning glass logo: the problem (1.2), S·A·N·T (2.7), the proof (4.2), Nemotron (5.7) | `stations/intro/{Scene,Story}.tsx`, `storyPlan.ts`, `logo3d.ts` |
+| 7.2–8.2 | The logo becomes the ring | `stations/intro/Scene.tsx` |
+| 8.2–11.2 | The descent: the ring bursts into particles that build the room | `stations/descent/{Generator.tsx,generatorPlan.ts,path.ts}` |
+| 11.2–12.6 | The room materializes over the particles, then the lamps flicker on | `scene/{dissolve.ts,Materialize.tsx,Lamps.tsx}` |
+| 12.6 (end) | The hub: the scroll ends; click the shelf (the spiral, the filters, the detail view), the machine, the bench | `stations/workshop/*`, `scene/Helix.tsx`, `scene/spiral.ts` |
+| (branch) | The machine: plug in, the hologram | `stations/machine/Scene.tsx`, `scene/plugSequence.ts`, `scene/HoloTwin.tsx` |
+| (branch) | The projection, then the zoom that opens Record | `stations/zoom/index.tsx`, `core/handoff.ts` |
 | (branch) | The workbench | `stations/workbench/index.tsx` |
 
 The core is `core/`:
@@ -63,15 +69,11 @@ The station API is in `core/types.ts`, and `docs/design/world-core.md` explains 
 
 ## How the transitions work (Active Theory's way: masked, never a fly-over)
 
-- **The roof is an effect.** While the camera is above y = 15 (`ROOF_HIDE_Y` in `scene/BelowRoof.tsx`),
-  nothing from Blender is drawn: no room, machine, spiral or library. What shows is the intro's
-  particle lattice, the ring, and `Well.tsx`, a disc of teal rings sinking into a dark centre that
-  flow inward with the scroll. Wrap anything that must only show from inside in `<BelowRoof>`; put
-  meshes in it, never lights (a light leaving the scene recompiles every lit material at the cut).
-- **The dive** (`dive.ts`, `Portal.tsx`): over the workshop's travel the camera drops at the ring.
-  A full-screen mask closes from the edges with a teal rim and particle streaks. At full dark
-  (t = 0.5) the camera cuts inside, below the ceiling. The mask opens from the centre, and the lamps
-  boot (`scene/Lamps.tsx`, at arrive ≥ 0.55). Tests: `dive.test.ts`.
+- **Into the workshop** (2026-10-20): over the descent the intro's ring bursts into particles
+  (`descent/Generator.tsx`: one Points draw, 24k/110k/150k by tier) that stream onto points sampled from
+  the baked GLBs and the cartridges. Over the workshop's travel the real room materializes through a
+  noise edge with a thin teal glow (`scene/dissolve.ts`, applied to every built-in material under
+  `<Materialize>`); each particle fades as its surface appears. The lamps start at `LAMPS_AT`.
 - **The journey rail's jump** (`core/iris.ts`, `WorldRoot.tsx` `jump`): clicking a station on the
   right-hand list closes a DOM iris, calls `store.jump(y)` (the scroll and the camera cut, with no
   glide), and opens on the station. Reduced motion uses the old veil cut instead. The branch
