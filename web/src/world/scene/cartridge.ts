@@ -3,7 +3,7 @@
 // places them all; the slot matrices; and the one label atlas (labels.ts), redrawn once the fonts
 // arrive and its saved cartridges' tiles again whenever the bench saves or removes one.
 import * as THREE from "three";
-import { drawAtlas, drawSavedTiles, tileUv } from "./labels";
+import { drawAtlas, drawDraftTile, drawSavedTiles, setDraftTileArt, tileUv, type LabelArt } from "./labels";
 import type { Slot } from "./layout";
 import { subscribeSaved } from "./saved";
 
@@ -101,4 +101,13 @@ export function labelAtlas(onRedraw?: () => void): THREE.CanvasTexture {
 
 export function offRedraw(fn: () => void): void {
   redrawn.delete(fn);
+}
+
+/** The bench's draft as the room view's turntable shows it: its tile reprinted (one atlas upload). */
+export function redrawDraftTile(art: LabelArt): void {
+  setDraftTileArt(art);
+  if (!atlas) return;
+  drawDraftTile(atlas.image as HTMLCanvasElement);
+  atlas.needsUpdate = true;
+  redrawn.forEach((fn) => fn());
 }

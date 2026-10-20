@@ -60,3 +60,17 @@ describe("saved cartridge tiles", () => {
   });
 });
 
+
+describe("the bench's draft tile", () => {
+  it("has its own tile after the saved ones, printing the draft it was last given", async () => {
+    const { DRAFT_TILE, SAVED_TILE0, draftArt, setDraftTileArt } = await import("./labels");
+    const { MAX_SAVED } = await import("./saved");
+    expect(DRAFT_TILE).toBeGreaterThanOrEqual(SAVED_TILE0 + MAX_SAVED);
+    expect(DRAFT_TILE).toBeLessThan(TILE_COUNT);
+    expect(labelArt(DRAFT_TILE)).toMatchObject({ code: "+", serial: "MINE-NEW" });
+    setDraftTileArt(draftArt({ name: "desk arm", shell: "bone", robot: "FR3" }));
+    expect(labelArt(DRAFT_TILE).code).toBe("DESK ARM");
+    setDraftTileArt(null);
+    expect(labelArt(DRAFT_TILE).code).toBe("+");
+  });
+});

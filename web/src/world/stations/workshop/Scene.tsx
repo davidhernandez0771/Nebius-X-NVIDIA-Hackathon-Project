@@ -1,9 +1,10 @@
 // The workshop in 3D: the baked room around everything (unlit, one atlas per piece), the lamps that
 // switch it on, the live lights and reflections for the moving parts, the spiral and the library.
-// Each file loads in its own Suspense. All of it materializes over the generator's particles during
+// Each file loads in its own Suspense. A cartridge can be dragged off the spiral onto the machine
+// (Dragged.tsx), and the bench's draft stands on its turntable as one more of the spiral's instances. All of it materializes over the generator's particles during
 // the workshop's travel (scene/dissolve.ts: revealAt), then the lamps flicker on.
-import { Suspense, useCallback, useEffect } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { useWorld } from "../../core/WorldContext";
@@ -12,7 +13,7 @@ import { BAKED } from "../../scene/assets";
 import { Baked } from "../../scene/Baked";
 import { Arm } from "../../scene/Arm";
 import { dissolve, FIELD_MAX, LAMPS_AT, revealAt } from "../../scene/dissolve";
-import { Helix } from "../../scene/Helix";
+import { Helix, type BenchInstance } from "../../scene/Helix";
 import { Haze } from "../../scene/Haze";
 import { Lamps } from "../../scene/Lamps";
 import { Library } from "../../scene/Library";
@@ -22,7 +23,12 @@ import { ENV_INTENSITY } from "../../scene/materials";
 import { Pendants } from "../../scene/Pendants";
 import { addEnvironment } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
-import { N_ITEMS, spiral } from "../../scene/spiral";
+import { shellOf } from "../../scene/saved";
+import { N_ITEMS, instanceSlot, spiral } from "../../scene/spiral";
+import { bench } from "../workbench/draft";
+import { benchMatrix } from "../workbench/layout";
+import { hiddenInstance, press, wasDrag, type PointerKind } from "./drag";
+import { Dragged } from "./Dragged";
 import { HubTags } from "./HubTags";
 import { usePick } from "./send";
 import { shelf } from "./stepper";
@@ -86,6 +92,22 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
     [store],
   );
   const browsing = useCallback(() => shelf.open, []);
+  // A press on a cartridge: drag.ts makes it a click or a drag to the machine.
+  const grab = useCallback((k: number, e: ThreeEvent<PointerEvent>) => {
+    const n = e.nativeEvent;
+    const kind: PointerKind = n.pointerType === "touch" || n.pointerType === "pen" ? n.pointerType : "mouse";
+    if (n.button > 0) return;
+    press(k, instanceSlot(k), n.clientX, n.clientY, n.pointerId, kind);
+  }, []);
+  const benchCart = useMemo<BenchInstance>(
+    () => ({
+      matrix: benchMatrix(),
+      shown: () => store.getCoarse().branch !== "workbench",
+      shell: () => shellOf(bench.draft.shell).hex,
+      landing: () => bench.landing,
+    }),
+    [store],
+  );
   return (
     <group>
       <Lamps reduced={reduced} />
@@ -108,9 +130,12 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
         <Ribbon />
         <HubTags />
         <Suspense fallback={null}>
-          <Helix quality={quality} reduced={reduced} active={active} browsing={browsing} onPick={(k) => pick(k)} />
+          <Helix quality={quality} reduced={reduced} active={active} browsing={browsing} onPick={(k) => pick(k)} onGrab={grab} held={hiddenInstance} wasDrag={wasDrag} bench={benchCart} />
         </Suspense>
       </Materialize>
+      <Suspense fallback={null}>
+        <Dragged quality={quality} reduced={reduced} />
+      </Suspense>
       <StepFollower />
     </group>
   );

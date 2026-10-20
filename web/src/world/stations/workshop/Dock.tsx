@@ -1,12 +1,14 @@
 // The dock, bottom left over the spiral: "What are you looking for?" and the six tags. A tag slides
 // its cartridges along the helix to the top slots, dims the rest and limits the scroll to them
-// (spiral.ts, stepper.ts); pressing it again, or Escape, clears it. Under the tags: the robots'
-// own cartridges and the bench (the keyboard path to what is clickable in 3D), and Ask SANT.
+// (spiral.ts, stepper.ts); pressing it again, or Escape, clears it. Under the tags: the robots' own
+// cartridges, the ones saved on the bench and the bench itself (the keyboard path to what is
+// clickable or draggable in 3D), and Ask SANT.
 import { shelf } from "./stepper";
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { ITEMS, TAGS, type TagId } from "../../scene/items";
 import { ROBOTS, slotForRobot } from "../../scene/robots";
+import { savedCartridges, savedSlot, subscribeSaved } from "../../scene/saved";
 import { matches, setFilter, spiral, subscribeSpiral } from "../../scene/spiral";
 import { useDetail } from "./detailStore";
 import { useSend } from "./send";
@@ -27,6 +29,7 @@ export function Dock({ children }: { children?: ReactNode }) {
   const { goTo, store, mode } = useWorld();
   const detail = useDetail();
   const filter = useSyncExternalStore(subscribeSpiral, filterNow);
+  const saved = useSyncExternalStore(subscribeSaved, savedCartridges);
   const pickFilter = useFilter();
   const send = useSend();
   const dock = useRef<HTMLDivElement>(null);
@@ -94,6 +97,11 @@ export function Dock({ children }: { children?: ReactNode }) {
         {ROBOTS.map((r) => (
           <button key={r.id} type="button" onClick={() => send(slotForRobot(r.code).index)}>
             {r.name}
+          </button>
+        ))}
+        {saved.map((c, place) => (
+          <button key={c.id} type="button" className="world-dock__mine" onClick={() => send(savedSlot(place))}>
+            {c.name}
           </button>
         ))}
         <button type="button" className="world-dock__bench" onClick={() => goTo("workbench")}>

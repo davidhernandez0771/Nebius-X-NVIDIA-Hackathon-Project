@@ -8,6 +8,7 @@ import { useWorld } from "../../core/WorldContext";
 import type { WorldStore } from "../../core/store";
 import { spiral, stepCount } from "../../scene/spiral";
 import { stepView } from "./camera";
+import { hiddenInstance } from "./drag";
 
 /** Wheel distance (px) that makes one step, and the pause between steps so a fling doesn't skip. */
 const WHEEL_STEP = 40;
@@ -55,8 +56,8 @@ export function useStepper(): void {
     let accAt = 0;
     let lastMove = 0;
     let ty: number | null = null;
-    // Only the shelf itself: not under the detail view or an open branch.
-    const browsing = () => shelf.open && spiral.selected < 0 && store.getCoarse().branch === null;
+    // Only the shelf itself: not under the detail view or an open branch, nor with a cartridge in the hand.
+    const browsing = () => shelf.open && spiral.selected < 0 && store.getCoarse().branch === null && hiddenInstance() < 0;
     const move = (dir: 1 | -1) => {
       const now = performance.now();
       if (now - lastMove < STEP_GAP_MS) return;

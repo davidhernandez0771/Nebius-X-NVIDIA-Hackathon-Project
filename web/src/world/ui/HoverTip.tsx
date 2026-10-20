@@ -40,7 +40,7 @@ export function HoverTip() {
   }, [reduced]);
   return (
     <div ref={tip} className="world-tip world-u" data-on="false" aria-hidden="true">
-      <span ref={title} /> <em>· click to open</em>
+      <span ref={title} /> <em>· click to open · drag to the machine</em>
     </div>
   );
 }

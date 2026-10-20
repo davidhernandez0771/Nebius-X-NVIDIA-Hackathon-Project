@@ -259,9 +259,11 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
       hero.dress(plug.slot);
       s.dressed = plug.slot;
     }
-    hero.group.visible = u > 0;
-    if (u > 0) {
-      cartridgePose(plug.slot, u, s.pose);
+    // A drop over the port (plug.held) is there from its first frame: the drag hands it over in place.
+    const shown = u > 0 || (s.clicked && plug.held);
+    hero.group.visible = shown;
+    if (shown) {
+      cartridgePose(plug.slot, u, s.pose, s.clicked && plug.held);
       hero.group.position.copy(s.pose.position).sub(ANCHOR);
       hero.group.quaternion.copy(s.pose.quaternion);
     }

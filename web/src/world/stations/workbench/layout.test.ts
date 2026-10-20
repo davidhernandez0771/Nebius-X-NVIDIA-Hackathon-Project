@@ -45,3 +45,42 @@ describe("the bench's live parts", () => {
     expect(end.clone().addScaledVector(along, PRINT_H / 2).y).toBeGreaterThan(3.335);
   });
 });
+
+describe("the bench in the room view, and a save's flight", () => {
+  it("stands the draft on the turntable in the room, where the bench opens it", async () => {
+    const { benchMatrix } = await import("./layout");
+    const { BENCH_PIVOT } = await import("../../scene/layout");
+    const p = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3();
+    benchMatrix().decompose(p, q, s);
+    const home = benchCartridge();
+    expect(p.distanceTo(home.position.clone().add(v(BENCH_PIVOT.position)))).toBeLessThan(1e-9);
+    expect(q.angleTo(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), home.yaw))).toBeLessThan(1e-6);
+    expect(s.x).toBeCloseTo(BENCH_SCALE, 9);
+  });
+
+  it("flies a saved cartridge from the turntable to its empty place on the spiral, up and clear first", async () => {
+    const { flightPose, benchMatrix } = await import("./layout");
+    const { SPARE } = await import("../../scene/layout");
+    const start = new THREE.Vector3().setFromMatrixPosition(benchMatrix());
+    const out = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: 0 };
+    SPARE.forEach((slot, place) => {
+      flightPose(place, 0, out);
+      expect(out.position.distanceTo(start)).toBeLessThan(1e-9);
+      expect(out.scale).toBeCloseTo(BENCH_SCALE, 9);
+      flightPose(place, 1, out);
+      expect(out.position.distanceTo(v(slot.position))).toBeLessThan(1e-9);
+      expect(out.quaternion.angleTo(new THREE.Quaternion(...slot.quaternion))).toBeLessThan(1e-6);
+      expect(out.scale).toBeCloseTo(slot.scale, 9);
+      let prev = start.clone();
+      for (let u = 0.01; u <= 1.0001; u += 0.01) {
+        flightPose(place, u, out);
+        expect(out.position.distanceTo(prev)).toBeLessThan(0.6);
+        // Off the turntable upward first: it never dips into the bench.
+        if (u < 0.25) expect(out.position.y).toBeGreaterThanOrEqual(prev.y - 1e-9);
+        prev = out.position.clone();
+      }
+    });
+  });
+});

@@ -337,6 +337,12 @@
   transform: none;
   pointer-events: auto;
 }
+/* A cartridge in the hand: the tags step back so the machine's port stays in view. */
+.world-hubtag[data-on="true"][data-drag="true"] {
+  opacity: 0.08;
+  transition-duration: 0.2s;
+  pointer-events: none;
+}
 .world-hubtag button {
   display: grid;
   gap: 3px;
@@ -449,6 +455,10 @@
   pointer-events: auto;
 }
 
+/* Narrower desktops keep the bar on one line: the drag and Escape stay, the clicks go (the tags say them). */
+@media (max-width: 1100px) {
+  .world-hubbar__more { display: none; }
+}
 @media (max-width: 700px) {
   .world-hubtag button { min-width: 11rem; }
   .world-hubtag__l { display: none; }

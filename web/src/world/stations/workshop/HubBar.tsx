@@ -31,7 +31,9 @@ export function HubBar() {
   };
   return (
     <div ref={bar} className="world-hubbar world-u" data-on="false">
-      <span className="world-hubbar__hint">Click the shelf, the machine or the bench · Esc goes back</span>
+      <span className="world-hubbar__hint">
+        Drag a cartridge to the machine<span className="world-hubbar__more"> · click the shelf, the machine or the bench</span> · Esc goes back
+      </span>
       <span className="world-hubbar__go" role="group" aria-label="Go to">
         {GO.map((g) => (
           <button key={g.id} type="button" onClick={() => openHubItem(g.id, store, goTo)}>
