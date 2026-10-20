@@ -379,8 +379,9 @@ were over budget, and the rest failed physics. The fix did what it was meant to;
 - **Over two runs:** Nemotron passed 7/20 demo-runs, the rules 6/20. Demos repaired at least once: Nemotron 6
   (7b1f, 66bc, 9f47, a029, 87bd, c045), rules 3 (9f47, a029, c045). The rules never repaired a demo Nemotron didn't
   repair at least once.
-- **Lost rounds.** Over-budget plans cost far more rounds than the token cap did: 10 rounds were rejected in
-  repair_ab2, almost all for going past 5 cm. The model keeps wanting moves of 5–8 cm.
+- **Lost rounds.** Over-budget plans cost far more rounds than the token cap did: 9 rounds were rejected in
+  repair_ab2, all for going past the 5 cm limit (8 by the step budget, 1 by the dx cap). The model keeps wanting
+  moves of 5–8 cm.
 - **Ideas for next time** (each would need a new pre-registration):
   - Give the budget as a hint in the facts, for example the largest shift that still fits around each grasp.
   - Let the model see its own earlier passing plan, so it doesn't drift.
