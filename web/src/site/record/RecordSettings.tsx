@@ -236,7 +236,14 @@ export function RecordSettings({ id, open, onClose, session }: { id: string; ope
           )}
         </Group>
 
-        <Group title="display">
+        {/* One group for the camera's extras, so the drawer still fits a 720 px window. */}
+        <Group title="camera">
+          <Check
+            label="Save camera video (stays on this machine)"
+            title="Records the webcam with each take, saved beside the demo as camera.webm with its timing (camera.json), for refining the hand path offline. Discarded takes save nothing."
+            checked={settings.saveVideo}
+            onChange={(v) => set({ saveVideo: v })}
+          />
           <Check label="Hand art over the camera (display only)" checked={settings.showHandArt} onChange={(v) => set({ showHandArt: v })} />
           <div className="rc-pair">
             <Check label="Invert up-down" checked={settings.invertY} onChange={(v) => set({ invertY: v })} />

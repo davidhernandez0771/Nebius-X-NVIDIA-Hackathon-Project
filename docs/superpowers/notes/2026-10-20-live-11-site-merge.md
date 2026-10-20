@@ -73,3 +73,23 @@ No Isaac or Blender was running.
   backend, relay and sim).
 - `docs/superpowers/notes/2026-10-19-merge-plan-site.md` was untracked in this worktree before the merge; left as it
   was, not committed.
+
+## 3. pm/record-aids again (`96f432f`), after `91b3ef8`
+
+T6's last commit: a click anywhere on the twin takes the mouse; "Save camera video" with each camera take
+(`web/src/record/cameraTake.ts`, `PUT /demos/{id}/camera` → `demos/<id>/camera.webm` + `camera.json`).
+
+**No conflict.** `web/src/hand/tracking/mediapipeTracker.ts` now has three sides' changes, all kept: the cloud's lazy
+`await import("@mediapipe/tasks-vision")`, live-start's `checkHandAssets` / `loadFailureMessage`, and T6's
+`stream()` (the camera stream the take records). MediaPipe is still imported only there and only dynamically, so the
+cloud's lazy first load holds. `useRecordSession.ts` and `RecordConsole.test.tsx` auto-merged.
+
+| Check | Result |
+|---|---|
+| `npx tsc -b` (web) | clean |
+| `npm --prefix web test` | 149 files, 1332 passed, 1 skipped, 0 failed |
+| `npm --prefix web run build` | OK (the same `three` chunk notice) |
+| `uv run pytest -q` | 1941 passed, 15 skipped, 0 failed |
+
+Not re-shot in Chrome (only Record changed; the click-to-take-the-mouse needs Pointer Lock, which headless Chrome
+refuses, and the camera video needs a webcam).

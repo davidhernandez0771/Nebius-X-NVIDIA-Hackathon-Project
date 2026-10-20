@@ -7,7 +7,8 @@
 // arrows to a focused slider) instead while you type there; every key used here has its default prevented, so a
 // focused button isn't pressed as well. The window losing focus forgets held keys, so the arm can't run away.
 // The mouse drives only while its pane holds Pointer Lock (requestMouse; Esc releases it): movement in the
-// horizontal plane, the wheel up/down, a left click the gripper.
+// horizontal plane, the wheel up/down, a left click the gripper. A refused lock says why (Chrome refuses for about a
+// second after Esc), so the page can show it and ask again on the next click.
 
 import type { HandPoseMsg } from "../teleop/handPoseMessage";
 import { Drive, MOVE_CODES, TICK_S, driveMessage, keyAxes, mouseDelta, wheelDelta, type DriveSettings } from "./drive";
@@ -27,6 +28,7 @@ export interface DriveHooks {
 }
 
 const UI_MS = 100;
+const RELOCK_WAIT_MS = 1500; // Chrome refuses Pointer Lock for about a second after Esc released it
 const SHIFTS = ["ShiftLeft", "ShiftRight"];
 const TEXT_INPUTS = new Set(["text", "search", "email", "number", "password", "tel", "url"]);
 
@@ -46,6 +48,7 @@ export class DriveSession {
   private lastTick = 0;
   private lastUi = -Infinity;
   private lockEl: Element | null = null;
+  private releasedAt = -Infinity; // when the lock last went (Esc)
   private shown: Omit<DriveUi, "msg"> | null = null;
 
   constructor(private readonly hooks: DriveHooks) {}
@@ -77,10 +80,41 @@ export class DriveSession {
     this.lockEl = null;
   }
 
-  /** Mouse mode: take Pointer Lock on this element (a click on the twin pane). */
-  requestMouse(el: HTMLElement) {
+  /** Mouse mode: take Pointer Lock on this element (a click on the twin pane). Resolves null once it is locked, or
+   *  the reason the browser refused (it stays unlocked; the next click asks again). */
+  requestMouse(el: HTMLElement): Promise<string | null> {
     this.lockEl = el;
-    void Promise.resolve(el.requestPointerLock?.()).catch(() => {}); // refused (no gesture, sandbox): stays unlocked
+    if (this.locked) return Promise.resolve(null);
+    if (typeof el.requestPointerLock !== "function") return Promise.resolve("This browser can't lock the mouse; use the keyboard.");
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (reason: string | null) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("pointerlockchange", onChange);
+        document.removeEventListener("pointerlockerror", onError);
+        resolve(reason);
+      };
+      // Older browsers return nothing and fire one of these events; newer ones also return a promise.
+      const onChange = () => this.locked && settle(null);
+      const onError = () => settle(this.refusal(null));
+      document.addEventListener("pointerlockchange", onChange);
+      document.addEventListener("pointerlockerror", onError);
+      try {
+        const asked: unknown = el.requestPointerLock();
+        if (asked instanceof Promise) asked.then(() => settle(null), (e: unknown) => settle(this.refusal(e)));
+      } catch (e) {
+        settle(this.refusal(e));
+      }
+    });
+  }
+
+  /** Why a lock request failed, in words a person can act on. */
+  private refusal(e: unknown): string {
+    if (performance.now() - this.releasedAt < RELOCK_WAIT_MS) return "The browser needs a second after Esc before it gives the mouse back. Click again.";
+    const err = e as { name?: unknown; message?: unknown } | null;
+    const why = err && typeof err.name === "string" && typeof err.message === "string" ? `${err.name}: ${err.message}` : null; // a DOMException
+    return `The browser refused to lock the mouse${why ? ` (${why})` : ""}. Click again.`;
   }
 
   /** Reset scene: the target goes home with the robot. */
@@ -152,6 +186,7 @@ export class DriveSession {
   };
 
   private readonly onLockChange = () => {
+    if (!this.locked && this.shown?.locked) this.releasedAt = performance.now();
     if (!this.locked) this.lockEl = document.pointerLockElement ? this.lockEl : null;
     const pos = this.drive.pos;
     this.report(driveMessage(pos, this.drive.gripper, performance.now()), performance.now(), true);

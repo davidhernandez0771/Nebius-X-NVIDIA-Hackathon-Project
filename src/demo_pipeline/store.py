@@ -5,6 +5,8 @@
 <root>/demos/<id>/passport.json    Passport, optional
 <root>/demos/<id>/review_verdict.json  the Review card's ReviewVerdict (docs/design/nemotron-judge.md), optional
 <root>/demos/<id>/episode/         the recorded episode (episode_io format), optional
+<root>/demos/<id>/camera.webm      the Record page's webcam video of the take ("Save camera video"), optional
+<root>/demos/<id>/camera.json      CameraTiming: how camera.webm lines up with the hand messages, with camera.webm
 <root>/demos/_discarded/<id>/      a demo thrown away on the Record page: moved here, never deleted (discard())
 
 Every write goes to a temp file in the same folder, then os.replace, so a reader
@@ -24,9 +26,9 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import BinaryIO, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .paths import data_dir
 from .schemas import Demo, Diagnosis, Passport
@@ -35,6 +37,10 @@ log = logging.getLogger(__name__)
 
 REVIEW_VERDICT = "review_verdict.json"
 DISCARDED = "_discarded"
+CAMERA_VIDEO = "camera.webm"
+CAMERA_TIMING = "camera.json"
+WEBM_MAGIC = b"\x1a\x45\xdf\xa3"  # every webm (Matroska/EBML) file starts with these four bytes
+VIDEO_ALIGN_TOL_S = 0.001  # video_s must be (t_ms - start_ms) / 1000 to within this
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")
 
@@ -48,6 +54,45 @@ class StoredDiagnosis(BaseModel):
     model_id: str | None = None
     diagnosis: Diagnosis
     gated: list[str] = Field(default_factory=list)  # what app.ai.diagnose.gate_diagnosis dropped
+
+
+class CameraTiming(BaseModel):
+    """camera.json (web/src/record/cameraTake.ts): hand frame i, the HandPoseMsg with t_ms[i], is at video_s[i] =
+    (t_ms[i] - start_ms) / 1000 seconds into camera.webm. Every *_ms is the page's performance.now(), the t_ms clock;
+    start_ms is the recorder's start (video time 0), record_start_ms / record_stop_ms when the page sent them."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    version: Literal[1]
+    clock: Literal["performance.now"]
+    mime: str
+    start_ms: float
+    stop_ms: float
+    record_start_ms: float
+    record_stop_ms: float
+    frame_w: int | None = None
+    frame_h: int | None = None
+    t_ms: list[float]
+    video_s: list[float]
+
+    @model_validator(mode="after")
+    def _lines_up(self) -> "CameraTiming":
+        if self.stop_ms < self.start_ms:
+            raise ValueError(f"stop_ms {self.stop_ms} is before start_ms {self.start_ms}")
+        if len(self.t_ms) != len(self.video_s):
+            raise ValueError(f"{len(self.t_ms)} t_ms but {len(self.video_s)} video_s")
+        if any(b < a for a, b in zip(self.t_ms, self.t_ms[1:])):
+            raise ValueError("t_ms must not go backwards")
+        for i, (t, v) in enumerate(zip(self.t_ms, self.video_s)):
+            if not self.start_ms <= t <= self.stop_ms:
+                raise ValueError(f"t_ms[{i}] = {t} is outside the video ({self.start_ms}..{self.stop_ms})")
+            if abs(v - (t - self.start_ms) / 1000) > VIDEO_ALIGN_TOL_S:
+                raise ValueError(f"video_s[{i}] = {v} doesn't match t_ms[{i}]: expected {(t - self.start_ms) / 1000:.4f}")
+        return self
+
+
+class VideoTooLarge(ValueError):
+    pass
 
 
 def write_atomic(path: Path, text: str) -> None:
@@ -146,6 +191,34 @@ class DemoStore:
             dst = bin_ / f"{id}_{n}"
         shutil.move(src, dst)
         return dst
+
+    # --- camera video ---------------------------------------------------------------
+
+    def save_camera(self, id: str, video: BinaryIO, timing: CameraTiming, max_bytes: int) -> int:
+        """Write the take's webcam video (camera.webm) and its timing (camera.json), replacing any earlier pair, and
+        return the video's size. KeyError if there is no such demo; ValueError if it isn't webm or is empty;
+        VideoTooLarge past max_bytes. The video is copied to a temp file first, so a failed upload leaves nothing."""
+        d = self._existing_dir(id)
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=f".{CAMERA_VIDEO}.", suffix=".tmp")
+        size = 0
+        try:
+            with os.fdopen(fd, "wb") as f:
+                head = video.read(len(WEBM_MAGIC))
+                if head != WEBM_MAGIC:
+                    raise ValueError("the video is empty" if not head else "the video isn't a webm file")
+                f.write(head)
+                size = len(head)
+                while chunk := video.read(1 << 20):
+                    size += len(chunk)
+                    if size > max_bytes:
+                        raise VideoTooLarge(f"the video is over {max_bytes} bytes")
+                    f.write(chunk)
+            os.replace(tmp, d / CAMERA_VIDEO)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+        write_atomic(d / CAMERA_TIMING, timing.model_dump_json(indent=1))
+        return size
 
     # --- diagnoses -----------------------------------------------------------------
 

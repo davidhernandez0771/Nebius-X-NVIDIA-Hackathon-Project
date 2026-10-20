@@ -186,5 +186,9 @@ export function createMediapipeTracker(): TrackingAdapter {
       statusListeners.add(cb);
       return () => statusListeners.delete(cb);
     },
+
+    stream() {
+      return camera?.stream ?? null;
+    },
   };
 }

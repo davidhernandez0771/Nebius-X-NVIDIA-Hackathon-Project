@@ -90,6 +90,7 @@ export function describeError(err: unknown): string {
 
 const post = { method: "POST" } as const;
 
+
 export const pmApi = {
   listDemos: () => pmFetch<Demo[]>("/demos"),
   getDemo: (id: string) => pmFetch<Demo>(`/demos/${encodeURIComponent(id)}`),
@@ -116,6 +117,21 @@ export const pmApi = {
   /** Throw a demo away: the backend moves its folder to demos/_discarded (never deletes it). */
   discardDemo: (id: string) =>
     pmFetch<{ id: string; discarded_to: string }>(`/demos/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  /** The take's webcam video and its timing (record/cameraTake.ts) -> demos/<id>/camera.webm + camera.json. A PUT
+   *  replaces both, so it is retried when the local connection drops (a reset can hit any localhost request). */
+  saveCameraVideo: async (id: string, video: Blob, timing: object, tries = 3) => {
+    for (let i = 1; ; i++) {
+      const body = new FormData();
+      body.append("video", video, "camera.webm");
+      body.append("timing", JSON.stringify(timing));
+      try {
+        // No Content-Type header: the browser sets multipart/form-data with its boundary.
+        return await pmFetch<{ id: string; video: string; bytes: number; frames: number }>(`/demos/${encodeURIComponent(id)}/camera`, { method: "PUT", body, headers: {} });
+      } catch (e) {
+        if (!(e instanceof PmApiError && e.kind === "unreachable") || i >= tries) throw e;
+      }
+    }
+  },
   getJob: (id: string) => pmFetch<unknown>(`/jobs/${encodeURIComponent(id)}`),
   exportDataset: () => pmFetch<unknown>("/export", post),
 };

@@ -186,3 +186,54 @@ describe("DriveSession with the mouse (Pointer Lock)", () => {
     expect(uis[uis.length - 1].locked).toBe(false);
   });
 });
+
+describe("DriveSession: a refused Pointer Lock says why", () => {
+  let pane: HTMLElement;
+  beforeEach(() => {
+    pane = document.body.appendChild(document.createElement("div"));
+  });
+  afterEach(() => {
+    Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => null });
+  });
+  const lockOk = () =>
+    vi.fn(() => {
+      Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => pane });
+      document.dispatchEvent(new Event("pointerlockchange"));
+      return Promise.resolve();
+    }) as unknown as typeof pane.requestPointerLock;
+  const refuse = (name: string, message: string) =>
+    vi.fn(() => Promise.reject(new DOMException(message, name))) as unknown as typeof pane.requestPointerLock;
+
+  it("resolves null once locked", async () => {
+    pane.requestPointerLock = lockOk();
+    await expect(session.requestMouse(pane)).resolves.toBeNull();
+    expect(uis[uis.length - 1].locked).toBe(true);
+  });
+
+  it("resolves the browser's reason when the promise is rejected, and stays unlocked", async () => {
+    pane.requestPointerLock = refuse("NotAllowedError", "The root document of this element is not valid for pointer lock.");
+    const reason = await session.requestMouse(pane);
+    expect(reason).toMatch(/refused to lock the mouse \(NotAllowedError: The root document/);
+    expect(reason).toMatch(/Click again\.$/);
+    expect(document.pointerLockElement).toBeNull();
+  });
+
+  it("an older browser's pointerlockerror event is a refusal too", async () => {
+    pane.requestPointerLock = vi.fn(() => {
+      document.dispatchEvent(new Event("pointerlockerror"));
+    }) as unknown as typeof pane.requestPointerLock;
+    await expect(session.requestMouse(pane)).resolves.toMatch(/^The browser refused to lock the mouse\. Click again\.$/);
+  });
+
+  it("right after Esc it says the browser needs a moment; a later click locks", async () => {
+    pane.requestPointerLock = lockOk();
+    await session.requestMouse(pane);
+    Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => null }); // Esc
+    document.dispatchEvent(new Event("pointerlockchange"));
+    pane.requestPointerLock = refuse("SecurityError", "The user has exited the lock before this request was completed.");
+    await expect(session.requestMouse(pane)).resolves.toMatch(/needs a second after Esc/);
+    vi.advanceTimersByTime(2000);
+    pane.requestPointerLock = lockOk();
+    await expect(session.requestMouse(pane)).resolves.toBeNull();
+  });
+});
