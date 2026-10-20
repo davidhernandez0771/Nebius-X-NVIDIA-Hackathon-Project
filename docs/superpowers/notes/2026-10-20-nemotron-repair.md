@@ -184,8 +184,7 @@ The lead's session ran it while the user was at college, with the command below.
 - **Caveat.** One run each, and PhysX is not deterministic: the two edits-only wins could flip on a re-run. A
   repeat (`--name repair_ab2`) would show how stable the 5 vs 3 is.
 - **Files.** Every round's reply, plan, report and verdict is in
-  `C:\dev\pm-t6\data\human_exp
-epair_ab1b\<id>.json`; the verified edited demos are stored as `<id>_edits`
+  `C:\dev\pm-t6\data\human_exp\repair_ab1\ab\<id>.json`; the verified edited demos are stored as `<id>_edits`
   in that experiment's store.
 
 ## The blind test's command (Isaac; run 2026-10-20, results above)
