@@ -426,7 +426,37 @@ The lead asked for this after repair_ab2. Every change below was written tests-f
   - **`--input`** is passed to `Experiment.select` only when given. On a checkout whose select has no `input`
     (this branch, before it is merged with pm/live-11), it refuses cleanly.
 
-### Pre-registration draft: `repair_kb1` (fresh keyboard demos; the script writes the frozen copy)
+### ON HOLD: `repair_kb1` must not be run (decided 2026-10-20 evening)
+
+**Why.** Tonight's demos (live test #11) don't fit this test.
+- **Wrong input mode.** The user recorded them in **mouse** mode, not keyboard. Checked in `C:\dev\pm-t6\data`: the
+  10 `human_2026102[01]*` demos all have `input: "mouse"`, none `"keyboard"`. So `--input keyboard` would select
+  nothing and refuse at select.
+- **Nothing to repair.** T4's `mouse20261020` physics step (`bdad196` on pm/kb-prereg,
+  `2026-10-20-mouse20261020-results.md`) found 10/10 pass live, 10/10 pass on replay, and the same outcome on all 10.
+  - Switching to `--input mouse` would not help: there is no failed demo to repair.
+  - The rules would only apply cleanup ops (all 10 rules repairs "perfected").
+  - The hybrid would never call Nemotron, and the edits-alone arm would only be asked to "fix" passing demos, which
+    this repairer never does: a raw replay that passes is kept without a model call.
+- A repair A/B on these demos measures nothing, so `repair_kb1` is held. The pre-registration draft below stays as
+  written, but it applies only to a new selection.
+
+**What a fair fresh test needs:**
+- **New human demos that fail physics as recorded,** from takes the rules were not written for. The rules'
+  failure-specific ops (`release_above_bin`, `recenter_grasp`) were written for live test #10's 10 camera demos.
+  Candidates:
+  - camera-mode takes from a different session or a different person;
+  - mouse takes recorded **without the soft floor**.
+- **The selection rule pre-registered before recording:** the tag, the input mode, the data dir, and a minimum
+  count. Everything else is frozen as below: arms, primary rules vs hybrid, secondary edits alone, and the prompt
+  fingerprint.
+- **Enough of them.** n is fixed in advance. Only demos whose raw replay fails count toward the primary comparison,
+  and that comparison can reach significance only if Nemotron rescues 6 or more that the rules discard. So aim for
+  10 or more failing demos.
+- **Same code.** The command and the script are unchanged, apart from the new `--name`, `--tag` and `--input`. Run
+  it from `C:\dev\pm-t3`, when the GPU is free.
+
+### Pre-registration draft: `repair_kb1` (fresh keyboard demos; the script writes the frozen copy; ON HOLD, see above)
 
 - **Question.** On human demos the rules were never written for, does the hybrid repairer repair more demos to a
   physics pass than the rules alone? The hybrid runs the rules first, then Nemotron's blind trajectory edits for any
