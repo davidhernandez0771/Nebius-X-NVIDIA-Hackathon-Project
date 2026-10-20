@@ -322,7 +322,7 @@ uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python
 - **Time and cost.** About 55 min, like repair_ab1. Spend should be about $0.25: a rescue costs one short extra
   call.
 - **Prerequisite.** Commit first, so `ab_config.json` has no `+dirty`.
-- **Clean early stop.** Create `C:\dev\pm-t6\data\human_expepair_ab2\STOP`. The demo in progress finishes,
+- **Clean early stop.** Create `C:\dev\pm-t6\data\human_exp\repair_ab2\STOP`. The demo in progress finishes,
   then the worker stops and gpu.lock is released. The same command later clears the file and resumes.
 - **Output** goes to `C:\dev\pm-t6\data\human_exp\repair_ab2\`.
 
