@@ -185,3 +185,27 @@ def wrong_bin() -> SceneScript:
         bins={"left_bin": LEFT, "right_bin": RIGHT},
         keys=pick_place(0.0, RED, (RIGHT[0] + 0.05, RIGHT[1])) + pick_place(5.5, BLUE, (RIGHT[0] - 0.05, RIGHT[1])) + [end(12.0, RIGHT)],
     )
+
+
+# --- real episodes ----------------------------------------------------------------------------------
+
+REAL_DIR = __import__("pathlib").Path(__file__).parent / "data" / "goals"
+REAL = sorted(REAL_DIR.glob("*.json.gz"))
+
+
+def load_real(path):
+    """A real episode's verifier inputs (scripts/make_goal_fixtures.py): (traj, sim, bin_pose, tcp_error, reasons)."""
+    import gzip
+    import json
+
+    from demo_pipeline.schemas import SimSignals, Trajectory
+
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        z = json.load(f)
+    a = {k: np.asarray(v) for k, v in z.items() if isinstance(v, list) and k not in ("reasons",)}
+    traj = Trajectory.from_arrays(a["t"], a["ee_pos"], a["ee_quat"], a["gripper"].astype(int))
+    sim = SimSignals(cube_pos=a["cube_pos"].astype(float), contact_gripper_cube=a["contact_gripper_cube"].astype(bool),
+                     contact_arm_bin=a["contact_arm_bin"].astype(bool), contact_arm_table=a["contact_arm_table"].astype(bool),
+                     max_contact_force=a["max_contact_force"].astype(float))
+    bin_pose = Pose(pos=tuple(z["bin_pos"]), quat_wxyz=tuple(z["bin_quat_wxyz"]))
+    return traj, sim, bin_pose, a["tcp_error"].astype(float), list(z["reasons"])

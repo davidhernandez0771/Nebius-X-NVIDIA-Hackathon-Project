@@ -2,7 +2,7 @@
 
 1. The single cube + bin case gives exactly check_success's reasons (so the same verdict): on every fixture of
    test_dp_success (re-run through a wrapper), on random perturbations of its clean demo, and on real episodes'
-   signals (tests/data/goals, extracted from C:\\dev\\pm-t6\\data by scripts/make_goal_fixtures.py).
+   signals (tests/data/goals/*.json.gz, extracted from C:\\dev\\pm-t6\\data by scripts/make_goal_fixtures.py).
 2. Two- and three-object scenes (goal_scenes): done / not done / dropped / done out of order, with timestamps.
 """
 
@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -22,7 +21,6 @@ from demo_pipeline.schemas import Pose, Trajectory
 from demo_pipeline.success import check_success
 import goal_scenes as gs
 
-DATA = Path(__file__).parent / "data" / "goals"
 
 
 def _goals_reasons(traj, sim, bin_pose, **kw) -> list[str]:
@@ -96,23 +94,16 @@ def test_random_perturbations_give_the_same_reasons():
     assert hits >= {"not_in_bin", "gripper_closed", "not_settled", "collision", "dropped", "high_release", "unreachable"}
 
 
-REAL = sorted(DATA.glob("*.npz"))
+REAL = gs.REAL
 
 
 def test_real_episode_fixtures_are_there():
     assert len(REAL) >= 6
 
 
-@pytest.mark.parametrize("path", REAL, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", REAL, ids=lambda p: p.name.split(".")[0])
 def test_real_episodes_give_the_stored_verdict(path):
-    with np.load(path, allow_pickle=False) as z:
-        traj = Trajectory.from_arrays(z["t"], z["ee_pos"], z["ee_quat"], z["gripper"])
-        sim = single.SimSignals(cube_pos=z["cube_pos"], contact_gripper_cube=z["contact_gripper_cube"],
-                                contact_arm_bin=z["contact_arm_bin"], contact_arm_table=z["contact_arm_table"],
-                                max_contact_force=z["max_contact_force"])
-        bin_pose = Pose(pos=tuple(z["bin_pos"]), quat_wxyz=tuple(z["bin_quat_wxyz"]))
-        stored = [str(r) for r in z["reasons"]]
-        tcp = z["tcp_error"]
+    traj, sim, bin_pose, tcp, stored = gs.load_real(path)
     today = check_success(traj, sim, bin_pose, bin_inner=BIN_INNER, tcp_error=tcp).reasons
     assert sorted(today) == sorted(stored)
     assert _goals_reasons(traj, sim, bin_pose, tcp_error=tcp) == today

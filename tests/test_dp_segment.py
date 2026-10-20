@@ -3,7 +3,6 @@ the one-line reading of it. On a single clean pick-place its per-step labels are
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -12,7 +11,6 @@ import goal_scenes as gs
 import test_dp_success as single
 from demo_pipeline import robota
 from demo_pipeline.goals import SceneSignals
-from demo_pipeline.schemas import Pose, SimSignals, Trajectory
 from demo_pipeline.segment import describe, segments, step_labels
 
 
@@ -93,19 +91,15 @@ def test_steps_and_labels_line_up():
     assert np.isclose(sum(s.end - s.start for s in segs), sig.t[-1])
 
 
-REAL = sorted((Path(__file__).parent / "data" / "goals").glob("*.npz"))
+REAL = gs.REAL
 
 
 def _real(path):
-    with np.load(path, allow_pickle=False) as z:
-        traj = Trajectory.from_arrays(z["t"], z["ee_pos"], z["ee_quat"], z["gripper"])
-        sim = SimSignals(cube_pos=z["cube_pos"], contact_gripper_cube=z["contact_gripper_cube"],
-                         contact_arm_bin=z["contact_arm_bin"], contact_arm_table=z["contact_arm_table"],
-                         max_contact_force=z["max_contact_force"])
-        return traj, sim, Pose(pos=tuple(z["bin_pos"]), quat_wxyz=tuple(z["bin_quat_wxyz"]))
+    traj, sim, bin_pose, _tcp, _reasons = gs.load_real(path)
+    return traj, sim, bin_pose
 
 
-@pytest.mark.parametrize("path", REAL, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", REAL, ids=lambda p: p.name.split(".")[0])
 def test_real_episodes_read_and_agree_with_robota_on_one_clean_hold(path):
     traj, sim, bin_pose = _real(path)
     sig = SceneSignals.single(traj, sim, bin_pose)

@@ -63,8 +63,10 @@ list, same order), so the verdict is the same. Tested three ways:
 **The real episodes:** first, all 214 verified episodes under `C:\dev\pm-t6\data` were checked. check_success on
 the inputs saved with each one (`trajectory.json`, `signals.npz`, `scene.json`, and the IK residual rebuilt as
 |steps.ee_pos − trajectory ee_pos|) gives the stored `verification.json` reasons for all 214. Then
-`scripts/make_goal_fixtures.py` copied the shortest episode of each verdict into `tests/data/goals/*.npz`
-(232 KB, read only from pm-t6; each file names its source). The verdicts covered:
+`scripts/make_goal_fixtures.py` copied the shortest episode of each verdict into `tests/data/goals/*.json.gz`
+(284 KB, read only from pm-t6; each file names its source). The format is gzipped JSON, not `.npz`, because the
+repo ignores `*.npz`; JSON writes float64 exactly, so the tests see the same numbers check_success saw. The
+verdicts covered:
 - success;
 - collision; collision + dropped; collision + unreachable;
 - not_in_bin; not_in_bin + collision; not_in_bin + dropped; not_in_bin + collision + dropped;
@@ -127,6 +129,19 @@ So one `not_in_bin + dropped` episode is goal state `dropped` and reads "grasp c
   plus 35 for `tests/test_launch_health.py`, run on its own because it takes 5 minutes; it passes.
 
 ## Not done
+
+- **Leftover local files.** The first extraction wrote `.npz` files into `tests/data/goals/`. They are ignored
+  by git (`*.npz`), never committed, and no test reads them; they were left on disk rather than deleted. Delete
+  them by hand if you want them gone:
+  - `collision+dropped__human_20261019185223_66bc_raw.npz`
+  - `collision+unreachable__human_20261019185902_c045_rules_home_m3905.npz`
+  - `collision__human_20261019185258_9f47_raw.npz`
+  - `not_in_bin+collision+dropped__human_20261019185613_fb12_edits_v1.npz`
+  - `not_in_bin+collision+unreachable__episode.npz`
+  - `not_in_bin+collision__human_20261019185258_9f47_rules_v2.npz`
+  - `not_in_bin+dropped__human_20261019185258_9f47_rules_home_m3302.npz`
+  - `not_in_bin__human_20261019185540_87bd_rules_v2.npz`
+  - `success__human_20261019185258_9f47_rules_v1.npz`
 
 - **The sim worker still records one cube** (`SimSignals`). Multi-object `SceneSignals` come only from synthetic
   scenes until the sim records each object's position and gripper contact. `SceneSignals` is the shape that
