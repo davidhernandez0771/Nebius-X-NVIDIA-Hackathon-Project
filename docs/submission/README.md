@@ -233,8 +233,16 @@ Where SANT differs:
 | Language model | — | Nemotron labels what the person did, judges each copy's intent, and proposes repairs; physics decides |
 | Platform | Linux | Windows 11 (Isaac Lab 3.0) |
 
-SANT's multiply does not replace Mimic. Mimic's generation, or SkillGen's planning, could take SANT's repaired and
-verified demos as its input; we have not tried that.
+SANT's multiply does not replace Mimic. Mimic's generation, or SkillGen's planning, can take SANT's repaired and
+verified demos as its input. We ran it: the 3 rules-repaired webcam demos, exported to Mimic's HDF5, 100 trials on
+this Windows PC.
+
+Isaac Lab Mimic, given SANT's tracking, produced demos SANT verifies at the same rate as SANT's own multiplier: 82% vs 80%, p = 0.79; SANT's check rejected 9 of Mimic's 100 self-reported successes.
+- Mimic's own end-state test passed 100 of 111 attempts. SANT verified 91/111 (82.0%, Wilson 95% 73.8–88.0%).
+  SANT's multiplier verified 24/30 (80.0%, 62.7–90.5%). Two-sided Fisher.
+- The 9 rejects: collision ×6 (340–710 N), unreachable ×8, not_settled ×1. Most have several reasons.
+- SANT's side is the existing `human10c` 24/30 (the same 3 repaired sources); the planned 102-attempt SANT run was not done. Mimic also picks and splices its sources itself.
+- Source: [mimic-export](../superpowers/notes/2026-10-20-mimic-export.md), "The rerun's result".
 
 ## Honest limitations
 

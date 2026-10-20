@@ -143,6 +143,10 @@ Isaac Lab Mimic (NVIDIA's GR00T-Mimic workflow) multiplies **good** teleop demos
 Its tutorial starts from "10 successful demonstrations". This project is the step before that. It checks human
 demos in physics as they were recorded, repairs the ones that fail (rules or Nemotron edits), and then multiplies
 them the same way, in its own code.
+
+We also ran Mimic on SANT's repaired demos. Isaac Lab Mimic, given SANT's tracking, produced demos SANT verifies at the same rate as SANT's own multiplier: 82% vs 80%, p = 0.79; SANT's check rejected 9 of Mimic's 100 self-reported successes. SANT's side is the existing `human10c` 24/30 (the same 3 repaired sources); the planned 102-attempt SANT run was not done.
+<!-- src: docs/superpowers/notes/2026-10-20-mimic-export.md ("The rerun's result": 91/111 SANT-verified, Wilson 73.8–88.0%, vs human10c 24/30, 62.7–90.5%, Fisher p = 0.79; rejects collision 6, unreachable 8, not_settled 1) -->
+
 Details and the comparison table: [docs/submission/README.md](docs/submission/README.md#how-sant-relates-to-nvidia-gr00t-mimic--isaac-lab-mimic).
 <!-- src: C:\isaac\IsaacLab docs/source/features/imitation-learning/teleop_imitation.rst (Isaac Lab 3.0: "What is Isaac Lab Mimic?", Step 1 "Collect 10 successful demonstrations", generation success ~40%); src/demo_pipeline/multiply.py -->
 

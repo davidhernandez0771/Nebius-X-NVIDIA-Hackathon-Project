@@ -227,8 +227,9 @@ All policy numbers: ACT, 30k steps, batch 8, one training run per cell, the same
 - **What SANT adds.** SANT takes demos as people actually make them, checks them in physics as recorded (ours:
   0/10), and repairs the failures with rules or Nemotron edits. Then it multiplies them the same way, in its own
   code, and verifies every copy.
-- **Better together.** SANT's repaired, verified demos could be Mimic's (or SkillGen's) input; we haven't tried it.
-  We compared against Isaac Lab Mimic's own docs (Isaac Lab 3.0); we did not run GR00T-Mimic.
+- **Better together.** SANT's repaired, verified demos can be Mimic's input, and we ran it on the 3 repaired webcam
+  demos. Isaac Lab Mimic, given SANT's tracking, produced demos SANT verifies at the same rate as SANT's own multiplier: 82% vs 80%, p = 0.79; SANT's check rejected 9 of Mimic's 100 self-reported successes. SANT's side is the existing `human10c` 24/30 (the same 3 repaired sources); the planned 102-attempt SANT run was not done. We did not run GR00T-Mimic or SkillGen.
+  <!-- src: docs/superpowers/notes/2026-10-20-mimic-export.md ("The rerun's result": 91/111 SANT-verified, Wilson 73.8–88.0%, vs human10c 24/30, 62.7–90.5%, Fisher p = 0.79; rejects collision 6, unreachable 8, not_settled 1) -->
 <!-- src: C:\isaac\IsaacLab docs/source/features/imitation-learning/teleop_imitation.rst ("What is Isaac Lab Mimic?", Step 1, generation success ~40%) and skillgen.rst; src/demo_pipeline/multiply.py -->
 
 **Other prior work we build on:** MimicGen (demo multiplication), SkillGen (planned motion between human
@@ -285,7 +286,8 @@ every repair, and only then multiplied across positions."* We do not claim to be
 - **A self-improvement loop.**
 - **Find why the mouse-SANT policy collides** (27/40), with a traced eval. The soft floor is ruled out.
 - **Fix the drops,** the failure mode in every trained policy so far.
-- **Feed SANT's verified demos into Isaac Lab Mimic / SkillGen** and compare their generation with ours.
+- **Mimic on SANT's demos, further:** run the planned 102-attempt SANT comparison, and train on Mimic's verified
+  demos vs SANT's. Then try SkillGen.
 <!-- src: docs/superpowers/notes/2026-10-20-human10c-multiplied-only.md ("Reading it"); 2026-10-20-nemotron-repair.md ("Open"); 2026-10-18-t3-grasp-fix.md -->
 
 ## Built with
