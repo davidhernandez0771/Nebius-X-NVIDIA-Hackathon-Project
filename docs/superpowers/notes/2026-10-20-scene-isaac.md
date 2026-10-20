@@ -25,7 +25,7 @@ Nothing pushed or merged into a shared branch.
 | The settle check: readable errors | `sim_worker/settle.py` | no (Isaac via a subprocess) | `test_sim_settle.py` (9) |
 | The errors back into the Nemotron loop | `app/ai/scene_creator.py` (`check_fn`), `scripts/scene_from_text.py --settle` | no | `test_scene_creator.py` (+3) |
 | One plan settled (and photographed) in Isaac | `sim_worker/scripts/settle_plan.py` | yes | compile only |
-| The GPU smoke test (3 example plans) | `sim_worker/scripts/scene_smoke.py`, `sim_worker/scene_examples/*.json` | its children | `test_sim_scene_examples.py` (7), Isaac faked |
+| The GPU smoke test: unit tests → replay regression → 3 plan settles, one lock | `sim_worker/scripts/scene_smoke.py`, `replay_regression.py`, `sim_worker/regression.py`, `sim_worker/scene_examples/*.json` | its children | `test_sim_scene_examples.py` (11), `test_sim_regression.py` (8), Isaac faked |
 
 ## 1. A ScenePlan into the Isaac scene
 
@@ -104,39 +104,75 @@ segment.py read a real multi-object episode with `object_record.load_scene_signa
   python as a subprocess, which takes the GPU lock.
 - If Isaac itself fails, that raises `SettleUnavailable` and is not blamed on the plan.
 
-## 4. The GPU smoke test (not run)
+## 4. The GPU smoke test (not run): one command, one lock
 
-Run it with nothing else on the GPU: no Isaac, no Blender, and the GPU lock free. Each child waits on
-`C:\dev\gpu.lock`. From `C:\dev\pm-t5`, in PowerShell:
+Run it with nothing else on the GPU (no Isaac, no Blender). From `C:\dev\pm-t5`, in PowerShell:
 
 ```
 C:\isaac\env_isaaclab\Scripts\python.exe sim_worker\scripts\scene_smoke.py --out data\scene_smoke
 ```
 
-**What it does:**
-- it builds the three example plans (`sim_worker/scene_examples/`), one Isaac process each:
-  - today's scene;
-  - a 3-cube stack with 2 bins (the scene creator's test scene);
-  - 3 cube sizes, one of them stacked, and 2 bins, one turned 90°;
-- each one is settled for 1 s;
-- the output, per plan, is `data\scene_smoke\<plan>.json` and `<plan>.png` (front camera), plus `summary.json`.
+**The lock:** `scene_smoke.py` takes `C:\dev\gpu.lock` once (`sim_worker.gpulock`: O_EXCL, waits while it is held
+or the GPU is busy). It releases the lock on any exit: success, failure, an exception, Ctrl+C. A killed process
+leaves a lock with a dead PID, which the next taker replaces. Every child runs with `--no-lock`.
 
-**How to read it:**
-- exit 1 means an Isaac run failed;
-- a plan that doesn't settle is listed, not a failure.
+**Stages, in order:**
+1. **Isaac-only unit tests** (Isaac's python, no app): `tests/test_sim_plan_scene.py` (today's plan config ==
+   `make_scene_cfg`), `test_sim_scene_cfg.py`, `test_sim_placement.py`.
+2. **Replay regression.** `replay()` changed, and everything uses it. Five stored episodes with known verdicts
+   (each verdict reproduces from its saved inputs) are replayed:
+   - three of live test #10's webcam demos on the achieved path, from `C:\dev\pm-t6\data\episodes`: a success, a
+     collision, and a not_in_bin + dropped;
+   - two scripted-expert Franka successes from `C:\dev\pm-t2\data\batch_franka`, because pm-t6 has no scripted
+     episodes.
 
-**Before it, the Isaac-only unit tests** (Isaac's python, no app, no GPU work):
+   **How each one replays:** with its own `trajectory.json` and `scene.json`, default tracking (lookahead 0, no
+   gate: what made them), from the default start, without cameras.
 
-```
-C:\isaac\env_isaaclab\Scripts\python.exe -m pytest --noconftest tests\test_sim_plan_scene.py tests\test_sim_scene_cfg.py tests\test_sim_placement.py
-```
+   **The comparison:**
+   - each episode is replayed twice by the **base code** (this branch's merge-base with `pm/live-11`, exported into
+     `regression/base_code` with `git archive`, read only) and twice by **this branch**
+     (`sim_worker/scripts/replay_regression.py`, one process per code version);
+   - `sim_worker.regression` compares the reasons, the cube's path, the gripper and arm contacts, the forces, the
+     reached tool path and the joints:
+     - base vs base and branch vs branch is PhysX's run-to-run noise, measured on the spot;
+     - base vs branch is the regression.
+
+   **The verdicts** (`regression.md` has the exact numbers):
+   - *identical*: bit for bit;
+   - *within noise*: no base-vs-branch difference larger than the noise, and only reason sets the base also gave;
+   - *DIFFERS*.
+
+   The stored episodes, recorded earlier with cameras and older code, are compared too, for the record. Those
+   human demos are marginal (replay fidelity was 2–4/10), so their stored verdicts aren't the pass mark; the base
+   is.
+3. **The three example plans** (`sim_worker/scene_examples/`), one Isaac process each, settled for 1 s and
+   photographed:
+   - today's scene;
+   - a 3-cube stack with 2 bins (the scene creator's test scene);
+   - 3 cube sizes, one stacked, and 2 bins, one turned 90°.
+
+**Output in `data\scene_smoke`:**
+- `regression.md` and `regression/` (base and branch runs as episode folders);
+- `<plan>.json` and `<plan>.png` for each plan;
+- `summary.json`.
+
+**Exit 1 when:**
+- a stage failed to run;
+- the unit tests failed;
+- an episode DIFFERS.
+
+A plan that doesn't settle is reported, not a failure.
+
+**Time:** two Isaac start-ups plus 20 replays (~10–20 s each), then three start-ups for the settles: roughly
+10–15 minutes.
 
 ## Checks
 
 | Check | Result |
 |---|---|
-| `uv run pytest`, without `tests/test_launch_health.py` (35 tests, 5 min; it passed on `pm/goals` this morning, and this branch doesn't touch `scripts/launch`) | 2116 passed, 16 skipped, 0 failed |
-| New pure tests | 30 (+3 in `test_scene_creator.py`) |
+| `uv run pytest`, without `tests/test_launch_health.py` (35 tests, 5 min; it passed on `pm/goals` this morning, and this branch doesn't touch `scripts/launch`) | 2128 passed, 16 skipped, 0 failed |
+| New pure tests | 42 (+3 in `test_scene_creator.py`) |
 | `py_compile` on `plan_scene.py`, `replay.py`, `placement.py`, `scene_cfg.py`, `settle_plan.py`, `scene_smoke.py`, `test_sim_plan_scene.py` | OK |
 | pyflakes on the new and changed files | clean (only `scene_cfg.py`'s deliberate re-exports) |
 

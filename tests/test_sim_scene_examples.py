@@ -41,24 +41,105 @@ def test_todays_example_is_todays_scene_names():
     assert lay.legacy and lay.cube_ids() == ["cube"]
 
 
-def test_the_smoke_script_runs_settle_plan_once_per_example_with_a_screenshot(tmp_path):
-    cmds = _smoke().commands(tmp_path, python="isaac-python")
+def test_settle_commands_one_per_example_with_a_screenshot_and_no_lock(tmp_path):
+    cmds = _smoke().settle_commands(tmp_path, python="isaac-python")
     assert [n for n, _ in cmds] == [p.stem for p in EXAMPLES]
     for name, cmd in cmds:
-        assert cmd[0] == "isaac-python" and cmd[1].endswith("settle_plan.py")
+        assert cmd[0] == "isaac-python" and cmd[1].endswith("settle_plan.py") and "--no-lock" in cmd
         assert cmd[cmd.index("--screenshot") + 1].endswith(f"{name}.png")
 
 
-def test_the_smoke_summary_reports_unsettled_plans_and_fails_only_on_crashes(tmp_path):
-    def run(cmd):
-        out = Path(cmd[cmd.index("--out") + 1])
-        if "3_three" in out.name:
-            return subprocess.CompletedProcess(cmd, 1)
-        errors = ["cube_red fell off cube_green: ..."] if "2_stack" in out.name else []
-        out.write_text(json.dumps({"errors": errors, "moved": {"a": 0.001}}), encoding="utf-8")
+class FakeLock:
+    events: list = []
+
+    def __init__(self, **kw):
+        FakeLock.events.append(("make", kw.get("task")))
+
+    def __enter__(self):
+        FakeLock.events.append("taken")
+        return self
+
+    def __exit__(self, *exc):
+        FakeLock.events.append("released")
+
+
+def _fake_world(tmp_path, *, branch_cube_dx=0.0, crash_settle=None, raise_in=None):
+    """A runner that plays every stage: the unit tests pass, the replays write episode folders, the settles write
+    their results."""
+    from test_sim_regression import _write
+
+    eps = [_write(tmp_path / "stored" / n) for n in ("ep_a", "ep_b")]
+    calls = []
+
+    def run(cmd, cwd=None, **kw):
+        calls.append(cmd)
+        if raise_in and raise_in in " ".join(map(str, cmd)):
+            raise RuntimeError("boom")
+        if "replay_regression.py" in cmd[1]:
+            label = cmd[cmd.index("--label") + 1]
+            out = Path(cmd[cmd.index("--out") + 1])
+            for k in (1, 2):
+                for ep in eps:
+                    _write(out / label / f"run{k}" / ep.name, cube_dx=branch_cube_dx if label == "branch" else 0.0)
+        elif "settle_plan.py" in cmd[1]:
+            out = Path(cmd[cmd.index("--out") + 1])
+            if crash_settle and crash_settle in out.name:
+                return subprocess.CompletedProcess(cmd, 1)
+            out.write_text(json.dumps({"errors": [], "moved": {"a": 0.001}}), encoding="utf-8")
         return subprocess.CompletedProcess(cmd, 0)
 
-    assert _smoke().main(["--out", str(tmp_path)], run=run) == 1
-    rows = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    assert [r["plan"] for r in rows] == [p.stem for p in EXAMPLES]
-    assert rows[0]["settled"] and not rows[1]["settled"] and not rows[2]["ran"]
+    return eps, calls, run
+
+
+def _main(tmp_path, eps, run):
+    FakeLock.events = []
+    return _smoke().main(["--out", str(tmp_path / "out"), "--episodes", *map(str, eps)], run=run, lock=FakeLock,
+                         export=lambda dest: dest.mkdir(parents=True, exist_ok=True) or "abc1234")
+
+
+def test_one_command_unit_tests_then_replay_regression_then_settles_under_one_lock(tmp_path):
+    eps, calls, run = _fake_world(tmp_path)
+    assert _main(tmp_path, eps, run) == 0
+    assert FakeLock.events == [("make", "scene-smoke"), "taken", "released"]
+    kinds = [("pytest" if "pytest" in c else Path(c[1]).name) for c in calls]
+    assert kinds == ["pytest", "replay_regression.py", "replay_regression.py", "settle_plan.py", "settle_plan.py", "settle_plan.py"]
+    base, branch = calls[1], calls[2]
+    assert base[base.index("--label") + 1] == "base" and branch[branch.index("--label") + 1] == "branch"
+    assert Path(base[base.index("--code") + 1]).name == "base_code" and "--no-lock" in base and "--no-lock" in branch
+    out = tmp_path / "out"
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert summary["regression"]["verdicts"] == {"ep_a": "identical", "ep_b": "identical"}
+    assert summary["regression"]["base_commit"] == "abc1234"
+    assert "identical" in (out / "regression.md").read_text(encoding="utf-8")
+
+
+def test_a_replay_that_differs_from_the_base_fails_the_smoke_test(tmp_path):
+    eps, calls, run = _fake_world(tmp_path, branch_cube_dx=0.01)
+    assert _main(tmp_path, eps, run) == 1
+    summary = json.loads((tmp_path / "out" / "summary.json").read_text(encoding="utf-8"))
+    assert set(summary["regression"]["verdicts"].values()) == {"DIFFERS"}
+
+
+def test_the_lock_is_released_when_a_stage_blows_up(tmp_path):
+    eps, calls, run = _fake_world(tmp_path, raise_in="replay_regression")
+    with pytest.raises(RuntimeError, match="boom"):
+        _main(tmp_path, eps, run)
+    assert FakeLock.events[-1] == "released"
+
+
+def test_an_unsettled_plan_is_reported_and_a_crashed_settle_fails(tmp_path):
+    eps, calls, run = _fake_world(tmp_path, crash_settle="3_three")
+    assert _main(tmp_path, eps, run) == 1
+    summary = json.loads((tmp_path / "out" / "summary.json").read_text(encoding="utf-8"))
+    rows = summary["settle"]
+    assert rows[0]["settled"] and not rows[2]["ran"]
+
+
+def test_the_base_code_is_the_branch_point_exported_read_only(tmp_path):
+    commit = _smoke().export_base(tmp_path / "base_code")
+    assert len(commit) == 40
+    want = subprocess.run(["git", "show", f"{commit}:sim_worker/replay.py"], cwd=REPO, capture_output=True, check=True).stdout
+    got = (tmp_path / "base_code" / "sim_worker" / "replay.py").read_bytes()
+    assert got.replace(b"\r\n", b"\n") == want.replace(b"\r\n", b"\n")
+    assert b"ObjectRecorder" not in got  # the code before this branch's replay change
+    assert (tmp_path / "base_code" / "src" / "demo_pipeline" / "success.py").exists()
