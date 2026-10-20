@@ -506,3 +506,34 @@
   background: none;
   backdrop-filter: none;
 }
+
+/* The tags as holograms (HubHolograms): the HTML buttons stay, see-through and sized to each panel
+   (the 3D draws it), so the clicks, the focus and the names are the same. The panel itself lights on
+   hover and focus; a thin outline marks keyboard focus too. */
+.world-hubtag[data-holo="true"] {
+  display: block;
+  transform: none;
+}
+.world-hubtag[data-holo="true"] button {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  animation: none;
+}
+.world-hubtag[data-holo="true"] button:hover {
+  border-color: transparent;
+  background: transparent;
+}
+.world-hubtag[data-holo="true"] button:focus-visible {
+  outline: 1px solid rgba(25, 245, 194, 0.55);
+  outline-offset: 4px;
+}
+.world-hubtag[data-holo="true"] button > span,
+.world-hubtag[data-holo="true"] .world-hubtag__stem {
+  visibility: hidden;
+}
