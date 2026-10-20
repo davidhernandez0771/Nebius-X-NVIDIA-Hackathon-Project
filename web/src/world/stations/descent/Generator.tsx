@@ -15,13 +15,14 @@ import type { StationFrame } from "../../core/types";
 import { BAKED, bakedUrl, type BakedName } from "../../scene/assets";
 import { DISSOLVE_EDGE, DISSOLVE_GLSL, dissolve, FIELD_MAX } from "../../scene/dissolve";
 import { HELIX, LIBRARY, type Slot } from "../../scene/layout";
-import { LOGO, LOGO_R, LOGO_SCALE, RING } from "../intro/layout";
+import { LOGO, LOGO_R, LOGO_SCALE, logoFit, RING } from "../intro/layout";
 import { seeded } from "../intro/particles";
 import { POINTS, SHARES, sampleBox, sampleTriangles, splitBudget, type Piece } from "./generatorPlan";
 
 const vert = /* glsl */ `
 attribute vec3 aStart; attribute vec3 aMid; attribute vec3 aColor; attribute vec4 aRand;
-uniform float uP, uTime, uReveal, uPR, uSize;
+uniform float uP, uTime, uReveal, uPR, uSize, uFit;
+uniform vec3 uLogo;
 uniform vec3 uTeal, uWhite;
 varying vec3 vC; varying float vA;
 ${DISSOLVE_GLSL}
@@ -32,7 +33,8 @@ void main(){
   float h = clamp((position.y + .6) / 15., 0., 1.);
   float c = .55 * r2 + .45 * h;
   float e2 = smoothstep(.34 + .32 * c, .62 + .32 * c, uP);
-  vec3 p = mix(aStart, aMid, e1);
+  // The ring as drawn (narrow screens shrink it: intro/layout.ts logoFit).
+  vec3 p = mix(uLogo + (aStart - uLogo) * uFit, aMid, e1);
   float t = uTime * .5 + r1 * 40.;
   p += vec3(sin(t * 1.3 + aRand.z * 9.), cos(t * 1.1 + aRand.w * 9.), sin(t * .9 + r2 * 9.)) * (.7 * e1 * (1. - e2));
   vec3 q = mix(p, position, e2);
@@ -203,6 +205,8 @@ export function Generator({ frame, quality, reduced }: { frame: StationFrame; qu
       blending: THREE.AdditiveBlending,
       uniforms: {
         uP: { value: 0 },
+        uFit: { value: 1 },
+        uLogo: { value: new THREE.Vector3(...LOGO) },
         uTime: { value: 0 },
         uReveal: dissolve.reveal,
         uPR: { value: 1 },
@@ -231,6 +235,7 @@ export function Generator({ frame, quality, reduced }: { frame: StationFrame; qu
     const u = points.material.uniforms;
     const p = frame.t;
     u.uP.value = p;
+    u.uFit.value = logoFit.value;
     u.uTime.value = clock.elapsedTime;
     u.uPR.value = gl.getPixelRatio();
     // Drawn from the burst until the room has taken over every particle.

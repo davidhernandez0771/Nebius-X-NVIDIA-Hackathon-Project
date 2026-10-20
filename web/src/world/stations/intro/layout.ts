@@ -18,5 +18,15 @@ export const RING = { radius: 4.2, tube: 0.37 } as const;
 /** The ring's radius in world metres, which is also the 3D logo's scale (logo3d.ts: the arcs at 1). */
 export const LOGO_R = RING.radius * LOGO_SCALE;
 
+/**
+ * How much the logo and its ring shrink to fit a narrow screen (1 at 16:9 and wider landscape; about
+ * half on a phone held upright), so the whole mark stays in view. Written by the intro's Scene each
+ * frame; the generator's burst starts from the ring at this size too.
+ */
+export const logoFit = { value: 1 };
+
+/** logoFit for a viewport aspect (width / height). */
+export const fitFor = (aspect: number) => Math.min(1, Math.max(0.35, aspect));
+
 /** The dust: a column around the logo's space, from the room's floor to above the logo. */
 export const DUST = { radius: 22, y0: -0.6, height: 42 } as const;

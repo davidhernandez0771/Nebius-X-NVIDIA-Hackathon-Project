@@ -10,6 +10,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Texture, type Material, type Object3D, type WebGLRenderer } from "three";
 import { idle } from "./activity";
 import { createTuner } from "./autotune";
+import { compileSafe, type Compiler } from "./compile";
 import { hud } from "./hudStore";
 import type { QualityTier, TierName } from "./quality";
 import { createScaler, targetDpr } from "./resolution";
@@ -133,16 +134,15 @@ export function WarmUp() {
   useEffect(() => {
     let last = -1;
     let live = true;
-    const r = gl as WebGLRenderer & { compileAsync?: (s: unknown, c: unknown) => Promise<unknown> };
     const warm = ({ active, loaded }: { active: boolean; loaded: number }) => {
-      if (active || loaded === last || !r.compileAsync) return;
+      if (active || loaded === last) return;
       last = loaded;
       // After React has mounted what arrived: compile its shaders and upload its textures now, so the
       // first frame that shows it doesn't stall on either.
       setTimeout(() => {
         if (!live) return;
         beforeWarm.forEach((fn) => fn(scene));
-        r.compileAsync!(scene, camera).then(
+        compileSafe(gl as unknown as Compiler, scene, camera).then(
           () => {
             if (!live) return;
             const seen = new Set<Texture>();

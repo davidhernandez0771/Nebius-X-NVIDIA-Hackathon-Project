@@ -13,11 +13,12 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { ambient } from "../../core/activity";
+import { compileSafe, type Compiler } from "../../core/compile";
 import type { QualityTier } from "../../core/quality";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { onPointer, pointer } from "../../ui/pointer";
-import { DUST, LOGO, LOGO_R, RING } from "./layout";
+import { DUST, fitFor, LOGO, LOGO_R, logoFit, RING } from "./layout";
 import { extrudeLogo, logoShapes } from "./logo3d";
 import { MARK_URL } from "./mark";
 import { dustBuffers } from "./particles";
@@ -82,11 +83,11 @@ function logoMaterial(q: QualityTier, env: THREE.Texture): THREE.MeshPhysicalMat
       color: 0x9aa4a8,
       metalness: 1,
       roughness: 0.16,
-      iridescence: 1,
-      iridescenceIOR: 1.8,
-      iridescenceThicknessRange: [200, 760],
+      iridescence: 0.6,
+      iridescenceIOR: 1.6,
+      iridescenceThicknessRange: [240, 640],
       envMap: env,
-      envMapIntensity: 1.1,
+      envMapIntensity: 1.2,
     });
   return new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
@@ -229,6 +230,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
+  const size = useThree((s) => s.size);
   const svg = useMarkSvg();
   const env = useStudio();
   const low = quality.name === "low";
@@ -265,12 +267,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
       load.set("compile", 1);
       invalidate();
     };
-    const r = gl as THREE.WebGLRenderer & { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<unknown> };
-    if (r.compileAsync) r.compileAsync(scene, camera).then(done, done);
-    else {
-      gl.compile(scene, camera);
-      done();
-    }
+    compileSafe(gl as unknown as Compiler, scene, camera).then(done, done);
     return () => {
       live = false;
     };
@@ -290,6 +287,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
 
     const vh = frame.t * INTRO_VH;
     const pose = logoPose(vh);
+    const fit = (logoFit.value = fitFor(size.width / Math.max(1, size.height)));
     // The descent's first moments: the ring bursts into the generator's particles.
     const burst = smooth(0.02, 0.2, store.frames.descent.t);
     const idle = quality.idleMotion && !reduced;
@@ -300,7 +298,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
       if (idle) s.spin = (s.spin + dt * SPIN * free) % (Math.PI * 2);
       const spin = (s.spin > Math.PI ? s.spin - Math.PI * 2 : s.spin) * free;
       logo.group.rotation.set(pose.tilt - s.my * 0.14 * free, pose.turn + spin + s.mx * 0.22 * free, 0);
-      logo.group.scale.setScalar(LOGO_R * (reduced ? 1 : Math.max(0.001, easeOutBack(grow))));
+      logo.group.scale.setScalar(LOGO_R * fit * (reduced ? 1 : Math.max(0.001, easeOutBack(grow))));
       // The core spins away into the centre; the arcs stay until the ring's tube has closed over them.
       const coreK = 1 - smooth(0, 0.6, pose.morph);
       logo.core.scale.setScalar(Math.max(0.001, coreK));
@@ -310,6 +308,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     }
     ring.tube.value = smooth(0.12, 0.85, pose.morph) * (1 - burst);
     ring.mesh.visible = ring.tube.value > 0.002;
+    ring.mesh.scale.setScalar((LOGO_R / RING.radius) * fit);
     ring.mesh.rotation.z = now * 0.08;
     ring.mat.iridescenceThicknessRange[1] = 700 + 220 * Math.sin(now * 0.7 + s.mx * 2);
 
