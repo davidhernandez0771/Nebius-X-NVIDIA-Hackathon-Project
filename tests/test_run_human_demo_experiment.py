@@ -373,3 +373,17 @@ def test_an_empty_cell_is_refused_cleanly_not_a_traceback(hx, tmp_path, capsys):
     with pytest.raises(hx.Refused, match="empty cell"):
         exp.run(until="grid")
     assert not (tmp_path / "human_exp" / "smoke1" / "grid.json").exists()
+
+
+def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "nemotron-edits"})
+    exp.run(until="grid", sim_until="repair")
+    root = tmp_path / "human_exp" / "smoke1"
+    marks = [json.loads(p.read_text()) for p in sorted((root / "stages" / "repair").glob("*.json"))]
+    assert marks and all(m["diagnoser"] == "nemotron-edits" for m in marks)
+    assert all(m["output_demo_id"].endswith("_edits") for m in marks if m["status"] == "kept")
+    assert json.loads((root / "config.json").read_text())["repair"] == "nemotron-edits"
+    assert "repaired with Nemotron's trajectory edits" in (root / "preregistration.md").read_text(encoding="utf-8")
+    with pytest.raises(hx.Refused, match="repair must be one of"):
+        _exp(hx, tmp_path, name="other")[0].select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "magic"})

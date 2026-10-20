@@ -2,7 +2,7 @@
 
     uv run --with pillow python scripts/run_human_demo_experiment.py --name <name> --tag "human_2026*" ^
         [--data-dir <DATA_DIR>] [--ids a,b,c] [--smoke] [--until <stage>] [--sim-until <step>] ^
-        [--replay-path achieved|commanded] [--no-nemotron] [--publish-results]
+        [--replay-path achieved|commanded] [--repairer rules|nemotron-edits] [--no-nemotron] [--publish-results]
 
 Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stages/ and a re-run resumes:
   select    the demos (--ids, or --tag: an fnmatch pattern over human demo ids), frozen with each demo.json's
@@ -16,7 +16,9 @@ Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stag
             A demo without a live episode is refused; stand-ins need --replay-path commanded.
   sim       one sim worker (Isaac, cameras, Franka), started and stopped here, under the GPU lock:
               physics   replay every demo as recorded: Isaac's verdict on what the person did;
-              repair    perfect it with the rules (app.jobs.perfect_stored_demo -> "<id>_rules", verified);
+              repair    perfect it with the rules (app.jobs.perfect_stored_demo -> "<id>_rules", verified), or,
+                        with --repairer nemotron-edits, with Nemotron's trajectory edits, each verified the same way
+                        (app.jobs.perfect_stored_demo_edits -> "<id>_edits"; the hand-written ops are not used);
               align     start every training episode at home (sim_worker.human_exp.align_home): "<id>_home"
                         (raw arm, no repairs) and "<id>_rules_home" (the repaired one);
               multiply  --variants new scenes per repaired demo, rehomed like sprint 6's home-start variants,
@@ -64,7 +66,8 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))  # sim_worker, lerobot_tools
 
-from app.jobs import _copy_episode, is_infrastructure, perfect_stored_demo, record_raw, stored_raw  # noqa: E402
+from app.jobs import (EDITS_REPAIRER, _copy_episode, is_infrastructure, perfect_stored_demo,  # noqa: E402
+                      perfect_stored_demo_edits, record_raw, stored_raw)
 from app.sim_client import SimWorkerClient, SimWorkerError  # noqa: E402
 from demo_pipeline import PIPELINE_VERSION  # noqa: E402
 from demo_pipeline.multiply import sample_scene  # noqa: E402
@@ -84,6 +87,7 @@ BATCH = 8
 DEFAULTS = {"variants": 10, "steps": 30_000, "save_freq": 2500, "eval_n": 40, "eval_seed0": 5020}
 SIM_STEPS = ("physics", "repair", "align", "multiply")
 REPLAY_PATHS = ("achieved", "commanded")
+REPAIRERS = ("rules", EDITS_REPAIRER)
 SMOKE = {"steps": 2000, "save_freq": 2000, "eval_n": 5}
 LABEL_FRAMES, JUDGE_FRAMES, MODEL_SIZE = 8, 4, 256  # as T3's pre-registered test (scripts/intent_eval.py)
 
@@ -187,6 +191,8 @@ class Experiment:
             "test": "fisher_exact_two_sided", "alpha": 0.05, "ci": "wilson_95",
             "pipeline_version": PIPELINE_VERSION, **settings,
         }
+        if config["repair"] not in REPAIRERS:
+            raise Refused(f"repair must be one of {REPAIRERS}, got {config['repair']!r}")
         config["replay_path"] = settings.get("replay_path", "achieved")
         if config["replay_path"] not in REPLAY_PATHS:
             raise Refused(f"replay_path must be one of {REPLAY_PATHS}, got {config['replay_path']!r}")
@@ -281,7 +287,10 @@ class Experiment:
             if self.marker("repair", id).is_file():
                 continue
             raw = stored_raw(self.store, id, need_cameras=True)
-            summary = perfect_stored_demo(self.store, client, id, "rules", raw=raw, record_cameras=True)
+            if self.config.get("repair", "rules") == EDITS_REPAIRER:
+                summary = perfect_stored_demo_edits(self.store, client, id, raw=raw, record_cameras=True)
+            else:
+                summary = perfect_stored_demo(self.store, client, id, "rules", raw=raw, record_cameras=True)
             _write_json(self.marker("repair", id), summary)
             self.log(f"repair {id}: {summary['status']} ({len(summary['repairs'])} repairs, "
                      f"{summary['attempts']} verification(s))")
@@ -650,7 +659,7 @@ trained on the same {n} demos as recorded?
 - **raw_{n}:** every demo as recorded, start-aligned
   (`raw_arm = {config['raw_arm']}`{': all demos, whether or not physics verified them' if config['raw_arm'] == 'all' else ': only the demos physics verified'}).
 - **perfected_multiply_{n}:** each demo
-  - rules-repaired, then verified in Isaac;
+  - {"repaired with Nemotron's trajectory edits" if config.get('repair') == EDITS_REPAIRER else "rules-repaired"}, then verified in Isaac;
   - start-aligned;
   - plus {config['variants']} variants in new scenes, each kept only if it verifies.
 
@@ -850,6 +859,8 @@ def main(argv: list[str] | None = None) -> int:
                         "(default: achieved, or commanded with --smoke)")
     p.add_argument("--replay-lookahead", type=int, default=None,
                    help="the sim worker's --lookahead for every replay (default 0: measured best on live test #10)")
+    p.add_argument("--repairer", choices=REPAIRERS, default="rules",
+                   help="the repair step: the rules (hand-written ops), or Nemotron's trajectory edits")
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)
@@ -860,7 +871,7 @@ def main(argv: list[str] | None = None) -> int:
                 for k, v in DEFAULTS.items()}
     settings.update(smoke=args.smoke, raw_arm=args.raw_arm, judge_copies=args.judge_copies,
                     nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd,
-                    replay_path=args.replay_path or ("commanded" if args.smoke else "achieved"))
+                    replay_path=args.replay_path or ("commanded" if args.smoke else "achieved"), repair=args.repairer)
     settings["replay_lookahead"] = args.replay_lookahead if args.replay_lookahead is not None else 0
     if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
