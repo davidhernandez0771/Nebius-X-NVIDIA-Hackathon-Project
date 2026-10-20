@@ -3,6 +3,28 @@
 Written and committed before the keyboard demos are recorded. Nothing here changes after recording; the script also
 freezes its own `preregistration.md` with every demo's hash at its `select` stage, before anything is trained.
 
+## Amendment 1: input = mouse (2026-10-20 14:37 EDT, 18:37 UTC, before the first demo)
+
+- **Change:** the demos are the user's **mouse** demos, selected with `--input mouse` instead of `--input keyboard`.
+  Wherever "keyboard demos" appears below, read "mouse demos". Nothing else changes: the tag, the stores, `--min-demos
+  5`, the arms, the recipe, the seeds, the test, the refusals and the assist reporting.
+- **Reason:** the user's choice before recording; no data seen. Mouse goes through the same smoothed `TeleopSession`
+  path as keyboard.
+- **Check at amendment time:**
+  - `C:\dev\pm-t6\data\demos` and `C:\dev\pm-t7\data\demos` held no `human_20261020*` / `human_20261021*` demo.
+  - A CPU dry run of `select` with `--input mouse` on scratch stores froze 8 fake mouse demos (input mouse, min 5,
+    rules, 10 variants, 30k, 40 seeds from 5020, Fisher, α 0.05, per-demo assist) and left out a camera demo and a
+    discarded take. 4 mouse demos were refused (exit 1); `--input keyboard` on the same store matched nothing.
+- **Experiment name:** `mouse20261020`, so the folder says what it holds.
+- **Exact timeline (added after the commit, for honesty):**
+  - The lead requested the amendment at about **14:35 EDT**, before any demo existed.
+  - The "no demo" listing above ran at **14:37:05**.
+  - The first mouse demo, `human_20261020183738_00ab`, was saved at **14:37:38**.
+  - The amendment commit `c7f3710` landed at **14:37:48**, 10 s after that first demo.
+  - No demo data was inspected by anyone before or during the amendment. The listing at 14:37:05 found nothing, and
+    the timestamp check behind this line read folder names and times only.
+  - The amendment changes only the input filter (`--input keyboard` → `--input mouse`).
+
 ## Question
 
 Does a policy trained on the user's keyboard demos **perfected and multiplied by SANT** succeed more often than one
