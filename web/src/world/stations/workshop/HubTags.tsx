@@ -4,9 +4,10 @@
 // their own clicks (Helix, RobotWall). Tags show only in the room view; the first visit numbers them as a
 // mini tutorial ("start here" on the shelf), and later visits show them plain. They are portalled into the
 // workshop's overlay (hubTagLayer), so Tab reaches them in order.
-// On high and ultra (holoTags.ts holoMode) the tags are holograms projected from the objects
-// (HubHolograms): the HTML buttons stay, see-through, laid over each panel, so the clicks, the focus,
-// the names and the Tab order are the same; their hover and focus light the panels. Elsewhere (low,
+// On high and ultra (holoTags.ts holoMode) the tags are small holographic labels beside the objects
+// (HubHolograms): the HTML buttons stay, see-through, laid over each label from its bottom-left
+// corner, so the clicks, the focus, the names and the Tab order are the same; their hover and focus
+// light a label and unfold it. Elsewhere (low,
 // reduced motion, a phone) they are the HTML cards.
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Html } from "@react-three/drei";
@@ -16,7 +17,7 @@ import { inHub } from "../../core/CameraRig";
 import { useWorld } from "../../core/WorldContext";
 import { BENCH_PIVOT, MACHINE_PIVOT } from "../../scene/layout";
 import { DROP_ZONE, hiddenInstance, subscribeDrag, wasDrag } from "./drag";
-import { openHubItem, type HubItem } from "./hubItems";
+import { HUB_TAGS, openHubItem, type HubItem } from "./hubItems";
 import { hubTagLayer } from "./hubTagLayer";
 import { HubHolograms, type HoloText } from "./HubHolograms";
 import { holoMode, holoTag, setHot } from "./holoTags";
@@ -40,12 +41,7 @@ function markSeen(): void {
 
 type TagId = HubItem;
 
-const TAGS: { id: TagId; n: string; title: string; line: string }[] = [
-  { id: "shelf", n: "01", title: "The shelf", line: "Every cartridge is a job. Pick one." },
-  { id: "machine", n: "02", title: "The machine", line: "Drag a cartridge here. It projects the robot." },
-  { id: "bench", n: "03", title: "The bench", line: "Make a new cartridge: name, look, robot." },
-  { id: "wall", n: "04", title: "The wall", line: "The robots SANT runs on, and their parts." },
-];
+const TAGS = HUB_TAGS;
 
 const up = (p: readonly number[], y: number) => new THREE.Vector3(p[0], p[1] + y, p[2]);
 
@@ -88,9 +84,12 @@ export function HubTags() {
     let shown = false;
     return store.onFrame(() => {
       const on = inHub(store);
+      // Each element, every frame (a string compare): drei makes them anew when the cards and the
+      // holograms swap, and a new one starts hidden.
+      const v = String(on);
+      wrap.current.forEach((el) => el && el.dataset.on !== v && (el.dataset.on = v));
       if (on === shown) return;
       shown = on;
-      wrap.current.forEach((el) => el && (el.dataset.on = String(on)));
       if (on && tutorial) markSeen();
     });
   }, [store, tutorial]);
@@ -135,7 +134,7 @@ export function HubTags() {
       </mesh>
       {holo ? <HubHolograms texts={texts} wraps={wrap} quality={quality} /> : null}
       {TAGS.map((t, i) => (
-        <Html key={t.id} position={holo ? holoTag(t.id).center : at[t.id]} center zIndexRange={[20, 10]} portal={hubTagLayer as MutableRefObject<HTMLElement>}>
+        <Html key={t.id} position={holo ? holoTag(t.id).anchor : at[t.id]} center={!holo} zIndexRange={[20, 10]} portal={hubTagLayer as MutableRefObject<HTMLElement>}>
           <div ref={(el) => el && (wrap.current[i] = el)} className="world-hubtag" data-on="false" data-holo={holo} data-first={tutorial && t.id === "shelf"}>
             <button
               type="button"

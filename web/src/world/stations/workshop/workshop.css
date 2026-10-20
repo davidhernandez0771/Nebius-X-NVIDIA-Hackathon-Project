@@ -507,12 +507,16 @@
   backdrop-filter: none;
 }
 
-/* The tags as holograms (HubHolograms): the HTML buttons stay, see-through and sized to each panel
-   (the 3D draws it), so the clicks, the focus and the names are the same. The panel itself lights on
-   hover and focus; a thin outline marks keyboard focus too. */
+/* The tags as holographic labels (HubHolograms): the HTML buttons stay, see-through and sized to each
+   label (the 3D draws it), standing up from its bottom-left corner as the label does, so the clicks,
+   the focus and the names are the same. The label lights and unfolds on hover and focus; a thin
+   outline marks keyboard focus too. */
 .world-hubtag[data-holo="true"] {
   display: block;
-  transform: none;
+  transform: translateY(-100%);
+}
+.world-hubtag[data-holo="true"][data-on="true"] {
+  transform: translateY(-100%);
 }
 .world-hubtag[data-holo="true"] button {
   width: 100%;
