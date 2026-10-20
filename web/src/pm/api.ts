@@ -4,7 +4,7 @@
 // route isn't on this backend yet (FastAPI's bare 404 "Not Found", or 405).
 
 import { apiUrl } from "../api/client";
-import type { Demo, DemoReview, StoredDiagnosis } from "./types";
+import type { Demo, DemoReview, StoredDiagnosis, TakeReview } from "./types";
 
 export type ErrorKind =
   | "unreachable"
@@ -127,6 +127,16 @@ export const pmApi = {
       try {
         // No Content-Type header: the browser sets multipart/form-data with its boundary.
         return await pmFetch<{ id: string; video: string; bytes: number; frames: number }>(`/demos/${encodeURIComponent(id)}/camera`, { method: "PUT", body, headers: {} });
+      } catch (e) {
+        if (!(e instanceof PmApiError && e.kind === "unreachable") || i >= tries) throw e;
+      }
+    }
+  },
+  /** The coach for a saved take (rules unless phrasing is "nemotron"). A GET, so a dropped local connection is retried. */
+  takeReview: async (id: string, phrasing: "rules" | "nemotron" = "rules", tries = 3): Promise<TakeReview> => {
+    for (let i = 1; ; i++) {
+      try {
+        return await pmFetch<TakeReview>(`/demos/${encodeURIComponent(id)}/take-review?phrasing=${phrasing}`);
       } catch (e) {
         if (!(e instanceof PmApiError && e.kind === "unreachable") || i >= tries) throw e;
       }

@@ -121,3 +121,26 @@ export interface DemoReview {
   verdict_source: string | null;
   warnings: string[];
 }
+
+/** GET /demos/{id}/take-review (src/demo_pipeline/take_review.py): the Record page's coach right after a take. */
+export interface TakeReview {
+  demo_id: string;
+  verdict: "PASS" | "FAIL";
+  lines: string[];
+  source: "rules" | "nemotron";
+  rejected: string | null; // why Nemotron's phrasing wasn't used
+  facts: {
+    success: boolean;
+    reasons: string[];
+    duration_s: number;
+    peak_force_n: number;
+    peak_force_t: number | null;
+    peak_force_against: "bin" | "table" | null;
+    soft_floor: boolean | null;
+    soft_floor_steps: number;
+    grabs: { t: number; offset_mm: number; caught: boolean }[];
+    releases: { t: number; over_rim_mm: number; over_bin: boolean }[];
+    regrasps: number;
+    input: string | null;
+  };
+}

@@ -4,7 +4,8 @@
 // the 3D robot twin (live from the sim, else a replay of a verified copy: robotTwin.ts) in three views with
 // the alignment grid, the gripper dial and the height and left/right gauges, the bottom strip, and the
 // settings drawer. Beside Record: "Stop & discard" while recording (record_discard: nothing is saved), and after
-// a save "Delete last demo" (one more click to confirm; DELETE /demos/{id} moves it to demos/_discarded).
+// a save "Delete last demo" (one more click to confirm; DELETE /demos/{id} moves it to demos/_discarded). After a save,
+// the take review (TakeCoach: PASS / FAIL and 2-4 coaching lines) takes the trace's cell until the next recording.
 // The input switch (Keyboard | Mouse | Camera, in the camera pane's header): with the keyboard or the mouse the camera
 // pane shows the key legend and the speed (DrivePanel), there's no camera and no hand lock, and Enter starts or stops
 // a recording; in mouse mode a click anywhere on the twin pane takes the mouse (Pointer Lock, Esc releases; the first
@@ -31,6 +32,7 @@ import { GripDial, HeightGauge, SideGauge, Trace } from "./instruments";
 import { GAIN_MAX, GAIN_MIN } from "../../record/teleop/controlRegion";
 import { ContactBar } from "./ContactBar";
 import { DrivePanel, InputSwitch } from "./DrivePanel";
+import { TakeCoach, useTakeReview } from "./TakeCoach";
 import { RecordSettings } from "./RecordSettings";
 import { useRecordTwin } from "./robotTwin";
 import { LIVE_ROBOT, initialLive, stepLive, type LiveState } from "./twin";
@@ -154,6 +156,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   useEffect(() => setNote(null), [sim?.lastResult, sim?.demoId]);
   const saved = savedIds.filter((id) => !deleted.includes(id)).length;
   const lastDemo = sim?.demoId && !deleted.includes(sim.demoId) ? sim.demoId : null;
+  const coach = useTakeReview(lastDemo); // the take review, shown in the trace's cell until the next recording
   const { reduced } = useMotion();
   const [boot, setBoot] = useState(!reduced);
   const [drawer, setDrawer] = useState(false);
@@ -470,12 +473,18 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
       </main>
 
       <footer className="rg-bottom">
-        <section className="rg-cell rg-cell--trace" aria-label="trace">
-          <Key label="trace · height / reach / grip" unit="last 8 s" />
-          <div className="rg-cell__plot">
-            <Trace live={live} />
-          </div>
-        </section>
+        {coach && !recording ? (
+          <section className="rg-cell rg-cell--trace rg-cell--coach" aria-label="take review">
+            <TakeCoach coach={coach} />
+          </section>
+        ) : (
+          <section className="rg-cell rg-cell--trace" aria-label="trace">
+            <Key label="trace · height / reach / grip" unit="last 8 s" />
+            <div className="rg-cell__plot">
+              <Trace live={live} />
+            </div>
+          </section>
+        )}
         <Cell label="ee_x" unit="m" value={t ? t.ee[0].toFixed(2) : "—"} stale={stale} />
         <Cell label="ee_y" unit="m" value={t ? t.ee[1].toFixed(2) : "—"} stale={stale} />
         <Cell label="recorded" unit="demos" value={String(saved)} />

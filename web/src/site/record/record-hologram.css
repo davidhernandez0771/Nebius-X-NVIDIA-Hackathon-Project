@@ -1483,3 +1483,36 @@
 .rg-force__floor {
   color: var(--rg-hold);
 }
+
+/* The take review in the bottom strip's wide cell (TakeCoach.tsx): PASS / FAIL and 2-4 quiet lines */
+.rg-key > .rg-verdict {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--rg-live);
+}
+
+.rg-key > .rg-verdict[data-verdict="FAIL"] {
+  color: var(--rg-needle);
+}
+
+.rg-coach {
+  margin: 3px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.3; /* 4 lines fit the 96 px strip under its key row */
+  color: var(--rg-ink-2);
+}
+
+.rg-coach li {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rg-coach--error {
+  color: var(--rg-ink-3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
