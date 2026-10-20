@@ -514,6 +514,7 @@ async function walkWorld(page, base, vp, shots) {
   const shot = async (name) => shots && page.screenshot({ path: path.join(shots, `${vp}-world-${name}.png`) }).catch(() => {});
   const step = async (name, fn) => {
     const s = { route: "/", step: name };
+    process.stderr.write(`[audit]   ${vp} / ${name}\n`);
     try {
       await fn();
       Object.assign(s, await inspect(page));
