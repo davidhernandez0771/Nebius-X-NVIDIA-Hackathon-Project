@@ -30,9 +30,7 @@ SANT's env, our 3-source export, 10 trials.
   - Mimic's multiplication works on SANT's demos on Windows.
   - Its *execution* is too loose for SANT's pre-registered check. It still "succeeds" by its own end-state test.
   - SANT keeps the check as it is. The fix is the action, not the threshold.
-- **Next (not done):** give the env SANT's tracking: a custom action term that runs SANT's IK with
-  feed-forward/lookahead (sim_worker.replay), or tune the IK action's gains. Then rerun this test. The
-  "Mimic multiplies, SANT verifies" claim needs that rerun.
+- **Next:** done in code, GPU rerun pending (next section).
 - **Screenshots:** none. The run was headless and the GPU went to the user's live test next. `--viz` would open
   Isaac Sim's window on the next run.
 - **Files** (gitignored, `data/exports/mimic/`):
@@ -60,6 +58,122 @@ SANT's env, our 3-source export, 10 trials.
 **The pitch:** Mimic (the engine of NVIDIA's GR00T-Mimic blueprint) multiplies *good* teleop demos; SANT makes
 *bad* human demos good first. This exporter is the hand-off: SANT's verified, perfected demos written as a Mimic
 source dataset.
+
+## After the smoke test: SANT's tracking, a safe bridge, no noise (built; GPU rerun pending)
+
+The smoke test's 3–4 cm tool error had **three** causes, measured on its 10 demos:
+
+1. **Isaac's IK action leaves the joint velocity target at zero.** The high-PD drive's damping drags the arm
+   behind a moving target. Against a smoothed command the arm still ran about 3 cm behind, i.e. about 0.15 s
+   at the sources' 0.2 m/s. SANT's replay fixes exactly this with joint velocity feed-forward
+   (`sim_worker.tracking`: "26.8 → 2.1 mm mean TCP error").
+2. **Action noise.** The 0.01 copied from Isaac's IK-abs Franka config is, on an absolute pose, a fresh 1 cm
+   offset every step: about 1.5 cm of jitter (1.2 m/s of apparent speed) that no arm follows.
+3. **The grasp→place bridge.** Mimic moves the grasp segment with the cube and the place segment with the bin, and
+   joins them with a straight line over the place subtask's `num_interpolation_steps`. That was 5 steps
+   (0.1 s), and the bridge is long:
+   - surveyed over 200 of SANT's scenes × the 9 source pairs, it is 37 cm at the median and 78 cm at p99, with
+     a wrist turn up to about 90°;
+   - three demos showed 53–67 cm tool errors right there.
+
+**What changed:**
+
+- **Tracking** (`sim_worker/mimic_tracking.py`, `SantTrackingIKAction`): Isaac Lab's absolute IK action plus
+  SANT's feed-forward.
+  - The joint velocity targets are the commanded twist through the Jacobian, via `sim_worker.tracking.dls_iterate`,
+    the same DLS (λ 0.01) as replay.
+  - One honest difference: replay feeds forward the twist to the *next* command; an env action only knows the
+    current one, so this uses the *previous → current* twist, one step late, the same for a smooth path.
+  - Jumps are clamped to 1 m/s and 3 rad/s, so they never become violent velocity targets.
+  - The config names the term by string (it imports USD; the no-USD test still passes).
+- **Noise:** `mimic.ACTION_NOISE = 0` (SANT's own multiplier adds none). It remains a knob.
+- **The bridge:** Mimic's own settings, no new code.
+  - Mimic offers per-subtask `num_interpolation_steps` and `num_fixed_steps` (fixed counts; `merge()` doesn't
+    use `interpolate_poses`'s distance-based `step_size`).
+  - **Place: 160 steps.** That carries the p99 gap at ≤ 0.25 m/s (`BRIDGE_SPEED`, near the scripted expert's
+    ~0.28 m/s peak), 0.6° of wrist turn per step at p99. A median bridge then moves at about 0.12 m/s.
+  - **Grasp (from the reset pose, 3.7 cm off): 10 steps.**
+  - A test recomputes the survey on human10c and checks 160 ≥ the p99's steps.
+- **The grasp ends higher:** `mimic.GRASP_LIFT_M = 0.10`, with the cube held 10 cm up (its bottom 1 cm over the
+  9 cm rim). Before, it ended 1 cm up, so the straight-line bridge (often 30+ cm) would run low across the
+  table, through the bin's walls when the bin is in the way.
+  - Now both ends of the bridge are above the rim.
+  - The three sources all reach it: they lift 11–16 cm, at steps 212/241/252, giving boundaries 213/242/253.
+  - The export's signal and the env's `grasp_signal` are the same function (`mimic.grasped`).
+- **The report** now gives each demo's median tool error and seconds over 2 cm, so the rerun shows the lag
+  directly.
+
+**Tests** (Isaac's Python, CPU, no simulation):
+- `tests/test_mimic_tracking.py`:
+  - the feed-forward equals `dls_iterate` of the commanded twist;
+  - a 50 cm jump is clamped;
+  - no feed-forward without a previous command;
+  - the term feeds forward and sends the same velocity on both substeps;
+  - a reset forgets;
+  - without `vel_ff` it is Isaac's action;
+  - the env uses it, by string.
+- Plus the bridge-survey tests in `tests/test_dp_mimic.py`.
+
+**Not verified until the rerun:** that the feed-forward brings the error under 2 cm in Isaac. It did in SANT's
+replay, and the env differs only by the one-step-late twist.
+
+### The GPU commands (later; take the lock, one heavy GPU job at a time)
+
+Rerun, 10 trials. The export is regenerated already (`human10c_sources_v2.hdf5`, boundaries 213/242/253); the first line redoes it if needed:
+
+```
+C:\isaac\env_isaaclab\Scripts\python.exe scripts\export_mimic.py --store C:\dev\pm-t6\data\human_exp\human10c\store --out data\exports\mimic\human10c_sources_v2.hdf5
+C:\isaac\env_isaaclab\Scripts\python.exe scripts\mimic_smoke.py --input data\exports\mimic\human10c_sources_v2.hdf5 --output data\exports\mimic\smoke_10_tracking.hdf5
+```
+
+- The first command is CPU only. The second takes `gpu.lock`, about 3 min.
+- **Pass:** most demos pass SANT's `check_success`, with `tcp_err_median_cm` well under 2 in the report.
+- **If `unreachable` persists:** compare `tcp_err_median_cm` with the first run's 3.2–3.8. Then raise the gains
+  or try a lookahead, which needs the next command, so it would have to be part of the action.
+
+Extended, 100 trials (after a good rerun; about 15–20 min at one environment, or try `--num-envs 4`):
+
+```
+C:\isaac\env_isaaclab\Scripts\python.exe scripts\mimic_smoke.py --input data\exports\mimic\human10c_sources_v2.hdf5 --output data\exports\mimic\mimic_100.hdf5 --trials 100 --max-failures 300 --timeout-s 7200
+```
+
+### A fair comparison: SANT's multiplier vs Mimic on the same 3 repaired sources
+
+**The question:** from the same three perfected demos, which multiplier yields more physics-verified demos per
+attempt?
+
+| | SANT's multiplier | Isaac Lab Mimic |
+|---|---|---|
+| Sources | 9f47, a029, c045 `_rules_home` (repaired, verified, re-homed) | the same three (the export, `--select sources`) |
+| Scenes | `multiply.sample_scene` (Franka ranges, cube-bin gap ≥ 0.15 m) | the same sampler (the env's reset event) |
+| How | SANT re-targets each source to the scene | Mimic: per-subtask segments moved with their object, a source picked per subtask (nearest object, k = 3), bridged linearly |
+| Execution | SANT's replay (IK + feed-forward, forward-looking) | the env (IK + feed-forward, one step late) |
+| Verdict | `check_success`, unchanged | `check_success`, unchanged (`verify_generated`, from the recorded physics) |
+| Attempts | 102 (34 per source) | 100 successes asked of Mimic; attempts = Mimic's successes + its failures (`_failed.hdf5`) |
+
+- **What we already have** (human10c, 10 per source): SANT verified **24/30 (80%)**: 6/10, 9/10 and 9/10.
+  The misses were not_in_bin ×5, dropped ×3, collision ×1 and unreachable ×1.
+- **Primary metric:** yield = SANT-verified ÷ attempts, per method, with Wilson 95% intervals. Fisher's exact
+  test, two-sided, α 0.05 (as human10c's own config).
+- **Secondary:**
+  - failure reasons per method;
+  - wall-clock seconds per verified demo;
+  - Mimic's own success rate vs SANT's verdict on the same demos (how much Mimic's end-state test lets
+    through).
+- **Run** (with the GPU lock, one at a time):
+  1. SANT:
+     ```
+     uv run python scripts/run_human_demo_experiment.py --name human10c_cmp --tag "human_20261019*" --data-dir C:\dev\pm-t6\data --variants 34 --until multiply --no-nemotron --replay-path achieved
+     ```
+     human10c's settings with 34 variants, as a new name. Check the flags with `--help` first: human10c also
+     fixed the repairer to rules and the lookahead to 0.
+  2. Mimic: the extended command above.
+- **Fairness caveats to state with the result:**
+  - The feed-forward differs by one step (replay looks ahead).
+  - Mimic picks its sources itself, so its 100 aren't 34/33/33 per source.
+  - SANT's variants keep each source whole, while Mimic splices two sources.
+  - Same robot, scene, sampler, physics and check otherwise.
+- **Do not** compare against the first smoke test: its noise and lag were configuration, not Mimic.
 
 ## What Mimic reads (learned from the code on disk, no downloads)
 
@@ -104,7 +218,7 @@ a verified episode, so the export writes the **annotated** file directly (no ann
 | `eef_pose/franka` | `steps.npz` reached tool pose, shifted one step so it's *before* each step (the commanded start for step 0) |
 | `object_pose/cube` | `signals.npz` cube track; rotation held at `scene.json`'s start rotation (SANT tracks position only) |
 | `object_pose/bin` | `scene.json` bin pose, constant |
-| `subtask_term_signals/grasp` | on from the first step `robota.phases` says the cube is lifted (carry or place) |
+| `subtask_term_signals/grasp` | on from the first step the held cube is `GRASP_LIFT_M` (10 cm) up, clear of the rim (`mimic.grasped`; it was the first lifted step until the smoke test showed why not) |
 | `subtask_term_signals/place` | on from the first release after that (exported for completeness; the last subtask needs none) |
 | `initial_state` | robot (base at the origin, first joint positions) and every rigid object of SANT's Franka scene (`cube`, `table`, the five bin boxes, posed round the bin frame), zero velocities: `reset_to` needs them all |
 | `obs/{eef_pos, eef_quat, joint_pos, cube_pos}` | low-dimensional observations, before each step |
@@ -244,8 +358,8 @@ sim_worker.mimic_register.register`; it registers by name only, so nothing heavy
   boxes round the bin.
 - **Datagen:**
   - as Isaac's Franka IK-abs stack task: select a source per subtask, `nearest_neighbor_object` (k = 3);
-  - action noise 0.01;
-  - 5 interpolation steps;
+  - action noise 0 (`mimic.ACTION_NOISE`; it was 0.01 in the first smoke test);
+  - interpolation steps from `mimic.SUBTASKS`: 10 into the grasp, 160 into the place (it was 5 for both);
   - keep failed demos (in a separate file).
 
 ## The GPU smoke test (ran: results at the top)
@@ -302,8 +416,8 @@ state.
 
 | where | command | result |
 |---|---|---|
-| SANT venv | `uv run pytest tests/test_dp_mimic.py tests/test_export_mimic.py tests/test_mimic_env.py tests/test_mimic_smoke.py` | 31 passed, 9 skipped (h5py; the env file needs Isaac Lab) |
-| Isaac Lab's Python, CPU, no app | `set PYTHONPATH=.;src;C:\isaac\IsaacLab\source\isaaclab_mimic` then `C:\isaac\env_isaaclab\Scripts\python.exe -m pytest --noconftest -p no:cacheprovider tests\test_mimic_smoke.py tests\test_mimic_env.py tests\test_dp_mimic.py tests\test_export_mimic.py` | **64 passed** |
+| SANT venv | `uv run pytest tests/test_dp_mimic.py tests/test_export_mimic.py tests/test_mimic_env.py tests/test_mimic_smoke.py tests/test_mimic_tracking.py` | 37 passed, 11 skipped (h5py; the env and tracking files need Isaac Lab) |
+| Isaac Lab's Python, CPU, no app | `set PYTHONPATH=.;src;C:\isaac\IsaacLab\source\isaaclab_mimic` then `C:\isaac\env_isaaclab\Scripts\python.exe -m pytest --noconftest -p no:cacheprovider tests\test_mimic_tracking.py tests\test_mimic_smoke.py tests\test_mimic_env.py tests\test_dp_mimic.py tests\test_export_mimic.py` | **78 passed** |
 
 `test_dp_mimic.py` adds 5 tests that `verify_generated` passes a clean generated demo and fails one for each of collision, not in bin, and dropped. `test_mimic_smoke.py` (8 tests) covers the runner: the command, PYTHONPATH, the lock held during the run and released after success or failure, no overwrite, and the report on fake generated files.
 
