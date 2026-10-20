@@ -1,16 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter, Outlet, useLocation } from "react-router-dom";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Outlet, useLocation, useNavigate } from "react-router-dom";
 import App from "./App";
 
 // The archive, the new Record and the hand cursor around the journey (App.test.tsx covers the journey
 // itself). Only the routing is under test: the heavy pages, the providers and the hand cursor are stubbed.
 vi.mock("./world/core/WorldRoot", () => ({ default: () => <p>journey</p> }));
 vi.mock("./sant/SantRoot", () => ({ SantRoot: () => <Outlet /> }));
-const hand = vi.hoisted(() => ({ enabled: false, disable: (() => {}) as () => void }));
-vi.mock("./hand/integration/useHandPointer", () => ({
-  useHandPointer: () => ({ enabled: hand.enabled, status: "off", enable: () => {}, disable: hand.disable }),
-}));
+// The real hook releases the camera and the model when it unmounts; the stub counts those releases.
+const hand = vi.hoisted(() => ({ enabled: false, released: 0 }));
+vi.mock("./hand/integration/useHandPointer", async () => {
+  const { useEffect } = await import("react");
+  return {
+    useHandPointer: () => {
+      useEffect(
+        () => () => {
+          hand.released += 1;
+        },
+        [],
+      );
+      return { enabled: hand.enabled, status: "off", enable: () => {}, disable: () => {} };
+    },
+  };
+});
 vi.mock("./hand/overlay/HandCursorOverlay", () => ({ HandCursorOverlay: () => <div data-testid="hand-overlay" /> }));
 vi.mock("./hand/overlay/CalibrationPanel", () => ({ CalibrationPanel: () => null }));
 vi.mock("./hand/integration/HandToggle", () => ({ HandToggle: () => <button type="button">Hand control</button> }));
@@ -40,10 +52,24 @@ function at(path: string) {
   );
 }
 
+/** Buttons that navigate in-app, so the test can leave a page without unmounting App. */
+function Go() {
+  const navigate = useNavigate();
+  return (
+    <>
+      {["/legacy/home", "/legacy/pm/record", "/"].map((to) => (
+        <button key={to} type="button" onClick={() => navigate(to)}>
+          go {to}
+        </button>
+      ))}
+    </>
+  );
+}
+
 afterEach(() => {
   cleanup();
   hand.enabled = false;
-  hand.disable = () => {};
+  hand.released = 0;
 });
 
 describe("App routes around the journey", () => {
@@ -95,6 +121,8 @@ describe("hand control", () => {
   it.each(["/legacy", "/legacy/home", "/legacy/pm/record"])("shows one toggle, gear and cursor on %s", async (path) => {
     at(path);
     await screen.findByText(/^legacy (landing|home|record)$/);
+    // The hand cursor loads lazily, after the page.
+    await screen.findByRole("button", { name: "Hand control" });
     const c = controls();
     expect([c.toggle.length, c.gear.length, c.overlay.length]).toEqual([1, 1, 1]);
   });
@@ -105,13 +133,21 @@ describe("hand control", () => {
     expect([c.toggle.length, c.gear.length, c.overlay.length]).toEqual([0, 0, 0]);
   });
 
-  it("turns a camera left on off when leaving /legacy, and leaves it on inside", () => {
+  it("turns a camera left on off when leaving /legacy, and leaves it on inside", async () => {
     hand.enabled = true;
-    hand.disable = vi.fn();
-    at("/legacy/home");
-    expect(hand.disable).not.toHaveBeenCalled();
-    cleanup();
-    at("/");
-    expect(hand.disable).toHaveBeenCalled();
+    render(
+      <MemoryRouter initialEntries={["/legacy/home"]}>
+        <App />
+        <Go />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("button", { name: "Hand control" });
+    fireEvent.click(screen.getByRole("button", { name: "go /legacy/pm/record" }));
+    await screen.findByText("legacy record");
+    expect(hand.released).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "go /" }));
+    await screen.findByText("journey");
+    expect(hand.released).toBe(1);
+    expect(controls().toggle).toEqual([]);
   });
 });

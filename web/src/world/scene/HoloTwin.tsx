@@ -11,7 +11,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { URDFRobot } from "urdf-loader";
-import { loadTwinRobot } from "../../twin/loadTwinRobot";
 import { applyJoints, binParts, CUBE_SIZE, FRANKA, quat } from "../../twin/model";
 import { parseEpisode, stateAt, type Episode } from "../../twin/replay";
 import type { QualityTier } from "../core/quality";
@@ -360,11 +359,13 @@ export function HoloTwin({ level, quality, label, position }: { level: () => num
   const live = useRef({ step: 0, joints: [] as number[], gripper: 0 as 0 | 1 | null });
   const nPoints = budget(quality);
 
-  // The robot (URDF + collision meshes) and the demo, once; nothing loads until the machine is near.
+  // The robot (URDF + collision meshes) and the demo, once. urdf-loader comes with the robot, in its
+  // own chunk, so the world's first load doesn't wait for it.
   useEffect(() => {
     let dead = false;
     let built: Holo | null = null;
-    loadTwinRobot()
+    import("../../twin/loadTwinRobot")
+      .then((m) => m.loadTwinRobot())
       .then((t) => {
         if (dead) return;
         built = buildHolo(t.robot, nPoints);
