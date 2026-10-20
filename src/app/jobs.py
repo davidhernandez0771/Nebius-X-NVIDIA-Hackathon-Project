@@ -593,3 +593,58 @@ def perfect_stored_demo_edits(
         "replays": replays,
         "notes": notes,
     }
+
+
+# --- the hybrid repairer: the rules first, Nemotron's edits for what they discard -------------------
+
+HYBRID_REPAIRER = "hybrid"
+PASSED = ("perfected", "kept")
+
+
+def perfect_stored_demo_hybrid(
+    store: DemoStore,
+    client: SimWorkerClient,
+    demo_id: str,
+    *,
+    raw: ReplayResponse | None = None,
+    record_cameras: bool = True,
+    busy_retries: int = 60,
+    busy_wait_s: float = 10.0,
+    sleep: Callable[[float], None] = time.sleep,
+    repair: Callable[..., RepairResult] | None = None,
+    before_model_call: Callable[[], None] | None = None,
+) -> dict:
+    """The product candidate: perfect_stored_demo(..., "rules") first; only if the rules discard the demo,
+    perfect_stored_demo_edits on the same raw replay. The edits stay blind: their prompt comes from the raw replay
+    alone, never from the rules' diagnosis or attempts (so never from release_above_bin). The output is the
+    winning stage's demo ("<id>_rules" or "<id>_edits"); the summary keeps both stages'."""
+    retry = {"busy_retries": busy_retries, "busy_wait_s": busy_wait_s, "sleep": sleep}
+    if raw is None:
+        raw = record_raw(store, client, store.get_demo(demo_id), record_cameras=record_cameras, **retry)
+    rules = perfect_stored_demo(store, client, demo_id, "rules", raw=raw, record_cameras=record_cameras, **retry)
+    edits = None
+    if rules["status"] not in PASSED:
+        edits = perfect_stored_demo_edits(store, client, demo_id, raw=raw, record_cameras=record_cameras,
+                                          repair=repair, before_model_call=before_model_call, **retry)
+    stage, winner = next(((s, out) for s, out in (("rules", rules), (EDITS_REPAIRER, edits))
+                          if out is not None and out["status"] in PASSED), (None, None))
+    last = edits or rules
+    return {
+        "demo_id": demo_id,
+        "diagnoser": HYBRID_REPAIRER,
+        "status": "discarded" if winner is None else winner["status"],
+        "stage": stage,  # which stage's output is kept; None when both discarded
+        "output_demo_id": None if winner is None else winner["output_demo_id"],
+        "attempts": rules["attempts"] + (0 if edits is None else edits["attempts"]),
+        "repairs": [] if winner is None else winner["repairs"],
+        "diagnosis_source": None if winner is None else winner["diagnosis_source"],
+        "model_id": None if edits is None else edits["model_id"],
+        "calls": 0 if edits is None else edits["calls"],
+        "cost_usd": 0.0 if edits is None else edits["cost_usd"],
+        "rescues": [] if edits is None else edits["rescues"],
+        "verification": (winner or last)["verification"],
+        "raw_verification": raw.verification.model_dump(),
+        "rules": rules,
+        EDITS_REPAIRER: edits,
+        "notes": rules["notes"] + ([] if edits is None else edits["notes"]),
+    }

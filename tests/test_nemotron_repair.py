@@ -87,12 +87,13 @@ class Model:
     """Scripted replies (a reply, or (text, finish_reason)); keeps every prompt and thinking flag."""
 
     def __init__(self, *replies):
-        self.replies, self.prompts, self.systems, self.thinks = list(replies), [], [], []
+        self.replies, self.prompts, self.systems, self.thinks, self.temperatures = list(replies), [], [], [], []
 
-    def __call__(self, prompt, *, tier, system, max_tokens, think):
+    def __call__(self, prompt, *, tier, system, max_tokens, think, temperature):
         self.prompts.append(prompt)
         self.systems.append(system)
         self.thinks.append(think)
+        self.temperatures.append(temperature)
         r = self.replies.pop(0)
         r, finish = r if isinstance(r, tuple) else (r, "stop")
         return NS(text=r if isinstance(r, str) else json.dumps(r), est_cost_usd=0.001, model="fake-nemotron",
@@ -296,3 +297,54 @@ def test_before_call_also_runs_before_a_rescue():
     seen = []
     nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=Model(CUT, GOOD), before_call=lambda: seen.append(1))
     assert seen == [1, 1]
+
+
+def test_every_call_samples_at_temperature_0_rescues_included():
+    demo, verdict, sig = _raw()
+    model = Model(CUT, GOOD)
+    nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model)
+    assert nr.TEMPERATURE == 0.0 and model.temperatures == [0.0, 0.0]
+
+
+def test_the_facts_carry_the_budget_hint():
+    demo, verdict, sig = _raw()
+    model = Model(GOOD)
+    nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model)
+    assert "repair_budget: " in model.prompts[0] and nr.BUDGET_HINT in model.prompts[0]
+    assert "plans over budget are rejected" in nr.BUDGET_HINT
+
+
+def _shift(dz):
+    return {"edits": [{"op": "shift_segment", "t0": 6.2, "t1": 7.0, "dz": dz}], "why": f"lift {dz}"}
+
+
+def test_after_a_failed_verification_the_best_plan_so_far_is_shown_again():
+    demo, verdict, sig = _raw()
+    # round 1 fails with one reason (collision); round 2 also lets go 0.30 m up (collision, high_release); round 3 passes
+    worse = {"edits": [{"op": "shift_segment", "t0": 6.2, "t1": 7.0, "dz": 0.002},
+                       {"op": "set_gripper", "t": 8.5, "state": "open"}], "why": "open later"}
+    model = Model(_shift(0.002), worse, GOOD)
+    res = nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model)
+    assert res.status == "repaired"
+    assert "best plan so far" not in model.prompts[0]
+    assert "Your best plan so far is round 1" in model.prompts[1]
+    third = model.prompts[2]
+    best = third[third.index("Your best plan so far"):]
+    assert "round 1 (failed: collision)" in best and '"dz": 0.002' in best
+    assert len(res.rounds[1]["verification"]["reasons"]) > 1
+
+
+def test_an_invalid_reply_never_becomes_the_best_plan():
+    demo, verdict, sig = _raw()
+    model = Model("no json here", GOOD)
+    nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model, think=False)
+    assert "best plan so far" not in model.prompts[1]
+
+
+def test_the_prompt_fingerprint_covers_every_frozen_prompt_part(monkeypatch):
+    base = nr.prompt_fingerprint()
+    for name, value in (("TEMPERATURE", 0.2), ("BUDGET_HINT", "x"), ("RESCUE_SUFFIX", "y"), ("BEST_PLAN_TEXT", "z")):
+        with monkeypatch.context() as m:
+            m.setattr(nr, name, value)
+            assert nr.prompt_fingerprint() != base, name
+    assert nr.prompt_fingerprint() == base

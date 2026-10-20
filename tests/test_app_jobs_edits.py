@@ -8,7 +8,7 @@ from functools import partial
 import pytest
 
 from app.ai.nemotron_repair import repair_with_nemotron
-from app.jobs import EDITS_REPAIRER, perfect_stored_demo_edits
+from app.jobs import EDITS_REPAIRER, HYBRID_REPAIRER, perfect_stored_demo_edits, perfect_stored_demo_hybrid
 from app.sim_client import SimWorkerError, SimWorkerUnavailable
 from demo_pipeline.sim_protocol import ReplayRequest
 from demo_pipeline.store import DemoStore
@@ -85,3 +85,52 @@ def test_a_worker_that_cannot_do_the_job_fails_it_but_a_sim_error_discards(store
     sim_error = SimWorkerError("PhysX blew up", error="sim_error")
     out = _run(store, FakeSim(tmp_path / "w2", results=[COLLISION], errors={1: sim_error}), Model(GOOD))
     assert out["status"] == "discarded" and any("the sim failed on an edited demo" in n for n in out["notes"])
+
+
+# --- the hybrid: the rules first, Nemotron's edits only for a demo the rules discard ---------------
+
+class ByName(FakeSim):
+    """A worker whose verdict depends on the replay: the raw and every rules replay fail with `rules`, every edits
+    replay gets `edits`."""
+
+    def __init__(self, root, *, rules=COLLISION, edits=None):
+        super().__init__(root)
+        self.verdicts = {"rules": rules, "edits": edits or verification()}
+
+    def replay(self, req):
+        self.requests.append(req)
+        return self._record(req, self.verdicts["edits" if "_edits_" in req.out_name else "rules"])
+
+
+def _hybrid(store, sim, model):
+    return perfect_stored_demo_hybrid(store, sim, "human_test", sleep=lambda s: None,
+                                      repair=partial(repair_with_nemotron, chat_fn=model))
+
+
+def test_hybrid_keeps_a_rules_repair_and_never_asks_the_model(store, tmp_path):
+    sim = FakeSim(tmp_path / "worker")  # every replay passes: the rules keep the demo
+    out = _hybrid(store, sim, Model())  # no replies: a model call would fail
+    assert out["status"] in ("perfected", "kept") and out["stage"] == "rules" and out["diagnoser"] == HYBRID_REPAIRER
+    assert out["output_demo_id"] == "human_test_rules" and out["nemotron-edits"] is None and out["calls"] == 0
+
+
+def test_hybrid_falls_back_to_blind_nemotron_edits_on_the_same_raw_replay(store, tmp_path):
+    sim, model = ByName(tmp_path / "worker"), Model(GOOD)
+    out = _hybrid(store, sim, model)
+    assert out["rules"]["status"] == "discarded"
+    assert out["status"] == "perfected" and out["stage"] == "nemotron-edits"
+    assert out["output_demo_id"] == "human_test_edits" and store.has_demo("human_test_edits")
+    names = [r.out_name for r in sim.requests]
+    assert names.count("human_test_raw") == 1  # one raw replay, shared
+    assert names[-1] == "human_test_edits_v1" and out["attempts"] == len(names) - 1
+    assert out["repairs"][0]["op"] == "shift_segment" and out["calls"] == 1
+    for word in ("release_above_bin", "recenter_grasp", "remove_pause", "replan_transit", "rules"):
+        assert word not in model.prompts[0].replace("Rules, checked by code", "")  # blind to the rules' attempts
+
+
+def test_hybrid_discards_when_both_fail_and_keeps_both_summaries(store, tmp_path):
+    sim = ByName(tmp_path / "worker", edits=COLLISION)
+    out = _hybrid(store, sim, Model(BAD, BAD, BAD))
+    assert out["status"] == "discarded" and out["stage"] is None and out["output_demo_id"] is None
+    assert out["rules"]["status"] == "discarded" and out["nemotron-edits"]["status"] == "discarded"
+    assert out["verification"]["reasons"] == ["collision"]
