@@ -87,6 +87,14 @@ describe("the first load of /", () => {
     for (const page of ["./work/WorkShell.tsx", "./legacy/LegacyHand.tsx"]) expect(reach(page).packages).not.toContain("@mediapipe/tasks-vision");
   });
 
+  // Only the intro's Scene draws under the loader; the workshop's and the machine's mount after it
+  // (WorldCanvas), so their code, and drei's GLTF loader with them, can come after the first frame too.
+  it("keeps the workshop's and the machine's 3D (and the GLTF loader) out of the world's first chunk", () => {
+    const later = ["./world/stations/workshop/Scene.tsx", "./world/stations/machine/Scene.tsx", "./world/scene/Helix.tsx", "./world/scene/HoloTwin.tsx", "./world/scene/Baked.tsx"];
+    expect(later.filter((m) => world.modules.has(m))).toEqual([]);
+    expect(world.modules.has("./world/stations/intro/Scene.tsx")).toBe(true);
+  });
+
   it("loads the robot twin and MediaPipe only when they are used, not with the world", () => {
     expect(world.packages).toContain("three");
     expect(world.packages).not.toContain("urdf-loader");

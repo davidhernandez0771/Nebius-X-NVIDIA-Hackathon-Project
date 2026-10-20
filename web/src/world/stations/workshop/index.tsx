@@ -2,13 +2,13 @@
 // game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and three things to
 // click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
 // and projects the robot), and the bench (make a new cartridge). Escape always goes back one level.
+import { lazy } from "react";
 import { still } from "../../core/layout";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { stop } from "../../scene/layout";
 import { HoverTip } from "../../ui/HoverTip";
 import { CUT_AT, diveEnter } from "./dive";
-import { WorkshopScene } from "./Scene";
 import "./workshop.css";
 import { AskBox } from "../../ask/AskBox";
 import { Detail } from "./Detail";
@@ -16,6 +16,10 @@ import { Dock } from "./Dock";
 import { HubBar } from "./HubBar";
 import { useStepper } from "./stepper";
 import { TourCaption } from "./TourCaption";
+
+// The room's 3D mounts only once the loader is done (WorldCanvas), so its code (and the GLTF loader)
+// loads then too, after the first frame (firstLoad.test.ts).
+const WorkshopScene = lazy(() => import("./Scene").then((m) => ({ default: m.WorkshopScene })));
 
 function Overlay(_: StationOverlayProps) {
   useStepper();

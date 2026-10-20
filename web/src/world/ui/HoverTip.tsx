@@ -1,7 +1,6 @@
 // The tip by the cursor while it points at a cartridge: its title, scrambled in, and what a click does.
 import { useEffect, useRef } from "react";
 import { useWorld } from "../core/WorldContext";
-import { instanceLabel } from "../scene/Helix";
 import { spiral, subscribeSpiral } from "../scene/spiral";
 import { scramble } from "./scramble";
 import "./ui.css";
@@ -12,6 +11,9 @@ export function HoverTip() {
   const title = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     let shown = -1;
+    // The labels live with the spiral's 3D (Helix), which loads after the first frame; by the time a
+    // cartridge can be pointed at, it's there.
+    const labels = import("../scene/Helix").then((m) => m.instanceLabel);
     const move = (e: PointerEvent) => {
       if (!tip.current) return;
       // Right of the cursor, or left of it where the tip would run off the screen's right edge.
@@ -24,7 +26,10 @@ export function HoverTip() {
       if (k === shown || !tip.current || !title.current) return;
       shown = k;
       tip.current.dataset.on = String(k >= 0);
-      if (k >= 0) scramble(title.current, instanceLabel(k), { duration: 380, reduced });
+      if (k >= 0)
+        labels.then((label) => {
+          if (shown === k && title.current) scramble(title.current, label(k), { duration: 380, reduced });
+        });
     });
     window.addEventListener("pointermove", move, { passive: true });
     return () => {
