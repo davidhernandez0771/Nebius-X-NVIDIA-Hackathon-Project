@@ -14,7 +14,8 @@ One sim worker (Isaac, Franka, cameras) under the GPU lock, through run_human_de
            every verification is the worker's replay and the unchanged check_success. ab/<id>.json per demo.
   summary  per arm: repaired demos that pass physics (status perfected or kept); the paired table; exact McNemar.
            ab_summary.json, and the table printed.
-A re-run resumes from the markers. ab_config.json freezes the code commit and the repair prompt's SHA-256 next to the
+A re-run resumes from the markers. To stop early but cleanly, create DATA_DIR/human_exp/<name>/STOP: the demo in
+progress finishes, then the worker stops and gpu.lock is released (a re-run clears the file and resumes). ab_config.json freezes the code commit and the repair prompt's SHA-256 next to the
 experiment's config.json. Exit: 0 done, 1 refused, 2 stopped (a worker failed, the model API failed, or the spend
 cap was reached: re-run to resume; a demo stopped mid-way is redone from its raw replay).
 """
@@ -193,8 +194,15 @@ class RepairAB:
                     raise hx.Stop(f"{id}: the Nemotron API failed ({type(e).__name__}: {e}); re-run to resume") from e
         return row
 
+    @property
+    def stop_file(self) -> Path:
+        return self.exp.root / "STOP"
+
     def run(self) -> dict:
         self.freeze()
+        if self.stop_file.is_file():  # left by an earlier, stopped run
+            self.stop_file.unlink()
+            self.exp.log(f"cleared an old {self.stop_file}")
         with self.exp.deps.sim_session() as client:
             health = client.health()
             if not (health.ok and health.cameras and hx.ROBOT in health.robots):
@@ -204,6 +212,8 @@ class RepairAB:
                 for i, id in enumerate(self.exp.ids):
                     if (self.dir / f"{id}.json").is_file():
                         continue
+                    if self.stop_file.is_file():  # between demos: the worker stops and the lock goes cleanly
+                        raise hx.Stop(f"stop file {self.stop_file} found; re-run with the same --name to resume")
                     row = self.repair_one(client, i, id)
                     hx._write_json(self.dir / f"{id}.json", row)
                     self.exp.log(f"ab {id}: rules {row['rules']['status']}, nemotron-edits "

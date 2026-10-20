@@ -143,3 +143,24 @@ def test_a_run_frozen_before_the_rescue_is_refused(ab, tmp_path):
     (tmp_path / "human_exp" / "ab1" / "ab_config.json").write_text(json.dumps({**old, "commit": "1718f5f"}))
     with pytest.raises(ab.hx.Refused, match="rescue"):
         run.run()
+
+
+def test_a_stop_file_ends_the_run_cleanly_after_the_current_demo_and_a_rerun_resumes(ab, tmp_path):
+    arms = Arms(rules=dict.fromkeys(IDS, "kept"), edits=dict.fromkeys(IDS, "kept"))
+    run, _ = _setup(ab, tmp_path, arms)
+    stop = tmp_path / "human_exp" / "ab1" / "STOP"
+    stop.write_text("")  # a stale stop file from an earlier run is cleared at the start
+    original = arms.rules
+
+    def rules_then_stop(*a, **kw):
+        out = original(*a, **kw)
+        if a[2] == "standin_01":
+            stop.write_text("17:15")  # asked to stop while standin_01 runs: it still finishes
+        return out
+
+    run.perfect_rules = rules_then_stop
+    with pytest.raises(ab.hx.Stop, match="stop file"):
+        run.run()
+    assert list(run.rows()) == ["standin_00", "standin_01"]
+    stop.unlink()
+    assert run.run()["n"] == 4
