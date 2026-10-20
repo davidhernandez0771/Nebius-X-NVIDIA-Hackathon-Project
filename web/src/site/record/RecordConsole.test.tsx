@@ -173,6 +173,19 @@ describe("/record", () => {
     expect(links.list).toHaveLength(0);
   });
 
+  it("says which hand-tracking file failed, never [object Event]", async () => {
+    const script = document.createElement("script");
+    script.src = "/mediapipe/wasm/vision_wasm_internal.js";
+    const failed = new Event("error");
+    script.dispatchEvent(failed);
+    tracker.start.mockRejectedValueOnce(failed);
+    renderPage();
+    fireEvent.click(screen.getAllByRole("button", { name: "Start camera" })[0]);
+    expect(await screen.findByText(/couldn't load \/mediapipe\/wasm\/vision_wasm_internal\.js/)).toBeTruthy();
+    expect(document.body.textContent).not.toContain("[object Event]");
+    expect(links.list).toHaveLength(0);
+  });
+
   it("shows the sink command while no sim is connected, and keeps Record and Reset scene disabled", async () => {
     const link = await startCamera();
     act(() => link.emitStatus(noSim));
