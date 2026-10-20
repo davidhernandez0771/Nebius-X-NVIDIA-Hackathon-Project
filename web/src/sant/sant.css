@@ -856,6 +856,11 @@
   .sant-app-grid { grid-template-columns: minmax(0, 1fr); }
   .sant-nav { flex-wrap: wrap; gap: var(--sant-space-3); }
   .sant-nav__end { gap: var(--sant-space-3); }
+  /* The pages pill on a phone: tighter, and if it still doesn't fit it scrolls sideways instead of
+     widening the page (it overflowed a 390 px screen by 15 px on /review2). */
+  .sant-pill { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .sant-pill__join { width: 12px; }
+  .sant .sant-pill__link { padding: 6px 10px; }
 }
 
 /* ---------------------------------------------------------- tracking HUD */
