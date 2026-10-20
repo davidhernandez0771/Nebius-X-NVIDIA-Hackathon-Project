@@ -35,6 +35,10 @@ Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stag
             <exp>/results.json in the shape web/src/pm/results/results.ts reads (plus an "experiment" block).
             --publish-results also copies it to DATA_DIR/results/results.json (the old one is kept as .bak).
 
+--multiplied-only: an absolute test of the perfected+multiplied cell alone (when the raw arm would only be failed
+replays): the grid, training and eval take that cell only, it starts from its own dataset's start state, and the
+results are its successes with a Wilson 95% CI (no Fisher test; --publish-results refuses: the page wants two arms).
+
 --smoke: 2000 ACT steps and 5 eval seeds unless given, and "sample": true in the results, so the page shows it as
 sample data: a smoke run proves the stages work, it measures nothing.
 
@@ -72,7 +76,7 @@ from demo_pipeline.results import build_results  # noqa: E402
 from demo_pipeline.schemas import Demo, Passport, Trajectory, VerificationResult  # noqa: E402
 from demo_pipeline.sim_protocol import ReplayRequest  # noqa: E402
 from demo_pipeline.store import DemoStore, write_atomic  # noqa: E402
-from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, achieved_demo, align_home, cells,  # noqa: E402
+from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, _arm, achieved_demo, align_home, cells,  # noqa: E402
                                   compare, config_diff, demo_sha256, headline, select_ids, variant_seed,
                                   variant_trajectory)
 
@@ -160,6 +164,14 @@ class Experiment:
     def cell_names(self) -> tuple[str, str]:
         n = self.config["n_human"]
         return f"{RAW_CONDITION}_{n}", f"{MULT_CONDITION}_{n}"
+
+    @property
+    def multiplied_only(self) -> bool:
+        return bool(self.config.get("multiplied_only"))
+
+    def trained_cells(self) -> tuple[str, ...]:
+        """The cells this run trains and evaluates: both, or the multiplied one with --multiplied-only."""
+        return self.cell_names()[1:] if self.multiplied_only else self.cell_names()
 
     def has_episode(self, id: str) -> bool:
         return self.store.has_demo(id) and (self.store.episode_dir(id) / "episode.json").is_file()
@@ -419,6 +431,8 @@ class Experiment:
             for note in notes:
                 self.log(f"grid: {note}")
             raise Refused(f"empty cell: {e} (each demo's stage markers are under {self.stages})") from e
+        if self.multiplied_only:
+            grid["cells"] = [c for c in grid["cells"] if c["condition"] == MULT_CONDITION]
         from lerobot_tools.assemble import Cell, build_manifest
 
         manifests = {}
@@ -427,8 +441,8 @@ class Experiment:
             manifests[c["condition"]] = {k: m[k] for k in ("n_episodes", "n_frames", "human_roots")}
         _write_json(path, grid)
         _write_json(self.marker("grid"), {"grid": str(path), "cells": manifests, "notes": notes, "at": _now()})
-        self.log(f"grid: raw {manifests[RAW_CONDITION]['n_episodes']} episodes, multiplied "
-                 f"{manifests[MULT_CONDITION]['n_episodes']} episodes" + (f"; {len(notes)} notes" if notes else ""))
+        self.log("grid: " + ", ".join(f"{k} {m['n_episodes']} episodes" for k, m in manifests.items())
+                 + (f"; {len(notes)} notes" if notes else ""))
         return path
 
     # --- nemotron ------------------------------------------------------------------------------------
@@ -508,7 +522,7 @@ class Experiment:
             raise Stop(f"training wrote no registry row (exit {rc}); see {self.root / 'logs' / 'train.log'}")
         run_id = run_ids[-1]
         rows = {r["cell"]["name"]: r for r in rows if r["run_id"] == run_id}
-        ok = rc == 0 and all(rows.get(c, {}).get("status") == "ok" for c in self.cell_names())
+        ok = rc == 0 and all(rows.get(c, {}).get("status") == "ok" for c in self.trained_cells())
         done = {"run_id": run_id, "exit": rc, "ok": ok, "at": _now(),
                 "cells": {c: {k: r.get(k) for k in ("status", "checkpoint", "dataset", "n_episodes", "n_frames",
                                                     "final_loss", "train_time_s", "error")} for c, r in rows.items()}}
@@ -520,22 +534,24 @@ class Experiment:
 
     def eval(self) -> dict:
         train = _read_json(self.marker("train"))
-        raw_cell, _ = self.cell_names()
+        cells = self.trained_cells()
         run_id, seed0, n = train["run_id"], self.config["eval_seed0"], self.config["eval_n"]
-        start_state = train["cells"][raw_cell]["dataset"]
+        start_state = train["cells"][cells[0]]["dataset"]  # the raw dataset's, or the one cell's own
         evals = self.data / "evals" / run_id
-        if all(self._eval_headline(evals, c)["complete"] for c in self.cell_names()):
+        if all(self._eval_headline(evals, c)["complete"] for c in cells):
             self.log("eval: done earlier")
         else:
             cmd = [str(ISAAC_PY), str(REPO / "sim_eval" / "scripts" / "eval_cells.py"), "--run-id", run_id,
                    "--n", str(n), "--seed0", str(seed0), "--start-state", str(start_state), "--start-pose", "dataset",
                    "--registry", str(self.data / "results" / "registry.jsonl")]
+            if self.multiplied_only:
+                cmd += ["--cells", *cells]
             self.log(f"eval: {' '.join(cmd)}")
             with self.deps.gpu_stage(f"human-exp:{self.name}:eval"):
                 rc = self.deps.run(cmd, self.root / "logs" / "eval.log")
             if rc != 0:
                 self.log(f"eval: eval_cells exit {rc}; see {self.root / 'logs' / 'eval.log'}")
-        heads = {c: self._eval_headline(evals, c) for c in self.cell_names()}
+        heads = {c: self._eval_headline(evals, c) for c in cells}
         out = {"run_id": run_id, "seed0": seed0, "n": n, "start_state": str(start_state), "cells": heads, "at": _now()}
         _write_json(self.marker("eval"), out)
         if not all(h["complete"] for h in heads.values()):
@@ -554,6 +570,8 @@ class Experiment:
         ev = _read_json(self.marker("eval"))
         train = _read_json(self.marker("train"))
         sim = _read_json(self.marker("sim")) or {}
+        if self.multiplied_only:
+            return self._results_one_arm(ev, train, sim, publish)
         raw_cell, mult_cell = self.cell_names()
         cmp = compare(ev["cells"][raw_cell], ev["cells"][mult_cell])
         registry = [(f"{self.data / 'results' / 'registry.jsonl'}#L{i + 1}", r)
@@ -599,6 +617,33 @@ class Experiment:
             self.log(f"results: published to {dst}")
         return out
 
+    def _results_one_arm(self, ev: dict, train: dict, sim: dict, publish: bool) -> dict:
+        """--multiplied-only: the one cell's successes on the registered seeds, with a Wilson 95% CI."""
+        if publish:
+            raise Refused("--publish-results refuses a --multiplied-only run: the Results page compares two arms, "
+                          "and this run has one arm")
+        _, mult_cell = self.cell_names()
+        head = ev["cells"][mult_cell]
+        smoke = self.config["smoke"]
+        out = {"sample": smoke,
+               "note": ("SMOKE TEST: proves every stage runs; not a result. " if smoke else "")
+               + f"Human-demo experiment {self.name!r}: absolute test of {mult_cell} alone, pre-registered seeds "
+               f"{ev['seed0']}-{ev['seed0'] + ev['n'] - 1}, Wilson 95% CI; no comparison arm.",
+               "experiment": {
+                   "name": self.name, "smoke": smoke, "config": self.config, "run_id": train["run_id"],
+                   "headline": {"multiplied": {**head, **_arm(head)}, "ci": "wilson_95"},
+                   "train": train["cells"],
+                   "data": {k: sim.get(k) for k in ("physics_verified", "repair", "multiply")},
+                   "grid": _read_json(self.marker("grid")),
+                   "nemotron": _read_json(self.marker("nemotron")),
+                   "preregistration": str(self.root / "preregistration.md"),
+               }}
+        _write_json(self.root / "results.json", out)
+        a = out["experiment"]["headline"]["multiplied"]
+        self.log(f"results: {mult_cell} {a['successes']}/{a['n']}, Wilson 95% CI [{a['ci'][0]:.3f}, {a['ci'][1]:.3f}]"
+                 + (" (SMOKE: not a result)" if smoke else "") + f" -> {self.root / 'results.json'}")
+        return out
+
     # --- the run -------------------------------------------------------------------------------------
 
     def run(self, *, until: str = "results", publish: bool = False, sim_until: str = "multiply") -> None:
@@ -632,6 +677,8 @@ def preregistration(config: dict) -> str:
     """The pre-registration, filled from the frozen config. Written at select, before any training."""
     n, s0, ne = config["n_human"], config["eval_seed0"], config["eval_n"]
     ids = "\n".join(f"  - `{id}` sha256 `{config['demo_sha256'][id]}`" for id in config["ids"])
+    if config.get("multiplied_only"):
+        return preregistration_one_arm(config, ids)
     return f"""# Pre-registration: human-demo experiment `{config['name']}`
 
 Frozen at {config['frozen_at']} (UTC), before any training or evaluation, from `config.json`.{'''
@@ -675,6 +722,40 @@ trained on the same {n} demos as recorded?
 - the physics verdicts and repair outcomes;
 - the multiply yield;
 - Nemotron's labels and matches (shown, never deciding).
+"""
+
+
+def preregistration_one_arm(config: dict, ids: str) -> str:
+    """--multiplied-only: an absolute test of the perfected+multiplied cell, with no comparison arm."""
+    n, s0, ne = config["n_human"], config["eval_seed0"], config["eval_n"]
+    return f"""# Pre-registration: human-demo experiment `{config['name']}` (one arm)
+
+Frozen at {config['frozen_at']} (UTC), before any training or evaluation, from `config.json`.{'''
+
+**SMOKE TEST.** This run proves that every stage works. It measures nothing, and no number from it is a result.''' if config['smoke'] else ''}
+
+**Absolute test, one arm.** How often does a policy trained on what SANT made from the {n} human demos (perfected,
+then multiplied) succeed? There is no comparison arm, so no claim that it beats anything.
+
+**Demos** ({n}, frozen by content hash):
+{ids}
+
+**What is replayed** (`replay_path = {config.get('replay_path', 'commanded')}`, lookahead {config.get('replay_lookahead', 0)}): as in the
+two-arm design; hashes in config.json.
+
+**The arm.** `perfected_multiply_{n}`: ACT, {config['steps']} steps, batch {config['batch_size']}. Each demo rules-repaired and
+verified in Isaac, start-aligned, plus {config['variants']} variants in new scenes, each kept only if it verifies.
+A demo whose repair does not verify contributes nothing.
+
+**Primary endpoint.** Successes out of {ne}, as the eval's physics check decides, on the unseen scenes with seeds
+**{s0}–{s0 + ne - 1}**.
+- Serial eval (`eval_cells.py --cells perfected_multiply_{n}`), from this cell's own dataset start state.
+- 30 s limit, front and wrist cameras.
+- Reported with a Wilson 95% CI. No hypothesis test, no interim looks, no other endpoints; n is fixed.
+- An episode that ends in `sim_error` / `policy_error` is re-run (`eval_cells` resume). It is never counted as a
+  failure.
+
+**Reported whatever it says:** the count, rate and CI; the physics verdicts, repair outcomes and multiply yield.
 """
 
 
@@ -842,6 +923,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--judge-copies", type=int, default=1)
     p.add_argument("--max-cost-usd", type=float, default=0.10, help="Nemotron spend cap for this run")
     p.add_argument("--no-nemotron", action="store_true")
+    p.add_argument("--multiplied-only", action="store_true",
+                   help="an absolute test: train and evaluate the perfected+multiply cell alone (no raw arm)")
     p.add_argument("--until", choices=STAGES, default="results", help="stop after this stage")
     p.add_argument("--sim-until", choices=SIM_STEPS, default="multiply",
                    help="stop the sim stage after this step (and the run with it)")
@@ -862,6 +945,8 @@ def main(argv: list[str] | None = None) -> int:
                     nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd,
                     replay_path=args.replay_path or ("commanded" if args.smoke else "achieved"))
     settings["replay_lookahead"] = args.replay_lookahead if args.replay_lookahead is not None else 0
+    if args.multiplied_only:  # only when set: configs frozen before the flag existed resume unchanged
+        settings["multiplied_only"] = True
     if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
         p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")
