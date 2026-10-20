@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import subprocess
 import sys
 import tarfile
@@ -99,8 +100,13 @@ def main(argv: list[str] | None = None, *, run=subprocess.run, lock=None, export
     summary: dict = {"stages": {}}
     failed = False
     with lock(task="scene-smoke", terminal="T5"):
-        # 1. Isaac-only unit tests.
-        res = run([py, "-m", "pytest", "--noconftest", "-q", *UNIT_TESTS], cwd=REPO)
+        # 1. Isaac-only unit tests. Isaac's venv has an editable install of the project that may point at another
+        # worktree's src, so this checkout's src goes first.
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(REPO / "src"), str(REPO), *filter(None, [os.environ.get("PYTHONPATH")])])}
+        with (out / "unit_tests.log").open("w", encoding="utf-8") as log:
+            res = run([py, "-m", "pytest", "--noconftest", "-q", *UNIT_TESTS], cwd=REPO, env=env, stdout=log,
+                      stderr=subprocess.STDOUT)
+        print((out / "unit_tests.log").read_text(encoding="utf-8")[-2000:], flush=True)
         summary["stages"]["unit_tests"] = res.returncode
         failed |= res.returncode != 0
 

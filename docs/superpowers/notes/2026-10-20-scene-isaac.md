@@ -104,7 +104,7 @@ segment.py read a real multi-object episode with `object_record.load_scene_signa
   python as a subprocess, which takes the GPU lock.
 - If Isaac itself fails, that raises `SettleUnavailable` and is not blamed on the plan.
 
-## 4. The GPU smoke test (not run): one command, one lock
+## 4. The GPU smoke test (run 2026-10-20, results in 4a): one command, one lock
 
 Run it with nothing else on the GPU (no Isaac, no Blender). From `C:\dev\pm-t5`, in PowerShell:
 
@@ -153,6 +153,7 @@ leaves a lock with a dead PID, which the next taker replaces. Every child runs w
    - 3 cube sizes, one stacked, and 2 bins, one turned 90°.
 
 **Output in `data\scene_smoke`:**
+- `unit_tests.log`;
 - `regression.md` and `regression/` (base and branch runs as episode folders);
 - `<plan>.json` and `<plan>.png` for each plan;
 - `summary.json`.
@@ -164,8 +165,38 @@ leaves a lock with a dead PID, which the next taker replaces. Every child runs w
 
 A plan that doesn't settle is reported, not a failure.
 
-**Time:** two Isaac start-ups plus 20 replays (~10–20 s each), then three start-ups for the settles: roughly
-10–15 minutes.
+**Time:** estimated at 10–15 minutes; the real run took about 3 (lock taken 19:44:03, summary at 19:47:09).
+
+## 4a. The smoke test's result (2026-10-20 19:44, after T4's training; Blender open and idle, GPU lock held throughout)
+
+| Stage | Result |
+|---|---|
+| 1. Isaac-only unit tests | **Didn't run in the smoke test** (pytest exit 2, a collection error), then **20 passed** run directly with the fix below |
+| 2. Replay regression (base = `7f5e7b6`) | 3 webcam demos **identical** bit for bit (success; collision; not_in_bin + dropped); 2 scripted Franka **within noise** (cube 0.7 / 0.6 mm, the same as base vs base); every verdict as stored |
+| 3. Plan settles | all 3 **settled**, no errors; largest move 0.71 mm (today), 0.05 mm (3-stack), 0.01 mm (3 sizes) |
+
+**Why stage 1 failed:**
+- Isaac's venv has an editable install of the project (`_editable_impl_nebius_hackathon.pth`). It points at
+  `C:\dev\pm-t2\src`, another worktree whose branch has no `scene_plan`.
+- The pytest stage didn't put this checkout first, so collection stopped at
+  `No module named 'demo_pipeline.scene_plan'`.
+- The settle and replay children were not affected. Both put their own code first on `sys.path` before importing;
+  the settle couldn't have imported `scene_plan` from pm-t2.
+
+**The fix:**
+- `scene_smoke.py` now runs pytest with `PYTHONPATH=<this checkout>\src;<this checkout>` and writes the
+  `unit_tests.log` the docstring promised. A test checks both.
+- The same three test files then ran in Isaac's python with this checkout first: 20 passed in 2.3 s. They don't
+  start the app.
+- The whole smoke test wasn't rerun: the GPU had passed to T2. Stage 1 is the only part that changed.
+
+**The screenshots** (128×128, the policy's front camera): every object is in frame in all three plans, including
+the 2-bin layouts and the bin turned 90°.
+
+**What this settles from "Not done" below:**
+- Isaac Lab takes the plan's extra scene attributes.
+- The spawn rotations are right: the turned cube in plan 3 stays put.
+- The front camera frames the three example scenes.
 
 ## Checks
 
@@ -178,7 +209,8 @@ A plan that doesn't settle is reported, not a failure.
 
 ## Not done, or unknown until the smoke test
 
-- **Nothing ran in Isaac**, so these are unverified:
+- **Now verified in Isaac (4a):** the plan's extra scene attributes, the spawn rotations, the front camera on the
+  three examples, and real settle results. The list below was written before the run:
   - that Isaac Lab takes the extra scene-config attributes the plan adds (`cube_<id>`, …) the way it takes today's;
   - that `None` drops an entity: `scene_cfg` already does this for cameras;
   - the spawn rotations (`init_state.rot`, xyzw);
