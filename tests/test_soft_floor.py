@@ -189,8 +189,8 @@ def test_each_demo_is_labelled_with_the_assist(rig):
     run(4, over_bin())  # 4 steps held at the rim
     session.on_control("record_stop")
     demo = saved[0].demo
-    assert demo.assist == Assist(soft_floor=True, soft_floor_steps=4)
-    assert json.loads(demo.model_dump_json())["assist"] == {"soft_floor": True, "soft_floor_steps": 4}
+    assert demo.assist == Assist(soft_floor=True, soft_floor_steps=4, soft_floor_dips=1)
+    assert json.loads(demo.model_dump_json())["assist"] == {"soft_floor": True, "soft_floor_steps": 4, "soft_floor_dips": 1}
     # what the arm was told is what was recorded: the clamped target
     assert min(demo.commanded.ee_pos[i][2] for i in range(len(demo.commanded.t))) == pytest.approx(RIM_FLOOR)
 
@@ -201,7 +201,7 @@ def test_a_take_with_it_off_says_so(rig):
     session.on_control("record_start")
     run(3, over_bin())
     session.on_control("record_stop")
-    assert saved[0].demo.assist == Assist(soft_floor=False, soft_floor_steps=0)
+    assert saved[0].demo.assist == Assist(soft_floor=False, soft_floor_steps=0, soft_floor_dips=0)
 
 
 def test_demos_without_assist_serialize_as_before():
@@ -267,3 +267,19 @@ def test_peak_contact_uses_both_physics_substeps():
     m = np.zeros((1, 2, 1, 3, 3))
     m[0, 0, 0, 1] = (3.0, 4.0, 0.0)  # the first substep's push, 5 N
     assert peak_contact({"table": [m]}, BODIES) == ContactReading(force=5.0, body="panda_hand", against="table")
+
+
+def test_separate_holds_are_counted_as_dips(rig):
+    session, _, saved, run = rig
+    session.on_control("record_start")
+    for _ in range(3):  # three dips into the bin, back up in between
+        run(4, over_bin())
+        run(3, over_bin(z_frac=0.5))
+    session.on_control("record_stop")
+    assert saved[0].demo.assist == Assist(soft_floor=True, soft_floor_steps=12, soft_floor_dips=3)
+
+
+def test_an_older_assist_without_dips_serializes_as_before():
+    old = Assist.model_validate({"soft_floor": True, "soft_floor_steps": 39})
+    assert old.soft_floor_dips is None
+    assert json.loads(old.model_dump_json()) == {"soft_floor": True, "soft_floor_steps": 39}

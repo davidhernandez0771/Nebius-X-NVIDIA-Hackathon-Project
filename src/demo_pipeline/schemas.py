@@ -100,6 +100,16 @@ class Assist(_Model):
 
     soft_floor: bool  # the soft floor was on for (part of) the take
     soft_floor_steps: int = Field(default=0, ge=0)  # recorded steps where it held the target up
+    # separate holds (runs of held recorded steps); None: recorded before the sim counted them (left out of the JSON,
+    # so those demos serialize byte for byte as before)
+    soft_floor_dips: int | None = Field(default=None, ge=0)
+
+    @model_serializer(mode="wrap")
+    def _omit_unknown_dips(self, handler):
+        data = handler(self)
+        if isinstance(data, dict) and data.get("soft_floor_dips") is None:
+            data.pop("soft_floor_dips", None)
+        return data
 
 
 class Demo(_Model):

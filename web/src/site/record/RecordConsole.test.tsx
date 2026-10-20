@@ -12,6 +12,7 @@ import type { SimStatus } from "../../record/recordLink";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../record/teleop/controlRegion";
 import { VICTORY_FLEX, VICTORY_THUMB, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../record/teleop/__fixtures__/handPoses";
 import { EFFECTS_KEY } from "../../sant/motion/effects";
+import type { TakeReview as TakeReviewT } from "../../pm/types";
 import { RecordConsole } from "./RecordConsole";
 
 const tracker = vi.hoisted(() => ({
@@ -45,6 +46,12 @@ vi.mock("../../record/teleop/handLock", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../record/teleop/handLock")>()),
   HandLock: (await import("../../record/teleop/__fixtures__/passThroughLock")).PassThroughHandLock,
 }));
+// The take review: never settles unless a test says otherwise (the page's other fetches stay on the stubbed fetch).
+const takeReview = vi.hoisted(() => ({ fn: vi.fn() }));
+vi.mock("../../pm/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../pm/api")>();
+  return { ...actual, pmApi: { ...actual.pmApi, takeReview: (...a: unknown[]) => takeReview.fn(...a) } };
+});
 vi.mock("../../record/handArt", () => ({ LazyHandArtOverlay: () => <div data-testid="hand-art-overlay" /> }));
 // The 3D twin's two sources, faked: three.js never loads, no socket opens, nothing is fetched.
 const twin = vi.hoisted(() => ({
@@ -124,7 +131,10 @@ vi.mock("../../record/recordLink", () => ({
 }));
 
 // The page's own tests run with the camera; keyboard and mouse have their own block below.
-beforeEach(() => localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "camera" })));
+beforeEach(() => {
+  localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "camera" }));
+  takeReview.fn.mockImplementation(() => new Promise(() => {}));
+});
 
 afterEach(() => {
   cleanup();
@@ -870,5 +880,90 @@ describe("/record: the contact glow and the soft floor (pm/record-contact)", () 
     });
     expect(lock).not.toHaveBeenCalled();
     expect(floorBox().checked).toBe(false);
+  });
+});
+
+describe("/record: the take review after each save (pm/take-review)", () => {
+  const review = (over: Partial<TakeReviewT> = {}): TakeReviewT => ({
+    demo_id: "human_a",
+    verdict: "PASS",
+    lines: ["Clean take: the cube is in the bin (8.3 s).", "No pushing; the floor held you for 0.8 s.", "Grab 6 mm off-centre."],
+    source: "rules",
+    rejected: null,
+    facts: {
+      success: true, reasons: [], duration_s: 8.3, peak_force_n: 0, peak_force_t: null, peak_force_against: null,
+      soft_floor: true, soft_floor_steps: 39, soft_floor_s: 0.8, soft_floor_dips: null, grabs: [{ t: 3.62, offset_mm: 6, caught: true }], releases: [], regrasps: 0, input: "mouse",
+    },
+    ...over,
+  });
+  const coachCell = () => screen.getByRole("region", { name: "take review" });
+
+  async function saveTake(id = "human_a") {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ recording: true, steps: 80 })));
+    await act(async () => link.emitSim(sim({ steps: 80, demoId: id, lastResult: `saved ${id}: verified success` })));
+    return link;
+  }
+
+  it("shows PASS and the coaching lines in the trace's cell once the take is saved", async () => {
+    takeReview.fn.mockResolvedValue(review());
+    const link = await saveTake();
+    expect(takeReview.fn).toHaveBeenCalledWith("human_a");
+    expect(within(coachCell()).getByText("PASS")).toBeTruthy();
+    expect(within(coachCell()).getByRole("list", { name: "Coaching" }).textContent).toContain("No pushing; the floor held you for 0.8 s.");
+    expect(screen.queryByRole("region", { name: "trace" })).toBeNull();
+    // the next recording brings the trace back
+    act(() => link.emitSim(sim({ recording: true, steps: 3, demoId: "human_a" })));
+    expect(screen.getByRole("region", { name: "trace" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "take review" })).toBeNull();
+  });
+
+  it("says FAIL for a take the check fails", async () => {
+    takeReview.fn.mockResolvedValue(review({ verdict: "FAIL", lines: ["Not verified: the arm pushed over 5 N.", "Pushed 927 N into the bin at 7.8 s."] }));
+    await saveTake();
+    expect(within(coachCell()).getByText("FAIL").getAttribute("data-verdict")).toBe("FAIL");
+    expect(within(coachCell()).getByText("Pushed 927 N into the bin at 7.8 s.")).toBeTruthy();
+  });
+
+  it("shows that it is reviewing, and a quiet line if the review can't be had", async () => {
+    await saveTake();
+    expect(within(coachCell()).getByText("reviewing…")).toBeTruthy();
+    cleanup();
+    links.list = [];
+    takeReview.fn.mockRejectedValue(new Error("Can't reach the backend"));
+    await saveTake();
+    expect(within(coachCell()).getByText("no review")).toBeTruthy();
+    expect(within(coachCell()).getByText("Can't reach the backend")).toBeTruthy();
+  });
+
+  it("Delete last demo still works, and the deleted take's review goes with it", async () => {
+    takeReview.fn.mockResolvedValue(review());
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: "human_a", discarded_to: "demos/_discarded/human_a" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await saveTake();
+      expect(coachCell()).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Delete last demo" }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Confirm: delete human_a" }));
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1); // the delete; the review didn't go through fetch
+      expect(screen.queryByRole("region", { name: "take review" })).toBeNull();
+      expect(screen.getByRole("region", { name: "trace" })).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("Stop & discard asks for no review", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ recording: true, steps: 50 })));
+    fireEvent.click(screen.getByRole("button", { name: "Stop & discard" }));
+    expect(link.sent).toEqual(["record_discard"]);
+    act(() => link.emitSim(sim({ steps: 50, demoId: null, lastResult: "discarded: 50 step(s) not saved" })));
+    expect(takeReview.fn).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: "take review" })).toBeNull();
   });
 });
