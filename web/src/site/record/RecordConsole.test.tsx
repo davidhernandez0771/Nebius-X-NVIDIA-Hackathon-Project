@@ -20,6 +20,7 @@ const tracker = vi.hoisted(() => ({
   cleanup: vi.fn(),
   onFrame: vi.fn(() => () => {}),
   onStatus: vi.fn(() => () => {}),
+  stream: vi.fn((): MediaStream | null => null),
 }));
 
 type TeleopStatus = { socketOpen: boolean; simConnected: boolean; lastError: string | null };
@@ -57,8 +58,8 @@ const twin = vi.hoisted(() => ({
   replayUrl: undefined as string | null | undefined,
 }));
 vi.mock("../../twin", () => ({
-  RobotTwin: ({ caption, joints, aids, facing }: { caption?: string; joints: Record<string, number> | null; aids?: boolean; facing?: boolean }) => (
-    <div data-testid="twin3d" data-joints={JSON.stringify(joints)} data-aids={aids} data-facing={facing ? "true" : "false"}>
+  RobotTwin: ({ caption, joints, aids, facing, interactive = true }: { caption?: string; joints: Record<string, number> | null; aids?: boolean; facing?: boolean; interactive?: boolean }) => (
+    <div data-testid="twin3d" data-joints={JSON.stringify(joints)} data-aids={aids} data-facing={facing ? "true" : "false"} data-interactive={String(interactive)}>
       {caption}
     </div>
   ),
@@ -527,8 +528,90 @@ describe("/record with the keyboard or the mouse (no camera)", () => {
     localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "mouse" }));
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Start mouse" }));
-    expect(screen.getByRole("button", { name: /Click to drive with the mouse/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Click here to drive with the mouse · Esc to release" })).toBeTruthy();
     expect(screen.getByRole("slider", { name: "Mouse sensitivity" })).toBeTruthy();
+  });
+});
+
+describe("/record with the mouse: a click anywhere on the twin takes the mouse (live test after #10)", () => {
+  let pane: HTMLElement;
+  beforeEach(() => {
+    localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "mouse" }));
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "performance"] });
+    renderPage();
+    pane = screen.getByRole("region", { name: "workspace" });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => null });
+  });
+
+  const locks = () =>
+    vi.fn(() => {
+      Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => pane });
+      document.dispatchEvent(new Event("pointerlockchange"));
+      return Promise.resolve();
+    });
+  const refuses = () => vi.fn(() => Promise.reject(new DOMException("The user has exited the lock before this request was completed.", "SecurityError")));
+  /** A left click on the twin's canvas, as the browser sends it: pointerdown first. */
+  const clickTwin = async () => {
+    await act(async () => {
+      fireEvent.pointerDown(screen.getByTestId("twin3d"), { button: 0 });
+    });
+  };
+
+  it("shows a centered prompt over the twin, and the twin doesn't orbit in mouse mode", () => {
+    expect(within(pane).getByRole("button", { name: "Click here to drive with the mouse · Esc to release" })).toBeTruthy();
+    expect(within(pane).getByText(/first click starts the mouse/)).toBeTruthy();
+    expect(screen.getByTestId("twin3d").getAttribute("data-interactive")).toBe("false");
+  });
+
+  it("the first click starts the mouse session and takes Pointer Lock on the pane; the canvas never gets the click", async () => {
+    const lock = locks();
+    pane.requestPointerLock = lock as unknown as typeof pane.requestPointerLock;
+    const canvasGot = vi.fn();
+    screen.getByTestId("twin3d").addEventListener("pointerdown", canvasGot);
+    expect(links.list).toHaveLength(0);
+    await clickTwin();
+    expect(links.list).toHaveLength(1); // started: the relay link is open
+    expect(lock).toHaveBeenCalledTimes(1);
+    expect(canvasGot).not.toHaveBeenCalled();
+    expect(within(pane).queryByRole("button", { name: /Click here to drive/ })).toBeNull(); // locked: the prompt goes
+    expect(screen.getByText("mouse · Esc releases")).toBeTruthy();
+  });
+
+  it("a refused lock shows why, and the next click asks again", async () => {
+    pane.requestPointerLock = refuses() as unknown as typeof pane.requestPointerLock;
+    await clickTwin();
+    expect(within(pane).getByRole("alert").textContent).toMatch(/refused to lock the mouse \(SecurityError: .*\)\. Click again\./);
+    expect(within(pane).getByRole("button", { name: /Click here to drive/ })).toBeTruthy();
+    const lock = locks();
+    pane.requestPointerLock = lock as unknown as typeof pane.requestPointerLock;
+    await clickTwin();
+    expect(lock).toHaveBeenCalledTimes(1);
+    expect(links.list).toHaveLength(1); // the same session, not a second one
+    expect(within(pane).queryByRole("alert")).toBeNull();
+  });
+
+  it("a right click or a click while locked doesn't ask again", async () => {
+    const lock = locks();
+    pane.requestPointerLock = lock as unknown as typeof pane.requestPointerLock;
+    await act(async () => {
+      fireEvent.pointerDown(screen.getByTestId("twin3d"), { button: 2 });
+    });
+    expect(lock).not.toHaveBeenCalled();
+    await clickTwin();
+    await clickTwin(); // locked: this click is the gripper (driveSession.ts), not another lock request
+    expect(lock).toHaveBeenCalledTimes(1);
+  });
+
+  it("the keyboard can press the prompt too", async () => {
+    const lock = locks();
+    pane.requestPointerLock = lock as unknown as typeof pane.requestPointerLock;
+    await act(async () => {
+      fireEvent.click(within(pane).getByRole("button", { name: /Click here to drive/ }), { detail: 0 });
+    });
+    expect(lock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -590,5 +673,110 @@ describe("/record with the camera: sensitivity, the clutch, the gripper input an
     fireEvent.change(screen.getByRole("combobox", { name: "Clutch key" }), { target: { value: "Control" } });
     const s = JSON.parse(localStorage.getItem(TELEOP_CONTROL_STORAGE_KEY)!);
     expect([s.gripperInput, s.clutchKey]).toEqual(["space", "Control"]);
+  });
+});
+
+describe("/record with the camera: Save camera video (for the offline hand refine)", () => {
+  class FakeMediaRecorder {
+    static made: FakeMediaRecorder[] = [];
+    static isTypeSupported = () => true;
+    mimeType = "video/webm;codecs=vp9";
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstart: (() => void) | null = null;
+    onstop: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    constructor(readonly stream: MediaStream) {
+      FakeMediaRecorder.made.push(this);
+    }
+    start() {
+      this.onstart?.();
+    }
+    stop() {
+      this.ondataavailable?.({ data: new Blob(["webm bytes"]) });
+      this.onstop?.();
+    }
+  }
+  const camStream = { getVideoTracks: () => [] } as unknown as MediaStream;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    FakeMediaRecorder.made = [];
+    tracker.stream.mockReturnValue(camStream);
+    vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
+    fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify({ id: url.split("/")[4], video: "x", bytes: 10, frames: 2 }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    tracker.stream.mockReturnValue(null);
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  /** Camera on, sim connected, its last saved demo human_prev; then the clock is fake (performance.now() = 0). */
+  async function ready() {
+    const link = await startCamera();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ demoId: "human_prev" })));
+    vi.useFakeTimers({ toFake: ["performance"] });
+    return link;
+  }
+
+  it("is on by default in the drawer, and saving the take uploads its video with the demo the sim saved", async () => {
+    const link = await ready();
+    fireEvent.click(recordButton());
+    expect(FakeMediaRecorder.made.map((r) => r.stream)).toEqual([camStream]); // the camera's own stream
+    act(() => link.emitSim(sim({ recording: true, steps: 10, demoId: "human_prev" })));
+    vi.advanceTimersByTime(100);
+    sendHand(performance.now(), hand());
+    vi.advanceTimersByTime(33);
+    sendHand(performance.now(), hand());
+    vi.advanceTimersByTime(367);
+    fireEvent.click(recordButton());
+    expect(fetchMock).not.toHaveBeenCalled(); // not until the sim names the demo
+    act(() => link.emitSim(sim({ steps: 25, demoId: "human_new", lastResult: "saved human_new" })));
+    await screen.findByText("camera video saved: demos/human_new/camera.webm");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/demos\/human_new\/camera$/);
+    expect(init.method).toBe("PUT");
+    const form = init.body as FormData;
+    expect(await (form.get("video") as Blob).text()).toBe("webm bytes");
+    const timing = JSON.parse(form.get("timing") as string);
+    expect(timing).toMatchObject({ clock: "performance.now", start_ms: 0, stop_ms: 500, t_ms: [100, 133], video_s: [0.1, 0.133] });
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect((screen.getByRole("checkbox", { name: /^Save camera video/ }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("Stop & discard saves no video", async () => {
+    const link = await ready();
+    fireEvent.click(recordButton());
+    act(() => link.emitSim(sim({ recording: true, steps: 10, demoId: "human_prev" })));
+    fireEvent.click(screen.getByRole("button", { name: "Stop & discard" }));
+    act(() => link.emitSim(sim({ steps: 10, demoId: null, lastResult: "discarded: 10 step(s) not saved" })));
+    expect(screen.getByText("camera video discarded with the take")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("with the setting off, nothing is recorded", async () => {
+    localStorage.setItem(TELEOP_CONTROL_STORAGE_KEY, JSON.stringify({ ...DEFAULT_TELEOP_CONTROL, saveVideo: false }));
+    const link = await ready();
+    fireEvent.click(recordButton());
+    act(() => link.emitSim(sim({ recording: true, steps: 10, demoId: "human_prev" })));
+    fireEvent.click(recordButton());
+    act(() => link.emitSim(sim({ steps: 25, demoId: "human_new" })));
+    expect(FakeMediaRecorder.made).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keyboard and mouse takes never record the camera", async () => {
+    localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "keyboard" }));
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Start keyboard" }));
+    const link = links.list[0];
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim()));
+    fireEvent.click(recordButton());
+    expect(link.sent).toEqual(["record_start"]);
+    expect(FakeMediaRecorder.made).toEqual([]);
   });
 });

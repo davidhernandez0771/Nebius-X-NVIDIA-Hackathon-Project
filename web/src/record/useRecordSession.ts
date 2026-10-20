@@ -10,7 +10,8 @@
 // The camera path's message comes from teleop/handControl.ts (pinch-stable depth anchored across every gripper
 // change, the view's left/right, sensitivity, the clutch); the page sends exactly the message it shows. In camera
 // mode the clutch key (Shift by default) freezes the arm while held, and Space toggles the gripper when the gripper
-// input is the spacebar.
+// input is the spacebar. With "Save camera video" on (the default), camera mode records the webcam during each take and
+// uploads it beside the demo the sim saves (cameraTake.ts: demos/<id>/camera.webm + camera.json).
 
 import { useEffect, useRef, useState } from "react";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../hand/contracts";
@@ -30,7 +31,8 @@ import { victoryScore } from "./teleop/victoryPose";
 import { HandLock, type HandLockStatus } from "./teleop/handLock";
 import { DebugTrace, traceFileName, traceFrame, type TraceSignals } from "./teleop/debugTrace";
 import { latencyTraceRequested, type TeleopStatus } from "./teleop/teleopClient";
-import { teleopSocketUrl } from "../pm/api";
+import { pmApi, teleopSocketUrl } from "../pm/api";
+import { CameraTake, webmRecorder } from "./cameraTake";
 import { controlFraming, framingCheck, type Framing } from "./framing";
 import type { HandArtFrame } from "./handArt";
 import { ArtCue } from "./artCue";
@@ -113,6 +115,7 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
   const [resetToast, setResetToast] = useState<ResetToast | null>(null);
   const [drive, setDrive] = useState<DriveSettings>(() => (inputs ? loadDriveSettings() : { ...loadDriveSettings(), input: "camera" }));
   const [driveUi, setDriveUi] = useState<Omit<DriveUi, "msg"> | null>(null);
+  const [mouseRefused, setMouseRefused] = useState<string | null>(null); // why the browser last refused Pointer Lock
   const driveRef = useRef(drive);
   const [clutch, setClutch] = useState(false); // camera mode: the clutch key is held, the arm's target is frozen
   const clutchRef = useRef(false);
@@ -125,7 +128,9 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
   const centerer = useRef<ReachCenterer | null>(null);
   const calibrationStep = useRef<CalibrationState["step"] | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const session = useRef<{ tracker: TrackingAdapter | null; link: RecordLink | null; drive: DriveSession | null; input: InputMode; keys?: () => void } | null>(null);
+  const session = useRef<{ tracker: TrackingAdapter | null; link: RecordLink | null; drive: DriveSession | null; input: InputMode; keys?: () => void; video?: CameraTake } | null>(null);
+  const simNow = useRef<SimStatus | null>(null); // the latest sim status, for the camera take's baseline demo id
+  const [videoNote, setVideoNote] = useState<string | null>(null); // the last take's camera video: saved, or why not
   const handLockRef = useRef<HandLock | null>(null); // the running session's hand lock, for Re-pick
   const artHand = useRef<HandArtFrame | null>(null); // polled by the hand-art overlay each animation frame
   const artActive = useRef(false); // the overlay is drawing (WebGL up)
@@ -152,6 +157,7 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     artHand.current = null;
     calibrator.current = null;
     centerer.current = null;
+    session.current?.video?.close(); // a take still open when the camera stops saves nothing
     session.current?.tracker?.cleanup();
     session.current?.drive?.stop();
     session.current?.keys?.();
@@ -185,7 +191,11 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
       if (s.simConnected && !simWas) link.sendControl("set_input", input);
       simWas = s.simConnected;
     });
-    link.onSimStatus(setSim);
+    link.onSimStatus((status) => {
+      simNow.current = status;
+      setSim(status);
+      session.current?.video?.sim(status);
+    });
     return link;
   }
 
@@ -246,9 +256,18 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     };
   }
 
-  /** Mouse mode: take Pointer Lock on this element (the twin pane's click). */
+  /** Mouse mode: take Pointer Lock on this element (a click on the twin pane). The first click also starts the mouse
+   *  session. A refusal is kept (mouseRefused) until the next click asks again. Call it inside the click's handler:
+   *  the browser only locks the mouse for a user gesture. */
   function requestMouse(el: HTMLElement) {
-    session.current?.drive?.requestMouse(el);
+    if (driveRef.current.input !== "mouse") return;
+    if (!session.current) void start(); // keyboard and mouse start synchronously (startDrive), so the lock below can follow
+    const driver = session.current?.drive;
+    if (!driver) return;
+    setMouseRefused(null);
+    void driver.requestMouse(el).then((reason) => {
+      if (session.current?.drive === driver) setMouseRefused(reason);
+    });
   }
 
   async function start() {
@@ -260,7 +279,15 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     setPhase({ state: "starting" });
     const { createMediapipeTracker } = await import("../hand/tracking");
     const tracker = createMediapipeTracker();
-    session.current = { tracker, link: null, drive: null, input, keys: cameraKeys() };
+    // Save camera video: the webcam is recorded with each take and uploaded beside the demo the sim saves (cameraTake.ts).
+    const video = new CameraTake({
+      stream: () => tracker.stream?.() ?? null,
+      recorder: webmRecorder,
+      upload: async (id, blob, timing) => void (await pmApi.saveCameraVideo(id, blob, timing)),
+      report: setVideoNote,
+      now: () => performance.now(),
+    });
+    session.current = { tracker, link: null, drive: null, input, keys: cameraKeys(), video };
     let lastUi = -Infinity;
     let framesSinceUi = 0; // for the fps readout (display only)
     const hands = new HandControl(); // pinch / spacebar gripper, depth, view, sensitivity, clutch (handControl.ts)
@@ -286,6 +313,7 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
       const out = hands.step(hand, frame, s, { clutch: clutchRef.current, spaceGripper: spaceGripRef.current }, held);
       const { msg, pinch, gripper } = out;
       session.current?.link?.send(msg, gripper);
+      video.frame(msg.t_ms, [frame.frameWidth, frame.frameHeight]); // kept only while a take records
       // Reset gesture: the V sign held 1.5 s, gripper open, hand still -> the Reset scene control.
       const victory = msg.tracking_ok && hand && !held ? victoryScore(hand, frame.frameWidth, frame.frameHeight).score : null;
       resetGesture ??= createResetGesture({ aspect: frame.frameWidth / frame.frameHeight });
@@ -440,6 +468,9 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     setSim(null);
     setPose(null);
     setDriveUi(null);
+    setMouseRefused(null);
+    setVideoNote(null);
+    simNow.current = null;
     resetToastAt.current = null;
     setResetToast(null);
     setPhase({ state: "idle" });
@@ -458,7 +489,20 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     }
     // Before each recording, the input again: the demo is saved with it even if the sim restarted meanwhile.
     if (action === "record_start" && s) s.link?.sendControl("set_input", s.input);
-    return s?.link?.sendControl(action);
+    const wasRecording = recordingNow.current;
+    const sent = s?.link?.sendControl(action);
+    // Camera mode: the take's webcam video follows the recording (saved with the demo, or dropped with a discard).
+    if (sent && s?.video) {
+      if (action === "record_start" && !wasRecording && settingsRef.current.saveVideo) {
+        setVideoNote("recording camera video");
+        s.video.begin(simNow.current?.demoId ?? null);
+      } else if (action === "record_stop") s.video.end();
+      else if (action === "record_discard") {
+        s.video.discard();
+        setVideoNote("camera video discarded with the take");
+      }
+    }
+    return sent;
   }
 
   const streaming = phase.state === "streaming";
@@ -483,6 +527,8 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     clutch,
     drive,
     driveUi,
+    mouseRefused,
+    videoNote,
     streaming,
     lost,
     simReady,

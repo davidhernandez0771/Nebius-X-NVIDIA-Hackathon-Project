@@ -58,7 +58,7 @@ export function DrivePanel({ session }: { session: RecordSession }) {
   return (
     <div className="rg-drive">
       <p className="rg-drive__lead">
-        {mouse ? "Mouse" : "Keyboard"} control, in the robot's own frame: as if you stand behind it. {streaming ? "" : "Start to connect to the sim."}
+        {mouse ? "Mouse" : "Keyboard"} control, in the robot's own frame: as if you stand behind it. {streaming ? "" : mouse ? "Click the twin (or Start) to connect to the sim." : "Start to connect to the sim."}
       </p>
       <ul className="rg-keys" aria-label={mouse ? "Mouse controls" : "Keys"}>
         {legend.map(([k, what]) => (

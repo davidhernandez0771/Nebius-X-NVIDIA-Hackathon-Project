@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { PmApiError, pmFetch, teleopSocketUrl } from "./api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { PmApiError, pmApi, pmFetch, teleopSocketUrl } from "./api";
 
 type FakeResponse = { status: number; body: string };
 
@@ -76,5 +76,36 @@ describe("teleopSocketUrl", () => {
 
   it("swaps https for wss and drops a trailing slash", () => {
     expect(teleopSocketUrl("https://example.org/")).toBe("wss://example.org/ws/teleop?role=browser");
+  });
+});
+
+describe("pmApi.saveCameraVideo", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const ok = () => new Response(JSON.stringify({ id: "human_1", video: "demos/human_1/camera.webm", bytes: 4, frames: 1 }), { status: 200 });
+
+  it("PUTs the video and the timing as multipart, letting the browser set the content type", async () => {
+    const fetchMock = vi.fn(async () => ok());
+    vi.stubGlobal("fetch", fetchMock);
+    const out = await pmApi.saveCameraVideo("human_1", new Blob(["webm"], { type: "video/webm" }), { t_ms: [1], video_s: [0] });
+    expect(out.video).toBe("demos/human_1/camera.webm");
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/\/demos\/human_1\/camera$/);
+    expect(init.method).toBe("PUT");
+    expect(init.headers).toEqual({}); // no JSON content type over the multipart body
+    const form = init.body as FormData;
+    expect((form.get("video") as File).name).toBe("camera.webm");
+    expect(JSON.parse(form.get("timing") as string)).toEqual({ t_ms: [1], video_s: [0] });
+  });
+
+  it("retries a dropped local connection, but not an answer from the backend", async () => {
+    const flaky = vi.fn().mockRejectedValueOnce(new TypeError("Failed to fetch")).mockResolvedValueOnce(ok());
+    vi.stubGlobal("fetch", flaky);
+    await pmApi.saveCameraVideo("human_1", new Blob(["webm"]), {});
+    expect(flaky).toHaveBeenCalledTimes(2);
+
+    const refused = vi.fn(async () => new Response(JSON.stringify({ detail: "the video isn't a webm file" }), { status: 422 }));
+    vi.stubGlobal("fetch", refused);
+    await expect(pmApi.saveCameraVideo("human_1", new Blob(["x"]), {})).rejects.toMatchObject({ kind: "invalid" });
+    expect(refused).toHaveBeenCalledTimes(1);
   });
 });

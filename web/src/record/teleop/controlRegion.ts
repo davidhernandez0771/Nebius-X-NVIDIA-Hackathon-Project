@@ -41,6 +41,7 @@ export interface TeleopControlSettings {
   gain: number; // sensitivity, GAIN_MIN..GAIN_MAX (motionShaper.ts)
   gripperInput: GripperInput;
   clutchKey: ClutchKey;
+  saveVideo: boolean; // Camera mode: record the webcam with each take (record/cameraTake.ts); it stays on this machine
 }
 
 // SANT's default size (0.55), centered horizontally, lifted so the bottom edge sits at 0.70 of the
@@ -62,6 +63,7 @@ export const DEFAULT_TELEOP_CONTROL: TeleopControlSettings = {
   gain: 1,
   gripperInput: "pinch",
   clutchKey: "Shift",
+  saveVideo: true,
 };
 
 export const REGION_SIZE_MIN = 0.15;
@@ -155,6 +157,7 @@ export function sanitizeTeleopControl(raw: unknown): TeleopControlSettings {
     gain: finite(o.gain) ? clamp(o.gain, GAIN_MIN, GAIN_MAX) : d.gain,
     gripperInput: oneOf<GripperInput>(o.gripperInput, ["pinch", "space"], d.gripperInput),
     clutchKey: oneOf(o.clutchKey, CLUTCH_KEYS, d.clutchKey),
+    saveVideo: bool(o.saveVideo, d.saveVideo),
   };
 }
 

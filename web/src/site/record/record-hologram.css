@@ -1317,23 +1317,57 @@
   justify-content: center;
 }
 
+/* Mouse mode, not locked: the whole twin is the click target, the prompt centered on it */
 .rg-take {
   position: absolute;
-  top: 28px;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  padding: 6px 10px;
-  font: 500 11px var(--rg-mono);
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  text-align: center;
+  background: color-mix(in srgb, var(--rg-glass) 55%, transparent);
+  cursor: pointer;
+}
+
+.rg-take__btn {
+  max-width: 100%;
+  padding: 10px 14px;
+  font: 500 12px var(--rg-mono);
   color: var(--rg-ink-2);
-  background: var(--rg-glass);
+  background: rgba(8, 12, 13, 0.96); /* the drawer's panel: opaque, so the twin's caption doesn't show through */
   border: 1px dashed var(--rg-hair-hi);
   border-radius: 2px;
   cursor: pointer;
 }
 
-.rg-take:hover {
+.rg-take__btn b {
+  font-weight: 600;
   color: var(--rg-live);
+}
+
+.rg-take:hover .rg-take__btn {
+  border-style: solid;
+}
+
+.rg-take__hint {
+  display: block;
+  margin-top: 6px;
+  font: 400 11px var(--rg-mono);
+  color: var(--rg-ink-3);
+}
+
+.rg-take__why {
+  margin: 0;
+  max-width: 40ch;
+  padding: 6px 10px;
+  font: 400 11px var(--rg-mono);
+  color: var(--rg-hold);
+  background: rgba(8, 12, 13, 0.96);
+  border: 1px solid var(--rg-hair-hi);
+  border-radius: 2px;
 }
 
 /* the camera's Sensitivity slider, in the camera pane's header */

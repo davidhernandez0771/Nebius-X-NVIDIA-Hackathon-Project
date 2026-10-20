@@ -7,7 +7,8 @@
 // a save "Delete last demo" (one more click to confirm; DELETE /demos/{id} moves it to demos/_discarded).
 // The input switch (Keyboard | Mouse | Camera, in the camera pane's header): with the keyboard or the mouse the camera
 // pane shows the key legend and the speed (DrivePanel), there's no camera and no hand lock, and Enter starts or stops
-// a recording; in mouse mode a click on the twin pane takes the mouse (Pointer Lock, Esc releases).
+// a recording; in mouse mode a click anywhere on the twin pane takes the mouse (Pointer Lock, Esc releases; the first
+// click also starts the mouse session; a refused lock says why and the next click asks again; the twin doesn't orbit).
 // Everything is fed by the same teleop session as /legacy/pm/record (useRecordSession: hand v4's
 // simple pinch, reset gesture, original hand art, control region, break-through). The page fits the
 // window: a 100dvh grid, no page scrollbar, nothing scrolls inside a pane.
@@ -124,6 +125,23 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const driving = input !== "camera";
   const facing = !driving && settings.view === "facing"; // the mirror mapping: the twin and the gauge turn round
   const twinPane = useRef<HTMLElement>(null);
+  const mouse = input === "mouse";
+  const mouseLocked = mouse && streaming && !!session.driveUi?.locked;
+  const requestMouse = useRef(session.requestMouse);
+  requestMouse.current = session.requestMouse;
+  // Mouse mode: a left click anywhere on the twin pane takes the mouse (and starts the mouse session first). Captured
+  // on the pane, so the twin's canvas never gets it; while locked, clicks are the gripper (driveSession.ts).
+  useEffect(() => {
+    const pane = twinPane.current;
+    if (!mouse || !pane) return;
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      if (document.pointerLockElement !== pane) requestMouse.current(pane);
+    };
+    pane.addEventListener("pointerdown", onDown, { capture: true });
+    return () => pane.removeEventListener("pointerdown", onDown, { capture: true });
+  }, [mouse]);
   const live = useLive(pose);
   const twin = useRecordTwin();
   const savedIds = useSavedDemos(sim?.demoId);
@@ -366,6 +384,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
             </span>
             <span className="rg-camfoot__status">
               {footStatus && <span>{footStatus}</span>}
+              {!driving && session.videoNote && <span role="status">{session.videoNote}</span>}
               {fps && <span>{fps}</span>}
             </span>
           </div>
@@ -380,11 +399,21 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               </span>
             </div>
             <div className="rg-twin3d">
-              <RobotTwin {...twin.view} caption={twin.caption} aids facing={facing} />
-              {input === "mouse" && streaming && !session.driveUi?.locked && (
-                <button type="button" className="rg-take" onClick={() => twinPane.current && session.requestMouse(twinPane.current)}>
-                  Click to drive with the mouse · Esc releases it
-                </button>
+              <RobotTwin {...twin.view} caption={twin.caption} aids facing={facing} interactive={!mouse} />
+              {mouse && !mouseLocked && (
+                <div className="rg-take">
+                  {/* A mouse click is taken by the pane's pointerdown; this onClick is the keyboard's (Enter, Space). */}
+                  <button type="button" className="rg-take__btn" aria-label="Click here to drive with the mouse · Esc to release" onClick={(e) => e.detail === 0 && twinPane.current && session.requestMouse(twinPane.current)}>
+                    <b>Click here to drive with the mouse</b>
+                    <span> · Esc to release</span>
+                    {!streaming && <small className="rg-take__hint">The first click starts the mouse and connects to the sim.</small>}
+                  </button>
+                  {session.mouseRefused && (
+                    <p className="rg-take__why" role="alert">
+                      {session.mouseRefused}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
             <Brackets diagonal />

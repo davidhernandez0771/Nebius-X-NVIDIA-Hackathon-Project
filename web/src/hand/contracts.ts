@@ -125,6 +125,8 @@ export interface TrackingAdapter {
   cleanup(): void;
   onFrame(cb: (frame: HandFrame) => void): () => void; // returns unsubscribe
   onStatus(cb: (status: TrackingStatus) => void): () => void;
+  /** The camera's stream while it runs (for recording it, e.g. Record's "Save camera video"), else null. */
+  stream?(): MediaStream | null;
 }
 
 /**
