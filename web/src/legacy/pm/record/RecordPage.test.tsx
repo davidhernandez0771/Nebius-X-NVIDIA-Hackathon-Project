@@ -67,6 +67,11 @@ vi.mock("../../../record/recordLink", () => ({
     setControl(s: unknown) {
       this.controls.push(s);
     }
+    assists: boolean[] = [];
+    sendAssist(on: boolean) {
+      this.assists.push(on);
+      return true;
+    }
     sendControl(action: string, input?: string) {
       if (action === "set_input") this.inputs.push(input ?? "");
       else this.sent.push(action);

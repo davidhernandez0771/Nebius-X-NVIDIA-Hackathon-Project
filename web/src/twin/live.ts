@@ -1,6 +1,7 @@
 // The live twin's state, as a reducer over the relay's twin socket (/ws/teleop?role=twin, read-only): pure, so
 // useLiveTwin is a thin WebSocket wrapper around it.
 import { apiUrl } from "../api/client";
+import type { TwinContact } from "./contact";
 import { namedJoints, type TwinFrame, type TwinMessage, type TwinScene } from "./messages";
 import type { TwinPose, TwinState } from "./types";
 
@@ -40,7 +41,9 @@ export function liveStatus(s: LiveState): LiveStatus {
   return s.scene && s.frame ? "live" : "waiting";
 }
 
-export type LiveTwin = TwinState & { status: LiveStatus; base: TwinPose | null; robot: string | null };
+/** contact: the arm's push now (./contact.ts); floor: the soft floor is holding the target up. Both null without a
+ *  frame, or from a sim that doesn't send them. */
+export type LiveTwin = TwinState & { status: LiveStatus; base: TwinPose | null; robot: string | null; contact: TwinContact | null; floor: boolean | null };
 
 export function liveTwin(s: LiveState): LiveTwin {
   const { scene, frame } = s;
@@ -52,5 +55,7 @@ export function liveTwin(s: LiveState): LiveTwin {
     joints: scene && frame ? namedJoints(scene.jointNames, frame.q) : null,
     gripper: frame?.gripper ?? null,
     cube: frame?.cube ?? null,
+    contact: frame?.contact ?? null,
+    floor: frame?.floor ?? null,
   };
 }

@@ -23,6 +23,8 @@ export interface SimStatus {
   demoId: string | null; // the last saved demo
   lastResult: string | null;
   paused: boolean; // recording, but held because hand tracking was lost
+  softFloor?: boolean | null; // the sim's soft floor is on (null: a sim from before it)
+  contactPeakN?: number | null; // the current (or last) take's largest arm contact force, N
 }
 
 const SOCKET_OPEN = 1; // WebSocket.OPEN
@@ -40,13 +42,17 @@ export function parseSimStatus(data: unknown): SimStatus | null {
   }
   if (msg?.type !== "sim_status" || typeof msg.recording !== "boolean" || typeof msg.steps !== "number") return null;
   const str = (v: unknown) => (typeof v === "string" ? v : null);
-  return {
+  const status: SimStatus = {
     recording: msg.recording,
     steps: msg.steps,
     demoId: str(msg.demo_id),
     lastResult: str(msg.last_result),
     paused: msg.paused === true,
   };
+  // From a sim with the soft floor and the contact glow (left out for an older one)
+  if ("soft_floor" in msg) status.softFloor = typeof msg.soft_floor === "boolean" ? msg.soft_floor : null;
+  if ("contact_peak_n" in msg) status.contactPeakN = typeof msg.contact_peak_n === "number" && Number.isFinite(msg.contact_peak_n) ? msg.contact_peak_n : null;
+  return status;
 }
 
 export class RecordLink {
@@ -89,6 +95,13 @@ export class RecordLink {
   }
 
   /** False when the socket isn't open, so nothing was sent. */
+  /** The soft floor on or off ({"type": "control", "action": "set_assist", "soft_floor"}); false if not sent. */
+  sendAssist(softFloor: boolean): boolean {
+    if (this.closed || !this.socket || this.socket.readyState !== SOCKET_OPEN) return false;
+    this.socket.send(JSON.stringify({ type: "control", action: "set_assist", soft_floor: softFloor }));
+    return true;
+  }
+
   sendControl(action: ControlAction, input?: ControlInput): boolean {
     if (this.closed || !this.socket || this.socket.readyState !== SOCKET_OPEN) return false;
     this.socket.send(controlMessage(action, input));

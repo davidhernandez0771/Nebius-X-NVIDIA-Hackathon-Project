@@ -26,6 +26,7 @@ import {
 import type { URDFLink, URDFRobot } from "urdf-loader";
 import { AlignGrid, ThreeViews, useBox, ViewCells } from "./AidViews";
 import { alignState, toolInEnv, viewLayout } from "./aids";
+import { contactGlow, GLOW, type TwinContact } from "./contact";
 import { loadTwinRobot, type LoadedTwin } from "./loadTwinRobot";
 import { applyJoints, binParts, boneSegments, CUBE_SIZE, FRANKA, gripperLinkSet, matLines, quat, TABLE } from "./model";
 import type { TwinPose, TwinState } from "./types";
@@ -38,7 +39,10 @@ const matte = new MeshStandardMaterial({ color: "#1B2427", roughness: 0.82, meta
 const matteHot = new MeshStandardMaterial({ color: "#2A1A14", roughness: 0.7, metalness: 0.1, emissive: C.needle, emissiveIntensity: 0.18 });
 const edge = new LineBasicMaterial({ color: C.live, transparent: true, opacity: 0.5 });
 const edgeHot = new LineBasicMaterial({ color: C.needle, transparent: true, opacity: 0.95 });
-const SHARED: Material[] = [matte, matteHot, edge, edgeHot];
+// The contact glow (./contact.ts): the link that pushes on the bin or table, amber from a touch, red over 5 N.
+const glowMatte = new MeshStandardMaterial({ color: "#2A1D0A", roughness: 0.6, metalness: 0.1, emissive: GLOW.touch, emissiveIntensity: 0.5 });
+const glowEdge = new LineBasicMaterial({ color: GLOW.touch, transparent: true, opacity: 1 });
+const SHARED: Material[] = [matte, matteHot, edge, edgeHot, glowMatte, glowEdge];
 
 const ownerLink = (o: { parent: unknown }): URDFLink | null => {
   for (let p = o as { parent: unknown; isURDFLink?: boolean } | null; p; p = p.parent as typeof p)
@@ -88,11 +92,13 @@ function dispose(robot: URDFRobot) {
   });
 }
 
-/** Poses the robot and paints the gripper; asks for one frame only when something changed. */
-function Robot({ loaded, joints, gripper }: { loaded: LoadedTwin; joints: Record<string, number> | null; gripper: 0 | 1 | null }) {
+/** Poses the robot, paints the gripper and the contact glow; asks for one frame only when something changed. */
+function Robot({ loaded, joints, gripper, contact }: { loaded: LoadedTwin; joints: Record<string, number> | null; gripper: 0 | 1 | null; contact: TwinContact | null }) {
   const invalidate = useThree((s) => s.invalidate);
   const { robot } = loaded;
   const hot = useMemo(() => gripperLinkSet(robot), [robot]);
+  const glow = contactGlow(contact?.forceN ?? 0);
+  const glowLink = glow.color && contact?.body ? robot.links[contact.body] ?? null : null; // unknown names glow nothing
 
   useEffect(() => {
     applyJoints(robot, joints ?? FRANKA.rest); // the aids may have posed it already (toolInEnv)
@@ -100,15 +106,26 @@ function Robot({ loaded, joints, gripper }: { loaded: LoadedTwin; joints: Record
   }, [robot, joints, invalidate]);
 
   useEffect(() => {
+    if (glow.color) {
+      glowMatte.emissive.set(glow.color);
+      glowMatte.emissiveIntensity = glow.intensity;
+      glowEdge.color.set(glow.color);
+    }
     const closed = gripper === 1;
     robot.traverse((o) => {
       const link = ownerLink(o);
-      if (!link || !hot.has(link)) return;
-      if ((o as Mesh).isMesh) (o as Mesh).material = closed ? matteHot : matte;
-      else if (o.userData.edge) (o as LineSegments).material = closed ? edgeHot : edge;
+      if (!link) return;
+      const lit = link === glowLink;
+      if (!lit && !hot.has(link)) {
+        if ((o as Mesh).isMesh && (o as Mesh).material === glowMatte) (o as Mesh).material = matte; // the glow moved on
+        else if (o.userData.edge && (o as LineSegments).material === glowEdge) (o as LineSegments).material = edge;
+        return;
+      }
+      if ((o as Mesh).isMesh) (o as Mesh).material = lit ? glowMatte : closed ? matteHot : matte;
+      else if (o.userData.edge) (o as LineSegments).material = lit ? glowEdge : closed ? edgeHot : edge;
     });
     invalidate();
-  }, [robot, hot, gripper, invalidate]);
+  }, [robot, hot, gripper, glowLink, glow.color, glow.intensity, invalidate]);
 
   return <primitive object={robot} />;
 }
@@ -213,7 +230,7 @@ function View({ interactive, aspect: fixed, dom, facing = false }: { interactive
 
 type Aiding = { aspect: number; dom: HTMLElement | null; cube: boolean; bin: boolean; facing: boolean };
 
-function Scene({ loaded, state, base, interactive, aids }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null }) {
+function Scene({ loaded, state, base, interactive, aids, contact }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null; contact: TwinContact | null }) {
   return (
     <>
       <color attach="background" args={[C.void]} />
@@ -228,7 +245,7 @@ function Scene({ loaded, state, base, interactive, aids }: { loaded: LoadedTwin;
         {state.bin && <Bin pose={state.bin} glow={aids?.bin ?? false} />}
         {state.cube && <Cube pose={state.cube} glow={aids?.cube ?? false} />}
         <group position={base?.pos ?? [0, 0, 0]} quaternion={base ? quat(base.quat) : undefined}>
-          <Robot loaded={loaded} joints={state.joints} gripper={state.gripper} />
+          <Robot loaded={loaded} joints={state.joints} gripper={state.gripper} contact={contact} />
         </group>
       </group>
     </>
@@ -250,10 +267,12 @@ export type RobotTwinProps = TwinState & {
   /** The mirror mapping (the robot faces you): the main view, the top view and the grid turn round, so your right
    *  stays on the right of the screen. Default: from behind the robot (your right is its right). */
   facing?: boolean;
+  /** The arm's push on the bin or table (live only): its link glows amber from a touch, red over 5 N (./contact.ts). */
+  contact?: TwinContact | null;
   className?: string;
 };
 
-export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false }: RobotTwinProps) {
+export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false, contact = null }: RobotTwinProps) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [box, size] = useBox<HTMLDivElement>();
   const [frontEl, setFrontEl] = useState<HTMLDivElement | null>(null);
@@ -301,7 +320,7 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
     <div className={["twin3d", className].filter(Boolean).join(" ")} ref={box}>
       {load.status === "ready" ? (
         <Canvas className="twin3d__canvas" frameloop="demand" dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "low-power" }}>
-          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} />
+          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} contact={contact} />
         </Canvas>
       ) : (
         <p className="twin3d__wait" role={load.status === "error" ? "alert" : undefined}>

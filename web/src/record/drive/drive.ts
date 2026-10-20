@@ -38,9 +38,10 @@ export interface DriveSettings {
   input: InputMode;
   speed: number; // keyboard, m/s
   mouseSens: number; // m per pixel
+  softFloor: boolean; // every input: the sim holds the target above the bin rim and table (demo_pipeline/soft_floor.py)
 }
 
-export const DEFAULT_DRIVE: DriveSettings = { input: "keyboard", speed: 0.1, mouseSens: 0.0004 };
+export const DEFAULT_DRIVE: DriveSettings = { input: "keyboard", speed: 0.1, mouseSens: 0.0004, softFloor: true };
 export const DRIVE_STORAGE_KEY = "pm.teleop.drive";
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -180,6 +181,7 @@ export function sanitizeDriveSettings(raw: unknown): DriveSettings {
     input: INPUT_MODES.includes(o.input as InputMode) ? (o.input as InputMode) : d.input,
     speed: finite(o.speed) ? clamp(o.speed, SPEED_MIN, SPEED_MAX) : d.speed,
     mouseSens: finite(o.mouseSens) ? clamp(o.mouseSens, MOUSE_SENS_MIN, MOUSE_SENS_MAX) : d.mouseSens,
+    softFloor: typeof o.softFloor === "boolean" ? o.softFloor : d.softFloor,
   };
 }
 

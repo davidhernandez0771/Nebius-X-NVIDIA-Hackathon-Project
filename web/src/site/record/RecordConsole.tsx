@@ -9,6 +9,9 @@
 // pane shows the key legend and the speed (DrivePanel), there's no camera and no hand lock, and Enter starts or stops
 // a recording; in mouse mode a click anywhere on the twin pane takes the mouse (Pointer Lock, Esc releases; the first
 // click also starts the mouse session; a refused lock says why and the next click asks again; the twin doesn't orbit).
+// Live, the twin's link that pushes on the bin or table glows (amber, red over 5 N) over a quiet force bar with the
+// take's peak (ContactBar); the "soft floor" box in the twin's header (on by default) tells the sim to keep the target
+// above the bin rim and the table, for every input.
 // Everything is fed by the same teleop session as /legacy/pm/record (useRecordSession: hand v4's
 // simple pinch, reset gesture, original hand art, control region, break-through). The page fits the
 // window: a 100dvh grid, no page scrollbar, nothing scrolls inside a pane.
@@ -26,6 +29,7 @@ import { RobotTwin } from "../../twin";
 import { formatClock } from "../record-hud";
 import { GripDial, HeightGauge, SideGauge, Trace } from "./instruments";
 import { GAIN_MAX, GAIN_MIN } from "../../record/teleop/controlRegion";
+import { ContactBar } from "./ContactBar";
 import { DrivePanel, InputSwitch } from "./DrivePanel";
 import { RecordSettings } from "./RecordSettings";
 import { useRecordTwin } from "./robotTwin";
@@ -135,7 +139,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
     const pane = twinPane.current;
     if (!mouse || !pane) return;
     const onDown = (e: PointerEvent) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || (e.target as Element | null)?.closest?.(".rg-hd")) return; // the header's controls stay controls
       e.stopPropagation();
       if (document.pointerLockElement !== pane) requestMouse.current(pane);
     };
@@ -394,12 +398,22 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           <section className="rg-pane" aria-label="workspace" ref={twinPane}>
             <div className="rg-hd">
               <span>workspace · robot twin</span>
-              <span className="rg-hd__tag" data-mode={twin.mode}>
-                {twin.mode}
+              <span className="rg-hd__tools">
+                <label
+                  className="rg-floor"
+                  title="Soft floor: while you drive, the sim won't take the gripper more than ~1 cm under the bin's rim, or below the table. Each demo records whether it was on."
+                >
+                  <input type="checkbox" checked={session.drive.softFloor} onChange={(e) => session.updateDrive({ ...session.drive, softFloor: e.target.checked })} />
+                  soft floor
+                </label>
+                <span className="rg-hd__tag" data-mode={twin.mode}>
+                  {twin.mode}
+                </span>
               </span>
             </div>
             <div className="rg-twin3d">
               <RobotTwin {...twin.view} caption={twin.caption} aids facing={facing} interactive={!mouse} />
+              {twin.mode === "live" && <ContactBar contact={twin.view.contact} peakN={sim?.contactPeakN ?? null} floor={twin.floor} />}
               {mouse && !mouseLocked && (
                 <div className="rg-take">
                   {/* A mouse click is taken by the pane's pointerdown; this onClick is the keyboard's (Enter, Space). */}

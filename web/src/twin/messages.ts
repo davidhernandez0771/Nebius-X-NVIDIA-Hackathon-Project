@@ -1,13 +1,15 @@
 // The relay's robot-twin messages (src/app/routers/teleop.py, /ws/teleop?role=twin):
 //   {"type": "status", "sim_connected": bool}
 //   {"type": "sim_twin_scene", "robot", "joint_names", "base": pose7, "bin": pose7}   once per sim connection
-//   {"type": "sim_twin", "q", "gripper": 0 | 1, "cube": pose7}                         at most ~30 a second
+//   {"type": "sim_twin", "q", "gripper": 0 | 1, "cube": pose7, "floor"?, "contact"?}   at most ~30 a second
+// "floor": the soft floor holds the target up; "contact": {force_n, body, against}, the arm's push (./contact.ts).
 // where pose7 is [x, y, z, qw, qx, qy, qz] (sim_worker/teleop_session.py twin_scene() and twin()).
 
+import type { TwinContact } from "./contact";
 import type { TwinPose } from "./types";
 
 export type TwinScene = { robot: string; jointNames: string[]; base: TwinPose; bin: TwinPose };
-export type TwinFrame = { q: number[]; gripper: 0 | 1; cube: TwinPose };
+export type TwinFrame = { q: number[]; gripper: 0 | 1; cube: TwinPose; floor?: boolean; contact?: TwinContact | null };
 
 export type TwinMessage =
   | { kind: "status"; simConnected: boolean }
@@ -19,6 +21,15 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 export function pose7(v: unknown): TwinPose | null {
   if (!Array.isArray(v) || v.length !== 7 || !v.every(isNum)) return null;
   return { pos: [v[0], v[1], v[2]], quat: [v[3], v[4], v[5], v[6]] };
+}
+
+/** sim_twin's contact, {force_n, body, against}; null if it's missing or malformed. */
+function contactOf(v: unknown): TwinContact | null {
+  if (!v || typeof v !== "object") return null;
+  const c = v as Record<string, unknown>;
+  if (!isNum(c.force_n) || c.force_n < 0) return null;
+  const against = c.against === "bin" || c.against === "table" ? c.against : null;
+  return { forceN: c.force_n, body: typeof c.body === "string" ? c.body : null, against };
 }
 
 export function parseTwinMessage(data: unknown): TwinMessage | null {
@@ -41,7 +52,10 @@ export function parseTwinMessage(data: unknown): TwinMessage | null {
     const cube = pose7(msg.cube);
     const q = msg.q;
     if (!cube || !Array.isArray(q) || !q.every(isNum) || (msg.gripper !== 0 && msg.gripper !== 1)) return null;
-    return { kind: "frame", frame: { q: q as number[], gripper: msg.gripper, cube } };
+    const frame: TwinFrame = { q: q as number[], gripper: msg.gripper, cube };
+    if (typeof msg.floor === "boolean") frame.floor = msg.floor;
+    if ("contact" in msg) frame.contact = contactOf(msg.contact);
+    return { kind: "frame", frame };
   }
   return null;
 }
