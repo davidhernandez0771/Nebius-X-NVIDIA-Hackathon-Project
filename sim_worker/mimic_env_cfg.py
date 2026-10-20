@@ -10,7 +10,8 @@ subtask segments relative to where the objects are now. This env is SANT's scene
 the cube, the five-box bin, the table; no cameras) with what Mimic needs, matching scripts/export_mimic.py's files:
 
 - the action: an absolute tool pose (x, y, z, quaternion x y z w) for differential IK on the tool centre
-  (panda_hand + TCP_OFFSET, as SANT's replay drives it), then a binary gripper (< 0 closes);
+  (panda_hand + TCP_OFFSET), tracked as SANT's replay tracks (joint velocity feed-forward,
+  sim_worker/mimic_tracking.py), then a binary gripper (< 0 closes);
 - observations: the tool pose, joints and cube position (policy), and the `grasp` subtask signal;
 - the subtasks: grasp relative to the cube, then place relative to the bin (demo_pipeline.mimic.SUBTASKS);
 - success, each step: check_success's end state (mimic.placed: the cube in the bin, settled, the gripper open).
@@ -159,8 +160,22 @@ def reset_sant_scene(env, env_ids: torch.Tensor | slice | None, seed: int = 0) -
 
 
 @configclass
+class SantTrackingIKActionCfg(DifferentialInverseKinematicsActionCfg):
+    """Isaac Lab's absolute IK action plus SANT's joint velocity feed-forward (sim_worker/mimic_tracking.py, named by
+    string: it imports USD, and Mimic builds this config before Isaac Sim starts)."""
+
+    class_type: type | str = "sim_worker.mimic_tracking:SantTrackingIKAction"
+    vel_ff: bool = True
+    """Send the commanded twist through the Jacobian as joint velocity targets (sim_worker.tracking's vel_ff)."""
+    max_ff_speed: float = 1.0
+    """m/s: a faster commanded move (a jump) is fed forward at this speed."""
+    max_ff_ang_speed: float = 3.0
+    """rad/s, likewise for turning."""
+
+
+@configclass
 class ActionsCfg:
-    arm_action = DifferentialInverseKinematicsActionCfg(
+    arm_action = SantTrackingIKActionCfg(
         asset_name="robot",
         joint_names=["panda_joint.*"],
         body_name=HAND,
@@ -273,8 +288,8 @@ class SantPickPlaceMimicEnvCfg(ManagerBasedRLEnvCfg, MimicEnvCfg):
                 subtask_term_offset_range=tuple(s["term_offset"]),
                 selection_strategy="nearest_neighbor_object",
                 selection_strategy_kwargs={"nn_k": 3},
-                action_noise=0.01,
-                num_interpolation_steps=5,
+                action_noise=mimic.ACTION_NOISE,
+                num_interpolation_steps=s["interp_steps"],
                 num_fixed_steps=0,
                 apply_noise_during_interpolation=False,
                 description=s["description"],

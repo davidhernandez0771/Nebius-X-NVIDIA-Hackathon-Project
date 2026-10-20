@@ -14,8 +14,8 @@ many. Its generator reads an *annotated* source dataset: Isaac Lab's HDF5 layout
 (annotate_demos.py records exactly these; DataGenInfoPool reads them.) SANT already knows all of it for a verified
 episode, so it writes the annotated file directly: the commanded tool path (trajectory.json) is the target, the
 reached tool path (steps.npz) the eef pose, the cube track (signals.npz) and the bin (scene.json) the objects, and
-the subtask boundaries come from SANT's own phase split (robota.phases): grasp ends when the cube first leaves the
-table, place runs to the end. The action is an absolute tool pose and a binary gripper, for an IK-abs env whose IK
+the subtask boundaries come from SANT's own phase split (robota.phases) and the cube track: grasp ends when the held
+cube is GRASP_LIFT_M up (clear of the bin's rim), place runs to the end. The action is an absolute tool pose and a binary gripper, for an IK-abs env whose IK
 frame is the tool centre (see docs/superpowers/notes/2026-10-20-mimic-export.md).
 
 Quaternions: SANT stores (w, x, y, z); Isaac Lab (dataset format 1, isaaclab.utils.math) uses (x, y, z, w).
@@ -36,13 +36,16 @@ ENV_NAME = "SANT-PickPlace-Franka-IK-Abs-Mimic-v0"
 TCP_OFFSET = (0.0, 0.0, 0.1034)
 #: The one end effector's name in subtask_configs and datagen_info.
 EEF = "franka"
-#: The task's subtasks for the Mimic env's subtask_configs: grasp relative to the cube, then place relative to the
-#: bin. Mimic splits each demo at the 0 -> 1 edge of `term_signal` (the last subtask needs none) and moves each
-#: boundary by a random offset in `term_offset` steps (the values Isaac Lab's Franka stack task uses).
+#: The task's subtasks for the Mimic env's subtask_configs: grasp (and lift clear of the rim) relative to the cube,
+#: then place relative to the bin. Mimic splits each demo at the 0 -> 1 edge of `term_signal` (the last subtask
+#: needs none) and moves each boundary by a random offset in `term_offset` steps (the values Isaac Lab's Franka
+#: stack task uses). `interp_steps` is how many steps Mimic's straight-line bridge into the subtask takes:
+#: the first starts from the reset pose (3.7 cm from the sources' start, 8 steps at BRIDGE_SPEED); the place
+#: bridge carries the cube up to 78 cm (human10c's p99 over SANT's scenes, bridge_survey: 157 steps).
 SUBTASKS = [
-    {"name": "grasp", "object_ref": "cube", "term_signal": "grasp", "term_offset": [10, 20],
-     "description": "Grasp the red cube"},
-    {"name": "place", "object_ref": "bin", "term_signal": None, "term_offset": [0, 0],
+    {"name": "grasp", "object_ref": "cube", "term_signal": "grasp", "term_offset": [10, 20], "interp_steps": 10,
+     "description": "Grasp the red cube and lift it clear of the bin's rim"},
+    {"name": "place", "object_ref": "bin", "term_signal": None, "term_offset": [0, 0], "interp_steps": 160,
      "description": "Place the cube in the blue bin"},
 ]
 #: The robot's home tool pose (sim_worker.scripted HOME_TCP / DOWN_WXYZ): every Mimic source must start there,
@@ -107,11 +110,15 @@ def gripper_actions(gripper) -> np.ndarray:
     return np.where(g, CLOSE, OPEN).astype(np.float32)[:, None]
 
 
-def subtask_signals(phases: list[str]) -> dict[str, np.ndarray]:
-    """Mimic's subtask term signals from SANT's phases: `grasp` turns on at the first step the cube is lifted
-    (carry or place), `place` at the first release after that. Each is 0 before and 1 after, for good."""
+def subtask_signals(phases: list[str], held_high=None) -> dict[str, np.ndarray]:
+    """Mimic's subtask term signals: `grasp` turns on at the first step the cube is held GRASP_LIFT_M up
+    (`held_high`, from grasped()), or without it at the first lifted step in SANT's phases (carry or place);
+    `place` at the first release after that. Each is 0 before and 1 after, for good."""
     p = list(phases)
-    lifted = [i for i, s in enumerate(p) if s in ("carry", "place")]
+    if held_high is None:
+        lifted = [i for i, s in enumerate(p) if s in ("carry", "place")]
+    else:
+        lifted = [int(i) for i in np.flatnonzero(np.asarray(held_high))]
     if not lifted:
         raise ValueError("the cube is never lifted: no grasp to cut the demo at")
     g = lifted[0]
@@ -177,10 +184,17 @@ def placed(cube_in_bin, speed, gripper_open):
     return inside & (speed < SETTLE_SPEED) & gripper_open
 
 
+#: The grasp subtask ends when the held cube is this far above its rest height: its bottom then clears the bin's rim
+#: (BIN_WALL + BIN_INNER[2] = 9 cm) by a centimetre, so Mimic's straight-line bridge to the place segment (often
+#: 30 cm and more, see bridge_survey) carries it over the bin's walls, not through them. human10c's three sources
+#: reach it (they lift 11-16 cm).
+GRASP_LIFT_M = 0.10
+
+
 def grasped(cube_z, gripper_closed):
-    """The export's grasp signal, per step: the gripper closed and the cube at least robota.LIFT_M above its rest
-    height (numpy or torch, like placed)."""
-    return gripper_closed & (cube_z - CUBE_HALF >= robota.LIFT_M - _EPS)
+    """The grasp subtask is done, per step: the gripper closed and the cube GRASP_LIFT_M above its rest height
+    (numpy or torch, like placed). The export's signal and the env's are both this."""
+    return gripper_closed & (cube_z - CUBE_HALF >= GRASP_LIFT_M - _EPS)
 
 
 def _root_pose(pos, quat_wxyz) -> np.ndarray:
@@ -237,7 +251,7 @@ def episode_to_mimic(steps: dict, trajectory: dict, cube_pos, scene: dict) -> di
                 "eef_pose": {EEF: pose_matrix(pre_pos, pre_quat).astype(f32)},
                 "target_eef_pose": {EEF: pose_matrix(cmd_pos, cmd_quat).astype(f32)},
                 "object_pose": {"cube": pose_matrix(cube, cube_quat).astype(f32), "bin": bin_pose.astype(f32)},
-                "subtask_term_signals": subtask_signals(phases),
+                "subtask_term_signals": subtask_signals(phases, grasped(cube[:, 2], np.asarray(steps["gripper"]).astype(bool))),
             },
         },
     }
@@ -328,3 +342,93 @@ def verify_generated(demo: dict):
     reached = np.vstack([eef[1:], eef[-1:]])
     tcp_error = np.linalg.norm(a[:, :3] - reached, axis=1)
     return check_success(traj, sim, bin_pose_from_state(demo["initial_state"]), tcp_error=tcp_error)
+
+
+# --- the grasp -> place bridge (Mimic's interpolation between subtask segments) -----------------------------
+#
+# Mimic moves each source segment with its object (transform_segment, as isaaclab.utils.math's
+# transform_poses_from_frame_A_to_frame_B), so where the grasp segment ends (with the cube) and where the place
+# segment starts (with the bin) differ by however the cube-to-bin layout changed. It bridges the two by linear
+# interpolation over the place subtask's num_interpolation_steps, a fixed count. SUBTASKS sets that count so the
+# bridge stays at or under BRIDGE_SPEED for SANT's scenes (bridge_survey, tested on human10c's sources).
+
+#: The bridge's speed limit (m/s): near the scripted expert's peak (sim_worker.scripted SPEED 0.15 m/s average,
+#: ~0.28 m/s peak on its min-jerk moves), which SANT's tracking follows to millimetres.
+BRIDGE_SPEED = 0.25
+#: Mimic's action noise for SANT: none. An absolute pose target jittered every step is a path no arm follows (the
+#: first smoke test's 1 cm noise read as 1.2 m/s of jitter), and SANT's own multiplier adds none either.
+ACTION_NOISE = 0.0
+#: Where a subtask's boundary falls inside Mimic's random offset range, for the survey (the middle of (10, 20)).
+_SURVEY_OFFSET = 15
+
+
+def pose_inv(T: np.ndarray) -> np.ndarray:
+    """Inverse of rigid 4x4 transforms [..., 4, 4]."""
+    T = np.asarray(T, dtype=np.float64)
+    out = np.zeros_like(T)
+    rt = np.swapaxes(T[..., :3, :3], -1, -2)
+    out[..., :3, :3] = rt
+    out[..., :3, 3] = -(rt @ T[..., :3, 3:4])[..., 0]
+    out[..., 3, 3] = 1.0
+    return out
+
+
+def transform_segment(poses, obj_now, obj_src) -> np.ndarray:
+    """A source segment's poses [T, 4, 4] moved with its object: obj_now @ inv(obj_src) @ pose."""
+    return np.asarray(obj_now, dtype=np.float64) @ pose_inv(obj_src) @ np.asarray(poses, dtype=np.float64)
+
+
+def _angle(Ra: np.ndarray, Rb: np.ndarray) -> float:
+    c = (np.trace(Ra.T @ Rb) - 1) / 2
+    return float(np.arccos(np.clip(c, -1.0, 1.0)))
+
+
+def bridge_gap(grasp_src: dict, place_src: dict, cube_now, bin_now, offset: int = _SURVEY_OFFSET) -> dict[str, float]:
+    """How far Mimic's interpolation must carry the hand from the end of `grasp_src`'s grasp segment (moved with the
+    cube) to the start of `place_src`'s place segment (moved with the bin), for one new cube and bin pose (4x4)."""
+    def cut(d):
+        info = d["obs"]["datagen_info"]
+        n = len(d["actions"])
+        end = subtask_boundaries(info["subtask_term_signals"], n)[0][1]
+        return info, min(end + offset, n - 1)
+
+    gi, ge = cut(grasp_src)
+    pi, ps = cut(place_src)
+    last = transform_segment(gi["target_eef_pose"][EEF][ge - 1][None], cube_now, gi["object_pose"]["cube"][0])[0]
+    first = transform_segment(pi["target_eef_pose"][EEF][ps][None], bin_now, pi["object_pose"]["bin"][ps])[0]
+    return {"pos_m": float(np.linalg.norm(first[:3, 3] - last[:3, 3])), "rot_rad": _angle(last[:3, :3], first[:3, :3])}
+
+
+def bridge_steps(gap_m: float, max_speed: float = BRIDGE_SPEED, dt: float | None = None) -> int:
+    """Interpolation steps that carry the hand `gap_m` metres at no more than `max_speed` (m/s)."""
+    dt = 1 / RATE_HZ if dt is None else dt
+    return max(1, int(np.ceil(gap_m / (max_speed * dt) - 1e-9)))
+
+
+def _scene_pose(pose) -> np.ndarray:
+    return pose_matrix(np.asarray([pose.pos]), np.asarray([pose.quat_wxyz]))[0]
+
+
+def bridge_survey(demos: list[dict], n_scenes: int = 200, seed: int = 0) -> dict:
+    """The bridge's gaps over SANT's own scene sampler (multiply.sample_scene) for every (grasp, place) source pair:
+    Mimic may take the two subtasks from different sources. Percentiles of the gap (m, rad) and the steps the p99
+    gap needs at BRIDGE_SPEED."""
+    from .multiply import sample_scene
+
+    rng = np.random.default_rng(seed)
+    pos, rot = [], []
+    for i in range(n_scenes):
+        s = sample_scene(rng, "franka", seed=i)
+        cube_now, bin_now = _scene_pose(s.cube_pose), _scene_pose(s.bin_pose)
+        for g in demos:
+            for p in demos:
+                gap = bridge_gap(g, p, cube_now, bin_now)
+                pos.append(gap["pos_m"])
+                rot.append(gap["rot_rad"])
+
+    def pct(x):
+        return {k: float(v) for k, v in zip(("p50", "p95", "p99", "max"), [*np.percentile(x, [50, 95, 99]), np.max(x)])}
+
+    out = {"samples": len(pos), "pos_m": pct(pos), "rot_rad": pct(rot)}
+    out["steps_for_p99"] = bridge_steps(out["pos_m"]["p99"])
+    return out

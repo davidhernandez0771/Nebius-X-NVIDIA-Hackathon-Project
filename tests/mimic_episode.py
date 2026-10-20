@@ -12,6 +12,8 @@ import numpy as np
 
 N = 60
 CLOSE, LIFT, OVER_BIN, RELEASE = 20, 25, 38, 45
+# The first step the held cube is mimic.GRASP_LIFT_M (10 cm) up: the grasp subtask's flag.
+GRASP_FLAG = 36
 HOME = np.array([0.45, 0.0, 0.35])
 DOWN_WXYZ = np.array([0.0, 1.0, 0.0, 0.0])
 CUBE0 = np.array([0.5, 0.0, 0.025])

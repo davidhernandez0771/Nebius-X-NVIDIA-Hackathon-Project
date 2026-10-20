@@ -87,7 +87,7 @@ def test_an_episode_becomes_actions_datagen_info_and_an_initial_state():
     assert np.allclose(bin_, bin_[0])
 
     sig = info["subtask_term_signals"]
-    assert sig["grasp"].argmax() == fx.LIFT and sig["place"].argmax() == fx.RELEASE
+    assert sig["grasp"].argmax() == fx.GRASP_FLAG and sig["place"].argmax() == fx.RELEASE
 
     st = d["initial_state"]
     robot = st["articulation"]["robot"]
@@ -109,7 +109,7 @@ def test_an_episode_becomes_actions_datagen_info_and_an_initial_state():
 
 def test_check_accepts_the_demo_and_names_what_is_wrong_with_a_broken_one():
     d = _demo()
-    assert mimic.check(d) == [(0, fx.LIFT + 1), (fx.LIFT + 1, fx.N)]
+    assert mimic.check(d) == [(0, fx.GRASP_FLAG + 1), (fx.GRASP_FLAG + 1, fx.N)]
     bad = _demo()
     bad["obs"]["datagen_info"]["eef_pose"][mimic.EEF] = bad["obs"]["datagen_info"]["eef_pose"][mimic.EEF][:-1]
     with pytest.raises(ValueError, match="eef_pose"):
@@ -183,9 +183,11 @@ def test_placed_agrees_with_check_success_on_where_the_bin_is():
         assert bool(got) == want, p
 
 
-def test_grasped_is_the_exports_grasp_signal_closed_and_the_cube_a_centimetre_up():
-    z = np.array([0.025, 0.034, 0.036, 0.2])
+def test_grasped_is_the_grasp_signal_closed_and_the_cube_clear_of_the_bins_rim():
+    # Rest centre 0.025 m; 10 cm up puts the cube's bottom 1 cm over the 9 cm rim.
+    z = np.array([0.025, 0.12, 0.125, 0.2])
     assert mimic.grasped(z, np.array([True, True, True, False])).tolist() == [False, False, True, False]
+    assert mimic.GRASP_LIFT_M - 0.01 == pytest.approx(0.09)  # BIN_WALL + BIN_INNER[2]
 
 
 # --- re-verifying Mimic's generated demos with SANT's check_success (CPU) ----------------------------------
@@ -231,3 +233,68 @@ def test_a_generated_demo_is_failed_for_what_check_success_fails_it_for(change, 
     r = mimic.verify_generated(_generated(**change))
     assert not r.success
     assert reason in r.reasons
+
+
+# --- the grasp -> place bridge: how far Mimic's interpolation has to carry the hand ----------------------
+
+import os  # noqa: E402
+
+HUMAN10C = os.environ.get("SANT_HUMAN10C_STORE", r"C:\dev\pm-t6\data\human_exp\human10c\store")
+
+
+def _T(pos, yaw=0.0):
+    m = np.eye(4)
+    c, s = np.cos(yaw), np.sin(yaw)
+    m[:3, :3] = [[c, -s, 0], [s, c, 0], [0, 0, 1]]
+    m[:3, 3] = pos
+    return m
+
+
+def test_a_segment_moves_with_its_object_as_isaac_lab_transforms_it():
+    poses = np.stack([_T([0.5, 0.0, 0.1]), _T([0.5, 0.0, 0.05])])
+    same = mimic.transform_segment(poses, _T([0.5, 0, 0]), _T([0.5, 0, 0]))
+    assert np.allclose(same, poses)
+    moved = mimic.transform_segment(poses, _T([0.6, 0.1, 0]), _T([0.5, 0, 0]))
+    assert moved[:, :3, 3] == pytest.approx(poses[:, :3, 3] + [0.1, 0.1, 0])
+    # Turning the object turns the hand round it: object_now @ inv(object_src) @ pose.
+    turned = mimic.transform_segment(poses[:1], _T([0.5, 0, 0], np.pi / 2), _T([0.5, 0, 0]))
+    assert turned[0, :3, 3] == pytest.approx([0.5, 0.0, 0.1])
+    assert turned[0, :3, :3] == pytest.approx(_T([0, 0, 0], np.pi / 2)[:3, :3])
+
+
+def test_the_bridge_is_zero_when_cube_and_bin_move_together_and_grows_with_their_relative_move():
+    d = _demo()
+    src_cube = d["obs"]["datagen_info"]["object_pose"]["cube"][0]
+    src_bin = d["obs"]["datagen_info"]["object_pose"]["bin"][0]
+    shift = _T([0.05, -0.1, 0])
+    # Mimic bridges from the grasp segment's last target to the place segment's first: one source step apart.
+    g0 = mimic.bridge_gap(d, d, shift @ src_cube, shift @ src_bin)
+    assert g0["pos_m"] < 0.005 and g0["rot_rad"] == pytest.approx(0.0, abs=1e-5)
+    g1 = mimic.bridge_gap(d, d, src_cube, _T([0.2, 0, 0]) @ src_bin)
+    assert g1["pos_m"] == pytest.approx(0.2, abs=0.005)
+
+
+def test_bridge_steps_cover_the_gap_at_the_speed_limit():
+    assert mimic.bridge_steps(0.0) == 1
+    assert mimic.bridge_steps(0.5, max_speed=0.25) == 100  # 0.5 m at 0.25 m/s = 2 s = 100 steps at 50 Hz
+    assert mimic.bridge_steps(0.01, max_speed=0.25) == 2
+
+
+def test_the_bridge_survey_samples_sants_scenes_for_every_source_pair():
+    demos = [_demo(), _demo()]
+    s = mimic.bridge_survey(demos, n_scenes=25, seed=1)
+    assert s["samples"] == 25 * 4
+    assert 0 < s["pos_m"]["p50"] <= s["pos_m"]["p99"] <= s["pos_m"]["max"]
+    assert s["steps_for_p99"] == mimic.bridge_steps(s["pos_m"]["p99"])
+
+
+@pytest.mark.skipif(not os.path.isdir(HUMAN10C), reason="the human10c store isn't on this machine")
+def test_the_place_bridge_keeps_human10cs_p99_gap_under_sants_speed_limit():
+    from scripts import export_mimic as ex
+
+    demos = [ex.load_demo(r) for r in ex.select(ex.find_demos(HUMAN10C), "sources")]
+    s = mimic.bridge_survey(demos, n_scenes=200, seed=0)
+    place = mimic.SUBTASKS[1]
+    assert place["interp_steps"] >= s["steps_for_p99"], s
+    # And the rotation it carries stays gentle too (well under 3 deg a step).
+    assert s["rot_rad"]["p99"] / place["interp_steps"] < np.radians(3)

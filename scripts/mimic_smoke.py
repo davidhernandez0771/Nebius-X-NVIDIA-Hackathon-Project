@@ -23,6 +23,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+import numpy as np
+
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO / "src") not in sys.path:
     sys.path.insert(0, str(REPO / "src"))
@@ -107,8 +109,12 @@ def report(output: Path) -> dict:
     for name, d in ok:
         try:
             r = mimic.verify_generated(d)
+            a, eef = np.asarray(d["actions"], dtype=float), np.asarray(d["obs"]["eef_pos"], dtype=float)
+            err = np.linalg.norm(a[:, :3] - np.vstack([eef[1:], eef[-1:]]), axis=1)
             row = {"demo": name, "steps": int(len(d["actions"])), "sant_success": bool(r.success),
-                   "reasons": list(r.reasons), "max_contact_force": round(float(r.max_contact_force), 3)}
+                   "reasons": list(r.reasons), "max_contact_force": round(float(r.max_contact_force), 3),
+                   "tcp_err_median_cm": round(float(np.median(err)) * 100, 2),
+                   "secs_over_2cm": round(float((err > 0.02).sum()) / mimic.RATE_HZ, 2)}
         except Exception as e:  # a demo missing what SANT needs is a wiring error worth seeing, not a crash
             row = {"demo": name, "steps": int(len(d.get("actions", []))), "sant_success": False, "reasons": ["unreadable"],
                    "error": f"{type(e).__name__}: {e}"}
@@ -125,6 +131,7 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--output", type=Path, default=EXPORTS / "smoke_10.hdf5")
     ap.add_argument("--trials", type=int, default=10)
     ap.add_argument("--max-failures", type=int, default=30)
+    ap.add_argument("--num-envs", type=int, default=1)
     ap.add_argument("--timeout-s", type=float, default=1800)
     ap.add_argument("--lock-wait-s", type=float, default=600)
     ap.add_argument("--viz", action="store_true", help="open Isaac Sim's window (Kit visualizer)")
@@ -134,7 +141,7 @@ def main(argv: list[str] | None = None) -> dict:
     if args.output.exists():
         raise SystemExit(f"{args.output} exists; pick a new --output")
     cmd = command(args.input.resolve(), args.output.resolve(), trials=args.trials, max_failures=args.max_failures,
-                  viz=args.viz)
+                  num_envs=args.num_envs, viz=args.viz)
     print(" ".join(cmd))
     if args.dry_run:
         return {"command": cmd}

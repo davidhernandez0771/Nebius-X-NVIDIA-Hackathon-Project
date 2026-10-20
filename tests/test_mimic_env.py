@@ -174,10 +174,10 @@ def test_success_is_placed_settled_and_released(cfg, kw, want):
     assert bool(mc.sant_success(_stub(cfg, **kw))[0]) is want
 
 
-def test_the_grasp_signal_is_on_once_the_cube_is_held_a_centimetre_up(cfg):
-    assert bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.04), gripper=-1.0))[0])
-    assert not bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.025), gripper=-1.0))[0])
-    assert not bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.04), gripper=1.0))[0])
+def test_the_grasp_signal_is_on_once_the_cube_is_held_clear_of_the_bins_rim(cfg):
+    assert bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.13), gripper=-1.0))[0])
+    assert not bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.10), gripper=-1.0))[0])
+    assert not bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.13), gripper=1.0))[0])
     sig = me.SantPickPlaceMimicEnv.get_subtask_term_signals(NS(obs_buf={"subtask_terms": {"grasp": torch.tensor([True])}}))
     assert set(sig) == {"grasp"}
 

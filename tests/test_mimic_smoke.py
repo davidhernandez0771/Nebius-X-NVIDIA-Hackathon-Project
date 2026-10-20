@@ -109,3 +109,19 @@ def test_a_truncated_output_is_reported_not_a_crash(tmp_path):
     r = sm.report(out)
     assert r["mimic_succeeded"] == 0 and r["demos"] == []
     assert r["unreadable_files"] and r["unreadable_files"][0]["file"].endswith("smoke_10.hdf5")
+
+
+def test_the_report_carries_each_demos_tracking_so_the_rerun_shows_the_lag(tmp_path):
+    pytest.importorskip("h5py")
+    out = tmp_path / "smoke_10.hdf5"
+    _write(out, [fx.generated()])
+    row = sm.report(out)["demos"][0]
+    # The fixture's arm sits 2 mm off its command (mimic_episode.arrays): well inside SANT's 2 cm.
+    assert row["tcp_err_median_cm"] == pytest.approx(0.35, abs=0.1)
+    assert row["secs_over_2cm"] == 0.0
+
+
+def test_the_extended_run_can_use_several_environments(tmp_path):
+    out = sm.main(["--input", str(tmp_path / "in.hdf5"), "--output", str(tmp_path / "o.hdf5"), "--num-envs", "4", "--dry-run"])
+    cmd = out["command"]
+    assert cmd[cmd.index("--num_envs") + 1] == "4"

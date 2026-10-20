@@ -154,7 +154,7 @@ def test_mimics_datagen_pool_splits_the_demos_into_grasp_then_place(written):
     pool = pool_mod.DataGenInfoPool(env, env_cfg, "cpu")
     pool.load_from_dataset_file(str(out))
     assert pool.num_datagen_infos == 2
-    assert pool.subtask_boundaries[mimic.EEF] == [[(0, fx.LIFT + 1), (fx.LIFT + 1, fx.N)]] * 2
+    assert pool.subtask_boundaries[mimic.EEF] == [[(0, fx.GRASP_FLAG + 1), (fx.GRASP_FLAG + 1, fx.N)]] * 2
     info = pool.datagen_infos[0]
     assert set(info.object_poses) == {"cube", "bin"}
     assert tuple(info.eef_pose[mimic.EEF].shape) == (fx.N, 4, 4)
