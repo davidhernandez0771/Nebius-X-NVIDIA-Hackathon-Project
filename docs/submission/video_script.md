@@ -23,8 +23,9 @@ the Nemotron repairer → the results.
 - Say once, clearly, that the 3/40 → 17/40 policy result was trained on scripted demos, not human ones.
 - **The repair A/B is not significant (p = 0.50, one run).** Say "as well as the rules, and two more", never
   "beats".
-- **The training result on the webcam demos is a PLACEHOLDER** until T4's evaluation is in the README. Don't
-  imply it ran, and don't show a number for it.
+- **The webcam training result is one arm: 3/40.** Show it as "3 repaired demos are not enough yet". Never put
+  it next to 17/40 as a comparison, and never next to the scripted raw 3/40 (a different setup that happens to
+  share the number).
 - Record at 1920×1080 with the site's quality tier fixed (`?q=high`; no tier change mid-shot), on the real GPU in
   a normal browser window. Close Blender and any other GPU renderer, and keep Isaac closed during [SCREEN]
   shots.
@@ -41,19 +42,19 @@ the Nemotron repairer → the results.
 | 6 | 1:10–1:25 | [SCREEN] | Escape back to the room. Press a cartridge on the spiral and **drag it onto the machine**: it waits over the port, plugs in, and the hologram Franka replays a verified demo with its joints panel. | "A cartridge is a job. Drag one onto the machine, and it projects the robot: a real, physics-checked demo, replayed." |
 | 7 | 1:25–1:52 | [LIVE] | `/record` (Into the projection → Record). Keyboard (or Camera). Start; the Kit window and the twin pane, tagged `LIVE`, follow. Show the three twin views (behind, side, top) and the alignment grid lighting up over the cube. Grasp, carry, release over the bin; Enter to save. **Fallback [SCREEN]:** the same page with the twin tagged `REPLAY`; say "a recorded demo". | "To teach it, you record. Drive the simulated arm with your hand on a webcam, or with the keyboard. The twin shows the robot from behind, the side and above, and the grid lights up when you're over the cube. Stop, and it's saved as a demo." |
 | 8 | 1:52–2:25 | [EDIT] [CHECK] | Three cards. **1:** "10 real webcam demos → **0/10** pass physics as recorded." **2:** one demo's Nemotron plan in its own words, from the A/B (66bc: first grasp re-aimed 2.6 cm, gripper held closed across the regrasps, the tail lifted 3 cm → **pass** in round 3). If possible, its before/after replay from Isaac (record it in a [LIVE] session). **3:** the A/B: **Nemotron edits 5/10 vs rules 3/10, McNemar p = 0.50, one run, $0.21**. | "Real hands make demos that physics rejects: zero of our ten passed. So SANT repairs them. NVIDIA Nemotron reads what the simulator measured, the forces, the grasp offset, where the cube was let go, and writes small edits to the path. Code caps each edit at five centimetres; Isaac Lab replays it and sends back the verdict. In a blind test on those ten demos, Nemotron repaired five, the hand-written rules three. That's not significant yet, but it fixed every demo the rules did, and two more, for twenty cents." |
-| 9 | 2:25–2:50 | [SCREEN] [CHECK] | `/site/results`: the arms with their intervals, the 40 squares per arm. Overlay: **3/40 vs 17/40, p = 0.0005**, seeds 5020–5059, "source demos: scripted expert"; **16/40** with 300 copies. Then a card: "webcam demos: 3 repaired by the rules → **24/30** verified copies." **⚠ PLACEHOLDER:** the webcam training result (T4), only if it's in the README by then; otherwise "training on them: next". | "And the copies make better robots. On forty scenes fixed in advance, the same policy went from three successes to seventeen with verified copies, and a separately trained set gave sixteen. The repaired webcam demos multiplied into twenty-four verified copies; training on them is next." (Swap the last sentence for T4's result once it's in the README.) |
+| 9 | 2:25–2:50 | [SCREEN] [CHECK] | `/site/results`: the arms with their intervals, the 40 squares per arm. Overlay: **3/40 vs 17/40, p = 0.0005**, seeds 5020–5059, "source demos: scripted expert"; **16/40** with 300 copies. Then a separate card (not beside the bars): "webcam demos: 3 repaired by the rules → **24/30** verified copies → a policy trained on them: **3/40**. 3 repaired demos aren't enough yet." | "And the copies make better robots. On forty scenes fixed in advance, the same policy went from three successes to seventeen with verified copies, and a separately trained set gave sixteen. Our webcam demos aren't there yet: three repaired demos, multiplied, trained a policy that succeeds three times in forty. More repaired demos are next." |
 | 10 | 2:50–3:00 | [SCREEN] | Scroll back up through the ring to the glass logo. Title: "SANT: perfect one demo, then multiply it." The repo URL. | "One demo, perfected, then multiplied. SANT." |
 
 ## Notes for the edit
 
 - **Numbers to check against the README just before recording** ([CHECK] shots): 3/40, 17/40, p = 0.0005; 16/40;
-  0/10; 5/10 vs 3/10, p = 0.50, $0.21; 3/10 → 24/30; 30/30 and 0/30 (the wall). If any note changes, change the
+  0/10; 5/10 vs 3/10, p = 0.50, $0.21; 3/10 → 24/30 → 3/40 (one arm); 30/30 and 0/30 (the wall). If any note changes, change the
   shot, not the README.
 - **Don't say:**
   - "human demos" for the 3/40 → 17/40 result;
   - "Nemotron beats the rules" or "beats code";
-  - "the robot learned from my hand" (no policy trained on webcam demos is in the README yet);
-  - any training result on the webcam demos before it's in the README.
+  - "the robot learned from my hand" (the webcam-trained policy got 3/40);
+  - that repairing webcam demos made a better robot (the webcam training has one arm, nothing to compare).
 - **The A/B's caveats** stay out of the voice-over for time, but card 3 carries "one run, not significant".
   Two caveats live in the README: the rules' two newest ops were written after seeing these 10 demos, and replays
   reproduce live outcomes only 2–4 times in 10.

@@ -7,7 +7,7 @@ Physical AI track). Everything runs in simulation; the official FAQ allows that
 ([screenshot](../superpowers/notes/2026-10-15-faq-physical-ai-simulation-allowed.jpg)).
 
 Every number on this page comes from a dated note in `docs/superpowers/notes/`, named next to it. The
-Results table lists only measured numbers. Anything not yet measured is marked **PENDING** or **PLACEHOLDER**.
+Results tables list only measured numbers.
 
 ## What SANT is, in plain words
 
@@ -50,6 +50,8 @@ Our measured evidence so far:
 - **Real webcam demos need repair, and repair works.** All 10 of our real webcam demos failed the physics check
   as recorded. Repair rescued 3 of them with the rules and 5 with Nemotron edits. The 3 rules-repaired demos
   multiplied into **24 verified copies**.
+- **But 3 repaired demos aren't enough yet.** A policy trained only on those 27 episodes succeeded **3/40** times
+  (2.6–19.9%), so more repaired demos are the next step.
 
 ## How it uses NVIDIA and Nebius
 
@@ -147,7 +149,7 @@ move that further.
 | **Physics check as recorded.** 10 real webcam demos, one person, live test #10 | **0/10** pass. Live, every demo put the cube in the bin. But the gripper pressed into the bin while placing (9/10, up to 927 N against a 5 N limit), and some regrasps dropped the cube | Replay of the arm's achieved path, lookahead 0 | [live-test-10-results](../superpowers/notes/2026-10-19-live-test-10-results.md), "Re-run, achieved path" |
 | **Rules repair → multiply** (`human10c`) | **3/10** repaired and verified (9f47, c045, a029) → **24/30** copies verified (6, 9, 9). Grid written: raw 10 episodes vs perfected + multiplied 27 | Frozen in `human10c/config.json` | [live-test-10-results](../superpowers/notes/2026-10-19-live-test-10-results.md), "Neaten for the human demos' failures + `human10c`" |
 | **Blind repair A/B.** Nemotron edits vs the rules, on the same 10 failed webcam demos | Nemotron edits **5/10** (24–76%) vs rules **3/10** (11–60%). Paired: both 3, only rules 0, only edits 2, neither 5. **Exact McNemar p = 0.50, not significant.** One run. Nemotron cost **$0.207** | Pre-registered (`repair_ab1`, frozen at commit `1718f5f`) | [nemotron-repair](../superpowers/notes/2026-10-20-nemotron-repair.md), "Result: the blind A/B" |
-| **Training on the webcam demos.** Raw 10 vs perfected + multiplied (the `human10c` grid) | **⚠ PLACEHOLDER. T4 is evaluating this now. Before submitting, fill in the counts, CI, p, seeds and note, or write "not finished". Don't quote a number until then.** | — | — |
+| **Training on the webcam demos, one arm.** ACT trained only on what SANT made from them: the `human10c` multiplied cell, **27 episodes from 3 repaired human roots** (7 / 10 / 10) | **3/40** (7.5%, Wilson 95% **2.6–19.9%**). All 37 failures ran out the 30 s limit; the cube was dropped in 26 of them. **One arm, not a comparison:** the raw arm would have trained on 10 failed replays | Pre-registered (commit `e979c54`), ACT 30k, batch 8, serial eval, seeds 5020–5059 | [human10c-multiplied-only](../superpowers/notes/2026-10-20-human10c-multiplied-only.md), "Result" |
 
 How to read these rows: real hands make demos that physics rejects (0/10), and that is the gap SANT is for. Repair
 turned 3 (rules) or 5 (Nemotron) of those rejects into demos that pass, and a passing demo multiplies well (24/30).
@@ -155,6 +157,17 @@ In the A/B:
 - Nemotron fixed every demo the rules fixed, plus two more (66bc, 87bd), without being shown any hand-written fix.
 - 3 of its 5 passes came only after it read a failed replay's verdict and tried again.
 - With 10 demos and one run, this is a promising sign, not proof (p = 0.50).
+
+The training row is the honest bottom line for webcam demos today: a policy trained only on SANT's 27 episodes
+from 3 repaired roots succeeds 3 times in 40.
+- **For reference, not a comparison:** the scripted multiply run got 17/40 from 110 episodes over 10 roots (10×10,
+  same recipe and seeds).
+- **What it suggests:** the number of distinct repaired demos (roots) matters, not only the number of copies made
+  from them. Three demos' grasps, multiplied, may not cover new scenes the way ten do.
+- **What it doesn't show:** the two runs also differ in source (scripted vs human), size and spread, so this
+  suggests a cause; it does not show one.
+- **The lever:** more repaired roots (more demos recorded, or Nemotron's 5/10 repairs, which this cell didn't use)
+  and fixing the drops.
 
 ### Nemotron and robots
 
@@ -205,8 +218,8 @@ verified demos as its input; we have not tried that.
 ## Honest limitations
 
 - **The headline result is on scripted demos, not human ones.** The 10 source demos behind 3/40 vs 17/40
-  came from a scripted expert ([claims-audit](../superpowers/notes/2026-10-17-claims-audit.md)). Training on the
-  real webcam demos is the placeholder row.
+  came from a scripted expert ([claims-audit](../superpowers/notes/2026-10-17-claims-audit.md)). Trained on the
+  real webcam demos' 27 episodes, the policy got 3/40, a single arm with no comparison.
 - **The webcam demos are few.** There are 10, from one person, in one session (live test #10).
 - **Replays are not exact.** Replaying a saved demo reproduces its live outcome only 2–4 times in 10: PhysX is not
   deterministic, and the live grasps were marginal. So a demo can pass or fail by luck
@@ -218,7 +231,8 @@ verified demos as its input; we have not tried that.
 - **Some Nemotron calls returned nothing.** 3 of its 23 calls hit the 16k-token thinking cap with no plan. The fix
   is coded but not part of the A/B result.
 - **Repair is not part of the multiply result.** The scripted sources were already clean, so the multiply test
-  skipped Neaten. Whether repairing noisy human demos first helps a trained policy is the placeholder row.
+  skipped Neaten. Whether repairing noisy human demos first helps a trained policy is not measured: the webcam
+  training row has one arm, because the raw arm would have trained on 10 failed replays.
 - **The "human" demos used in the Nemotron labeler/judge test are synthetic** (the scripted expert with tremor,
   pauses and slowness added). No real person's demo was in that test
   ([nemotron-judge](../superpowers/notes/2026-10-18-nemotron-judge.md), "The recordings").
