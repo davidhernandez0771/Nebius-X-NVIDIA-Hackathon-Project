@@ -95,6 +95,13 @@ InputMode = Literal["camera", "keyboard", "mouse"]  # how a human demo was drive
 INPUT_MODES: tuple[str, ...] = ("camera", "keyboard", "mouse")
 
 
+class Assist(_Model):
+    """Help the sim gave while a human demo was recorded (demo_pipeline.soft_floor), so assisted demos stay labelled."""
+
+    soft_floor: bool  # the soft floor was on for (part of) the take
+    soft_floor_steps: int = Field(default=0, ge=0)  # recorded steps where it held the target up
+
+
 class Demo(_Model):
     id: str = Field(min_length=1)
     source: Literal["human", "repaired", "variant"]
@@ -106,6 +113,7 @@ class Demo(_Model):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     human_seconds: float = Field(ge=0)  # wall-clock human time; 0 for derived demos
     input: InputMode | None = None  # how it was driven (the Record page's input switch); None: not recorded (older)
+    assist: Assist | None = None  # record-time help (the soft floor); None: none recorded (older, or not teleop)
 
     @model_validator(mode="after")
     def _lineage(self) -> "Demo":
@@ -119,12 +127,12 @@ class Demo(_Model):
 
     @model_serializer(mode="wrap")
     def _omit_absent_fields(self, handler):
-        """Leave "commanded" and "input" out while they are None, so a demo without them serializes byte for byte as
+        """Leave "commanded", "input" and "assist" out while they are None, so a demo without them serializes byte for byte as
         before the fields existed (frozen sets and experiments hash demo.json). One serializer: pydantic keeps only the
         last one a class defines."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("commanded", "input"):
+            for key in ("commanded", "input", "assist"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

@@ -200,3 +200,12 @@ describe("keyboard and mouse driving through the same link", () => {
     expect(JSON.parse(controlMessage("record_start"))).toEqual({ type: "control", action: "record_start" });
   });
 });
+
+describe("parseSimStatus: the soft floor and the take's peak contact force", () => {
+  it("reads them from a sim that sends them", () => {
+    const s = parseSimStatus(JSON.stringify({ type: "sim_status", recording: true, steps: 3, soft_floor: false, contact_peak_n: 312 }));
+    expect(s).toMatchObject({ softFloor: false, contactPeakN: 312 });
+    const none = parseSimStatus(JSON.stringify({ type: "sim_status", recording: false, steps: 0, soft_floor: true, contact_peak_n: null }));
+    expect(none).toMatchObject({ softFloor: true, contactPeakN: null });
+  });
+});

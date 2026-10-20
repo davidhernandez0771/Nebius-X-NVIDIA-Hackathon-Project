@@ -72,3 +72,24 @@ describe("the live twin's state", () => {
     expect(twinSocketUrl("https://sant.example")).toBe("wss://sant.example/ws/teleop?role=twin");
   });
 });
+
+describe("sim_twin's contact and floor (the contact glow, the soft floor)", () => {
+  const frame = { type: "sim_twin", q: [0.1], gripper: 0, cube: [0.5, 0, 0.025, 1, 0, 0, 0] };
+  const parse = (extra: object) => parseTwinMessage(JSON.stringify({ ...frame, ...extra }));
+
+  it("reads the push, the link and what it pushes, and the floor", () => {
+    expect(parse({ floor: true, contact: { force_n: 7.3, body: "panda_hand", against: "bin" } })).toEqual({
+      kind: "frame",
+      frame: { q: [0.1], gripper: 0, cube: { pos: [0.5, 0, 0.025], quat: [1, 0, 0, 0] }, floor: true, contact: { forceN: 7.3, body: "panda_hand", against: "bin" } },
+    });
+  });
+
+  it("an older sim's frame has neither; a malformed contact is dropped, not the frame", () => {
+    const old = parse({});
+    expect(old?.kind === "frame" && "contact" in old.frame).toBe(false);
+    const bad = parse({ contact: { force_n: -2, body: "panda_hand" } });
+    expect(bad?.kind === "frame" && bad.frame.contact).toBeNull();
+    const odd = parse({ contact: { force_n: 3, body: 7, against: "floor" } });
+    expect(odd?.kind === "frame" && odd.frame.contact).toEqual({ forceN: 3, body: null, against: null });
+  });
+});

@@ -29,6 +29,7 @@ interface FakeLink {
   grips: (0 | 1 | undefined)[];
   controls: unknown[];
   inputs: string[];
+  assists: boolean[];
   msgs: unknown[];
   closed: boolean;
   emitStatus(s: TeleopStatus): void;
@@ -58,8 +59,8 @@ const twin = vi.hoisted(() => ({
   replayUrl: undefined as string | null | undefined,
 }));
 vi.mock("../../twin", () => ({
-  RobotTwin: ({ caption, joints, aids, facing, interactive = true }: { caption?: string; joints: Record<string, number> | null; aids?: boolean; facing?: boolean; interactive?: boolean }) => (
-    <div data-testid="twin3d" data-joints={JSON.stringify(joints)} data-aids={aids} data-facing={facing ? "true" : "false"} data-interactive={String(interactive)}>
+  RobotTwin: ({ caption, joints, aids, facing, interactive = true, contact = null }: { caption?: string; joints: Record<string, number> | null; aids?: boolean; facing?: boolean; interactive?: boolean; contact?: unknown }) => (
+    <div data-testid="twin3d" data-joints={JSON.stringify(joints)} data-aids={aids} data-facing={facing ? "true" : "false"} data-interactive={String(interactive)} data-contact={JSON.stringify(contact)}>
       {caption}
     </div>
   ),
@@ -87,6 +88,11 @@ vi.mock("../../record/recordLink", () => ({
     }
     setControl(s: unknown) {
       this.controls.push(s);
+    }
+    assists: boolean[] = [];
+    sendAssist(on: boolean) {
+      this.assists.push(on);
+      return true;
     }
     sendControl(action: string, input?: string) {
       if (action === "set_input") this.inputs.push(input ?? "");
@@ -791,5 +797,78 @@ describe("/record with the camera: Save camera video (for the offline hand refin
     fireEvent.click(recordButton());
     expect(link.sent).toEqual(["record_start"]);
     expect(FakeMediaRecorder.made).toEqual([]);
+  });
+});
+
+describe("/record: the contact glow and the soft floor (pm/record-contact)", () => {
+  beforeEach(() => localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "keyboard" })));
+  afterEach(() => {
+    twin.live = { status: "offline", joints: null, gripper: null, cube: null, bin: null, base: null, robot: null };
+  });
+  const startKeyboard = () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Start keyboard" }));
+    return links.list[0];
+  };
+  const floorBox = () => screen.getByRole("checkbox", { name: "soft floor" }) as HTMLInputElement;
+
+  it("the soft floor is on by default, goes to the sim when it connects and before each recording", () => {
+    const link = startKeyboard();
+    expect(floorBox().checked).toBe(true);
+    act(() => link.emitStatus(connected));
+    expect(link.assists).toEqual([true]);
+    act(() => link.emitSim(sim()));
+    fireEvent.click(recordButton());
+    expect(link.sent).toEqual(["record_start"]);
+    expect(link.assists).toEqual([true, true]);
+  });
+
+  it("unticking it tells the sim at once and is saved; the next session starts with it off", () => {
+    const link = startKeyboard();
+    act(() => link.emitStatus(connected));
+    fireEvent.click(floorBox());
+    expect(link.assists).toEqual([true, false]);
+    expect(JSON.parse(localStorage.getItem("pm.teleop.drive")!).softFloor).toBe(false);
+    expect(link.closed).toBe(false); // not an input switch: the session carries on
+    cleanup();
+    links.list = [];
+    const next = startKeyboard();
+    act(() => next.emitStatus(connected));
+    expect(next.assists).toEqual([false]);
+  });
+
+  it("live, the twin gets the push to glow and the force bar shows it with the take's peak and the floor", () => {
+    const contact = { forceN: 312, body: "panda_hand", against: "bin" };
+    twin.live = { ...twin.live, status: "live", joints: { panda_joint1: 0 }, contact, floor: true };
+    const link = startKeyboard();
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim({ ...sim({ recording: true, steps: 40 }), contactPeakN: 927 }));
+    expect(screen.getByTestId("twin3d").getAttribute("data-contact")).toBe(JSON.stringify(contact));
+    const bar = screen.getByRole("meter", { name: "Arm contact force" });
+    expect(bar.getAttribute("aria-valuetext")).toBe("312 N · hand on the bin");
+    expect(bar.closest(".rg-force")!.getAttribute("data-level")).toBe("collision");
+    expect(screen.getByText("peak 927 N")).toBeTruthy();
+    expect(screen.getByText("soft floor holding")).toBeTruthy();
+  });
+
+  it("no force bar on the replay (no live contact)", () => {
+    renderPage();
+    expect(screen.queryByRole("meter", { name: "Arm contact force" })).toBeNull();
+    expect(screen.getByTestId("twin3d").getAttribute("data-contact")).toBe("null");
+  });
+
+  it("in mouse mode a click on the soft floor box stays a click, it doesn't take the mouse", async () => {
+    cleanup();
+    localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "mouse" }));
+    renderPage();
+    const pane = screen.getByRole("region", { name: "workspace" });
+    const lock = vi.fn();
+    pane.requestPointerLock = lock as unknown as typeof pane.requestPointerLock;
+    await act(async () => {
+      fireEvent.pointerDown(floorBox(), { button: 0 });
+      fireEvent.click(floorBox());
+    });
+    expect(lock).not.toHaveBeenCalled();
+    expect(floorBox().checked).toBe(false);
   });
 });

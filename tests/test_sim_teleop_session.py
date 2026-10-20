@@ -102,7 +102,7 @@ def test_starts_idle_and_places_the_scene(rig):
     assert session.state == "idle"
     assert driver.resets == [SCENE]
     assert session.status() == {"type": "sim_status", "recording": False, "steps": 0, "demo_id": None,
-                                "last_result": None, "paused": False}
+                                "last_result": None, "paused": False, "soft_floor": True, "contact_peak_n": None}
 
 
 def test_idle_follows_the_hand_without_recording(rig):
@@ -135,7 +135,8 @@ def test_start_stop_records_and_saves_a_human_demo(rig):
     assert demo.source == "human" and demo.parent_id is None and demo.scene == SCENE
     assert len(demo.trajectory.t) == 10 and len(saved[0].states) == 10
     assert session.status() == {"type": "sim_status", "recording": False, "steps": 10,
-                                "demo_id": "human_test_0", "last_result": "saved human_test_0", "paused": False}
+                                "demo_id": "human_test_0", "last_result": "saved human_test_0", "paused": False,
+                                "soft_floor": True, "contact_peak_n": 0}
 
 
 def test_saving_is_the_state_while_save_fn_runs():

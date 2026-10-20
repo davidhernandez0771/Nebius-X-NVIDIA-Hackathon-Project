@@ -29,6 +29,12 @@ TeleopDriver. It follows the hand while idle too, so the person can line up befo
   sim_twin messages, the robot's joints, the gripper sent and the cube's pose. relay_loop sends them at most
   TWIN_HZ times a second, only while the relay says a page is watching, and only when they change. A driver
   without read_twin() sends none.
+- The soft floor (demo_pipeline.soft_floor; set_assist, on by default): every step, for every input, the target can't
+  go more than ~1 cm under the bin's rim inside the bin, or under the table top elsewhere. Each saved demo says so in
+  Demo.assist (on for any recorded step, and how many steps it held the target up); sim_twin's "floor" says it is
+  holding now. Contact: a driver with read_contact() adds the arm's push on the bin or table to each sim_twin (the
+  twin glows), and sim_status's contact_peak_n is the take's largest arm contact force (from read_state, every
+  recorded step). 9 of 10 webcam demos pressed into the bin at 75-927 N without the person noticing.
 
 Pure: numpy + pydantic + demo_pipeline only (no torch, no Isaac), so it tests anywhere.
 """
@@ -49,7 +55,8 @@ from pydantic import ValidationError
 
 from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
 from demo_pipeline.rules import TASK_TEXT
-from demo_pipeline.schemas import INPUT_MODES, Demo, Pose, Scene, SimSignals, Trajectory
+from demo_pipeline.schemas import INPUT_MODES, Assist, Demo, Pose, Scene, SimSignals, Trajectory
+from demo_pipeline.soft_floor import clamp_to_floor
 from demo_pipeline.store import DemoStore
 from demo_pipeline.success import check_success
 from demo_pipeline.teleop import Calibration, GripperLatch, HandPoseMsg, to_ee_target
@@ -74,7 +81,8 @@ KIT_CAMERA_TARGET = (0.42, 0.0, 0.08)
 KIT_CAMERA_EYE = (KIT_CAMERA_TARGET[0] - 0.8, KIT_CAMERA_TARGET[1] - 0.5, KIT_CAMERA_TARGET[2] + 1.25)
 
 State = Literal["idle", "recording", "saving"]
-ACTIONS = ("record_start", "record_stop", "record_discard", "reset_scene", "set_input")
+ACTIONS = ("record_start", "record_stop", "record_discard", "reset_scene", "set_input", "set_assist")
+CONTACT_DECIMALS = 1  # N, in the twin's contact reading
 
 
 @dataclass(frozen=True)
@@ -91,6 +99,29 @@ class StepState:
     contact_arm_table: bool
     max_contact_force: float  # N, arm vs bin/table
     frames: dict[str, np.ndarray] = field(default_factory=dict)  # camera -> HxWx3 uint8
+
+
+@dataclass(frozen=True)
+class ContactReading:
+    """The arm pushing on the bin or the table over the last control step (the success check's contact pairs)."""
+
+    force: float  # N, the largest arm/gripper normal force against the bin or the table; 0 when nothing touches
+    body: str | None  # the robot body pushing hardest (its link name, as the twin's URDF names it); None if none
+    against: Literal["bin", "table"] | None
+
+
+def peak_contact(forces: dict[str, list[np.ndarray]], bodies: list[str]) -> ContactReading:
+    """The hardest push from contact sensors' force matrices: group ("bin", "table") -> each sensor's normal forces,
+    shaped [..., len(bodies), 3] with the last-but-one axis the sensor's filter bodies, in `bodies` order (env, history
+    and sensor-body axes in front are maxed over). Pure numpy, for drivers (sim_worker.teleop_isaac) and tests."""
+    best = ContactReading(force=0.0, body=None, against=None)
+    for group, arrays in forces.items():
+        for a in arrays:
+            per_body = np.linalg.norm(np.asarray(a, dtype=float), axis=-1).reshape(-1, len(bodies)).max(axis=0)
+            i = int(per_body.argmax())
+            if per_body[i] > best.force:
+                best = ContactReading(force=float(per_body[i]), body=bodies[i], against=group)  # type: ignore[arg-type]
+    return best
 
 
 @dataclass(frozen=True)
@@ -114,7 +145,7 @@ class TeleopDriver(Protocol):
     # Optional: set_recording(on: bool) -> None. The session calls it when a recording starts (True) and when
     # it ends, saved or not (False), so a driver can pause work only a recording needs (camera rendering).
     # Optional, for the robot twin: joint_names (the robot's joints, in joint_pos order) and
-    # read_twin() -> TwinState.
+    # read_twin() -> TwinState; read_contact() -> ContactReading adds the contact glow to each twin message.
 
 
 @dataclass(frozen=True)
@@ -148,6 +179,9 @@ class TeleopSession:
         self.last_demo_id: str | None = None
         self.twin_watchers = 0  # pages watching the twin, as the relay last said (relay_loop sends twins only then)
         self.input: str | None = None  # how the page drives the arm (set_input); saved with each demo
+        self.soft_floor = True  # demo_pipeline.soft_floor, on by default (set_assist); saved as Demo.assist
+        self.floored = False  # the soft floor held the target up on the last step
+        self.contact_peak: float | None = None  # N, the largest arm contact force in the current (or last) take
         self._steps = 0
         self._reset()
 
@@ -158,10 +192,15 @@ class TeleopSession:
         if msg.tracking_ok:
             self._last_good_at = self.clock()
 
-    def on_control(self, action: str, input: str | None = None) -> None:
+    def on_control(self, action: str, input: str | None = None, soft_floor: bool | None = None) -> None:
         if action not in ACTIONS:
             raise ValueError(f"unknown control action {action!r}; expected one of {ACTIONS}")
-        if action == "set_input":
+        if action == "set_assist":
+            if not isinstance(soft_floor, bool):
+                raise ValueError(f"set_assist needs soft_floor true or false; got {soft_floor!r}")
+            self.soft_floor = soft_floor
+            self.last_result = f"soft floor {'on' if soft_floor else 'off'}"
+        elif action == "set_input":
             if input not in INPUT_MODES:
                 raise ValueError(f"set_input needs an input, one of {INPUT_MODES}; got {input!r}")
             if input != self.input:
@@ -177,6 +216,8 @@ class TeleopSession:
             self._started_at = self.clock()
             self._rec: dict[str, list] = {"pos": [], "quat": [], "gripper": [], "states": []}
             self._steps = 0
+            self._assist = {"on": False, "steps": 0}  # the soft floor during this take's recorded steps
+            self.contact_peak = 0.0
             self.last_result = "recording"
         elif action == "record_stop":
             if self.state != "recording":
@@ -211,7 +252,16 @@ class TeleopSession:
             if msg.tracking_ok:
                 self._target = to_ee_target(msg, self.calib)
             self._gripper = gripper
+        # The soft floor holds the hand target up (and the smoothed command, which can dip a little past it), for every
+        # input, recording or not, so lining up feels the same as recording.
+        floored = False
+        if self.soft_floor:
+            self._target, floored = self._floor(self._target)
         self._cmd = self._smoothed(self._target) if self.input in SMOOTHED_INPUTS else self._target
+        if self.soft_floor:
+            self._cmd, held = self._floor(self._cmd)
+            floored = floored or held
+        self.floored = floored
         self.driver.apply(self._cmd, self._gripper)
         if self.state == "recording" and not self.paused:
             state = self.driver.read_state()  # only recorded steps: it syncs the GPU and copies the cameras
@@ -220,9 +270,17 @@ class TeleopSession:
             self._rec["gripper"].append(self._gripper)
             self._rec["states"].append(state)
             self._steps += 1
+            self._assist["on"] = self._assist["on"] or self.soft_floor
+            self._assist["steps"] += int(floored)
+            self.contact_peak = max(self.contact_peak or 0.0, float(state.max_contact_force))
+
+    def _floor(self, pose: Pose) -> tuple[Pose, bool]:
+        pos, held = clamp_to_floor(pose.pos, self.scene.bin_pose)
+        return (Pose(pos=pos, quat_wxyz=pose.quat_wxyz), True) if held else (pose, False)
 
     def status(self) -> dict:
-        """The relay's SimStatusMsg (src/app/routers/teleop.py)."""
+        """The relay's SimStatusMsg (src/app/routers/teleop.py). contact_peak_n: the largest arm contact force of the
+        current (or last) take, whole newtons, so the status only changes when it grows by one."""
         return {
             "type": "sim_status",
             "recording": self.state == "recording",
@@ -230,6 +288,8 @@ class TeleopSession:
             "demo_id": self.last_demo_id,
             "last_result": self.last_result,
             "paused": self.paused,
+            "soft_floor": self.soft_floor,
+            "contact_peak_n": None if self.contact_peak is None else round(self.contact_peak),
         }
 
     @property
@@ -253,16 +313,24 @@ class TeleopSession:
 
     def twin(self) -> dict | None:
         """The relay's SimTwinMsg: the robot's joints now (joint_names order), the gripper sent (0 open, 1 closed),
-        and the cube's pose. None if the driver can't read twins."""
+        and the cube's pose; whether the soft floor is holding the target up ("floor"); and, from a driver that reads
+        contacts, the arm's push on the bin or table ("contact": force_n, body, against) for the twin's glow. None if
+        the driver can't read twins."""
         if not self.has_twin:
             return None
         state = self.driver.read_twin()
-        return {
+        msg = {
             "type": "sim_twin",
             "q": _rounded(state.joint_pos),
             "gripper": int(self._gripper),
             "cube": _rounded(state.cube_pose),
+            "floor": self.floored,
         }
+        read_contact = getattr(self.driver, "read_contact", None)
+        if callable(read_contact):
+            c: ContactReading = read_contact()
+            msg["contact"] = {"force_n": round(float(c.force), CONTACT_DECIMALS) + 0.0, "body": c.body, "against": c.against}
+        return msg
 
     # --- internals ----------------------------------------------------------------------
 
@@ -304,7 +372,8 @@ class TeleopSession:
             )
             commanded = Trajectory.from_arrays(t, np.asarray(rec["pos"]), np.asarray(rec["quat"]), rec["gripper"])
             demo = Demo(id=self.new_id(), source="human", trajectory=achieved, commanded=commanded, scene=self.scene,
-                        human_seconds=human_seconds, input=self.input)
+                        human_seconds=human_seconds, input=self.input,
+                        assist=Assist(soft_floor=self._assist["on"], soft_floor_steps=self._assist["steps"]))
             self.last_result = self.save_fn(Recording(demo=demo, states=list(rec["states"])))
             self.last_demo_id = demo.id
         except Exception as e:  # a failed save must not wedge the session
@@ -356,7 +425,7 @@ def _dispatch_data(session: TeleopSession, data, text: str) -> str | None:
         return None
     try:
         if kind == "control":
-            session.on_control(str(data.get("action")), data.get("input"))
+            session.on_control(str(data.get("action")), data.get("input"), data.get("soft_floor"))
         else:
             session.on_hand(HandPoseMsg.model_validate(split_trace(data)[0] if isinstance(data, dict) else data))
     except (ValueError, ValidationError) as e:

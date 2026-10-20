@@ -200,7 +200,9 @@ describe("drive settings", () => {
   });
 
   it("keep valid values and fall back per field", () => {
-    expect(sanitizeDriveSettings({ input: "mouse", speed: 0.2, mouseSens: 0.001 })).toEqual({ input: "mouse", speed: 0.2, mouseSens: 0.001 });
+    expect(sanitizeDriveSettings({ input: "mouse", speed: 0.2, mouseSens: 0.001 })).toEqual({ input: "mouse", speed: 0.2, mouseSens: 0.001, softFloor: true });
+    expect(sanitizeDriveSettings({ softFloor: false }).softFloor).toBe(false); // the soft floor: on unless turned off
+    expect(sanitizeDriveSettings({ softFloor: "no" }).softFloor).toBe(true);
     const s = sanitizeDriveSettings({ input: "joystick", speed: 99, mouseSens: "x" });
     expect(s.input).toBe(DEFAULT_DRIVE.input);
     expect(s.speed).toBeLessThanOrEqual(0.3);

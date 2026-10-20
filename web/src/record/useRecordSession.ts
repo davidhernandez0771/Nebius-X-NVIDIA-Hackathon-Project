@@ -12,6 +12,8 @@
 // mode the clutch key (Shift by default) freezes the arm while held, and Space toggles the gripper when the gripper
 // input is the spacebar. With "Save camera video" on (the default), camera mode records the webcam during each take and
 // uploads it beside the demo the sim saves (cameraTake.ts: demos/<id>/camera.webm + camera.json).
+// The soft floor (DriveSettings.softFloor, on by default, every input) goes to the sim as set_assist when it connects,
+// before each recording and whenever it is toggled; the sim clamps the target and labels each demo with it.
 
 import { useEffect, useRef, useState } from "react";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../hand/contracts";
@@ -173,14 +175,16 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     [],
   );
 
-  /** The keyboard and mouse settings (input, speed, mouse sensitivity), saved locally. A new input stops the session:
-   *  Start again in the new mode. */
+  /** The input settings (input, speed, mouse sensitivity, the soft floor), saved locally. A new input stops the
+   *  session: Start again in the new mode. The soft floor goes to the sim at once (set_assist), for every input. */
   function updateDrive(next: DriveSettings) {
     const switched = next.input !== driveRef.current.input;
+    const prevFloor = driveRef.current.softFloor;
     driveRef.current = next;
     setDrive(next);
     saveDriveSettings(next);
     if (switched && session.current) stop();
+    else if (next.softFloor !== prevFloor) session.current?.link?.sendAssist(next.softFloor);
   }
 
   /** The link to the sim, telling it the input whenever it (re)connects. */
@@ -189,7 +193,10 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     let simWas = false;
     link.onStatus((s) => {
       setRelay(s);
-      if (s.simConnected && !simWas) link.sendControl("set_input", input);
+      if (s.simConnected && !simWas) {
+        link.sendControl("set_input", input);
+        link.sendAssist(driveRef.current.softFloor);
+      }
       simWas = s.simConnected;
     });
     link.onSimStatus((status) => {
@@ -489,7 +496,10 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
       s?.drive?.reset(); // the target goes home with the robot
     }
     // Before each recording, the input again: the demo is saved with it even if the sim restarted meanwhile.
-    if (action === "record_start" && s) s.link?.sendControl("set_input", s.input);
+    if (action === "record_start" && s) {
+      s.link?.sendControl("set_input", s.input);
+      s.link?.sendAssist(driveRef.current.softFloor); // and the soft floor, so the demo is labelled with it
+    }
     const wasRecording = recordingNow.current;
     const sent = s?.link?.sendControl(action);
     // Camera mode: the take's webcam video follows the recording (saved with the demo, or dropped with a discard).
