@@ -1,0 +1,252 @@
+/* The robots catalog: a glass column on the left of the robot wall, clear of the journey rail on the
+   right (a bottom sheet on a phone held upright). Mono like the rest of the journey; no text under 12 px, every colour AA on its ground. */
+
+.world-robots {
+  position: absolute;
+  top: clamp(56px, 9vh, 88px);
+  left: clamp(16px, 3vw, 40px);
+  bottom: clamp(16px, 4vh, 40px);
+  width: min(30rem, 36vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  border: 1px solid var(--w-line);
+  border-radius: 14px;
+  background: rgba(5, 9, 10, 0.86);
+  backdrop-filter: blur(10px);
+  color: var(--w-ink);
+  font-family: var(--w-mono);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateX(-16px);
+  transition: opacity 0.3s ease, transform 0.35s ease;
+}
+.world-robots[data-on="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+.world-robots__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.world-robots__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.world-robots__back {
+  padding: 7px 12px;
+  border: 1px solid var(--w-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.world-robots__back:hover {
+  border-color: var(--w-teal);
+  color: var(--w-teal);
+}
+
+.world-robots__lede,
+.world-robots__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--w-text-2);
+}
+.world-robots__lede b {
+  color: var(--w-ink);
+  font-weight: 600;
+}
+.world-robots__note {
+  padding-top: 10px;
+  border-top: 1px solid var(--w-line);
+}
+
+.world-robots__list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 4px 0 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.world-robots__entry {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  padding: 12px 12px 10px;
+  border: 1px solid rgba(25, 245, 194, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.world-robots__entry[data-hot="true"] {
+  border-color: var(--w-teal);
+  background: rgba(25, 245, 194, 0.06);
+}
+
+.world-robots__name {
+  margin: 0;
+  font-size: 15px;
+}
+.world-robots__name button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--w-ink);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  cursor: pointer;
+}
+.world-robots__n {
+  font-size: 12px;
+  color: var(--w-teal);
+  letter-spacing: 0.14em;
+}
+
+.world-robots__status {
+  align-self: start;
+  margin: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.world-robots__status[data-status="tested"] {
+  border: 1px solid rgba(25, 245, 194, 0.55);
+  color: var(--w-teal);
+}
+.world-robots__status[data-status="planned"] {
+  border: 1px dashed rgba(255, 176, 0, 0.6);
+  color: var(--w-amber);
+}
+
+.world-robots__facts {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.world-robots__facts dt {
+  color: var(--w-text-2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.world-robots__facts dd {
+  margin: 0;
+}
+
+.world-robots__src {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--w-text-2);
+}
+.world-robots__src summary {
+  cursor: pointer;
+  width: max-content;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.world-robots__src ul {
+  margin: 6px 0 0;
+  padding-left: 1.2em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* A phone held upright: the wall above, the list in a sheet below. */
+@media (max-width: 700px) {
+  .world-robots {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    max-height: 58vh;
+    padding: 14px 14px 10px;
+    transform: translateY(16px);
+  }
+  .world-robots__facts {
+    grid-template-columns: 5.5rem 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-robots,
+  .world-robots__entry {
+    transition: none;
+  }
+  .world-robots {
+    transform: none;
+  }
+}
+[data-motion-world="reduced"] .world-robots {
+  transition: none;
+  transform: none;
+}
+
+/* The robots' name badges on the wall (RobotWall), only in the robots view; aria-hidden, the panel
+   carries the names. */
+.world-robotbadge {
+  padding: 4px 9px;
+  border: 1px solid var(--w-line);
+  border-radius: 999px;
+  background: rgba(5, 9, 10, 0.82);
+  color: var(--w-ink);
+  font-family: var(--w-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.world-robotbadge span {
+  color: var(--w-teal);
+}
+/* The number always (it matches the panel's), the name only on the lit robot: five names don't fit. */
+.world-robotbadge b {
+  display: none;
+  margin-left: 0.6em;
+  font-weight: 400;
+}
+.world-robotbadge[data-hot="true"] b {
+  display: inline;
+}
+.world-robotbadge[data-on="true"] {
+  opacity: 1;
+}
+.world-robotbadge[data-hot="true"] {
+  border-color: var(--w-teal);
+  color: var(--w-teal);
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-robotbadge {
+    transition: none;
+  }
+}

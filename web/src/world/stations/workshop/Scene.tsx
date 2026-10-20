@@ -1,5 +1,5 @@
 // The workshop in 3D: the baked room around everything (unlit, one atlas per piece), the lamps that
-// switch it on, the live lights and reflections for the moving parts, the spiral and the library.
+// switch it on, the live lights and reflections for the moving parts, the spiral and the robot wall.
 // Each file loads in its own Suspense. All of it materializes over the generator's particles during
 // the workshop's travel (scene/dissolve.ts: revealAt), then the lamps flicker on.
 import { Suspense, useCallback, useEffect } from "react";
@@ -15,13 +15,13 @@ import { dissolve, FIELD_MAX, LAMPS_AT, revealAt } from "../../scene/dissolve";
 import { Helix } from "../../scene/Helix";
 import { Haze } from "../../scene/Haze";
 import { Lamps } from "../../scene/Lamps";
-import { Library } from "../../scene/Library";
 import { Materialize } from "../../scene/Materialize";
 import { LiveLights } from "../../scene/LiveLights";
 import { ENV_INTENSITY } from "../../scene/materials";
 import { Pendants } from "../../scene/Pendants";
 import { addEnvironment } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
+import { RobotWall } from "../../scene/RobotWall";
 import { N_ITEMS, spiral } from "../../scene/spiral";
 import { HubTags } from "./HubTags";
 import { usePick } from "./send";
@@ -102,9 +102,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
         <Pendants />
         {quality.haze ? <Haze /> : null}
         <Arm quality={quality} reduced={reduced} />
-        <Suspense fallback={null}>
-          <Library quality={quality} />
-        </Suspense>
+        <RobotWall quality={quality} reduced={reduced} />
         <Ribbon />
         <HubTags />
         <Suspense fallback={null}>

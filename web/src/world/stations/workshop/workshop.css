@@ -322,19 +322,30 @@
 }
 
 /* The room view: a tag over each thing to click (HubTags), and the controls bar. */
+/* The tags' layer (hubTagLayer.ts): over the canvas, under the rest of the workshop's overlay. */
+.world-hubtags {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* A hidden tag is out of the Tab order and the accessibility tree too (visibility), after its fade. */
 .world-hubtag {
   position: relative;
   display: grid;
   justify-items: center;
   opacity: 0;
+  visibility: hidden;
   transform: translateY(8px);
-  transition: opacity 0.45s, transform 0.45s;
+  transition: opacity 0.45s, transform 0.45s, visibility 0s linear 0.45s;
   pointer-events: none;
   font-family: var(--w-mono);
 }
 .world-hubtag[data-on="true"] {
   opacity: 1;
+  visibility: visible;
   transform: none;
+  transition: opacity 0.45s, transform 0.45s, visibility 0s;
   pointer-events: auto;
 }
 .world-hubtag button {

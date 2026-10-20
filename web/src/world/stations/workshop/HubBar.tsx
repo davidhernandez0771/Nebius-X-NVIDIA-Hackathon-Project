@@ -10,6 +10,7 @@ const GO: { id: HubItem; label: string }[] = [
   { id: "shelf", label: "Shelf" },
   { id: "machine", label: "Machine" },
   { id: "bench", label: "Bench" },
+  { id: "wall", label: "Robots" },
 ];
 
 export function HubBar() {
@@ -31,7 +32,7 @@ export function HubBar() {
   };
   return (
     <div ref={bar} className="world-hubbar world-u" data-on="false">
-      <span className="world-hubbar__hint">Click the shelf, the machine or the bench · Esc goes back</span>
+      <span className="world-hubbar__hint">Click the shelf, the machine, the bench or the robot wall · Esc goes back</span>
       <span className="world-hubbar__go" role="group" aria-label="Go to">
         {GO.map((g) => (
           <button key={g.id} type="button" onClick={() => openHubItem(g.id, store, goTo)}>

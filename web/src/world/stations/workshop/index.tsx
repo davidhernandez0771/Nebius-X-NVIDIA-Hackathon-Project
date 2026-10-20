@@ -1,9 +1,10 @@
 // Workshop: the room the descent builds out of particles, and where the scroll ends. Its travel is the
 // materialize: the camera pushes in a little while the real room appears over the particles through a
 // glowing noise edge (scene/dissolve.ts), then the lamps flicker on and the hub is live. From here the site is a
-// game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and three things to
+// game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and four things to
 // click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
-// and projects the robot), and the bench (make a new cartridge). Escape always goes back one level.
+// and projects the robot), the bench (make a new cartridge) and the robot wall (the robots catalog).
+// Escape always goes back one level.
 import { lazy } from "react";
 import { still } from "../../core/layout";
 import type { StationModule, StationOverlayProps } from "../../core/types";
@@ -15,6 +16,7 @@ import { AskBox } from "../../ask/AskBox";
 import { Detail } from "./Detail";
 import { Dock } from "./Dock";
 import { HubBar } from "./HubBar";
+import { hubTagLayer } from "./hubTagLayer";
 import { useStepper } from "./stepper";
 import { TourCaption } from "./TourCaption";
 
@@ -26,6 +28,7 @@ function Overlay(_: StationOverlayProps) {
   useStepper();
   return (
     <>
+      <div className="world-hubtags" ref={(el) => void (hubTagLayer.current = el)} />
       <HoverTip />
       <h2 className="world-sr">Workshop</h2>
       <HubBar />

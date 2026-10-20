@@ -13,7 +13,7 @@ export interface CameraPose {
   fov: number;
 }
 
-export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench";
+export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench" | "robots";
 
 /**
  * The scroll rail, top to bottom: the story ends in the workshop, and the scroll ends there too. In
@@ -21,7 +21,7 @@ export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | 
  * a click (goTo), never by scrolling.
  */
 export const RAIL_ORDER = ["intro", "descent", "workshop"] as const satisfies readonly StationId[];
-export const BRANCHES = ["machine", "zoom", "workbench"] as const satisfies readonly StationId[];
+export const BRANCHES = ["machine", "zoom", "workbench", "robots"] as const satisfies readonly StationId[];
 
 /**
  * A station's progress, updated in place every rendered frame (never through React state). Read it

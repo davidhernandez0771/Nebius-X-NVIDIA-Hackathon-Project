@@ -130,6 +130,17 @@ describe("WorldRoot (no WebGL)", () => {
     expect(document.documentElement.style.overflow).toBe("");
   });
 
+  it("opens the robot wall's catalog from the room view, and goes back on Escape", () => {
+    renderWorld();
+    scrollTo(window.innerHeight * HUB);
+    fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Robots" }));
+    expect(current()).toBe("robots");
+    expect(document.activeElement?.getAttribute("data-station")).toBe("robots");
+    expect(screen.getByRole("heading", { level: 2, name: "The robots" })).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(current()).toBe("workshop");
+  });
+
   it("shows the current station's pre-rendered still in place of the canvas", () => {
     renderWorld();
     const on = () => document.querySelector<HTMLImageElement>('.world-stills__img[data-on="true"]')?.getAttribute("src");
