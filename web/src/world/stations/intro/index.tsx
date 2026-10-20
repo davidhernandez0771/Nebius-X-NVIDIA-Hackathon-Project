@@ -1,14 +1,18 @@
 // Intro (core): the opening, a station before the workshop. The slash-cartridge loader runs on real
-// progress; then the SANT logo grows in as a glass object turning in a clean dark space (Scene.tsx),
-// and scrolling plays the story beside it (Story.tsx: the problem, S·A·N·T, the proof, Nemotron's
-// jobs), turning and leaning the logo as it goes (storyPlan.ts). At the end the logo becomes the ring,
-// square to the camera; the descent bursts it into the particles that build the workshop.
+// progress; then the SANT logo grows in as a glass object in a clean dark space (Scene.tsx). Scrolling
+// is a descent, like Active Theory's forest → reactor: the camera sinks below the logo onto a misty
+// forest floor with robot parts in the moss (the problem), drops through a crack into an underground
+// reactor that powers up as the story goes on (S·A·N·T, the proof, Nemotron), and ends above the core's
+// top ring, lifted off at full power: THE RING, which the descent bursts into the particles that build
+// the workshop. Timing in storyPlan.ts, the camera in path.ts, the words in Story.tsx.
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { Loader } from "./Loader";
 import { IntroScene } from "./Scene";
 import { Story } from "./Story";
-import { cameraAt, INTRO_VH } from "./storyPlan";
+import { HERO_VIEW } from "./layout";
+import { cameraAt } from "./path";
+import { INTRO_VH } from "./storyPlan";
 import "./intro.css";
 
 /** The page's one line, for the h1 (read by screen readers; the beats carry the story). */
@@ -32,10 +36,11 @@ const intro: StationModule = {
   kind: "rail",
   anchor: [0, 0, 0],
   travel: 0,
-  // The hero, the four beats and the morph (storyPlan.ts PLAN).
+  // The hero, the sink, the forest, the crack, the reactor and the ring (storyPlan.ts PLAN).
   length: INTRO_VH,
   camera: (t) => cameraAt(t * INTRO_VH),
-  rest: cameraAt(0),
+  // With reduced motion the camera holds the hero; the words still change with the scroll.
+  rest: HERO_VIEW,
   // Drawn while the descent bursts the ring; gone once the workshop is being built.
   reach: 1,
   Scene: IntroScene,

@@ -221,3 +221,22 @@
     bottom: 3vh;
   }
 }
+
+/* The reactor's power readout (Story.tsx), a small mono line like the descent's building counter. */
+.intro-power {
+  position: fixed;
+  left: max(28px, 6vw);
+  bottom: 6vh;
+  margin: 0;
+  color: var(--w-teal);
+  opacity: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .intro-power {
+    left: 20px;
+    bottom: auto;
+    top: calc(11vh - 28px);
+  }
+}

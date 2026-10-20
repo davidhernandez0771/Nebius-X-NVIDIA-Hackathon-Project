@@ -1,14 +1,16 @@
-// The intro's words, beside the turning logo (Scene.tsx), like Active Theory's "CREATIVE DIGITAL
-// EXPERIENCES": huge mono type on one side, a small mono column on the other, straight on the dark
-// space with nothing behind them. One beat at a time (storyPlan.ts): its lines slide up out of a mask and
-// scramble into place as it scrolls in, the column follows line by line, and it fades as the next
-// comes. Everything moves through useStationFrame (no React state per frame). Honest numbers only:
-// raw 3/40 vs SANT-multiplied 17/40 (p = 0.0005), the user's 10 webcam demos (0/10 passed physics →
-// 3 repaired → 24 verified variants), Nemotron's labels 40/40.
+// The intro's words, over the places the camera descends through, like Active Theory's "CREATIVE
+// DIGITAL EXPERIENCES": huge mono type on one side, a small mono column on the other, straight on the
+// dark with nothing behind them. One beat per place (storyPlan.ts): the hero by the logo, the problem on
+// the forest floor, then S·A·N·T, the proof and Nemotron as the reactor powers up; none on the way down.
+// Its lines slide up out of a mask and scramble into place as it scrolls in, the column follows line by
+// line, and it fades before the next drop. A small mono readout counts the reactor's power. Everything
+// moves through useStationFrame (no React state per frame). Honest numbers only: raw 3/40 vs
+// SANT-multiplied 17/40 (p = 0.0005), the user's 10 webcam demos (0/10 passed physics → 3 repaired →
+// 24 verified variants; 9 of them pressed into the bin at up to 927 N), Nemotron's labels 40/40.
 import { useRef, type ReactNode } from "react";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { scramble } from "../../ui/scramble";
-import { beatState, INTRO_VH, logoPose } from "./storyPlan";
+import { beatState, INTRO_VH, placeLights, power, ringLift } from "./storyPlan";
 
 interface BeatCopy {
   kicker: string;
@@ -37,7 +39,9 @@ const COPY: BeatCopy[] = [
     items: [
       <p key="a">A robot learns a task from demonstrations, and it takes hundreds of them.</p>,
       <p key="b">Teleoperation is expensive: the rig, and an operator's time for every demo.</p>,
-      <p key="c">Human demos are sloppy: a shaky hand, a slipped grasp, a missed cube.</p>,
+      <p key="c">
+        Human demos are sloppy: placing the cube, 9 of our 10 webcam demos pressed the gripper into the bin, up to <b>927 N</b> against a 5 N limit.
+      </p>,
     ],
   },
   {
@@ -110,6 +114,7 @@ export function Story() {
   const live = useRef<boolean[]>([]);
   const hint = useRef<HTMLParagraphElement>(null);
   const down = useRef<HTMLParagraphElement>(null);
+  const meter = useRef<HTMLParagraphElement>(null);
 
   useStationFrame("intro", (f) => {
     const ready = store.getCoarse().ready;
@@ -143,10 +148,15 @@ export function Story() {
         });
       }
     });
-    // "Scroll down" leaves in the first half viewport; "into the workshop" shows as the logo becomes the ring.
+    // "Scroll down" leaves in the first half viewport; "into the workshop" shows as the top ring lifts into THE RING.
     if (hint.current) hint.current.style.opacity = String(ready ? 1 - clamp01(vh * 2) : 0);
-    const m = logoPose(vh).morph;
-    if (down.current) down.current.style.opacity = String(f.current ? clamp01(m * 3) * (1 - clamp01((m - 0.85) * 6)) : 0);
+    if (down.current) down.current.style.opacity = String(f.current ? clamp01(ringLift(vh) * 3) : 0);
+    // The reactor's power, while it is lit (not with reduced motion: the camera holds the hero).
+    if (meter.current) {
+      const lit = reduced ? 0 : placeLights(vh).reactor;
+      meter.current.style.opacity = String(f.current ? lit : 0);
+      if (lit > 0) meter.current.textContent = `// core power · ${String(Math.round(power(vh) * 100)).padStart(2, "0")}%`;
+    }
   });
 
   return (
@@ -184,6 +194,7 @@ export function Story() {
       <p ref={hint} className="world-hint world-u">
         Scroll down
       </p>
+      <p ref={meter} className="intro-power world-u" aria-hidden="true" />
       <p ref={down} className="intro-down world-u" aria-hidden="true">
         Into the workshop ↓
       </p>

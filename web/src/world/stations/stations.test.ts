@@ -6,7 +6,8 @@ import { checkStations } from "../core/registry";
 import { RAIL_ORDER, type StationModule } from "../core/types";
 import { STATIONS } from ".";
 import { HUB_FAR } from "./descent/path";
-import { PORTAL_VIEW } from "./intro/storyPlan";
+import { HERO_LIFT, HERO_VIEW } from "./intro/layout";
+import { PORTAL_VIEW } from "./intro/path";
 import { CLOSE } from "./zoom";
 
 const rails = RAIL_ORDER.map((id) => STATIONS.find((s) => s.id === id)!);
@@ -67,7 +68,12 @@ describe("the registered stations", () => {
       p.position.forEach((v, i) => expect(v).toBeCloseTo(s.position[i], 6));
       p.target.forEach((v, i) => expect(v).toBeCloseTo(s.target[i], 6));
     };
-    same("intro", 0, "Title");
+    // The hero is Blender's Title framing, raised above the room by HERO_LIFT so the story's places
+    // (the forest, the rock, the reactor) stack between it and the workshop.
+    const title = stop("Title");
+    expect(at("intro", 0)).toEqual(HERO_VIEW);
+    HERO_VIEW.position.forEach((v, i) => expect(v).toBeCloseTo(title.position[i] + (i === 1 ? HERO_LIFT : 0), 6));
+    HERO_VIEW.target.forEach((v, i) => expect(v).toBeCloseTo(title.target[i] + (i === 1 ? HERO_LIFT : 0), 6));
     same("workshop", 0, "Workshop intro");
 
     same("machine", 0, "Tutorial 2 · machine");
