@@ -195,12 +195,14 @@ names it in the console.
 
   | Tier | Pixel ratio | Logo / dust points | Post | MSAA | Idle loops | Extras | Chosen when |
   |---|---|---|---|---|---|---|---|
-  | low | 0.75–1 | 18k / 4k | none | none | no | none | an old integrated or phone GPU, a slow timing, phone width, data saver |
+  | low | 0.75–1 | 18k / 4k | none | 4× on the canvas | no | none | an old integrated or phone GPU, a slow timing, phone width, data saver |
   | high | 1–1.5 | 70k / 14k | bloom ½ + final pass | 4× on the post target | yes | reflections | the default for a working GPU |
   | ultra | 1–2 | 140k / 28k | same as high | same | yes | clearcoat, haze | a discrete GPU by name and a fast timing, 8+ cores |
   | stills | no canvas | | | | | one still per station | no WebGL2, a software renderer, the performance caveat, a failed canvas |
 
-  The canvas itself never multisamples (antialias off): high and ultra multisample the post target.
+  Every tier multisamples once: low the canvas itself (`antialias`, 4× by the browser's default, since
+  it has no post), high and ultra the post target (the canvas is off there). Why, and what it costs:
+  `docs/superpowers/notes/2026-10-20-overnight-site/flicker.md`.
 
   The check runs once per session (`sessionStorage` `world.gpu`): a WebGL2 context, the renderer's
   name, and one timed fragment workload; the timing can only lower what the name suggests. Shadows are

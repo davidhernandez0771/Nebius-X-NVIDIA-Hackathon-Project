@@ -38,9 +38,22 @@ describe("TIERS", () => {
     expect(TIERS.high.dpr[1]).toBe(1.5);
     expect(TIERS.ultra.dpr[1]).toBe(2);
     expect(TIERS.low.idleMotion).toBe(false);
-    expect(TIERS.low.antialias).toBe(false);
     expect([TIERS.low.haze, TIERS.high.haze, TIERS.ultra.haze]).toEqual([false, false, true]);
     expect(Object.values(TIERS).every((t) => !t.shadows)).toBe(true);
+  });
+});
+
+describe("anti-aliasing", () => {
+  it("multisamples every tier exactly once: the canvas on low (no post), the post target on high and ultra", () => {
+    // Without it, thin edges (the library's spines, the bench's turntable ring, the pedestal's rim)
+    // step on and off pixels as the hub's mouse look moves the camera by millimetres.
+    expect(TIERS.low.antialias).toBe(true);
+    for (const t of Object.values(TIERS)) {
+      expect(t.antialias || t.msaa > 0).toBe(true);
+      // Post draws a full-screen pass to the canvas: multisampling the canvas too would only cost.
+      expect(t.antialias && t.post).toBe(false);
+      expect(t.msaa > 0).toBe(t.post);
+    }
   });
 });
 

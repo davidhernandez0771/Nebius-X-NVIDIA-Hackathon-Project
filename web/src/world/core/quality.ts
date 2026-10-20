@@ -10,7 +10,14 @@ export interface QualityTier {
   name: TierName;
   /** [min, max] device pixel ratio for the canvas. */
   dpr: [number, number];
-  /** The canvas's own MSAA. Off on every tier: high and ultra multisample the post target instead (msaa). */
+  /**
+   * The canvas's own MSAA. On for low, which has no post: the hub's mouse look moves the camera by
+   * millimetres, and without it every thin edge (the library's spines, the turntable and pedestal
+   * rings) steps on and off whole pixels. It adds no pass and no target: the samples resolve as the
+   * frame is shown (on a phone's tiled GPU, on chip), at low's 0.75–1 pixel ratio. Off on high and
+   * ultra, which multisample the post target instead (msaa). It is a context attribute: a tier the
+   * auto-tune switches to later keeps the first tier's setting until the next visit.
+   */
   antialias: boolean;
   /** Real-time shadow maps. Off everywhere: the room's light and shadow are baked. */
   shadows: boolean;
@@ -35,7 +42,7 @@ export interface QualityTier {
 
 export const TIERS: Record<TierName, QualityTier> = {
   // The particle, post and MSAA numbers are the site build brief's table (docs/design/site-build-brief.md).
-  low: { name: "low", dpr: [0.75, 1], antialias: false, shadows: false, idleMotion: false, physical: false, envMap: false, haze: false, powerPreference: "low-power", logoParticles: 18000, dustParticles: 4000, post: false, msaa: 0 },
+  low: { name: "low", dpr: [0.75, 1], antialias: true, shadows: false, idleMotion: false, physical: false, envMap: false, haze: false, powerPreference: "low-power", logoParticles: 18000, dustParticles: 4000, post: false, msaa: 0 },
   high: { name: "high", dpr: [1, 1.5], antialias: false, shadows: false, idleMotion: true, physical: false, envMap: true, haze: false, powerPreference: "high-performance", logoParticles: 70000, dustParticles: 14000, post: true, msaa: 4 },
   ultra: { name: "ultra", dpr: [1, 2], antialias: false, shadows: false, idleMotion: true, physical: true, envMap: true, haze: true, powerPreference: "high-performance", logoParticles: 140000, dustParticles: 28000, post: true, msaa: 4 },
 };
