@@ -328,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if old == text else 1
         if old != text:
             args.out.parent.mkdir(parents=True, exist_ok=True)
-            args.out.write_text(text, encoding="utf-8")
+            args.out.write_text(text, encoding="utf-8", newline="\n")  # LF, as git stores it
             print(f"wrote {args.out}")
         mouse_in = next(a for e in json.loads(text)["experiments"] if e["id"] == "mouse"
                         for g in e["groups"] for a in g["arms"] if a["key"] == "mouse_sant")["k"] is not None
