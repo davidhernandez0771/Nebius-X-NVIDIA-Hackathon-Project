@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rejectedText, clockDuration, footageAt, parseFootage, parseSet, parseSets, reasonText, repairText, stepAt, verdictOf, viewsOf, whatChanged } from "./model";
+import { demoName, rejectedText, clockDuration, footageAt, parseFootage, parseSet, parseSets, reasonText, repairText, stepAt, verdictOf, viewsOf, whatChanged } from "./model";
 
 const V = (over: Record<string, unknown> = {}) => ({
   success: true, reasons: [], duration: 8.34, path_length: 1.0109, max_contact_force: 0, settle_time: 1.4, ...over,
@@ -37,6 +37,14 @@ const SET = {
 };
 
 describe("the showcase's data", () => {
+  it("names a demo by when it was recorded, in the viewer's time zone (ids are UTC)", () => {
+    expect(demoName("human_20261020183738_00ab", "America/New_York")).toBe("Oct 20, 14:37:38");
+    expect(demoName("human_20261020183738_00ab", "UTC")).toBe("Oct 20, 18:37:38");
+    expect(demoName("human_20261021003000_abcd1234", "America/New_York")).toBe("Oct 20, 20:30:00"); // the day before
+    expect(demoName("human_20261020000005_ab", "UTC")).toBe("Oct 20, 00:00:05"); // midnight is 00, not 24
+    expect(demoName("variant_x")).toBe("variant_x");
+  });
+
   it("reads the sets and one set", () => {
     const sets = parseSets([{ name: "human10c", input: "webcam", n_demos: 10, replay_verified: 0, repaired: 3, variants_verified: 24, variants_total: 30, evals: [{ cell: "perfected_multiply_10", k: 3, n: 40 }] }]);
     expect(sets[0]).toMatchObject({ name: "human10c", input: "webcam", nDemos: 10, replayVerified: 0, repaired: 3, variantsVerified: 24, variantsTotal: 30 });

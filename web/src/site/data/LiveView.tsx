@@ -7,8 +7,7 @@ import { useMotion } from "../../sant/motion/MotionProvider";
 import { useAsync, useClock, useLiveFeed } from "./hooks";
 import { STAGES, type FeedState, type FeedVariant } from "./liveFeed";
 import { VerdictBadge } from "./Pane";
-import { demoName } from "./Showcase";
-import { reasonText, verdictOf } from "./model";
+import { demoName, reasonText, verdictOf } from "./model";
 
 const VARIANTS_SHOWN = 24;
 

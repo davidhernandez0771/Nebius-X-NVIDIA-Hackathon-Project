@@ -149,6 +149,20 @@ export function parseCells(v: unknown): EvalCell[] {
 
 // ---------------------------------------------------------------------------------------------- words
 
+/** A demo by when it was recorded: "human_20261020183738_00ab" (its id holds the UTC time) → "Oct 20, 14:37:38" in
+ *  the viewer's time zone (or timeZone, for tests). Any other id as it is. */
+export function demoName(id: string, timeZone?: string): string {
+  const m = /^human_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(id);
+  if (!m) return id;
+  const [y, mo, d, h, mi, s] = m.slice(1).map(Number);
+  const when = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(when);
+  const p = (t: string) => parts.find((x) => x.type === t)?.value ?? "";
+  return `${p("month")} ${p("day")}, ${p("hour")}:${p("minute")}:${p("second")}`;
+}
+
 /** What each reason in a physics verdict means (demo_pipeline/success.py). */
 const REASONS: Record<string, string> = {
   not_in_bin: "cube not in the bin",

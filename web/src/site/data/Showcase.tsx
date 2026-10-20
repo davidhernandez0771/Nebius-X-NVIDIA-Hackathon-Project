@@ -6,15 +6,7 @@ import { fetchEpisode, fetchFootage, fetchSet, type Fetch } from "./api";
 import { FootageView } from "./FootageView";
 import { useAsync, useClock } from "./hooks";
 import { Pane, VerdictBadge } from "./Pane";
-import { clockDuration, rejectedText, repairText, viewsOf, whatChanged, type DemoRow, type ShowcaseSet, type View } from "./model";
-
-/** "human_20261020183738_00ab" → "Oct 20, 18:37:38"; anything else as it is. */
-export function demoName(id: string): string {
-  const m = /^human_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(id);
-  if (!m) return id;
-  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m[2]) - 1];
-  return `${month} ${Number(m[3])}, ${m[4]}:${m[5]}:${m[6]}`;
-}
+import { clockDuration, demoName, rejectedText, repairText, viewsOf, whatChanged, type DemoRow, type ShowcaseSet, type View } from "./model";
 
 const VARIANTS_SHOWN = 6;
 

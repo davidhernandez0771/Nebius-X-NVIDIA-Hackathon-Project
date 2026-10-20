@@ -22,6 +22,8 @@ All checks ran in headless Chrome with SwiftShader only (the renderer string was
   - every new variant pops in with its footage and badge.
 - **Experiments shown.** `mouse20261020` (tonight's 10 mouse demos) and `human10c` (the 10 webcam demos) are featured. The store's other experiments (earlier attempts, the repair A/B runs) sit behind "Show all".
 
+- **Demo names** are the recording time in the viewer's own time zone. The ids hold UTC, so `human_20261020183738_…`, recorded at 14:37 EDT, reads "Oct 20, 14:37:38". The first version showed the UTC time as if it were local, and the screenshots here still do.
+
 The numbers come from the stores, as they are:
 
 | Experiment | Physics replay | Repaired | Variants verified | Trained policy |
