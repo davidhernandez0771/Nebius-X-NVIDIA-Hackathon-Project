@@ -406,3 +406,34 @@ def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
     assert "repaired with Nemotron's trajectory edits" in (root / "preregistration.md").read_text(encoding="utf-8")
     with pytest.raises(hx.Refused, match="repair must be one of"):
         _exp(hx, tmp_path, name="other")[0].select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "magic"})
+
+
+def test_multiplied_only_trains_and_evals_one_cell_and_reports_it_alone(hx, tmp_path):
+    exp, _, stages = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "multiplied_only": True})
+    exp.run()
+    root = tmp_path / "human_exp" / "smoke1"
+
+    assert [c.name for c in load_grid(root / "grid.json").cells] == ["perfected_multiply_3"]
+    assert stages == ["human-exp:smoke1:sim", "human-exp:smoke1:train", "human-exp:smoke1:eval"]
+    train_cmd, eval_cmd = exp.deps.run.cmds
+    assert eval_cmd[eval_cmd.index("--cells") + 1] == "perfected_multiply_3"
+    assert eval_cmd[eval_cmd.index("--start-state") + 1].endswith("perfected_multiply_3")
+    res = json.loads((root / "results.json").read_text(encoding="utf-8"))
+    head = res["experiment"]["headline"]
+    assert "raw" not in head and "fisher_p" not in head
+    assert head["multiplied"]["successes"] == 3 and head["multiplied"]["n"] == 5
+    assert head["multiplied"]["ci"] == pytest.approx([0.2307, 0.8824], abs=1e-3)
+    assert head["multiplied"]["successful_seeds"] == [5020, 5022, 5023]
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "Absolute test" in prereg and "Fisher" not in prereg and "raw_3" not in prereg
+    with pytest.raises(hx.Refused, match="one arm"):
+        exp.results(publish=True)
+
+
+def test_multiplied_only_is_left_out_of_the_config_unless_set(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    assert "multiplied_only" not in json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    with pytest.raises(hx.Refused, match="multiplied_only"):
+        exp.select(ids=None, tag=None, settings={**SMOKE, "multiplied_only": True})
