@@ -19,8 +19,10 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 
+import numpy as np
+
 from demo_pipeline.multiply import transform_trajectory
-from demo_pipeline.schemas import Scene, Trajectory
+from demo_pipeline.schemas import Demo, Scene, Trajectory
 from demo_pipeline.stats import fisher_exact, wilson_ci
 from demo_pipeline.store import DemoStore
 from sim_worker.homeset import EVAL_SEED_MIN, rehome
@@ -54,6 +56,23 @@ def select_ids(store: DemoStore, ids: list[str] | None = None, tag: str | None =
 
 def demo_sha256(store: DemoStore, id: str) -> str:
     return hashlib.sha256((store.root / "demos" / id / "demo.json").read_bytes()).hexdigest()
+
+
+def achieved_demo(demo: Demo, ee_pos, ee_quat) -> Demo:
+    """The demo with its trajectory replaced by the tool pose the arm reached each step (the live episode's
+    steps.npz ee_pos / ee_quat, recorded at the same 50 Hz), and the old trajectory kept as `commanded`.
+
+    Teleop demos recorded before Demo.commanded existed hold the hand targets, which the arm lagged by 2.5-5 cm
+    (live test #10): replaying them is another motion (0/10 in the bin on replay, 10/10 live). A demo that already
+    has `commanded` already holds the achieved path and comes back unchanged."""
+    if demo.commanded is not None:
+        return demo
+    a = demo.trajectory.to_arrays()
+    pos, quat = np.asarray(ee_pos, dtype=np.float64), np.asarray(ee_quat, dtype=np.float64)
+    if pos.shape != a["ee_pos"].shape or quat.shape != a["ee_quat"].shape:
+        raise ValueError(f"{demo.id}: the live episode has {len(pos)} steps but the demo has {len(a['t'])}")
+    achieved = Trajectory.from_arrays(a["t"], pos, quat / np.linalg.norm(quat, axis=1, keepdims=True), a["gripper"])
+    return demo.model_copy(update={"trajectory": achieved, "commanded": demo.trajectory})
 
 
 def align_home(traj: Trajectory) -> tuple[Trajectory, int]:

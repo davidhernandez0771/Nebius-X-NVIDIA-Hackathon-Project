@@ -174,14 +174,34 @@ def test_trajectory_is_50_hz_sim_time_whatever_the_wall_clock(rig):
     assert TELEOP_DT == 0.02
 
 
-def test_trajectory_records_the_commanded_targets(rig):
-    session, _, clock, saved = rig
+class LaggingDriver(FakeDriver):
+    """Covers half the remaining distance to the target each step, as the live arm trails a jittery hand."""
+
+    def apply(self, target: Pose, gripper: int) -> None:
+        self.applied.append((target, gripper))
+        self.tcp = self.tcp + 0.5 * (np.array(target.pos) - self.tcp)
+        self.gripper = gripper
+
+
+def test_trajectory_records_the_achieved_path_and_keeps_the_commanded_targets():
+    # Live test #10: the arm lagged the hand by 2.5-5 cm, so a demo of the targets replayed as a different motion
+    # (0/10 in the bin on replay, 10/10 live). The demo is what the arm did; the targets stay for diagnostics.
+    clock, driver, saved = FakeClock(), LaggingDriver(), []
+    session = TeleopSession(driver, SCENE, lambda rec: saved.append(rec) or "saved", clock=clock,
+                            new_id=lambda: "human_lag")
     session.on_control("record_start")
-    run(session, clock, 2, hand(u=0.3, v=0.4, palm=0.08))
+    run(session, clock, 4, hand(u=0.3, v=0.4, palm=0.08))
     session.on_control("record_stop")
+    rec = saved[0]
     want = to_ee_target(hand(u=0.3, v=0.4, palm=0.08))
-    traj = saved[0].demo.trajectory
-    assert traj.ee_pos[0] == pytest.approx(want.pos) and traj.ee_quat[0] == pytest.approx(want.quat_wxyz)
+    reached = [s.ee_pos.tolist() for s in rec.states]
+    assert np.allclose(rec.demo.trajectory.ee_pos, reached)
+    assert np.allclose(rec.demo.trajectory.ee_quat, [s.ee_quat.tolist() for s in rec.states])
+    assert rec.demo.commanded is not None
+    assert np.allclose(rec.demo.commanded.ee_pos, [want.pos] * 4)
+    assert rec.demo.commanded.ee_quat[0] == pytest.approx(want.quat_wxyz)
+    assert rec.demo.commanded.t == rec.demo.trajectory.t and rec.demo.commanded.gripper == rec.demo.trajectory.gripper
+    assert np.linalg.norm(np.subtract(reached[0], want.pos)) > 0.01  # the arm really lagged
 
 
 def test_uses_the_given_calibration():
@@ -439,6 +459,25 @@ def test_store_saver_writes_demo_episode_and_signals(tmp_path):
     signals = load_signals(store.episode_dir(rec.demo.id))
     assert signals is not None and signals.n_steps == 60
     assert result.startswith(f"saved {rec.demo.id}")
+
+
+class StuckDriver(FakeDriver):
+    """An arm that can't follow the hand at all."""
+
+    def apply(self, target: Pose, gripper: int) -> None:
+        self.applied.append((target, gripper))
+        self.gripper = gripper
+
+
+def test_store_saver_measures_reach_against_the_commanded_targets(tmp_path):
+    # the demo is the achieved path now, so the residual against it is 0; "unreachable" needs the targets
+    clock, saved = FakeClock(), []
+    session = TeleopSession(StuckDriver(), SCENE, lambda r: saved.append(r) or "ok", clock=clock,
+                            new_id=lambda: "human_stuck")
+    session.on_control("record_start")
+    run(session, clock, 60, hand(u=0.3, v=0.4, palm=0.08))
+    session.on_control("record_stop")
+    assert "unreachable" in make_store_saver(DemoStore(tmp_path))(saved[0])
 
 
 def test_store_saver_reports_the_success_check(tmp_path):

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal, Union
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 Vec3 = tuple[float, float, float]
 Quat = tuple[float, float, float, float]  # (w, x, y, z)
@@ -95,7 +95,9 @@ class Demo(_Model):
     id: str = Field(min_length=1)
     source: Literal["human", "repaired", "variant"]
     parent_id: str | None = None
-    trajectory: Trajectory
+    trajectory: Trajectory  # what the tool did: for teleop, the pose the arm reached each step (what replay drives)
+    # teleop only, for diagnostics: the hand target sent each step. The arm lags it, so replaying it is another motion.
+    commanded: Trajectory | None = None
     scene: Scene
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     human_seconds: float = Field(ge=0)  # wall-clock human time; 0 for derived demos
@@ -106,7 +108,17 @@ class Demo(_Model):
             raise ValueError("a human demo has no parent_id")
         if self.source != "human" and not self.parent_id:
             raise ValueError(f"a {self.source} demo needs a parent_id")
+        if self.commanded is not None and self.commanded.t != self.trajectory.t:
+            raise ValueError("commanded needs one target per trajectory step, at the same times")
         return self
+
+    @model_serializer(mode="wrap")
+    def _drop_absent_commanded(self, handler):
+        # Demos without targets dump exactly as before the field existed (frozen sets hash their demo JSON).
+        data = handler(self)
+        if self.commanded is None:
+            data.pop("commanded", None)
+        return data
 
 
 @dataclass(frozen=True)
@@ -216,17 +228,28 @@ class ReplanTransit(_TimeRange):
     op: Literal["replan_transit"]
 
 
+class ReleaseAboveBin(_Model):
+    """Place from above: stop over the bin's inside with the held cube clear of the rim, open there, lift away.
+    t is the release (the last open)."""
+
+    op: Literal["release_above_bin"]
+    t: float = Field(ge=0)
+
+
 class Discard(_Model):
     op: Literal["discard"]
 
 
 RepairOp = Annotated[
-    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, Discard],
+    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, ReleaseAboveBin, Discard],
     Field(discriminator="op"),
 ]
 
-# Spec 8.4: repairs always run in this order, whatever order they were listed in.
-REPAIR_ORDER: tuple[str, ...] = ("trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime")
+# Spec 8.4: repairs always run in this order, whatever order they were listed in. release_above_bin rewrites
+# everything from the place onwards, so it runs last, on the timeline the other ops left.
+REPAIR_ORDER: tuple[str, ...] = (
+    "trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime", "release_above_bin",
+)
 
 
 def _times(obj) -> list[float]:

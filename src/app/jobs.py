@@ -34,7 +34,7 @@ from typing import Any, Callable, Literal
 import numpy as np
 from pydantic import BaseModel, Field
 
-from demo_pipeline import PIPELINE_VERSION
+from demo_pipeline import PIPELINE_VERSION, scene_geometry
 from demo_pipeline.episode_io import EpisodeMeta, load_episode, load_signals
 from demo_pipeline.process import perfect_demo
 from demo_pipeline.refine import refine_diagnosis
@@ -69,9 +69,8 @@ MODEL_DIAGNOSERS = ("nemotron", "hybrid")  # need camera frames and a model call
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 FRONT, WRIST = "front", "wrist"
 
-# Rim height above the bin origin: BIN_WALL (0.01) + inner height (0.08) in sim_worker/scene_cfg.py,
-# which imports Isaac and so cannot be imported here.
-BIN_RIM_HEIGHT = 0.09
+# Rim height above the bin origin: BIN_WALL (0.01) + inner height (0.08), the numbers the Isaac scene is built from.
+BIN_RIM_HEIGHT = scene_geometry.BIN_RIM_HEIGHT
 
 
 def _now() -> datetime:
@@ -411,7 +410,10 @@ def perfect_stored_demo(
                 notes.append(f"round {len(rounds) + 1}: {diagnoser} failed ({type(e).__name__}: {e}); "
                              f"used the rules detector")
         if diag is None:
-            diag = detect_rules(d.trajectory, windows)
+            # perfect_demo's first round has no reasons yet; the rules take the raw replay's verdict, which
+            # state["signals"] come from (the model's first round stays as it always was)
+            seen = reasons if rounds else list(raw.verification.reasons)
+            diag = detect_rules(d.trajectory, windows, reasons=seen, signals=state["signals"], scene=d.scene)
         refined = refine_diagnosis(diag, d.trajectory)
         record.update(decision=refined.decision, repairs=list(refined.repairs))
         rounds.append(record)

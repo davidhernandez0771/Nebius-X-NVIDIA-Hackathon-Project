@@ -24,6 +24,7 @@ from typing import get_args
 import numpy as np
 from pydantic import ValidationError
 
+from demo_pipeline import scene_geometry
 from demo_pipeline.rules import JITTER_MIN_JERK, MIN_STILL_S, STILL_SPEED, detect_rules
 from demo_pipeline.schemas import (
     Diagnosis,
@@ -56,6 +57,10 @@ CLEAN_MOVING_SPEED = (0.07, 0.26)  # m/s
 # of the clean expert's median: human teleop is naturally slower than the scripted expert, so only
 # a span ~3x slower than it is worth retiming. Above STILL_SPEED, so a pause also counts as slow.
 SLOW_SPEED = 5 * STILL_SPEED  # m/s
+
+# The rules emit these from the replay's contacts and cube track; the model's menu (and so its prompt) leaves them
+# out, so earlier Nemotron runs and their pre-registrations keep the prompt they were run with.
+RULES_ONLY_OPS = ("release_above_bin",)
 
 # What each repair op does; its fields come from the schema model itself.
 _OP_HELP = {
@@ -95,6 +100,8 @@ def _repair_menu() -> list[str]:
     lines = []
     for model in _op_models():
         (op,) = get_args(model.model_fields["op"].annotation)
+        if op in RULES_ONLY_OPS:
+            continue
         fields = ", ".join(['"op": "%s"' % op, *(f'"{name}"' for name in model.model_fields if name != "op")])
         lines.append(f"- {op} {{{fields}}}: {_OP_HELP[op]}")
     return lines
@@ -374,11 +381,11 @@ MODEL_OPS = ("recenter_grasp", "replan_transit", "discard")
 # An off-center claim needs the measured offset at the close to exceed the IK tracking error there (3.3 mm
 # after the joint-velocity feedforward fix, spec Changes 2026-10-16): below it, "off-center" is noise.
 GRASP_CENTERED_MM = 3.3
-# Bin geometry (sim_worker/scene_cfg.py, which imports Isaac): footprint half-size 0.11 m (inner 0.20 + 2 walls
-# of 0.01), rim 0.09 m above the bin origin; the cube rests with its center 0.025 m up.
-BIN_FOOTPRINT_HALF = 0.11
-BIN_RIM_HEIGHT = 0.09
-CUBE_HALF = 0.025
+# Bin geometry (demo_pipeline.scene_geometry, which the Isaac scene is built from): footprint half-size 0.11 m
+# (inner 0.20 + 2 walls of 0.01), rim 0.09 m above the bin origin; the cube rests with its center 0.025 m up.
+BIN_FOOTPRINT_HALF = scene_geometry.BIN_FOOTPRINT_HALF
+BIN_RIM_HEIGHT = scene_geometry.BIN_RIM_HEIGHT
+CUBE_HALF = scene_geometry.CUBE_HALF
 # Sprint 5 (pre-registered, T4 note): a verified replay contradicts these claims (spec 8.5: the cube ends in
 # the bin and does not leave the gripper before it is above the bin).
 RELEASE_TYPES = ("bad_release", "drop")

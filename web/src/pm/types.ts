@@ -28,7 +28,8 @@ export interface Demo {
   id: string;
   source: DemoSource;
   parent_id: string | null;
-  trajectory: Trajectory;
+  trajectory: Trajectory; // teleop: the pose the arm reached
+  commanded?: Trajectory | null; // teleop only: the hand targets the arm lagged (diagnostics)
   scene: Scene;
   created_at: string;
   human_seconds: number;
