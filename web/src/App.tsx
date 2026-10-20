@@ -79,7 +79,6 @@ export default function App() {
         <Route element={lazyPage(<WorkShell />)}>
           <Route path="/pm/review" element={lazyPage(<ReviewPage />)} />
           <Route path="/pm/dataset" element={lazyPage(<DatasetPage />)} />
-          <Route path="/pm/results" element={lazyPage(<ResultsPage />)} />
         </Route>
         {/* The archived old site (web/src/legacy): the 3D intro, then the dashboard and its pages. */}
         <Route path="/legacy">
@@ -104,6 +103,8 @@ export default function App() {
         {/* The live test's and the cartridges' /pm/record open the new Record (the old one stays at
             /legacy/pm/record). */}
         <Route path="/pm/record" element={<ToRecord />} />
+        {/* Results is the Field Notes page with the measured numbers; the old sample-data page stays at /legacy/pm/results. */}
+        <Route path="/pm/results" element={<Navigate to="/site/results" replace />} />
         {/* Everything else (the old room pages, the old landings, /site) goes to the journey. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

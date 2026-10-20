@@ -1,4 +1,5 @@
-// The frame around the work pages a cartridge opens (Record, Review, Dataset, Results), in the
+// The frame around the work pages a cartridge opens (Record, Review, Dataset; Results is the
+// Field Notes page at /site/results, which the nav links to), in the
 // journey's look (docs/design/prototypes/site-journey.html): the brand top left, the four steps of the
 // pipeline as a capsule, and the way back into the workshop. The hand cursor (webcam pointer) lives
 // here, since these are the only pages that use it.
@@ -16,7 +17,7 @@ export const STEPS = [
   { to: "/pm/record", n: "01", label: "Record" },
   { to: "/pm/review", n: "02", label: "Review" },
   { to: "/pm/dataset", n: "03", label: "Dataset" },
-  { to: "/pm/results", n: "04", label: "Results" },
+  { to: "/site/results", n: "04", label: "Results" },
 ] as const;
 
 /** Back into the world: land in the workshop, at the spiral, not at the top of the journey. */

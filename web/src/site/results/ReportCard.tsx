@@ -53,7 +53,7 @@ function Count({ m }: { m: Measure }) {
  */
 export function ReportCard({ card }: { card: Data }) {
   const { copies, policy, failures, reach, pendingNotes = {} } = card;
-  const sources = [copies?.source, policy?.source, failures?.source, reach?.source].filter((s): s is Source => !!s);
+  const sources = [copies?.source, copies?.alsoSource, policy?.source, failures?.source, reach?.source].filter((s): s is Source => !!s);
   const pending = sources.length === 0;
 
   return (

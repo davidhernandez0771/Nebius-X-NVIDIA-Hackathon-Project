@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MotionProvider } from "../../sant";
+import { PROOF } from "../stations/intro/proof";
 import { beatSpan, INTRO_VH } from "../stations/intro/storyPlan";
 import WorldRoot from "./WorldRoot";
 
@@ -76,7 +77,12 @@ describe("WorldRoot (no WebGL)", () => {
     expect(shown()).toEqual([3]);
     expect(head(3)).toBe("3/40 → 17/40");
     expect(beats()[3].textContent).toContain("p = 0.0005");
-    expect(beats()[3].textContent).toContain("24");
+    // ... read from the Results page's data (site/results), so updating the results updates the story
+    expect(head(3)).toBe(`${PROOF.raw} → ${PROOF.multiplied}`);
+    expect(beats()[3].textContent).toContain(`${PROOF.webcam.passed} passed physics → ${PROOF.webcam.repaired} repaired → ${PROOF.webcam.copies} verified variants`);
+    expect(beats()[3].textContent).toContain(`Nemotron labels: ${PROOF.labels}`);
+    expect(beats()[1].textContent).toContain(`${PROOF.pressed.split("/")[0]} of our ${PROOF.webcam.demos} webcam demos`);
+    expect(beats()[1].textContent).toContain(PROOF.peak);
     // Past the intro: the descent, no beat left on screen.
     scrollTo(h * (INTRO + 0.5));
     expect(shown()).toEqual([]);

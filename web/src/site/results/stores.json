@@ -1,0 +1,559 @@
+{
+  "as_of": "2026-10-20 15:08",
+  "generated_by": "scripts/build_site_results.py",
+  "notes": {
+    "live10": {
+      "name": "Live test #10 results note",
+      "path": "docs/superpowers/notes/2026-10-19-live-test-10-results.md"
+    },
+    "h10c": {
+      "name": "human10c training note",
+      "path": "docs/superpowers/notes/2026-10-20-human10c-multiplied-only.md"
+    },
+    "repair": {
+      "name": "Nemotron repairer note",
+      "path": "docs/superpowers/notes/2026-10-20-nemotron-repair.md"
+    },
+    "mouse": {
+      "name": "Mouse demos results note",
+      "path": "docs/superpowers/notes/2026-10-20-mouse20261020-results.md"
+    },
+    "prereg": {
+      "name": "Raw vs SANT pre-registration note",
+      "path": "docs/superpowers/notes/2026-10-20-kb-raw-vs-sant-prereg.md"
+    }
+  },
+  "facts": {
+    "webcam_pressed": {
+      "text": "9/10",
+      "source": {
+        "note": "live10",
+        "lines": "342"
+      }
+    },
+    "webcam_peak_n": {
+      "text": "927 N",
+      "source": {
+        "note": "live10",
+        "lines": "342"
+      }
+    },
+    "mouse_path_mean_mm": {
+      "text": "1.6–4.6 mm",
+      "source": {
+        "note": "mouse",
+        "lines": "25–36"
+      }
+    },
+    "mouse_path_max_mm": {
+      "text": "10.9 mm",
+      "source": {
+        "note": "mouse",
+        "lines": "25–36"
+      }
+    },
+    "mouse_peak_n": {
+      "text": "0.0 N",
+      "source": {
+        "note": "mouse",
+        "lines": "25–36"
+      }
+    }
+  },
+  "experiments": [
+    {
+      "id": "webcam",
+      "title": "Real webcam demos: checked, repaired, multiplied, trained",
+      "question": "One person recorded 10 demos with a webcam, driving the simulated Franka live. What does physics make of them, and what does a policy learn from what SANT keeps?",
+      "setup": "Live test #10 (2026-10-19). Replays use the path the arm reached, lookahead 0; every repair and copy is re-verified in Isaac Lab. The policy is ACT, 30k steps, batch 8, trained only on SANT's output.",
+      "seeds": "5020–5059 (40 unseen scenes) for the policy",
+      "test": "Counts with a Wilson 95% CI. One arm: no comparison test.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Physics check of the demos as recorded",
+          "comparisons": [],
+          "arms": [
+            {
+              "key": "webcam_raw",
+              "label": "Webcam demos that pass",
+              "detail": "Live, every demo put the cube in the bin, but 9 pressed into it",
+              "k": 0,
+              "n": 10,
+              "ci": null,
+              "highlight": false,
+              "source": {
+                "note": "live10",
+                "lines": "325"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            }
+          ]
+        },
+        {
+          "label": "Repair, then multiply",
+          "comparisons": [],
+          "arms": [
+            {
+              "key": "webcam_repaired",
+              "label": "Repaired by the rules and verified",
+              "detail": null,
+              "k": 3,
+              "n": 10,
+              "ci": null,
+              "highlight": false,
+              "source": {
+                "note": "live10",
+                "lines": "434"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            },
+            {
+              "key": "webcam_copies",
+              "label": "Multiplied copies that verify",
+              "detail": "10 new scenes per repaired demo",
+              "k": 24,
+              "n": 30,
+              "ci": null,
+              "highlight": false,
+              "source": {
+                "note": "live10",
+                "lines": "435"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            }
+          ]
+        },
+        {
+          "label": "A policy trained only on SANT's output, 40 unseen scenes",
+          "comparisons": [],
+          "arms": [
+            {
+              "key": "webcam_policy",
+              "label": "ACT on the 27 episodes from 3 repaired demos",
+              "detail": "26 of its 37 failures dropped the cube",
+              "k": 3,
+              "n": 40,
+              "ci": [
+                0.025836025774588198,
+                0.19864233524310543
+              ],
+              "highlight": true,
+              "source": {
+                "note": "h10c",
+                "lines": "97"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": {
+                "k": 26,
+                "of": 37,
+                "source": {
+                  "note": "h10c",
+                  "lines": "115"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "finding": "Real hands make demos that physics rejects, which is the gap SANT is for. Repair turned 3 of the 10 into demos that pass, and those multiplied well. But 3 repaired demos weren't enough to train on: 3/40, one arm, not a comparison (the raw arm would have trained on 10 failed replays). For reference only, the scripted run above got 17/40 from 10 demos; that suggests the number of distinct repaired demos matters, but the runs also differ in source and size, so it doesn't show why.",
+      "caveats": [
+        "10 demos, from one person, in one session.",
+        "Replays reproduce live outcomes only 2–4 times in 10 for these demos.",
+        "The rules' two newest ops were written after seeing these same failures."
+      ],
+      "sources": [
+        {
+          "note": "live10",
+          "lines": "325"
+        },
+        {
+          "note": "live10",
+          "lines": "434"
+        },
+        {
+          "note": "h10c",
+          "lines": "97"
+        },
+        {
+          "note": "h10c",
+          "lines": "123"
+        },
+        {
+          "file": "human_exp/human10c/results.json"
+        },
+        {
+          "file": "evals/hx_human10c_20261020_112039/perfected_multiply_10.json"
+        }
+      ]
+    },
+    {
+      "id": "repair_ab",
+      "title": "Blind repair A/B: Nemotron's edits vs the hand-written rules",
+      "question": "On the same 10 failed webcam demos, does Nemotron's trajectory editing repair as many demos to a physics pass as the rules? Nemotron is never shown a hand-written fix.",
+      "setup": "Pre-registered, run twice. Nemotron reads what the simulator measured and writes edits; code caps each at 5 cm and checks it's smooth; Isaac Lab replays every plan with the same success check as the rules.",
+      "seeds": "The 10 webcam demos of live test #10",
+      "test": "Exact two-sided McNemar on the paired outcomes, α = 0.05; Wilson 95% CI per arm.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Run 1 (repair_ab1): repaired demos that pass physics, of the same 10",
+          "arms": [
+            {
+              "key": "ab1_rules",
+              "label": "The rules",
+              "detail": null,
+              "k": 3,
+              "n": 10,
+              "ci": [
+                0.10779126740630102,
+                0.6032218525388546
+              ],
+              "highlight": false,
+              "source": {
+                "note": "repair",
+                "lines": "171"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            },
+            {
+              "key": "ab1_edits",
+              "label": "Nemotron edits",
+              "detail": null,
+              "k": 5,
+              "n": 10,
+              "ci": [
+                0.23659309051256405,
+                0.763406909487436
+              ],
+              "highlight": true,
+              "source": {
+                "note": "repair",
+                "lines": "171"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            }
+          ],
+          "comparisons": [
+            {
+              "a": "ab1_rules",
+              "b": "ab1_edits",
+              "p": 0.5,
+              "verdict": "not significant (exact McNemar, paired)",
+              "source": {
+                "note": "repair",
+                "lines": "172–173"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Run 2 (repair_ab2): repaired demos that pass physics, of the same 10",
+          "arms": [
+            {
+              "key": "ab2_rules",
+              "label": "The rules",
+              "detail": null,
+              "k": 3,
+              "n": 10,
+              "ci": [
+                0.10779126740630102,
+                0.6032218525388546
+              ],
+              "highlight": false,
+              "source": {
+                "note": "repair",
+                "lines": "346"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            },
+            {
+              "key": "ab2_edits",
+              "label": "Nemotron edits",
+              "detail": null,
+              "k": 2,
+              "n": 10,
+              "ci": [
+                0.056682151454375246,
+                0.5098375284633582
+              ],
+              "highlight": true,
+              "source": {
+                "note": "repair",
+                "lines": "346"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            }
+          ],
+          "comparisons": [
+            {
+              "a": "ab2_rules",
+              "b": "ab2_edits",
+              "p": 1.0,
+              "verdict": "not significant (exact McNemar, paired)",
+              "source": {
+                "note": "repair",
+                "lines": "347"
+              }
+            }
+          ]
+        },
+        {
+          "label": "Demos repaired at least once, over both runs",
+          "comparisons": [],
+          "arms": [
+            {
+              "key": "union_rules",
+              "label": "The rules",
+              "detail": null,
+              "k": 3,
+              "n": 10,
+              "ci": null,
+              "highlight": false,
+              "source": {
+                "note": "repair",
+                "lines": "379–380"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            },
+            {
+              "key": "union_edits",
+              "label": "Nemotron edits",
+              "detail": null,
+              "k": 6,
+              "n": 10,
+              "ci": null,
+              "highlight": true,
+              "source": {
+                "note": "repair",
+                "lines": "379–380"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            }
+          ]
+        }
+      ],
+      "finding": "Nemotron repaired 5/10, then 2/10, against the rules' 3/10 both times: not significant either time, and its plans change from run to run while the rules' don't. Across the two runs it repaired 6 different demos at least once, the rules 3. Nemotron cost $0.21 and $0.28 for the two runs.",
+      "caveats": [
+        "10 demos; two runs side by side, not one pooled test.",
+        "The rules' two newest ops were written after seeing these same 10 failures; Nemotron saw neither.",
+        "PhysX is not deterministic, so a demo can pass or fail by luck in either arm."
+      ],
+      "sources": [
+        {
+          "note": "repair",
+          "lines": "171"
+        },
+        {
+          "note": "repair",
+          "lines": "346"
+        },
+        {
+          "note": "repair",
+          "lines": "379–380"
+        },
+        {
+          "note": "repair",
+          "lines": "168"
+        },
+        {
+          "note": "repair",
+          "lines": "348"
+        },
+        {
+          "file": "human_exp/repair_ab1/ab_summary.json"
+        },
+        {
+          "file": "human_exp/repair_ab2/ab_summary.json"
+        }
+      ]
+    },
+    {
+      "id": "mouse",
+      "title": "Tonight's mouse demos: clean live, and raw vs SANT",
+      "question": "The same person recorded 10 demos driving the arm with the mouse, with the soft floor on. Do they hold up in physics, and does a policy trained on SANT's output beat one trained on the demos as recorded?",
+      "setup": "Live test #11 (2026-10-20), pre-registered before the first demo (amendment 1: input = mouse). ACT, 30k steps, batch 8, one training run per arm.",
+      "seeds": "5020–5059 (40 unseen scenes) for the policies",
+      "test": "Two-sided Fisher exact, α = 0.05, with a Wilson 95% CI per arm.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Physics check, live and on replay",
+          "comparisons": [],
+          "arms": [
+            {
+              "key": "mouse_live",
+              "label": "Pass live",
+              "detail": null,
+              "k": 10,
+              "n": 10,
+              "ci": null,
+              "highlight": false,
+              "source": {
+                "note": "mouse",
+                "lines": "38"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            },
+            {
+              "key": "mouse_replay",
+              "label": "Pass on replay",
+              "detail": "replay path within 1.6–4.6 mm on average (max 11 mm); peak contact 0.0 N",
+              "k": 10,
+              "n": 10,
+              "ci": null,
+              "highlight": false,
+              "source": {
+                "note": "mouse",
+                "lines": "38"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            },
+            {
+              "key": "mouse_repaired",
+              "label": "Cleaned up by the rules and verified",
+              "detail": null,
+              "k": 10,
+              "n": 10,
+              "ci": null,
+              "highlight": false,
+              "source": {
+                "note": "mouse",
+                "lines": "39"
+              },
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            }
+          ]
+        },
+        {
+          "label": "Policies on 40 unseen scenes (pre-registered)",
+          "arms": [
+            {
+              "key": "mouse_raw",
+              "label": "The 10 mouse demos as recorded",
+              "detail": null,
+              "k": null,
+              "n": 40,
+              "ci": null,
+              "highlight": false,
+              "source": null,
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            },
+            {
+              "key": "mouse_sant",
+              "label": "Repaired + multiplied by SANT",
+              "detail": null,
+              "k": null,
+              "n": 40,
+              "ci": null,
+              "highlight": true,
+              "source": null,
+              "outcomes": null,
+              "outcomesSource": null,
+              "passes": null,
+              "passesSource": null,
+              "drops": null
+            }
+          ],
+          "comparisons": [
+            {
+              "a": "mouse_raw",
+              "b": "mouse_sant",
+              "p": null,
+              "verdict": null,
+              "source": {
+                "note": "prereg",
+                "lines": "74"
+              }
+            }
+          ]
+        }
+      ],
+      "finding": "Every mouse demo passed live and on replay, with no hard contact, so here the raw arm is 10 good demos, not 10 failed replays. T4's run is training and evaluating it now. It fills in when human_exp/mouse20261020/results.json lands: then run scripts/build_site_results.py again.",
+      "caveats": [
+        "10 demos, from one person, in one session.",
+        "The soft floor was on for every demo (9 of 10 had it hold the target up); they are labelled, not filtered.",
+        "One training run per arm."
+      ],
+      "sources": [
+        {
+          "note": "mouse",
+          "lines": "38"
+        },
+        {
+          "note": "mouse",
+          "lines": "25–36"
+        },
+        {
+          "note": "prereg",
+          "lines": "74"
+        },
+        {
+          "note": "prereg",
+          "lines": "8"
+        },
+        {
+          "file": "human_exp/mouse20261020/stages/physics"
+        },
+        {
+          "file": "human_exp/mouse20261020/results.json"
+        }
+      ]
+    }
+  ]
+}
