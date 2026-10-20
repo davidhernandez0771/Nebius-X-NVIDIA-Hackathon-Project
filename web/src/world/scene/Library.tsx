@@ -1,13 +1,14 @@
 // The library shelves along the walls: 442 cartridges from cartridge_lod.glb (a beveled box and the
-// label), two InstancedMeshes in all. They don't move or take clicks; each gets a repeatable shell
-// tint and label tile so the wall reads as a collection, not a pattern.
+// label), two InstancedMeshes in all, standing spine-out like books (libraryMatrix). They don't move
+// or take clicks; each gets a repeatable shell tint and label tile so the wall reads as a collection,
+// not a pattern.
 import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { QualityTier } from "../core/quality";
 import { CARTRIDGE_LOD_URL } from "./assets";
-import { cartridgeParts, slotMatrix } from "./cartridge";
+import { cartridgeParts, libraryMatrix } from "./cartridge";
 import { GRAPHITE } from "./Helix";
 import { LIBRARY_TILES, TILE_COUNT } from "./labels";
 import { LIBRARY } from "./layout";
@@ -55,7 +56,7 @@ export function Library({ quality }: { quality: QualityTier }) {
       if (!m) return;
       const part = parts[k];
       LIBRARY.forEach((s, i) => {
-        m.setMatrixAt(i, slotMatrix(s, m4));
+        m.setMatrixAt(i, libraryMatrix(s, m4));
         if (!part.isLabel) m.setColorAt(i, c.setRGB(...SHELLS[part.picks[i].shell], THREE.LinearSRGBColorSpace));
       });
       m.instanceMatrix.needsUpdate = true;

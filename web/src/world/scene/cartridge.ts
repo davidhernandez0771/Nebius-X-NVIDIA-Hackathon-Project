@@ -43,6 +43,21 @@ export function slotMatrix(slot: Slot, out = new THREE.Matrix4()): THREE.Matrix4
   return out.compose(_p, _q, _s);
 }
 
+/** Half the shell's size (cartridge.glb and the LOD alike), metres before the slot's scale. */
+export const CARTRIDGE_HALF = [1.15, 1.25, 0.17] as const;
+
+/**
+ * A library slot's matrix. layout.json's library rotations turn the LOD's face to the room, but the
+ * shelves are 1.6 m deep and the slots 0.25 m apart: Blender stands them spine-out, like books. Face-out,
+ * five 1.38 m faces overlapped in every slot and their slightly different leans interleaved in stripes
+ * that crawled with every camera move (the wall's flicker). A quarter turn about the cartridge's own
+ * vertical axis stands it spine-out.
+ */
+const SPINE_OUT = new THREE.Matrix4().makeRotationY(Math.PI / 2);
+export function libraryMatrix(slot: Slot, out = new THREE.Matrix4()): THREE.Matrix4 {
+  return slotMatrix(slot, out).multiply(SPINE_OUT);
+}
+
 /** Per-instance atlas tiles for a label geometry, as the `aTile` attribute (materials.ts withTiles). */
 export function tileAttribute(tiles: readonly number[]): THREE.InstancedBufferAttribute {
   const a = new Float32Array(tiles.length * 4);

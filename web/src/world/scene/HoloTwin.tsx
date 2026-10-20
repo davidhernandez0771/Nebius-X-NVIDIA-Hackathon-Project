@@ -11,10 +11,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { URDFRobot } from "urdf-loader";
-import { loadTwinRobot } from "../../twin/loadTwinRobot";
 import { applyJoints, binParts, CUBE_SIZE, FRANKA, quat } from "../../twin/model";
 import { parseEpisode, stateAt, type Episode } from "../../twin/replay";
 import type { QualityTier } from "../core/quality";
+import { SOFT_LINE_GLSL } from "./materials";
 
 const EPISODE_URL = `${(import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "/")}world/demo-episode.json`;
 const TEAL = new THREE.Color("#19f5c2");
@@ -218,33 +218,70 @@ function buildHolo(robot: URDFRobot, nPoints: number): Holo {
   return { root, robot, parts, cube, bin, dispose: () => disposables.forEach((d) => d.dispose()) };
 }
 
-/** The ring of light the hologram stands on, and the particles rising from the lens into it. */
+/** The rings of light the hologram stands on: radius and half width (m), brightness (x the level). */
+export const BASE_RINGS = [
+  { r: 1.55, w: 0.02, a: 0.45 },
+  { r: 1.15, w: 0.012, a: 0.45 },
+  { r: 0.5, w: 0.03, a: 0.8 },
+] as const;
+/** Tick marks round the outer ring (a dial): `arcs` arcs, each `arc` radians long, turning. */
+export const DIAL = { r: 1.74, w: 0.04, a: 0.5, arcs: 3, arc: Math.PI / 2.4, turn: 0.25 } as const;
+/** Half the quad they are all drawn on: past the dial, with room for the soft edge. */
+export const BASE_HALF = 1.9;
+
+const f4 = (x: number) => x.toFixed(4);
+
+/**
+ * The rings and the dial in one shader on one quad, each a soft-edged line (materials.ts softLine).
+ * They were six meshes with hard edges 2–6 cm wide: from the machine's views a pixel or less, so they
+ * broke up and crawled as the camera moved.
+ */
+export function baseRingsShader(): THREE.ShaderMaterialParameters {
+  const rings = BASE_RINGS.map((g) => `a += ${f4(g.a)} * softLine(r - ${f4(g.r)}, px, ${f4(g.w)});`).join("\n        ");
+  return {
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    uniforms: { uLevel: { value: 0 }, uRot: { value: 0 }, uColor: { value: TEAL.clone() } },
+    vertexShader: /* glsl */ `
+      varying vec2 vP;
+      void main() {
+        vP = position.xy;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uLevel, uRot;
+      uniform vec3 uColor;
+      varying vec2 vP;
+      ${SOFT_LINE_GLSL}
+      void main() {
+        float r = length(vP);
+        float px = pixelOf(r);
+        float a = 0.0;
+        ${rings}
+        // The dial: lit where the angle (turned by uRot) is inside an arc's span, soft at its ends.
+        float seg = ${f4((Math.PI * 2) / DIAL.arcs)};
+        float halfArc = ${f4(DIAL.arc / 2)};
+        float th = mod(atan(vP.y, vP.x) - uRot, seg);
+        float pt = max(length(dFdx(vP)), length(dFdy(vP))) + 1e-6;
+        float inArc = clamp(0.5 - (abs(th - halfArc) - halfArc) * r / pt, 0.0, 1.0);
+        a += ${f4(DIAL.a)} * softLine(r - ${f4(DIAL.r)}, px, ${f4(DIAL.w)}) * inArc;
+        gl_FragColor = vec4(uColor, a * uLevel);
+        #include <colorspace_fragment>
+      }`,
+  };
+}
+
+/** The rings of light the hologram stands on, and the particles rising from the lens into it. */
 function useBase(nRise: number) {
   return useMemo(() => {
     const group = new THREE.Group();
-    const rings: THREE.Mesh[] = [];
-    const ringMats: THREE.MeshBasicMaterial[] = [];
-    for (const [r, w] of [
-      [1.55, 0.02],
-      [1.15, 0.012],
-      [0.5, 0.03],
-    ] as const) {
-      const m = new THREE.MeshBasicMaterial({ color: TEAL, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(new THREE.RingGeometry(r - w, r + w, 96, 1, 0, Math.PI * 2), m);
-      mesh.rotation.x = -Math.PI / 2;
-      group.add(mesh);
-      rings.push(mesh);
-      ringMats.push(m);
-    }
-    // Tick marks round the outer ring (a dial), broken into arcs that turn.
-    const ticks = new THREE.Group();
-    const tickMat = new THREE.MeshBasicMaterial({ color: TEAL, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
-    for (let k = 0; k < 3; k++) {
-      const arc = new THREE.Mesh(new THREE.RingGeometry(1.7, 1.78, 48, 1, (k * Math.PI * 2) / 3, Math.PI / 2.4), tickMat);
-      arc.rotation.x = -Math.PI / 2;
-      ticks.add(arc);
-    }
-    group.add(ticks);
+    const ringsMat = new THREE.ShaderMaterial(baseRingsShader());
+    const rings = new THREE.Mesh(new THREE.PlaneGeometry(BASE_HALF * 2, BASE_HALF * 2), ringsMat);
+    rings.rotation.x = -Math.PI / 2;
+    group.add(rings);
     // Rising particles: a column from the lens up to the ring.
     const pos = new Float32Array(nRise * 3);
     const seed = new Float32Array(nRise);
@@ -293,14 +330,12 @@ function useBase(nRise: number) {
     rise.frustumCulled = false;
     group.add(rise);
     const dispose = () => {
-      rings.forEach((r) => r.geometry.dispose());
-      ringMats.forEach((m) => m.dispose());
-      ticks.children.forEach((c) => (c as THREE.Mesh).geometry.dispose());
-      tickMat.dispose();
+      rings.geometry.dispose();
+      ringsMat.dispose();
       rg.dispose();
       riseMat.dispose();
     };
-    return { group, ringMats, tickMat, ticks, riseMat, dispose };
+    return { group, ringsMat, riseMat, dispose };
   }, [nRise]);
 }
 
@@ -360,11 +395,13 @@ export function HoloTwin({ level, quality, label, position }: { level: () => num
   const live = useRef({ step: 0, joints: [] as number[], gripper: 0 as 0 | 1 | null });
   const nPoints = budget(quality);
 
-  // The robot (URDF + collision meshes) and the demo, once; nothing loads until the machine is near.
+  // The robot (URDF + collision meshes) and the demo, once. urdf-loader comes with the robot, in its
+  // own chunk, so the world's first load doesn't wait for it.
   useEffect(() => {
     let dead = false;
     let built: Holo | null = null;
-    loadTwinRobot()
+    import("../../twin/loadTwinRobot")
+      .then((m) => m.loadTwinRobot())
       .then((t) => {
         if (dead) return;
         built = buildHolo(t.robot, nPoints);
@@ -494,9 +531,8 @@ export function HoloTwin({ level, quality, label, position }: { level: () => num
       holo.cube.traverse((o) => o instanceof THREE.LineSegments && ((o.material as THREE.LineBasicMaterial).opacity = 0.95 * a));
       holo.bin.traverse((o) => o instanceof THREE.LineSegments && ((o.material as THREE.LineBasicMaterial).opacity = 0.6 * a));
     }
-    base.ringMats.forEach((m, i) => (m.opacity = (i === 2 ? 0.8 : 0.45) * a));
-    base.tickMat.opacity = 0.5 * a;
-    base.ticks.rotation.y = now * 0.25;
+    base.ringsMat.uniforms.uLevel.value = a;
+    base.ringsMat.uniforms.uRot.value = now * DIAL.turn;
     base.riseMat.uniforms.uTime.value = now;
     base.riseMat.uniforms.uLevel.value = lv;
     base.riseMat.uniforms.uPR.value = pr;

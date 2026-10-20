@@ -3,7 +3,7 @@
 // the projection while the cartridge plugs in, and the hologram (the robot twin in particles) lights
 // above the lens, in PROJECTION, where the zoom flies in.
 import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR, MACHINE_VIEW } from "../../core/layout";
-import { useEffect } from "react";
+import { lazy, useEffect } from "react";
 import { Button } from "../../../sant/components/Button";
 import { useWorld, useWorldState } from "../../core/WorldContext";
 import { plug, sendToMachine } from "../../scene/plug";
@@ -12,7 +12,9 @@ import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { stopFrom } from "../../scene/layout";
 import { through } from "../../core/rail";
-import { MachineScene } from "./Scene";
+
+// The machine's 3D (and the hologram) mounts after the loader, so its code loads then (firstLoad.test.ts).
+const MachineScene = lazy(() => import("./Scene").then((m) => ({ default: m.MachineScene })));
 
 function Overlay({ current }: StationOverlayProps) {
   const { goTo, back } = useWorld();

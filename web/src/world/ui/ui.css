@@ -277,3 +277,15 @@
   color: #02110d;
   background: var(--w-teal);
 }
+
+/* The descent's counter (stations/descent): tiny mono caps at the bottom centre. */
+.world-building {
+  position: fixed;
+  left: 50%;
+  bottom: 7vh;
+  transform: translateX(-50%);
+  margin: 0;
+  color: #7fc7d6;
+  opacity: 0;
+  white-space: nowrap;
+}

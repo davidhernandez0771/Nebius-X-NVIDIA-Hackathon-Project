@@ -34,6 +34,7 @@ import {
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { compileSafe } from "../../three/compileSafe";
 import { BOB, composeCartridgeMatrix, layoutSpiral, MAIN_SLOTS, N, pileOffset, type SpiralItem } from "./spiral";
 import { COPIES, ROBOTS } from "./robots";
 import { drawLabel } from "./labels";
@@ -180,10 +181,11 @@ function Shelf({ view, hud, onPick, onHover, perf, bloomScale }: ShelfProps) {
   }, [post, size, viewport.dpr, camera, bloomScale]);
 
   // Compile every shader before the first frame without blocking the page (parallel compile where supported).
+  // compileSafe: three's compileAsync throws from a timer if a material is disposed while it waits.
   useEffect(() => {
     let live = true;
     const done = () => { if (live) anim.current.ready = true; };
-    gl.compileAsync(scene, camera).then(done, done);
+    compileSafe(gl, scene, camera).then(done, done);
     const t = window.setTimeout(done, 1500);
     return () => { live = false; window.clearTimeout(t); };
   }, [gl, scene, camera]);

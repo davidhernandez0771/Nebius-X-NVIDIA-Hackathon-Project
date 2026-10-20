@@ -1,4 +1,4 @@
-// The logo mark: one image, sampled into particles (Scene.tsx). It is a placeholder until the user's
-// symbol arrives: replace web/public/world/mark.svg with any white-on-transparent drawing (square, the
-// mark filling about half of it) and the particles follow.
+// The logo mark: one SVG, read by SVGLoader and extruded into the 3D glass logo (logo3d.ts, Scene.tsx).
+// Replace web/public/world/mark.svg with any white-on-transparent drawing (square viewBox; strokes
+// and fills both work) and the logo follows: the shapes out at the edge become the ring, the rest the core.
 export const MARK_URL = `${import.meta.env.BASE_URL}world/mark.svg`;

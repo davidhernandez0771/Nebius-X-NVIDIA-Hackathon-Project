@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MotionProvider } from "../../../sant";
 import WorldRoot from "../../core/WorldRoot";
-import { INTRO_VH } from "../intro/storyline";
+import { INTRO_VH } from "../intro/storyPlan";
 import { MAX_SAVED, STORAGE_KEY, resetSaved, saveCartridge } from "../../scene/saved";
 import { bench, resetBench } from "./draft";
 

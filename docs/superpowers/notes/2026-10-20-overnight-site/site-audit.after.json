@@ -1,0 +1,2817 @@
+{
+ "base": "http://localhost:4181",
+ "at": "2026-10-20T04:51:26.355Z",
+ "bundle": {
+  "chunks": [
+   {
+    "file": "three.module-DPsWvPig.js",
+    "kind": "js",
+    "raw": 683990,
+    "gzip": 176372
+   },
+   {
+    "file": "index-W1H_TUlT.js",
+    "kind": "js",
+    "raw": 192259,
+    "gzip": 64146
+   },
+   {
+    "file": "vision_bundle-BKjrwyyy.js",
+    "kind": "js",
+    "raw": 139034,
+    "gzip": 41670
+   },
+   {
+    "file": "RecordHudPreview-DQhg7aDF.js",
+    "kind": "js",
+    "raw": 134098,
+    "gzip": 33542
+   },
+   {
+    "file": "events-776716bd.esm-DFxjLBew.js",
+    "kind": "js",
+    "raw": 129351,
+    "gzip": 42592
+   },
+   {
+    "file": "WorldRoot-hoM-SjSO.js",
+    "kind": "js",
+    "raw": 105522,
+    "gzip": 33695
+   },
+   {
+    "file": "SetupPage-BUn-cotn.js",
+    "kind": "js",
+    "raw": 86479,
+    "gzip": 22995
+   },
+   {
+    "file": "Gltf-Cxej9r7i.js",
+    "kind": "js",
+    "raw": 72146,
+    "gzip": 21344
+   },
+   {
+    "file": "ReviewPage2-Die65fKZ.js",
+    "kind": "js",
+    "raw": 59241,
+    "gzip": 22258
+   },
+   {
+    "file": "URDFLoader-B1sXXEDV.js",
+    "kind": "js",
+    "raw": 56909,
+    "gzip": 16635
+   },
+   {
+    "file": "index-BLMrC2xn.css",
+    "kind": "css",
+    "raw": 48205,
+    "gzip": 9911
+   },
+   {
+    "file": "animation-ctBAzyTg.js",
+    "kind": "js",
+    "raw": 30335,
+    "gzip": 11757
+   },
+   {
+    "file": "DesignPage-CqFOx8iS.js",
+    "kind": "js",
+    "raw": 30216,
+    "gzip": 9848
+   },
+   {
+    "file": "CalibrationPanel-DVrOjpzY.js",
+    "kind": "js",
+    "raw": 29975,
+    "gzip": 9125
+   },
+   {
+    "file": "useRecordSession-Co49cBZ8.js",
+    "kind": "js",
+    "raw": 28147,
+    "gzip": 10925
+   },
+   {
+    "file": "Landing-DKR3DX44.js",
+    "kind": "js",
+    "raw": 26780,
+    "gzip": 10107
+   },
+   {
+    "file": "RecordConsole-CT-WAp5b.js",
+    "kind": "js",
+    "raw": 26420,
+    "gzip": 8891
+   },
+   {
+    "file": "Scene-DNGsTE2Z.js",
+    "kind": "js",
+    "raw": 25345,
+    "gzip": 10010
+   },
+   {
+    "file": "SetupPage-CDVNeUVW.css",
+    "kind": "css",
+    "raw": 24827,
+    "gzip": 4857
+   },
+   {
+    "file": "WorldRoot-Cg6fgTWk.css",
+    "kind": "css",
+    "raw": 20409,
+    "gzip": 4890
+   },
+   {
+    "file": "lenis-XHln91gA.js",
+    "kind": "js",
+    "raw": 19860,
+    "gzip": 5739
+   },
+   {
+    "file": "RobotsPage-BtIg0xDP.js",
+    "kind": "js",
+    "raw": 19654,
+    "gzip": 8304
+   },
+   {
+    "file": "ResultsPage-CLr0pEF-.js",
+    "kind": "js",
+    "raw": 18570,
+    "gzip": 6240
+   },
+   {
+    "file": "RobotPreview-JSNvMHVq.js",
+    "kind": "js",
+    "raw": 18485,
+    "gzip": 7022
+   },
+   {
+    "file": "HandArtOverlay-D89cEAWT.js",
+    "kind": "js",
+    "raw": 17072,
+    "gzip": 6668
+   },
+   {
+    "file": "RecordConsole-DZY9mHef.css",
+    "kind": "css",
+    "raw": 16375,
+    "gzip": 3931
+   },
+   {
+    "file": "Scene-IO4hy3uV.js",
+    "kind": "js",
+    "raw": 16267,
+    "gzip": 6787
+   },
+   {
+    "file": "ShelfScene-DHtilUTG.js",
+    "kind": "js",
+    "raw": 15667,
+    "gzip": 7171
+   },
+   {
+    "file": "OrbitControls-B__GsYSz.js",
+    "kind": "js",
+    "raw": 15626,
+    "gzip": 4817
+   },
+   {
+    "file": "RecordPage-CYWWYSP7.js",
+    "kind": "js",
+    "raw": 15503,
+    "gzip": 4581
+   },
+   {
+    "file": "RoomScene-llXIHZgj.js",
+    "kind": "js",
+    "raw": 14953,
+    "gzip": 5903
+   },
+   {
+    "file": "StaticRoom-SwdAD28A.css",
+    "kind": "css",
+    "raw": 13756,
+    "gzip": 3591
+   },
+   {
+    "file": "WorldCanvas-DgXqvblv.js",
+    "kind": "js",
+    "raw": 13586,
+    "gzip": 5139
+   },
+   {
+    "file": "ReviewPage-CBjyBhlH.js",
+    "kind": "js",
+    "raw": 12140,
+    "gzip": 4266
+   },
+   {
+    "file": "UnrealBloomPass-CpKkHdAX.js",
+    "kind": "js",
+    "raw": 10377,
+    "gzip": 2815
+   },
+   {
+    "file": "Helix-J8pcuW0r.js",
+    "kind": "js",
+    "raw": 10179,
+    "gzip": 4861
+   },
+   {
+    "file": "record-hud-CMyYr3YA.css",
+    "kind": "css",
+    "raw": 8963,
+    "gzip": 2321
+   },
+   {
+    "file": "HandArtPreviewPage-RqmjimB-.js",
+    "kind": "js",
+    "raw": 8808,
+    "gzip": 3647
+   },
+   {
+    "file": "ReviewPage2-304TRq-y.css",
+    "kind": "css",
+    "raw": 8728,
+    "gzip": 1996
+   },
+   {
+    "file": "pm-DLELaubD.css",
+    "kind": "css",
+    "raw": 8484,
+    "gzip": 2099
+   },
+   {
+    "file": "ResultsPage-wVoApY-s.js",
+    "kind": "js",
+    "raw": 8277,
+    "gzip": 3278
+   },
+   {
+    "file": "ResultsPage-C3y00Met.css",
+    "kind": "css",
+    "raw": 8020,
+    "gzip": 1913
+   },
+   {
+    "file": "react-three-fiber.esm-CcNnWf1j.js",
+    "kind": "js",
+    "raw": 7070,
+    "gzip": 2885
+   },
+   {
+    "file": "design-DcxsXEsb.css",
+    "kind": "css",
+    "raw": 6955,
+    "gzip": 1560
+   },
+   {
+    "file": "CalibrationPanel-9ejj7Ka7.css",
+    "kind": "css",
+    "raw": 6742,
+    "gzip": 1593
+   },
+   {
+    "file": "calibrationPanel-BlVNlSoH.css",
+    "kind": "css",
+    "raw": 6665,
+    "gzip": 1607
+   },
+   {
+    "file": "RobotTwin-BLpXk98l.js",
+    "kind": "js",
+    "raw": 6438,
+    "gzip": 2702
+   },
+   {
+    "file": "StaticRoom-DpVQUguP.js",
+    "kind": "js",
+    "raw": 6160,
+    "gzip": 3145
+   },
+   {
+    "file": "WorkShell-B7HZfpba.css",
+    "kind": "css",
+    "raw": 6053,
+    "gzip": 1986
+   },
+   {
+    "file": "HandArtPreviewPage-CuOBl4ro.css",
+    "kind": "css",
+    "raw": 5577,
+    "gzip": 1827
+   },
+   {
+    "file": "Entry-G444DDr1.js",
+    "kind": "js",
+    "raw": 5381,
+    "gzip": 2291
+   },
+   {
+    "file": "AddScan-CppyZn7R.js",
+    "kind": "js",
+    "raw": 4994,
+    "gzip": 1990
+   },
+   {
+    "file": "ScanViewer-_JGliu-t.js",
+    "kind": "js",
+    "raw": 4521,
+    "gzip": 2149
+   },
+   {
+    "file": "StoryShell-Bwe4WEnJ.js",
+    "kind": "js",
+    "raw": 4487,
+    "gzip": 1889
+   },
+   {
+    "file": "DatasetPage-DI5l23U-.js",
+    "kind": "js",
+    "raw": 4482,
+    "gzip": 1748
+   },
+   {
+    "file": "Nav-Dbcy-OuD.js",
+    "kind": "js",
+    "raw": 4154,
+    "gzip": 1692
+   },
+   {
+    "file": "RobotsPage-Bnd59_Vr.css",
+    "kind": "css",
+    "raw": 4051,
+    "gzip": 1486
+   },
+   {
+    "file": "BufferGeometryUtils-CbzgtVaf.js",
+    "kind": "js",
+    "raw": 3838,
+    "gzip": 1128
+   },
+   {
+    "file": "RoomView-CgbQTxSU.js",
+    "kind": "js",
+    "raw": 3675,
+    "gzip": 1608
+   },
+   {
+    "file": "Review-Dskc2wdH.js",
+    "kind": "js",
+    "raw": 3545,
+    "gzip": 1698
+   },
+   {
+    "file": "index-CFi1W7LO.js",
+    "kind": "js",
+    "raw": 3059,
+    "gzip": 1538
+   },
+   {
+    "file": "replay-BjYF0Ixo.js",
+    "kind": "js",
+    "raw": 3015,
+    "gzip": 1309
+   },
+   {
+    "file": "Chat-IW2Q9WIQ.js",
+    "kind": "js",
+    "raw": 3004,
+    "gzip": 1405
+   },
+   {
+    "file": "DashboardShell-CqnOhI-r.js",
+    "kind": "js",
+    "raw": 2924,
+    "gzip": 1222
+   },
+   {
+    "file": "labels-BtC8pqM4.js",
+    "kind": "js",
+    "raw": 2761,
+    "gzip": 1145
+   },
+   {
+    "file": "Inventory-rYERkru_.js",
+    "kind": "js",
+    "raw": 2421,
+    "gzip": 1185
+   },
+   {
+    "file": "Organize-4G43jCN1.js",
+    "kind": "js",
+    "raw": 2157,
+    "gzip": 1116
+   },
+   {
+    "file": "AddPhoto-COste0ut.js",
+    "kind": "js",
+    "raw": 2108,
+    "gzip": 1121
+   },
+   {
+    "file": "ScanViewer-C_fAr1J_.css",
+    "kind": "css",
+    "raw": 2034,
+    "gzip": 869
+   },
+   {
+    "file": "model-CmW3IhOC.js",
+    "kind": "js",
+    "raw": 1936,
+    "gzip": 969
+   },
+   {
+    "file": "DesignAppPage-B6Pyl7jI.js",
+    "kind": "js",
+    "raw": 1912,
+    "gzip": 933
+   },
+   {
+    "file": "Home-DXVdtkdI.js",
+    "kind": "js",
+    "raw": 1910,
+    "gzip": 929
+   },
+   {
+    "file": "RoomEnvironment-Bm7nsdve.js",
+    "kind": "js",
+    "raw": 1859,
+    "gzip": 821
+   },
+   {
+    "file": "api-DyMem0el.js",
+    "kind": "js",
+    "raw": 1844,
+    "gzip": 919
+   },
+   {
+    "file": "record-hud-YpFsNcIg.js",
+    "kind": "js",
+    "raw": 1804,
+    "gzip": 922
+   },
+   {
+    "file": "WorkShell-DeqJOTVi.js",
+    "kind": "js",
+    "raw": 1716,
+    "gzip": 838
+   },
+   {
+    "file": "jobs-jo8aszCf.js",
+    "kind": "js",
+    "raw": 1655,
+    "gzip": 863
+   },
+   {
+    "file": "PerspectiveCamera-Bp_dVLkZ.js",
+    "kind": "js",
+    "raw": 1569,
+    "gzip": 839
+   },
+   {
+    "file": "Icon-BAskRgnf.js",
+    "kind": "js",
+    "raw": 1465,
+    "gzip": 852
+   },
+   {
+    "file": "framing-BOdTXHye.js",
+    "kind": "js",
+    "raw": 1448,
+    "gzip": 640
+   },
+   {
+    "file": "pm-BtQWAfpE.js",
+    "kind": "js",
+    "raw": 1422,
+    "gzip": 748
+   },
+   {
+    "file": "GlyphLoader-B7R97TQz.js",
+    "kind": "js",
+    "raw": 1361,
+    "gzip": 709
+   },
+   {
+    "file": "Settings-BtDy1a98.js",
+    "kind": "js",
+    "raw": 1242,
+    "gzip": 603
+   },
+   {
+    "file": "ItemCard-CoLa0ofP.js",
+    "kind": "js",
+    "raw": 1127,
+    "gzip": 546
+   },
+   {
+    "file": "Progress-CNkXAgr0.js",
+    "kind": "js",
+    "raw": 1044,
+    "gzip": 581
+   },
+   {
+    "file": "errors-BEE5iPcg.js",
+    "kind": "js",
+    "raw": 1040,
+    "gzip": 480
+   },
+   {
+    "file": "design-CG5QlFDN.js",
+    "kind": "js",
+    "raw": 1038,
+    "gzip": 580
+   },
+   {
+    "file": "LegacyHand-VrC60Rzr.js",
+    "kind": "js",
+    "raw": 802,
+    "gzip": 483
+   },
+   {
+    "file": "loadTwinRobot-DeHqn03x.js",
+    "kind": "js",
+    "raw": 792,
+    "gzip": 529
+   },
+   {
+    "file": "presets-D57a14AB.js",
+    "kind": "js",
+    "raw": 717,
+    "gzip": 441
+   },
+   {
+    "file": "capability-m66kr8b-.js",
+    "kind": "js",
+    "raw": 667,
+    "gzip": 375
+   },
+   {
+    "file": "AppShell-D0tdAvXe.js",
+    "kind": "js",
+    "raw": 630,
+    "gzip": 337
+   },
+   {
+    "file": "usage-DHTH-tRu.js",
+    "kind": "js",
+    "raw": 537,
+    "gzip": 360
+   },
+   {
+    "file": "Button-U7Jk9Acz.js",
+    "kind": "js",
+    "raw": 427,
+    "gzip": 266
+   },
+   {
+    "file": "DotMeter-Dju-5p35.js",
+    "kind": "js",
+    "raw": 418,
+    "gzip": 305
+   },
+   {
+    "file": "Zones-Dg6GRu8u.js",
+    "kind": "js",
+    "raw": 404,
+    "gzip": 252
+   },
+   {
+    "file": "contracts-CiIPTzpy.js",
+    "kind": "js",
+    "raw": 371,
+    "gzip": 274
+   },
+   {
+    "file": "EmptyState-D6kU903y.js",
+    "kind": "js",
+    "raw": 344,
+    "gzip": 252
+   },
+   {
+    "file": "Badge-BRU6M8LY.js",
+    "kind": "js",
+    "raw": 252,
+    "gzip": 203
+   },
+   {
+    "file": "extends-CF3RwP-h.js",
+    "kind": "js",
+    "raw": 232,
+    "gzip": 185
+   },
+   {
+    "file": "StatusPill-CjBKl5IS.js",
+    "kind": "js",
+    "raw": 227,
+    "gzip": 182
+   },
+   {
+    "file": "viewTransition-D124QcZT.js",
+    "kind": "js",
+    "raw": 218,
+    "gzip": 182
+   },
+   {
+    "file": "format-dZ8TOwiy.js",
+    "kind": "js",
+    "raw": 181,
+    "gzip": 157
+   },
+   {
+    "file": "HandArtOverlay-CFRMIsqf.css",
+    "kind": "css",
+    "raw": 102,
+    "gzip": 105
+   },
+   {
+    "file": "activeScanViewer-Dv1WYOev.js",
+    "kind": "js",
+    "raw": 74,
+    "gzip": 84
+   },
+   {
+    "file": "client-da6qgxdd.js",
+    "kind": "js",
+    "raw": 59,
+    "gzip": 79
+   }
+  ],
+  "totals": {
+   "js": {
+    "raw": 2206209,
+    "gzip": 686834
+   },
+   "css": {
+    "raw": 195946,
+    "gzip": 46542
+   }
+  },
+  "firstRequest": {
+   "entry": [
+    "index-W1H_TUlT.js"
+   ],
+   "js": [
+    "index-W1H_TUlT.js"
+   ],
+   "jsSize": {
+    "raw": 192259,
+    "gzip": 64146
+   },
+   "css": [
+    "index-BLMrC2xn.css"
+   ],
+   "cssSize": {
+    "raw": 48205,
+    "gzip": 9911
+   },
+   "external": [
+    "https://fonts.googleapis.com",
+    "https://fonts.gstatic.com",
+    "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&display=swap"
+   ]
+  }
+ },
+ "load": [
+  {
+   "viewport": "desktop",
+   "query": "?q=high",
+   "mode": "3d",
+   "readyMs": 4957,
+   "lastBeforeReadyEndMs": 2842,
+   "fcpMs": 812,
+   "wallMs": 5007,
+   "beforeReady": {
+    "requests": 16,
+    "bytes": 350820,
+    "decoded": 1216366,
+    "js": 333350,
+    "jsDecoded": 1145762,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29543
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-DPsWvPig.js",
+      "type": "script",
+      "bytes": 176672,
+      "decoded": 683990,
+      "startMs": 409
+     },
+     {
+      "url": "/assets/index-W1H_TUlT.js",
+      "type": "script",
+      "bytes": 64446,
+      "decoded": 192259,
+      "startMs": 48
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DFxjLBew.js",
+      "type": "script",
+      "bytes": 42892,
+      "decoded": 129351,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/WorldRoot-hoM-SjSO.js",
+      "type": "script",
+      "bytes": 33995,
+      "decoded": 105522,
+      "startMs": 408
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 48
+     },
+     {
+      "url": "/assets/WorldCanvas-DgXqvblv.js",
+      "type": "script",
+      "bytes": 5439,
+      "decoded": 13586,
+      "startMs": 480
+     },
+     {
+      "url": "/assets/WorldRoot-Cg6fgTWk.css",
+      "type": "link",
+      "bytes": 5190,
+      "decoded": 20409,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/react-three-fiber.esm-CcNnWf1j.js",
+      "type": "script",
+      "bytes": 3185,
+      "decoded": 7070,
+      "startMs": 480
+     },
+     {
+      "url": "/assets/UnrealBloomPass-CpKkHdAX.js",
+      "type": "script",
+      "bytes": 3115,
+      "decoded": 10377,
+      "startMs": 480
+     },
+     {
+      "url": "/world/mark.svg",
+      "type": "img",
+      "bytes": 1167,
+      "decoded": 867,
+      "startMs": 2839
+     },
+     {
+      "url": "/assets/RoomEnvironment-Bm7nsdve.js",
+      "type": "script",
+      "bytes": 1121,
+      "decoded": 1859,
+      "startMs": 409
+     },
+     {
+      "url": "/?q=high",
+      "type": "document",
+      "bytes": 902,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Progress-CNkXAgr0.js",
+      "type": "script",
+      "bytes": 881,
+      "decoded": 1044,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/Button-U7Jk9Acz.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/viewTransition-D124QcZT.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 409
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 410
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 32,
+    "bytes": 3589976,
+    "files": [
+     {
+      "url": "/world/models/machine.glb",
+      "bytes": 1158104,
+      "startMs": 8404
+     },
+     {
+      "url": "/world/models/room.glb",
+      "bytes": 644332,
+      "startMs": 5456
+     },
+     {
+      "url": "/world/models/machine_body.glb",
+      "bytes": 397916,
+      "startMs": 5458
+     },
+     {
+      "url": "/world/models/bench.glb",
+      "bytes": 391924,
+      "startMs": 5458
+     },
+     {
+      "url": "/world/models/shelves.glb",
+      "bytes": 314000,
+      "startMs": 5457
+     },
+     {
+      "url": "/world/models/desk.glb",
+      "bytes": 179712,
+      "startMs": 5458
+     },
+     {
+      "url": "/world/models/pedestal.glb",
+      "bytes": 165708,
+      "startMs": 5458
+     },
+     {
+      "url": "/world/models/cartridge.glb",
+      "bytes": 127020,
+      "startMs": 8403
+     },
+     {
+      "url": "/assets/Gltf-Cxej9r7i.js",
+      "bytes": 21644,
+      "startMs": 5418
+     },
+     {
+      "url": "/assets/URDFLoader-B1sXXEDV.js",
+      "bytes": 16935,
+      "startMs": 10869
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link1.stl",
+      "bytes": 15384,
+      "startMs": 15418
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link2.stl",
+      "bytes": 15384,
+      "startMs": 15418
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link3.stl",
+      "bytes": 15384,
+      "startMs": 15418
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link4.stl",
+      "bytes": 15384,
+      "startMs": 15419
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link5.stl",
+      "bytes": 15384,
+      "startMs": 15419
+     }
+    ]
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=high"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "query": "",
+   "mode": "stills",
+   "readyMs": 643,
+   "lastBeforeReadyEndMs": 619,
+   "fcpMs": 700,
+   "wallMs": 657,
+   "beforeReady": {
+    "requests": 18,
+    "bytes": 540044,
+    "decoded": 1384796,
+    "js": 321611,
+    "jsDecoded": 1114729,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29543
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-DPsWvPig.js",
+      "type": "script",
+      "bytes": 176672,
+      "decoded": 683990,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/index-W1H_TUlT.js",
+      "type": "script",
+      "bytes": 64446,
+      "decoded": 192259,
+      "startMs": 15
+     },
+     {
+      "url": "/world/stills/workshop.webp",
+      "type": "img",
+      "bytes": 55208,
+      "decoded": 54908,
+      "startMs": 596
+     },
+     {
+      "url": "/world/stills/descent.webp",
+      "type": "img",
+      "bytes": 51004,
+      "decoded": 50704,
+      "startMs": 596
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DFxjLBew.js",
+      "type": "script",
+      "bytes": 42892,
+      "decoded": 129351,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/WorldRoot-hoM-SjSO.js",
+      "type": "script",
+      "bytes": 33995,
+      "decoded": 105522,
+      "startMs": 409
+     },
+     {
+      "url": "/world/stills/machine.webp",
+      "type": "img",
+      "bytes": 32508,
+      "decoded": 32208,
+      "startMs": 596
+     },
+     {
+      "url": "/world/stills/workbench.webp",
+      "type": "img",
+      "bytes": 30092,
+      "decoded": 29792,
+      "startMs": 597
+     },
+     {
+      "url": "/world/stills/story.webp",
+      "type": "img",
+      "bytes": 20816,
+      "decoded": 20516,
+      "startMs": 596
+     },
+     {
+      "url": "/world/stills/zoom.webp",
+      "type": "img",
+      "bytes": 12502,
+      "decoded": 12202,
+      "startMs": 596
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 15
+     },
+     {
+      "url": "/assets/WorldRoot-Cg6fgTWk.css",
+      "type": "link",
+      "bytes": 5190,
+      "decoded": 20409,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/RoomEnvironment-Bm7nsdve.js",
+      "type": "script",
+      "bytes": 1121,
+      "decoded": 1859,
+      "startMs": 410
+     },
+     {
+      "url": "/",
+      "type": "document",
+      "bytes": 902,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Progress-CNkXAgr0.js",
+      "type": "script",
+      "bytes": 881,
+      "decoded": 1044,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/Button-U7Jk9Acz.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/viewTransition-D124QcZT.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 410
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 410
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 0,
+    "bytes": 0,
+    "files": []
+   },
+   "errors": []
+  },
+  {
+   "viewport": "laptop",
+   "query": "?q=high",
+   "mode": "3d",
+   "readyMs": 3611,
+   "lastBeforeReadyEndMs": 2430,
+   "fcpMs": 648,
+   "wallMs": 3652,
+   "beforeReady": {
+    "requests": 16,
+    "bytes": 350820,
+    "decoded": 1216366,
+    "js": 333350,
+    "jsDecoded": 1145762,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29544
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-DPsWvPig.js",
+      "type": "script",
+      "bytes": 176672,
+      "decoded": 683990,
+      "startMs": 486
+     },
+     {
+      "url": "/assets/index-W1H_TUlT.js",
+      "type": "script",
+      "bytes": 64446,
+      "decoded": 192259,
+      "startMs": 12
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DFxjLBew.js",
+      "type": "script",
+      "bytes": 42892,
+      "decoded": 129351,
+      "startMs": 486
+     },
+     {
+      "url": "/assets/WorldRoot-hoM-SjSO.js",
+      "type": "script",
+      "bytes": 33995,
+      "decoded": 105522,
+      "startMs": 486
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 13
+     },
+     {
+      "url": "/assets/WorldCanvas-DgXqvblv.js",
+      "type": "script",
+      "bytes": 5439,
+      "decoded": 13586,
+      "startMs": 574
+     },
+     {
+      "url": "/assets/WorldRoot-Cg6fgTWk.css",
+      "type": "link",
+      "bytes": 5190,
+      "decoded": 20409,
+      "startMs": 487
+     },
+     {
+      "url": "/assets/react-three-fiber.esm-CcNnWf1j.js",
+      "type": "script",
+      "bytes": 3185,
+      "decoded": 7070,
+      "startMs": 574
+     },
+     {
+      "url": "/assets/UnrealBloomPass-CpKkHdAX.js",
+      "type": "script",
+      "bytes": 3115,
+      "decoded": 10377,
+      "startMs": 574
+     },
+     {
+      "url": "/world/mark.svg",
+      "type": "img",
+      "bytes": 1167,
+      "decoded": 867,
+      "startMs": 2427
+     },
+     {
+      "url": "/assets/RoomEnvironment-Bm7nsdve.js",
+      "type": "script",
+      "bytes": 1121,
+      "decoded": 1859,
+      "startMs": 486
+     },
+     {
+      "url": "/?q=high",
+      "type": "document",
+      "bytes": 902,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Progress-CNkXAgr0.js",
+      "type": "script",
+      "bytes": 881,
+      "decoded": 1044,
+      "startMs": 486
+     },
+     {
+      "url": "/assets/Button-U7Jk9Acz.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 487
+     },
+     {
+      "url": "/assets/viewTransition-D124QcZT.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 486
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 487
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 32,
+    "bytes": 3589976,
+    "files": [
+     {
+      "url": "/world/models/machine.glb",
+      "bytes": 1158104,
+      "startMs": 7359
+     },
+     {
+      "url": "/world/models/room.glb",
+      "bytes": 644332,
+      "startMs": 4098
+     },
+     {
+      "url": "/world/models/machine_body.glb",
+      "bytes": 397916,
+      "startMs": 4101
+     },
+     {
+      "url": "/world/models/bench.glb",
+      "bytes": 391924,
+      "startMs": 4100
+     },
+     {
+      "url": "/world/models/shelves.glb",
+      "bytes": 314000,
+      "startMs": 4099
+     },
+     {
+      "url": "/world/models/desk.glb",
+      "bytes": 179712,
+      "startMs": 4100
+     },
+     {
+      "url": "/world/models/pedestal.glb",
+      "bytes": 165708,
+      "startMs": 4099
+     },
+     {
+      "url": "/world/models/cartridge.glb",
+      "bytes": 127020,
+      "startMs": 4154
+     },
+     {
+      "url": "/assets/Gltf-Cxej9r7i.js",
+      "bytes": 21644,
+      "startMs": 4068
+     },
+     {
+      "url": "/assets/URDFLoader-B1sXXEDV.js",
+      "bytes": 16935,
+      "startMs": 7690
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link1.stl",
+      "bytes": 15384,
+      "startMs": 9440
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link2.stl",
+      "bytes": 15384,
+      "startMs": 9440
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link3.stl",
+      "bytes": 15384,
+      "startMs": 9441
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link4.stl",
+      "bytes": 15384,
+      "startMs": 9441
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link5.stl",
+      "bytes": 15384,
+      "startMs": 9442
+     }
+    ]
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=high"
+    }
+   ]
+  },
+  {
+   "viewport": "laptop",
+   "query": "",
+   "mode": "stills",
+   "readyMs": 598,
+   "lastBeforeReadyEndMs": 545,
+   "fcpMs": 636,
+   "wallMs": 609,
+   "beforeReady": {
+    "requests": 18,
+    "bytes": 540044,
+    "decoded": 1384796,
+    "js": 321611,
+    "jsDecoded": 1114729,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29544
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-DPsWvPig.js",
+      "type": "script",
+      "bytes": 176672,
+      "decoded": 683990,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/index-W1H_TUlT.js",
+      "type": "script",
+      "bytes": 64446,
+      "decoded": 192259,
+      "startMs": 9
+     },
+     {
+      "url": "/world/stills/workshop.webp",
+      "type": "img",
+      "bytes": 55208,
+      "decoded": 54908,
+      "startMs": 534
+     },
+     {
+      "url": "/world/stills/descent.webp",
+      "type": "img",
+      "bytes": 51004,
+      "decoded": 50704,
+      "startMs": 534
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DFxjLBew.js",
+      "type": "script",
+      "bytes": 42892,
+      "decoded": 129351,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/WorldRoot-hoM-SjSO.js",
+      "type": "script",
+      "bytes": 33995,
+      "decoded": 105522,
+      "startMs": 410
+     },
+     {
+      "url": "/world/stills/machine.webp",
+      "type": "img",
+      "bytes": 32508,
+      "decoded": 32208,
+      "startMs": 534
+     },
+     {
+      "url": "/world/stills/workbench.webp",
+      "type": "img",
+      "bytes": 30092,
+      "decoded": 29792,
+      "startMs": 534
+     },
+     {
+      "url": "/world/stills/story.webp",
+      "type": "img",
+      "bytes": 20816,
+      "decoded": 20516,
+      "startMs": 534
+     },
+     {
+      "url": "/world/stills/zoom.webp",
+      "type": "img",
+      "bytes": 12502,
+      "decoded": 12202,
+      "startMs": 534
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 9
+     },
+     {
+      "url": "/assets/WorldRoot-Cg6fgTWk.css",
+      "type": "link",
+      "bytes": 5190,
+      "decoded": 20409,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/RoomEnvironment-Bm7nsdve.js",
+      "type": "script",
+      "bytes": 1121,
+      "decoded": 1859,
+      "startMs": 411
+     },
+     {
+      "url": "/",
+      "type": "document",
+      "bytes": 902,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Progress-CNkXAgr0.js",
+      "type": "script",
+      "bytes": 881,
+      "decoded": 1044,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/Button-U7Jk9Acz.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/viewTransition-D124QcZT.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 411
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 0,
+    "bytes": 0,
+    "files": []
+   },
+   "errors": []
+  },
+  {
+   "viewport": "phone",
+   "query": "?q=high",
+   "mode": "3d",
+   "readyMs": 3240,
+   "lastBeforeReadyEndMs": 2254,
+   "fcpMs": 588,
+   "wallMs": 3281,
+   "beforeReady": {
+    "requests": 16,
+    "bytes": 350820,
+    "decoded": 1216366,
+    "js": 333350,
+    "jsDecoded": 1145762,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23633
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29542
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-DPsWvPig.js",
+      "type": "script",
+      "bytes": 176672,
+      "decoded": 683990,
+      "startMs": 417
+     },
+     {
+      "url": "/assets/index-W1H_TUlT.js",
+      "type": "script",
+      "bytes": 64446,
+      "decoded": 192259,
+      "startMs": 13
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DFxjLBew.js",
+      "type": "script",
+      "bytes": 42892,
+      "decoded": 129351,
+      "startMs": 417
+     },
+     {
+      "url": "/assets/WorldRoot-hoM-SjSO.js",
+      "type": "script",
+      "bytes": 33995,
+      "decoded": 105522,
+      "startMs": 417
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 13
+     },
+     {
+      "url": "/assets/WorldCanvas-DgXqvblv.js",
+      "type": "script",
+      "bytes": 5439,
+      "decoded": 13586,
+      "startMs": 495
+     },
+     {
+      "url": "/assets/WorldRoot-Cg6fgTWk.css",
+      "type": "link",
+      "bytes": 5190,
+      "decoded": 20409,
+      "startMs": 418
+     },
+     {
+      "url": "/assets/react-three-fiber.esm-CcNnWf1j.js",
+      "type": "script",
+      "bytes": 3185,
+      "decoded": 7070,
+      "startMs": 495
+     },
+     {
+      "url": "/assets/UnrealBloomPass-CpKkHdAX.js",
+      "type": "script",
+      "bytes": 3115,
+      "decoded": 10377,
+      "startMs": 495
+     },
+     {
+      "url": "/world/mark.svg",
+      "type": "img",
+      "bytes": 1167,
+      "decoded": 867,
+      "startMs": 2250
+     },
+     {
+      "url": "/assets/RoomEnvironment-Bm7nsdve.js",
+      "type": "script",
+      "bytes": 1121,
+      "decoded": 1859,
+      "startMs": 417
+     },
+     {
+      "url": "/?q=high",
+      "type": "document",
+      "bytes": 902,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Progress-CNkXAgr0.js",
+      "type": "script",
+      "bytes": 881,
+      "decoded": 1044,
+      "startMs": 417
+     },
+     {
+      "url": "/assets/Button-U7Jk9Acz.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 417
+     },
+     {
+      "url": "/assets/viewTransition-D124QcZT.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 417
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 417
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 32,
+    "bytes": 3589976,
+    "files": [
+     {
+      "url": "/world/models/machine.glb",
+      "bytes": 1158104,
+      "startMs": 4932
+     },
+     {
+      "url": "/world/models/room.glb",
+      "bytes": 644332,
+      "startMs": 3726
+     },
+     {
+      "url": "/world/models/machine_body.glb",
+      "bytes": 397916,
+      "startMs": 3729
+     },
+     {
+      "url": "/world/models/bench.glb",
+      "bytes": 391924,
+      "startMs": 3729
+     },
+     {
+      "url": "/world/models/shelves.glb",
+      "bytes": 314000,
+      "startMs": 3728
+     },
+     {
+      "url": "/world/models/desk.glb",
+      "bytes": 179712,
+      "startMs": 3729
+     },
+     {
+      "url": "/world/models/pedestal.glb",
+      "bytes": 165708,
+      "startMs": 3729
+     },
+     {
+      "url": "/world/models/cartridge.glb",
+      "bytes": 127020,
+      "startMs": 3781
+     },
+     {
+      "url": "/assets/Gltf-Cxej9r7i.js",
+      "bytes": 21644,
+      "startMs": 3695
+     },
+     {
+      "url": "/assets/URDFLoader-B1sXXEDV.js",
+      "bytes": 16935,
+      "startMs": 6693
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link1.stl",
+      "bytes": 15384,
+      "startMs": 7620
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link2.stl",
+      "bytes": 15384,
+      "startMs": 7621
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link3.stl",
+      "bytes": 15384,
+      "startMs": 7621
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link4.stl",
+      "bytes": 15384,
+      "startMs": 7621
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link5.stl",
+      "bytes": 15384,
+      "startMs": 7621
+     }
+    ]
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=high"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "query": "",
+   "mode": "stills",
+   "readyMs": 545,
+   "lastBeforeReadyEndMs": 515,
+   "fcpMs": 632,
+   "wallMs": 562,
+   "beforeReady": {
+    "requests": 18,
+    "bytes": 540044,
+    "decoded": 1384796,
+    "js": 321611,
+    "jsDecoded": 1114729,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29543
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-DPsWvPig.js",
+      "type": "script",
+      "bytes": 176672,
+      "decoded": 683990,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/index-W1H_TUlT.js",
+      "type": "script",
+      "bytes": 64446,
+      "decoded": 192259,
+      "startMs": 15
+     },
+     {
+      "url": "/world/stills/workshop.webp",
+      "type": "img",
+      "bytes": 55208,
+      "decoded": 54908,
+      "startMs": 509
+     },
+     {
+      "url": "/world/stills/descent.webp",
+      "type": "img",
+      "bytes": 51004,
+      "decoded": 50704,
+      "startMs": 509
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DFxjLBew.js",
+      "type": "script",
+      "bytes": 42892,
+      "decoded": 129351,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/WorldRoot-hoM-SjSO.js",
+      "type": "script",
+      "bytes": 33995,
+      "decoded": 105522,
+      "startMs": 411
+     },
+     {
+      "url": "/world/stills/machine.webp",
+      "type": "img",
+      "bytes": 32508,
+      "decoded": 32208,
+      "startMs": 509
+     },
+     {
+      "url": "/world/stills/workbench.webp",
+      "type": "img",
+      "bytes": 30092,
+      "decoded": 29792,
+      "startMs": 509
+     },
+     {
+      "url": "/world/stills/story.webp",
+      "type": "img",
+      "bytes": 20816,
+      "decoded": 20516,
+      "startMs": 508
+     },
+     {
+      "url": "/world/stills/zoom.webp",
+      "type": "img",
+      "bytes": 12502,
+      "decoded": 12202,
+      "startMs": 509
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 15
+     },
+     {
+      "url": "/assets/WorldRoot-Cg6fgTWk.css",
+      "type": "link",
+      "bytes": 5190,
+      "decoded": 20409,
+      "startMs": 412
+     },
+     {
+      "url": "/assets/RoomEnvironment-Bm7nsdve.js",
+      "type": "script",
+      "bytes": 1121,
+      "decoded": 1859,
+      "startMs": 411
+     },
+     {
+      "url": "/",
+      "type": "document",
+      "bytes": 902,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Progress-CNkXAgr0.js",
+      "type": "script",
+      "bytes": 881,
+      "decoded": 1044,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/Button-U7Jk9Acz.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/viewTransition-D124QcZT.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 411
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 412
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 0,
+    "bytes": 0,
+    "files": []
+   },
+   "errors": []
+  }
+ ],
+ "frames": [
+  {
+   "viewport": "desktop",
+   "tier": "high",
+   "intro": {
+    "frames": 5,
+    "rafMedianMs": 2316.6,
+    "rafP95Ms": 3099.9,
+    "renderedPerSec": 0.8,
+    "renderedMedianMs": 2316.6,
+    "renderedP95Ms": 3099.9,
+    "drawsPerRenderedFrame": 17
+   },
+   "hubReachedMs": 25209,
+   "hub": {
+    "frames": 3,
+    "rafMedianMs": 1849.9,
+    "rafP95Ms": 2016.6,
+    "renderedPerSec": 0.7,
+    "renderedMedianMs": 1849.9,
+    "renderedP95Ms": 2016.6,
+    "drawsPerRenderedFrame": 55
+   },
+   "machine": {
+    "frames": 6,
+    "rafMedianMs": 1166.6,
+    "rafP95Ms": 1499.9,
+    "renderedPerSec": 1.1,
+    "renderedMedianMs": 1166.6,
+    "renderedP95Ms": 1499.9,
+    "drawsPerRenderedFrame": 91
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=high"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "tier": "low",
+   "intro": {
+    "frames": 72,
+    "rafMedianMs": 66.7,
+    "rafP95Ms": 116.7,
+    "renderedPerSec": 14.5,
+    "renderedMedianMs": 66.7,
+    "renderedP95Ms": 116.7,
+    "drawsPerRenderedFrame": 3
+   },
+   "hubReachedMs": 7325,
+   "hub": {
+    "frames": 20,
+    "rafMedianMs": 250,
+    "rafP95Ms": 450,
+    "renderedPerSec": 4.2,
+    "renderedMedianMs": 250,
+    "renderedP95Ms": 450,
+    "drawsPerRenderedFrame": 41
+   },
+   "machine": {
+    "frames": 29,
+    "rafMedianMs": 166.7,
+    "rafP95Ms": 266.7,
+    "renderedPerSec": 5.9,
+    "renderedMedianMs": 166.7,
+    "renderedP95Ms": 266.7,
+    "drawsPerRenderedFrame": 77
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=low"
+    }
+   ]
+  },
+  {
+   "viewport": "laptop",
+   "tier": "high",
+   "intro": {
+    "frames": 7,
+    "rafMedianMs": 466.7,
+    "rafP95Ms": 2633.3,
+    "renderedPerSec": 1.6,
+    "renderedMedianMs": 466.7,
+    "renderedP95Ms": 2633.3,
+    "drawsPerRenderedFrame": 17
+   },
+   "hubReachedMs": 13497,
+   "hub": {
+    "frames": 5,
+    "rafMedianMs": 966.7,
+    "rafP95Ms": 1033.2,
+    "renderedPerSec": 1.2,
+    "renderedMedianMs": 966.7,
+    "renderedP95Ms": 1033.2,
+    "drawsPerRenderedFrame": 55
+   },
+   "machine": {
+    "frames": 8,
+    "rafMedianMs": 616.6,
+    "rafP95Ms": 1116.7,
+    "renderedPerSec": 1.8,
+    "renderedMedianMs": 616.6,
+    "renderedP95Ms": 1116.7,
+    "drawsPerRenderedFrame": 91
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=high"
+    }
+   ]
+  },
+  {
+   "viewport": "laptop",
+   "tier": "low",
+   "intro": {
+    "frames": 111,
+    "rafMedianMs": 50,
+    "rafP95Ms": 83.3,
+    "renderedPerSec": 22.3,
+    "renderedMedianMs": 50,
+    "renderedP95Ms": 83.3,
+    "drawsPerRenderedFrame": 3
+   },
+   "hubReachedMs": 3016,
+   "hub": {
+    "frames": 31,
+    "rafMedianMs": 166.6,
+    "rafP95Ms": 266.7,
+    "renderedPerSec": 6.4,
+    "renderedMedianMs": 166.6,
+    "renderedP95Ms": 266.7,
+    "drawsPerRenderedFrame": 41
+   },
+   "machine": {
+    "frames": 42,
+    "rafMedianMs": 116.7,
+    "rafP95Ms": 183.3,
+    "renderedPerSec": 8.5,
+    "renderedMedianMs": 116.7,
+    "renderedP95Ms": 183.3,
+    "drawsPerRenderedFrame": 77
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=low"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "tier": "high",
+   "intro": {
+    "frames": 8,
+    "rafMedianMs": 449.9,
+    "rafP95Ms": 2749.9,
+    "renderedPerSec": 1.7,
+    "renderedMedianMs": 449.9,
+    "renderedP95Ms": 2749.9,
+    "drawsPerRenderedFrame": 17
+   },
+   "hubReachedMs": 12493,
+   "hub": {
+    "frames": 5,
+    "rafMedianMs": 1050,
+    "rafP95Ms": 1083.2,
+    "renderedPerSec": 1.1,
+    "renderedMedianMs": 1050,
+    "renderedP95Ms": 1083.2,
+    "drawsPerRenderedFrame": 48
+   },
+   "machine": {
+    "frames": 10,
+    "rafMedianMs": 483.3,
+    "rafP95Ms": 550.1,
+    "renderedPerSec": 2.3,
+    "renderedMedianMs": 483.3,
+    "renderedP95Ms": 550.1,
+    "drawsPerRenderedFrame": 79
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=high"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "tier": "low",
+   "intro": {
+    "frames": 187,
+    "rafMedianMs": 33.3,
+    "rafP95Ms": 49.9,
+    "renderedPerSec": 37.5,
+    "renderedMedianMs": 33.3,
+    "renderedP95Ms": 49.9,
+    "drawsPerRenderedFrame": 3
+   },
+   "hubReachedMs": 3017,
+   "hub": {
+    "frames": 60,
+    "rafMedianMs": 83.3,
+    "rafP95Ms": 150,
+    "renderedPerSec": 12.4,
+    "renderedMedianMs": 83.3,
+    "renderedP95Ms": 150,
+    "drawsPerRenderedFrame": 34
+   },
+   "machine": {
+    "frames": 94,
+    "rafMedianMs": 50,
+    "rafP95Ms": 83.4,
+    "renderedPerSec": 18.8,
+    "renderedMedianMs": 50,
+    "renderedP95Ms": 83.4,
+    "drawsPerRenderedFrame": 65
+   },
+   "errors": [
+    {
+     "type": "warning",
+     "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+     "url": "http://localhost:4181/?q=low"
+    }
+   ]
+  }
+ ],
+ "memory": {
+  "points": [
+   {
+    "label": "start /",
+    "heapMb": 9.95,
+    "nodes": 854,
+    "listeners": 611,
+    "documents": 3,
+    "gl": {
+     "created": 1,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "c1 /site/results",
+    "heapMb": 9.37,
+    "nodes": 1718,
+    "listeners": 606,
+    "documents": 3,
+    "gl": {
+     "created": 1,
+     "live": 0,
+     "detached": 0
+    }
+   },
+   {
+    "label": "c1 /review2",
+    "heapMb": 9.78,
+    "nodes": 1360,
+    "listeners": 744,
+    "documents": 3,
+    "gl": {
+     "created": 1,
+     "live": 0,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 1 /",
+    "heapMb": 10.58,
+    "nodes": 1133,
+    "listeners": 777,
+    "documents": 3,
+    "gl": {
+     "created": 2,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 2 /",
+    "heapMb": 10.81,
+    "nodes": 1134,
+    "listeners": 777,
+    "documents": 3,
+    "gl": {
+     "created": 3,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 3 /",
+    "heapMb": 11.09,
+    "nodes": 1134,
+    "listeners": 777,
+    "documents": 3,
+    "gl": {
+     "created": 4,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 4 /",
+    "heapMb": 11.16,
+    "nodes": 1134,
+    "listeners": 777,
+    "documents": 3,
+    "gl": {
+     "created": 5,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "end /site/results",
+    "heapMb": 11,
+    "nodes": 1988,
+    "listeners": 769,
+    "documents": 3,
+    "gl": {
+     "created": 5,
+     "live": 0,
+     "detached": 0
+    }
+   }
+  ],
+  "growthPerCycleMb": 0.19,
+  "errors": [
+   {
+    "type": "warning",
+    "text": "THREE.WebGLRenderer: KHR_parallel_shader_compile extension not supported.",
+    "url": "http://localhost:4181/?q=high"
+   },
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   }
+  ]
+ },
+ "walk": {
+  "desktop": [
+   {
+    "route": "/",
+    "step": "intro",
+    "blank": false,
+    "text": 501,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/",
+    "step": "hub",
+    "blank": false,
+    "text": 429,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "shelf",
+    "blank": false,
+    "text": 634,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "machine",
+    "blank": false,
+    "text": 505,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "bench",
+    "blank": false,
+    "text": 338,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "story",
+    "blank": false,
+    "text": 427,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/site/results",
+    "blank": false,
+    "text": 6834,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/review2",
+    "blank": false,
+    "text": 2290,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/review",
+    "blank": false,
+    "text": 308,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/results",
+    "blank": false,
+    "text": 1083,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/results net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/dataset",
+    "blank": false,
+    "text": 479,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/robots",
+    "blank": false,
+    "text": 331,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/robots/setup",
+    "blank": false,
+    "text": 661,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/robots net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     }
+    ]
+   }
+  ],
+  "laptop": [
+   {
+    "route": "/",
+    "step": "intro",
+    "blank": false,
+    "text": 676,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/",
+    "step": "hub",
+    "blank": false,
+    "text": 429,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "shelf",
+    "blank": false,
+    "text": 634,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "machine",
+    "blank": false,
+    "text": 396,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "bench",
+    "blank": false,
+    "text": 338,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "story",
+    "blank": false,
+    "text": 427,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/site/results",
+    "blank": false,
+    "text": 6832,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/review2",
+    "blank": false,
+    "text": 2290,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/review",
+    "blank": false,
+    "text": 308,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/results",
+    "blank": false,
+    "text": 1083,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/results net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/dataset",
+    "blank": false,
+    "text": 479,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/robots",
+    "blank": false,
+    "text": 331,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/robots/setup",
+    "blank": false,
+    "text": 661,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/robots net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     }
+    ]
+   }
+  ],
+  "phone": [
+   {
+    "route": "/",
+    "step": "intro",
+    "blank": false,
+    "text": 522,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/",
+    "step": "hub",
+    "blank": false,
+    "text": 237,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "shelf",
+    "blank": false,
+    "text": 240,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "machine",
+    "blank": false,
+    "text": 240,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "bench",
+    "blank": false,
+    "text": 183,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "story",
+    "blank": false,
+    "text": 241,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/site/results",
+    "blank": false,
+    "text": 6834,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/review2",
+    "blank": false,
+    "text": 2290,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/review",
+    "blank": false,
+    "text": 272,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/results",
+    "blank": false,
+    "text": 1046,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/results net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/dataset",
+    "blank": false,
+    "text": 443,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/robots",
+    "blank": false,
+    "text": 205,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/robots/setup",
+    "blank": false,
+    "text": 661,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/robots net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     }
+    ]
+   }
+  ]
+ }
+}

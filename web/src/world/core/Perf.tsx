@@ -7,7 +7,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Texture, type Material, type WebGLRenderer } from "three";
+import { Texture, type Material, type Object3D, type WebGLRenderer } from "three";
+import { compileSafe } from "../../three/compileSafe";
 import { idle } from "./activity";
 import { createTuner } from "./autotune";
 import { hud } from "./hudStore";
@@ -122,6 +123,9 @@ export function Pause() {
   return null;
 }
 
+/** Called with the scene just before the warm-up compiles it (scene/Materialize.tsx patches its materials). */
+export const beforeWarm = new Set<(scene: Object3D) => void>();
+
 export function WarmUp() {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
@@ -130,16 +134,18 @@ export function WarmUp() {
   useEffect(() => {
     let last = -1;
     let live = true;
-    const r = gl as WebGLRenderer & { compileAsync?: (s: unknown, c: unknown) => Promise<unknown> };
     const warm = ({ active, loaded }: { active: boolean; loaded: number }) => {
-      if (active || loaded === last || !r.compileAsync) return;
+      if (active || loaded === last) return;
       last = loaded;
       // After React has mounted what arrived: compile its shaders and upload its textures now, so the
-      // first frame that shows it doesn't stall on either.
-      setTimeout(
-        () =>
-          live &&
-          r.compileAsync!(scene, camera).then(() => {
+      // first frame that shows it doesn't stall on either. compileSafe, not gl.compileAsync: a material
+      // disposed while three polls its program (a model swapped as it streams in) threw "reading
+      // 'isReady'" from a timer, and the warm-up never finished.
+      setTimeout(() => {
+        if (!live) return;
+        beforeWarm.forEach((fn) => fn(scene));
+        compileSafe(gl, scene, camera).then(
+          () => {
             if (!live) return;
             const seen = new Set<Texture>();
             scene.traverse((o) => {
@@ -149,9 +155,10 @@ export function WarmUp() {
             });
             seen.forEach((t) => gl.initTexture(t));
             invalidate();
-          }, () => {}),
-        0,
-      );
+          },
+          () => {},
+        );
+      }, 0);
     };
     warm(useProgress.getState());
     const off = useProgress.subscribe(warm);

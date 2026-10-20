@@ -39,3 +39,46 @@ export function withTiles<M extends THREE.Material>(m: M): M {
   m.customProgramCacheKey = () => "world-tiles-v";
   return m;
 }
+
+/**
+ * How much of a pixel a glowing line covers: `d` is the distance from the line's centre, `px` one
+ * pixel in the same unit (the shader's screen derivative) and `halfW` the line's half width. The thin
+ * teal rings were hard geometry a pixel or two wide, and with the hub's mouse look moving the camera by
+ * millimetres their edges stepped on and off whole pixels: they crawled. This one ramps over a pixel
+ * at each edge, and a line thinner than a pixel is drawn a pixel wide and fainter instead of breaking
+ * up, so the light a line gives off doesn't change as it slides between pixel centres.
+ */
+export function softLine(d: number, px: number, halfW: number): number {
+  const h = Math.max(halfW, 0.5 * px);
+  return Math.min(1, Math.max(0, (h - Math.abs(d)) / px + 0.5)) * (halfW / h);
+}
+
+/** softLine in GLSL (the same arithmetic). */
+export const SOFT_LINE_GLSL = /* glsl */ `
+float softLine(float d, float px, float halfW) {
+  float h = max(halfW, 0.5 * px);
+  return clamp((h - abs(d)) / px + 0.5, 0.0, 1.0) * (halfW / h);
+}
+float pixelOf(float v) { return max(length(vec2(dFdx(v), dFdy(v))), 1e-6); }
+`;
+
+/**
+ * Turn a MeshBasicMaterial into a soft-edged line: the geometry carries `aAcross`, the distance from
+ * the line's centre in half widths (±1 at the line's edges), and reaches past them (to ±3, say) so the
+ * edge ramp and a sub-pixel line's one-pixel width have room. Its colour stays the material's (the
+ * lamps still drive it, power.ts); it turns transparent and stops writing depth.
+ */
+export function withSoftEdge<M extends THREE.MeshBasicMaterial>(m: M): M {
+  m.transparent = true;
+  m.depthWrite = false;
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute float aAcross;\nvarying float vAcross;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvAcross = aAcross;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", `#include <common>\nvarying float vAcross;\n${SOFT_LINE_GLSL}`)
+      .replace("#include <alphamap_fragment>", "#include <alphamap_fragment>\ndiffuseColor.a *= softLine(vAcross, pixelOf(vAcross), 1.0);");
+  };
+  m.customProgramCacheKey = () => "world-soft-edge";
+  return m;
+}

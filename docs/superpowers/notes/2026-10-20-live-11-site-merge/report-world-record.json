@@ -1,0 +1,51 @@
+{
+  "readyMs": 43,
+  "hubMs": 3113,
+  "hubTags": [
+    "The shelf: Every cartridge is a job. Pick one.",
+    "The machine: Plug a cartridge in. It projects the robot.",
+    "The bench: Make a new cartridge: name, look, robot."
+  ],
+  "addCartridge": true,
+  "bench": {
+    "inputs": [
+      "Graphite",
+      "Smoke",
+      "Bone",
+      "Ash",
+      "Signal",
+      "SO-101",
+      "Franka FR3",
+      "PiPER",
+      "Rizon 4",
+      "OpenArm",
+      "Save to the spiral →",
+      "← Back"
+    ]
+  },
+  "worldLogs": [],
+  "record": {
+    "aidTags": [
+      "behind the robot",
+      "side",
+      "top",
+      "align · bin"
+    ],
+    "grid": true,
+    "modes": [
+      "Keyboard",
+      "Mouse",
+      "Camera",
+      "Start keyboard"
+    ],
+    "replay": "replay · verified copy s1_0004_nemotron_m104003"
+  },
+  "recordLogs": [],
+  "phoneHubBar": [
+    "Shelf",
+    "Machine",
+    "Bench",
+    "↑ Story"
+  ],
+  "phoneLogs": []
+}

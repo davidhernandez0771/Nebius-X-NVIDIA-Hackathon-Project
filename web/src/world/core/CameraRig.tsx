@@ -4,6 +4,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { PerspectiveCamera } from "three";
+import { fitFov } from "./fov";
 import { mixPose, poseAt, reducedPoseAt, restPose, smoother, toWorld } from "./rail";
 import { onPointer, pointer } from "../ui/pointer";
 import type { WorldStore } from "./store";
@@ -41,8 +42,10 @@ export function inHub(store: WorldStore): boolean {
 export function applyPose(camera: PerspectiveCamera, p: CameraPose): void {
   camera.position.set(p.position[0], p.position[1], p.position[2]);
   camera.lookAt(p.target[0], p.target[1], p.target[2]);
-  if (camera.fov !== p.fov) {
-    camera.fov = p.fov;
+  // Portrait screens see as much across as a square one (fov.ts).
+  const fov = fitFov(p.fov, camera.aspect);
+  if (camera.fov !== fov) {
+    camera.fov = fov;
     camera.updateProjectionMatrix();
   }
 }

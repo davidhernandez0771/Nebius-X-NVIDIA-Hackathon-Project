@@ -412,6 +412,7 @@
   background: rgba(6, 12, 14, 0.66);
   color: var(--w-dim);
   font-size: 10.5px;
+  white-space: nowrap;
   transform: translate(-50%, 10px);
   opacity: 0;
   pointer-events: none;
@@ -431,6 +432,14 @@
   border: 0;
   cursor: pointer;
 }
+/* The three things to click, as buttons: only where their tags can't all be seen (below). */
+.world-hubbar__go {
+  display: none;
+  gap: 14px;
+}
+.world-hubbar__go button {
+  color: var(--w-ink);
+}
 
 .world-panel__row {
   display: flex;
@@ -443,7 +452,8 @@
 @media (max-width: 700px) {
   .world-hubtag button { min-width: 11rem; }
   .world-hubtag__l { display: none; }
-  .world-hubbar span { display: none; }
+  .world-hubbar__hint { display: none; }
+  .world-hubbar__go { display: flex; }
 }
 @media (prefers-reduced-motion: reduce) {
   .world-hubtag, .world-hubbar { transition: none; }

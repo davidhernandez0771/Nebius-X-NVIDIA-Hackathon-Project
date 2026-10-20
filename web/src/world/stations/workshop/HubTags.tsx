@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { inHub } from "../../core/CameraRig";
 import { useWorld } from "../../core/WorldContext";
 import { BENCH_PIVOT, MACHINE_PIVOT } from "../../scene/layout";
-import { scrollToStep } from "./stepper";
+import { openHubItem, type HubItem } from "./hubItems";
 
 const SEEN_KEY = "world.hub.seen";
 
@@ -28,7 +28,7 @@ function markSeen(): void {
   }
 }
 
-type TagId = "shelf" | "machine" | "bench";
+type TagId = HubItem;
 
 const TAGS: { id: TagId; n: string; title: string; line: string }[] = [
   { id: "shelf", n: "01", title: "The shelf", line: "Every cartridge is a job. Pick one." },
@@ -44,7 +44,8 @@ export function HubTags() {
   const [tutorial] = useState(() => !seenBefore());
   const at = useMemo(
     () => ({
-      shelf: new THREE.Vector3(0, 12.2, 0),
+      // Under the hub bar at the top of the view (1280×720), not behind it.
+      shelf: new THREE.Vector3(0, 11.5, 0),
       machine: up(MACHINE_PIVOT.position, 6.2),
       bench: up(BENCH_PIVOT.position, 5.4),
     }),
@@ -63,10 +64,7 @@ export function HubTags() {
     });
   }, [store, tutorial]);
 
-  const open = (id: TagId) => {
-    if (id === "shelf") scrollToStep(store, 0);
-    else goTo(id === "machine" ? "machine" : "workbench");
-  };
+  const open = (id: TagId) => openHubItem(id, store, goTo);
 
   // The invisible boxes round the machine and the bench: a click (and the pointer cursor) in the room view.
   const hit = (id: TagId) => ({
