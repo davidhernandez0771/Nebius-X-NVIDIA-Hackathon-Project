@@ -143,7 +143,52 @@ simulator, so a plan is only **valid** (it passed the code rules), never verifie
 - **One worry.** 3997 *lowers* the place by 4 cm. Its why says the cube was "too high", but the collision facts say
   the arm hit the wall. Physics will tell.
 
-## Tonight: the blind test (Isaac, the user runs it when the GPU is free)
+## Result: the blind A/B, run 2026-10-20 10:27–11:20 (`repair_ab1`)
+
+The lead's session ran it while the user was at college, with the command below. Exit 0.
+- Frozen at commit `1718f5f` (clean, no `+dirty`), prompt sha256 `836b5291…`.
+- 53 min, not the 25–30 estimated: later rounds' calls took 50–110 s with thinking.
+- Nemotron cost **$0.207** (cap $1). gpu.lock was released at 11:20, and pm-t4-06 was told the GPU is free.
+- Raw physics: **0/10** pass, the same reasons as human10c.
+
+**Headline: rules 3/10 (Wilson 95% 0.11–0.60) vs Nemotron edits 5/10 (0.24–0.76).**
+- Paired: both 3, only rules **0**, only edits **2** (66bc, 87bd), neither 5.
+- Exact McNemar **p = 0.50**, not significant: as pre-registered, n = 10 can't show this.
+- Nemotron repaired every demo the rules repaired, plus two the rules couldn't. It never saw `release_above_bin` or
+  any hand-written op.
+
+| demo | raw | rules (verifications; last ops) | Nemotron edits (calls/verifications) | each plan's what-changed → verdict |
+|---|---|---|---|---|
+| 7b1f | not_in_bin, collision, dropped | discarded (3) | discarded (3/2, $0.024) | r1 3.0 cm, retime [8,9] 1.00→0.90 s, close 3.70 (was 3.52), open 9.00 (was 8.54) → not_in_bin, collision; r2 3.4 cm, retime [6,8.5] 2.50→2.94 s, close 2.90, open 8.50 → not_in_bin, collision, dropped; r3 rejected (9.0 cm over budget) |
+| 66bc | collision, dropped | discarded (3) | **perfected** (3/3, $0.024) | r1 5.0 cm, open 9.00 (was 10.12) → not_in_bin, collision, dropped; r2 2.8 cm, first grasp re-aimed +2.6/−1.1 cm, gripper held closed across the 5 regrasps → collision; r3 3.0 cm, same plus the tail +3 cm from 8.18 s → **pass** |
+| 9f47 | collision | perfected (1; trim, smooth, release_above_bin) | perfected (1/1, $0.004) | r1 3.9 cm (carry +1.5 cm x +1 cm z, place +1 cm x +2 cm z) → **pass** |
+| 0576 | not_in_bin, dropped | discarded (3) | discarded (3/0, $0.045) | r1 rejected (34.5 cm over budget, not smooth); r2, r3 no answer: hit the 16k-token cap while thinking |
+| a029 | not_in_bin, dropped | perfected (2; recenter_grasp, then release_above_bin) | perfected (2/2, $0.010) | r1 2.3 cm, grasp onto the cube's centre (+1.8/−0.5/−1.3 cm) → collision; r2 3.0 cm, + the release +3 cm, open 6.20 (was 6.00) → **pass** |
+| 87bd | not_in_bin, collision | discarded (3) | **perfected** (2/2, $0.010) | r1 3.9 cm, third grasp re-aimed (−3/−2.5 cm) → collision; r2 4.0 cm, + carry and place +2 cm → **pass** |
+| fb12 | not_in_bin, collision | discarded (3) | discarded (3/3, $0.030) | r1 2.1 cm, grasp +2 cm x → not_in_bin, collision, dropped; r2 4.9 cm, grasp +4.5 cm x, place moved → same; r3 5.0 cm, grasp +4.7 cm x, close 3.70 → same |
+| a67b | not_in_bin, collision, dropped | discarded (3) | discarded (3/2, $0.023) | r1 rejected (6.5 cm); r2 4.0 cm, first grasp lowered 3 cm, tail +4 cm → not_in_bin; r3 2.2 cm, open 14.70 (was 15.16) → not_in_bin, collision, dropped |
+| c045 | collision | perfected (1; remove_pause, smooth, release_above_bin) | perfected (1/1, $0.003) | r1 5.0 cm (the place +5 cm) → **pass** |
+| 3997 | not_in_bin, collision | discarded (3) | discarded (3/1, $0.034) | r1 5.0 cm (carry +3 cm x, place −4 cm z) → not_in_bin, collision; r2 rejected (6.0 cm); r3 no answer: hit the token cap |
+
+**What it says:**
+- **The feedback loop is the point.**
+  - Only 2 of the 5 passes came on the first try (9f47, c045). The other 3 needed the new verdict: a029 and 87bd
+    were fixed in round 2, 66bc in round 3.
+  - In each of those 3, Nemotron read the new collision facts and added a lift. The re-aimed grasps (a029, 87bd, 66bc)
+    are concrete fixes of the measured offset.
+- **Losses to fix next.** 3 of 23 calls ran out of the 16 000-token budget while thinking and returned no JSON:
+  0576 lost 2 rounds, 3997 lost 1.
+  - Fix: on `finish_reason == "length"`, re-ask once with thinking off and "answer now". Or raise MAX_TOKENS.
+  - Either is a code change, so it needs a new pre-registration.
+  - 3997's r1 again *lowered* the place (the worry from the dry run), and it failed.
+- **Caveat.** One run each, and PhysX is not deterministic: the two edits-only wins could flip on a re-run. A
+  repeat (`--name repair_ab2`) would show how stable the 5 vs 3 is.
+- **Files.** Every round's reply, plan, report and verdict is in
+  `C:\dev\pm-t6\data\human_exp
+epair_ab1b\<id>.json`; the verified edited demos are stored as `<id>_edits`
+  in that experiment's store.
+
+## The blind test's command (Isaac; run 2026-10-20, results above)
 
 Run from `C:\dev\pm-t3`, in PowerShell. The script takes `C:\dev\gpu.lock` itself; don't hold it by hand.
 
