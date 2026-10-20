@@ -56,7 +56,7 @@ from pydantic import ValidationError
 from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
 from demo_pipeline.rules import TASK_TEXT
 from demo_pipeline.schemas import INPUT_MODES, Assist, Demo, Pose, Scene, SimSignals, Trajectory
-from demo_pipeline.soft_floor import clamp_to_floor
+from demo_pipeline.soft_floor import AssistZones, zones_for_scene
 from demo_pipeline.store import DemoStore
 from demo_pipeline.success import check_success
 from demo_pipeline.teleop import Calibration, GripperLatch, HandPoseMsg, to_ee_target
@@ -171,8 +171,12 @@ class TeleopSession:
         calib: Calibration = Calibration(),
         clock: Callable[[], float] = time.monotonic,
         new_id: Callable[[], str] = lambda: DemoStore.new_id("human"),
+        zones: AssistZones | None = None,
     ) -> None:
         self.driver, self.scene, self.save_fn = driver, scene, save_fn
+        # The soft floor's zones (demo_pipeline.soft_floor): today's scene's one bin unless a plan's are given
+        # (demo_pipeline.assist_rules: geometry plus Nemotron's or the rules' targets, keep-outs and speed caps).
+        self.zones = zones if zones is not None else zones_for_scene(scene)
         self.calib, self.clock, self.new_id = calib, clock, new_id
         self.state: State = "idle"
         self.last_result: str | None = None
@@ -182,6 +186,7 @@ class TeleopSession:
         self.soft_floor = True  # demo_pipeline.soft_floor, on by default (set_assist); saved as Demo.assist
         self.floored = False  # the soft floor held the target up on the last step
         self.contact_peak: float | None = None  # N, the largest arm contact force in the current (or last) take
+        self._applied: Pose | None = None  # the last command applied (for the zones' speed caps)
         self._steps = 0
         self._reset()
 
@@ -261,7 +266,10 @@ class TeleopSession:
         if self.soft_floor:
             self._cmd, held = self._floor(self._cmd)
             floored = floored or held
+        if self.soft_floor:
+            self._cmd = self._capped(self._cmd)
         self.floored = floored
+        self._applied = self._cmd
         self.driver.apply(self._cmd, self._gripper)
         if self.state == "recording" and not self.paused:
             state = self.driver.read_state()  # only recorded steps: it syncs the GPU and copies the cameras
@@ -277,8 +285,21 @@ class TeleopSession:
             self.contact_peak = max(self.contact_peak or 0.0, float(state.max_contact_force))
 
     def _floor(self, pose: Pose) -> tuple[Pose, bool]:
-        pos, held = clamp_to_floor(pose.pos, self.scene.bin_pose)
+        pos, held, _zone = self.zones.clamp(pose.pos)
         return (Pose(pos=pos, quat_wxyz=pose.quat_wxyz), True) if held else (pose, False)
+
+    def _capped(self, pose: Pose) -> Pose:
+        """Inside a zone with a speed cap, the command moves at most cap * TELEOP_DT from the last one applied."""
+        cap = self.zones.speed_cap_at(pose.pos)
+        last = self._applied
+        if cap is None or last is None:
+            return pose
+        step = np.asarray(pose.pos, dtype=float) - np.asarray(last.pos, dtype=float)
+        dist = float(np.linalg.norm(step))
+        if dist <= cap * TELEOP_DT:
+            return pose
+        pos = np.asarray(last.pos, dtype=float) + step * (cap * TELEOP_DT / dist)
+        return Pose(pos=tuple(float(v) for v in pos), quat_wxyz=pose.quat_wxyz)
 
     def status(self) -> dict:
         """The relay's SimStatusMsg (src/app/routers/teleop.py). contact_peak_n: the largest arm contact force of the
@@ -376,7 +397,8 @@ class TeleopSession:
             demo = Demo(id=self.new_id(), source="human", trajectory=achieved, commanded=commanded, scene=self.scene,
                         human_seconds=human_seconds, input=self.input,
                         assist=Assist(soft_floor=self._assist["on"], soft_floor_steps=self._assist["steps"],
-                                      soft_floor_dips=self._assist["dips"]))
+                                      soft_floor_dips=self._assist["dips"],
+                                      zones=self.zones.to_dict() if self._assist["on"] else None))
             self.last_result = self.save_fn(Recording(demo=demo, states=list(rec["states"])))
             self.last_demo_id = demo.id
         except Exception as e:  # a failed save must not wedge the session

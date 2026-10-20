@@ -100,15 +100,21 @@ class Assist(_Model):
 
     soft_floor: bool  # the soft floor was on for (part of) the take
     soft_floor_steps: int = Field(default=0, ge=0)  # recorded steps where it held the target up
-    # separate holds (runs of held recorded steps); None: recorded before the sim counted them (left out of the JSON,
-    # so those demos serialize byte for byte as before)
+    # separate holds (runs of held recorded steps); None: recorded before the sim counted them
     soft_floor_dips: int | None = Field(default=None, ge=0)
+    # The assist zones that were active (soft_floor.AssistZones.to_dict(): the source, every zone's footprint, floor and
+    # speed cap); None while the soft floor was off, or for demos from before the zones.
+    zones: dict | None = None
 
     @model_serializer(mode="wrap")
-    def _omit_unknown_dips(self, handler):
+    def _omit_absent_fields(self, handler):
+        """Leave "soft_floor_dips" and "zones" out while they are None, so older labels serialize byte for byte as
+        before. One serializer: pydantic keeps only the last one a class defines."""
         data = handler(self)
-        if isinstance(data, dict) and data.get("soft_floor_dips") is None:
-            data.pop("soft_floor_dips", None)
+        if isinstance(data, dict):
+            for key in ("soft_floor_dips", "zones"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 

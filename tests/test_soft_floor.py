@@ -11,7 +11,7 @@ import pytest
 
 from demo_pipeline.schemas import Assist, Demo, Pose, Scene
 from demo_pipeline.scene_geometry import BIN_FOOTPRINT_HALF, BIN_RIM_HEIGHT, TABLE_TOP_Z
-from demo_pipeline.soft_floor import FLOOR_BELOW_RIM, FOOTPRINT_MARGIN, clamp_to_floor, floor_z
+from demo_pipeline.soft_floor import FLOOR_BELOW_RIM, FOOTPRINT_MARGIN, AssistZones, Zone, clamp_to_floor, floor_z, zones_for_scene
 from demo_pipeline.teleop import Calibration, HandPoseMsg, to_ee_target
 from sim_worker.teleop_session import (
     TELEOP_DT,
@@ -189,8 +189,12 @@ def test_each_demo_is_labelled_with_the_assist(rig):
     run(4, over_bin())  # 4 steps held at the rim
     session.on_control("record_stop")
     demo = saved[0].demo
-    assert demo.assist == Assist(soft_floor=True, soft_floor_steps=4, soft_floor_dips=1)
-    assert json.loads(demo.model_dump_json())["assist"] == {"soft_floor": True, "soft_floor_steps": 4, "soft_floor_dips": 1}
+    # The label says how many separate holds there were, and which zones were active: today's, the one bin's rim rule.
+    assert demo.assist == Assist(soft_floor=True, soft_floor_steps=4, soft_floor_dips=1,
+                                 zones=zones_for_scene(SCENE).to_dict())
+    label = json.loads(demo.model_dump_json())["assist"]
+    assert label["soft_floor"] is True and label["soft_floor_steps"] == 4 and label["soft_floor_dips"] == 1
+    assert [z["id"] for z in label["zones"]["zones"]] == ["bin:bin"] and label["zones"]["source"] == "geometry"
     # what the arm was told is what was recorded: the clamped target
     assert min(demo.commanded.ee_pos[i][2] for i in range(len(demo.commanded.t))) == pytest.approx(RIM_FLOOR)
 
@@ -202,6 +206,41 @@ def test_a_take_with_it_off_says_so(rig):
     run(3, over_bin())
     session.on_control("record_stop")
     assert saved[0].demo.assist == Assist(soft_floor=False, soft_floor_steps=0, soft_floor_dips=0)
+
+
+def test_an_assist_label_without_zones_serializes_as_before():
+    # Demos saved before the zones existed hash the same.
+    assert json.loads(Assist(soft_floor=True, soft_floor_steps=4).model_dump_json()) == {"soft_floor": True, "soft_floor_steps": 4}
+
+
+def test_a_session_takes_any_scenes_zones_and_labels_the_take_with_them(rig):
+    session, driver, saved, run = rig
+    raised = Zone("keep_out:x", "keep_out", (0.5, 0.3), 0.0, (0.3, 0.3), 0.2, source="nemotron")
+    session.zones = AssistZones(zones_for_scene(SCENE).zones + (raised,), source="nemotron")
+    session.on_control("record_start")
+    run(4, over_bin())
+    session.on_control("record_stop")
+    assert min(p.pos[2] for p in driver.applied) == pytest.approx(0.2)  # the higher, semantic floor held it
+    assert saved[0].demo.assist.zones["source"] == "nemotron"
+
+
+def test_a_speed_cap_limits_how_far_the_target_moves_each_step(rig):
+    session, driver, _, run = rig
+    run(3, over_bin(z_frac=1.0))  # settle high over the bin
+    slow = Zone("slow:x", "slow", (0.5, 0.3), 0.0, (0.5, 0.5), TABLE_TOP_Z, source="rules", speed_cap=0.05)
+    session.zones = AssistZones(zones_for_scene(SCENE).zones + (slow,), source="rules")
+    run(5, over_bin(z_frac=0.0))  # the hand jumps down
+    steps = np.linalg.norm(np.diff(np.asarray([a.pos for a in driver.applied[-6:]]), axis=0), axis=1)
+    assert steps.max() <= 0.05 * TELEOP_DT + 1e-9
+
+
+def test_a_take_with_the_soft_floor_off_has_no_zones(rig):
+    session, _, saved, run = rig
+    session.on_control("set_assist", soft_floor=False)
+    session.on_control("record_start")
+    run(2, over_bin())
+    session.on_control("record_stop")
+    assert saved[0].demo.assist.zones is None
 
 
 def test_demos_without_assist_serialize_as_before():
@@ -276,7 +315,8 @@ def test_separate_holds_are_counted_as_dips(rig):
         run(4, over_bin())
         run(3, over_bin(z_frac=0.5))
     session.on_control("record_stop")
-    assert saved[0].demo.assist == Assist(soft_floor=True, soft_floor_steps=12, soft_floor_dips=3)
+    assert saved[0].demo.assist == Assist(soft_floor=True, soft_floor_steps=12, soft_floor_dips=3,
+                                          zones=zones_for_scene(SCENE).to_dict())  # the floor was on: its zones too
 
 
 def test_an_older_assist_without_dips_serializes_as_before():
