@@ -1,6 +1,6 @@
 // The world without WebGL (jsdom has none, and ?static forces it): the overlays, the journey rail,
 // the workshop's cartridge choice, the workbench branch and the handoff to a 2D route all work.
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MotionProvider } from "../../sant";
@@ -128,6 +128,26 @@ describe("WorldRoot (no WebGL)", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(current()).toBe("workshop");
     expect(document.documentElement.style.overflow).toBe("");
+  });
+
+  it("offers a skip-the-intro link first in the Tab order; it lands in the room view and focuses it", async () => {
+    renderWorld();
+    const link = screen.getByRole("link", { name: "Skip the intro" });
+    expect(document.querySelector(".world")!.querySelector("a[href], button, input, select, textarea")).toBe(link);
+    fireEvent.click(link);
+    expect(current()).toBe("workshop");
+    await waitFor(() => expect(document.activeElement?.getAttribute("data-station")).toBe("workshop"));
+  });
+
+  it("opens the robot wall's catalog from the room view, and goes back on Escape", () => {
+    renderWorld();
+    scrollTo(window.innerHeight * HUB);
+    fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Robots" }));
+    expect(current()).toBe("robots");
+    expect(document.activeElement?.getAttribute("data-station")).toBe("robots");
+    expect(screen.getByRole("heading", { level: 2, name: "The robots" })).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(current()).toBe("workshop");
   });
 
   it("shows the current station's pre-rendered still in place of the canvas", () => {

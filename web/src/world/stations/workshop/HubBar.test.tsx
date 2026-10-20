@@ -36,7 +36,7 @@ describe("the room view's bar", () => {
 
   // On a phone held upright the room view's camera only frames the shelf: the machine's and the
   // bench's tags are off the sides, so the bar carries the three as buttons too (shown by CSS there).
-  it("opens the shelf, the machine and the bench without their tags", () => {
+  it("opens the shelf, the machine, the bench and the robot wall without their tags", () => {
     const { api, store } = at();
     const go = within(screen.getByRole("group", { name: "Go to" }));
     fireEvent.click(go.getByRole("button", { name: "Shelf" }));
@@ -45,5 +45,12 @@ describe("the room view's bar", () => {
     expect(api.goTo).toHaveBeenCalledWith("machine");
     fireEvent.click(go.getByRole("button", { name: "Bench" }));
     expect(api.goTo).toHaveBeenCalledWith("workbench");
+    fireEvent.click(go.getByRole("button", { name: "Robots" }));
+    expect(api.goTo).toHaveBeenCalledWith("robots");
+  });
+
+  it("names all four things to click, in the room's Tab order", () => {
+    at();
+    expect(within(screen.getByRole("group", { name: "Go to" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Shelf", "Machine", "Bench", "Robots"]);
   });
 });

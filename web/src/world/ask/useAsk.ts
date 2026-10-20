@@ -65,6 +65,7 @@ export function useAsk() {
           scrollToY(span.start + (span.end - span.start) * ((a + b) / 2 / INTRO_VH), !reduced);
         } else if (s === "workshop") scrollToStep(store, 0);
         else if (s === "machine") goTo("machine");
+        else if (s === "robots") goTo("robots");
         else goTo("workbench");
         return `Going to the ${s}.`;
       }

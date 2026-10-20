@@ -1,9 +1,10 @@
-// The room view's three things to click, in 3D: a tag floating over each (the shelf, the machine, the
-// bench) and an invisible box round the machine and the bench that takes the click (the machine's is
-// also where a dragged cartridge drops, drag.ts DROP_ZONE). The spiral takes
-// its own clicks (Helix). Tags show only in the room view; the first visit numbers them as a mini
-// tutorial ("start here" on the shelf), and later visits show them plain.
-import { useEffect, useMemo, useRef, useState } from "react";
+// The room view's four things to click, in 3D: a tag floating over each (the shelf, the machine, the
+// bench, the robot wall) and an invisible box round the machine and the bench that takes the click (the
+// machine's is also where a dragged cartridge drops, drag.ts DROP_ZONE). The spiral and the wall take
+// their own clicks (Helix, RobotWall). Tags show only in the room view; the first visit numbers them as a
+// mini tutorial ("start here" on the shelf), and later visits show them plain. They are portalled into the
+// workshop's overlay (hubTagLayer), so Tab reaches them in order.
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Html } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
@@ -12,6 +13,7 @@ import { useWorld } from "../../core/WorldContext";
 import { BENCH_PIVOT, MACHINE_PIVOT } from "../../scene/layout";
 import { DROP_ZONE, hiddenInstance, subscribeDrag, wasDrag } from "./drag";
 import { openHubItem, type HubItem } from "./hubItems";
+import { hubTagLayer } from "./hubTagLayer";
 
 const SEEN_KEY = "world.hub.seen";
 
@@ -36,6 +38,7 @@ const TAGS: { id: TagId; n: string; title: string; line: string }[] = [
   { id: "shelf", n: "01", title: "The shelf", line: "Every cartridge is a job. Pick one." },
   { id: "machine", n: "02", title: "The machine", line: "Drag a cartridge here. It projects the robot." },
   { id: "bench", n: "03", title: "The bench", line: "Make a new cartridge: name, look, robot." },
+  { id: "wall", n: "04", title: "The wall", line: "The robots SANT runs on, and their parts." },
 ];
 
 const up = (p: readonly number[], y: number) => new THREE.Vector3(p[0], p[1] + y, p[2]);
@@ -50,6 +53,9 @@ export function HubTags() {
       shelf: new THREE.Vector3(0, 11.5, 0),
       machine: up(MACHINE_PIVOT.position, 6.2),
       bench: up(BENCH_PIVOT.position, 5.4),
+      // The left wall runs along the screen's edge from the room view: the tag floats in front of it,
+      // toward the back, clear of the bench's tag.
+      wall: new THREE.Vector3(-15, 9.5, -12),
     }),
     [],
   );
@@ -105,7 +111,7 @@ export function HubTags() {
         <boxGeometry args={[7, 4.5, 4]} />
       </mesh>
       {TAGS.map((t, i) => (
-        <Html key={t.id} position={at[t.id]} center zIndexRange={[20, 10]}>
+        <Html key={t.id} position={at[t.id]} center zIndexRange={[20, 10]} portal={hubTagLayer as MutableRefObject<HTMLElement>}>
           <div ref={(el) => el && (wrap.current[i] = el)} className="world-hubtag" data-on="false" data-first={tutorial && t.id === "shelf"}>
             <button type="button" onClick={() => open(t.id)} aria-label={`${t.title}: ${t.line}`}>
               <span className="world-hubtag__n">{t.n}</span>
