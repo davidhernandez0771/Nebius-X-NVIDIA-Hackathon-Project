@@ -7,7 +7,8 @@ scene geometry (demo_pipeline.scene_geometry and the scene's poses) and a path t
 EditPlan. Code validates it and applies it with apply_edits (budget, workspace, smoothness); the injected verifier
 replays the result (in production the Isaac replay and the unchanged check_success). An invalid reply or a failed
 verification goes back to the model with the errors, or the new verdict and the new replay's signals, until
-`max_rounds` model calls are spent. Every round's edits apply to the ORIGINAL demo, so its times never drift.
+`max_rounds` rounds are spent. Every round's edits apply to the ORIGINAL demo, so its times never drift. A thinking
+reply with no answer (cut at the token cap, or no JSON) is asked again once, thinking off, in the same round.
 
 The hand-written ops (repair.py, release_above_bin in particular) and the rules' diagnosis are never shown to the
 model: this repairer is the alternative to them.
@@ -42,7 +43,11 @@ from nebius_llm import chat
 TIER = "super"  # a text task (config.TIERS)
 THINK = True  # measured on the human demos' signals (notes 2026-10-20): the reasoning is worth the tokens
 MAX_TOKENS = 16000  # thinking + the answer
-MAX_ROUNDS = 3  # model calls per demo; an invalid reply spends one
+MAX_ROUNDS = 3  # rounds per demo; an invalid reply spends one, a rescued one (see RESCUE_SUFFIX) does not
+# A thinking reply cut at the token cap, or with no JSON at all, is asked again once in the same round, thinking off,
+# with this added; the rescue doesn't count as a round (repair_ab1 lost 3 of 23 calls to the cap).
+RESCUE_SUFFIX = ("\n\nYour previous answer to this ran out of room before its JSON. Reply now with the JSON object "
+                 "only, no reasoning.")
 TABLE_STEP_S = 0.2  # the path table's spacing
 HIGH_RELEASE_M = 0.18  # check_success's release_height_max (cube centre above the bin origin)
 GRASPED_LIFT_M = 0.02  # the cube counts as lifted this far above where the scene put it
@@ -299,6 +304,16 @@ def parse_plan(text: str) -> EditPlan:
 
 # --- the loop -------------------------------------------------------------------------------------
 
+def rescue_reason(reply) -> str | None:
+    """Why a thinking reply has no answer to parse: "length" (the thinking used the whole token budget; 3 of 23 calls
+    in repair_ab1) or "no_json"; None when there is a JSON object to parse (valid or not, it goes back as usual)."""
+    if getattr(reply, "finish_reason", None) == "length":
+        return "length"
+    text = reply.text or ""
+    start, end = text.find("{"), text.rfind("}")
+    return "no_json" if start == -1 or end <= start else None
+
+
 @dataclass
 class RepairResult:
     # repaired = an edited demo passed the verifier; unverified = a dry run (no verifier) got a valid plan
@@ -311,9 +326,11 @@ class RepairResult:
     calls: int = 0
     cost_usd: float = 0.0
     model: str | None = None
+    rescues: list[dict] = field(default_factory=list)  # {"round", "reason"} per re-ask without thinking
 
     def summary(self) -> dict:
         return {"status": self.status, "calls": self.calls, "cost_usd": round(self.cost_usd, 5), "model": self.model,
+                "rescues": list(self.rescues),
                 "plan": None if self.plan is None else self.plan.model_dump(),
                 "report": None if self.report is None else self.report.model_dump(),
                 "verification": None if self.verification is None else self.verification.model_dump(),
@@ -324,7 +341,8 @@ def repair_with_nemotron(demo: Demo, verdict: VerificationResult, signals: SimSi
                          chat_fn: Callable = chat, tier: str = TIER, think: bool = THINK, max_tokens: int = MAX_TOKENS,
                          max_rounds: int = MAX_ROUNDS, before_call: Callable[[], None] | None = None) -> RepairResult:
     """Ask Nemotron for edits to `demo` (whose replay failed with `verdict` and `signals`, on its steps), verify each
-    valid plan with `verify`, and feed errors or the new verdict back, for at most `max_rounds` model calls.
+    valid plan with `verify`, and feed errors or the new verdict back, for at most `max_rounds` rounds (a rescue
+    re-ask is not one).
     verify=None is a dry run (no simulator): it stops at the first valid plan, status "unverified"."""
     traj = _regrid(demo.trajectory)
     if len(traj.t) != len(demo.trajectory.t):
@@ -332,15 +350,25 @@ def repair_with_nemotron(demo: Demo, verdict: VerificationResult, signals: SimSi
     ctx = _Context(demo=demo, trajectory=traj, verdict=verdict, signals=signals)
     res = RepairResult(status="failed", trajectory=None, plan=None, report=None, verification=None)
     history: list[dict] = []
-    for k in range(1, max_rounds + 1):
+    def ask(prompt: str, thinking: bool):
         if before_call is not None:
             before_call()
-        reply = chat_fn(build_prompt(ctx, history), tier=tier, system=SYSTEM_PROMPT, max_tokens=max_tokens,
-                        think=think)
+        reply = chat_fn(prompt, tier=tier, system=SYSTEM_PROMPT, max_tokens=max_tokens, think=thinking)
         res.calls += 1
         res.cost_usd += float(getattr(reply, "est_cost_usd", 0.0) or 0.0)
         res.model = getattr(reply, "model", None) or res.model
+        return reply
+
+    for k in range(1, max_rounds + 1):
+        prompt = build_prompt(ctx, history)
+        reply = ask(prompt, think)
         record: dict[str, Any] = {"round": k, "reply": reply.text}
+        reason = rescue_reason(reply) if think else None
+        if reason is not None:  # thinking ate the answer: the same round, once more, without thinking
+            record["rescue"] = {"reason": reason, "first_reply": reply.text}
+            res.rescues.append({"round": k, "reason": reason})
+            reply = ask(prompt + RESCUE_SUFFIX, False)
+            record["reply"] = reply.text
         res.rounds.append(record)
         try:
             plan = parse_plan(reply.text)

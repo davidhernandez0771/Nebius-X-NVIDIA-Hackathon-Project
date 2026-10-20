@@ -80,17 +80,23 @@ def toy_replay(traj: Trajectory):
     return check_success(traj, sig, SCENE.bin_pose), sig
 
 
+CUT = ("", "length")  # thinking used the whole token budget: no answer
+
+
 class Model:
-    """Scripted replies; keeps every prompt."""
+    """Scripted replies (a reply, or (text, finish_reason)); keeps every prompt and thinking flag."""
 
     def __init__(self, *replies):
-        self.replies, self.prompts, self.systems = list(replies), [], []
+        self.replies, self.prompts, self.systems, self.thinks = list(replies), [], [], []
 
     def __call__(self, prompt, *, tier, system, max_tokens, think):
         self.prompts.append(prompt)
         self.systems.append(system)
+        self.thinks.append(think)
         r = self.replies.pop(0)
-        return NS(text=r if isinstance(r, str) else json.dumps(r), est_cost_usd=0.001, model="fake-nemotron")
+        r, finish = r if isinstance(r, tuple) else (r, "stop")
+        return NS(text=r if isinstance(r, str) else json.dumps(r), est_cost_usd=0.001, model="fake-nemotron",
+                  finish_reason=finish)
 
 
 class Verifier:
@@ -142,7 +148,7 @@ def test_invalid_json_is_retried():
     demo, verdict, sig = _raw()
     model = Model("Sure! I would raise the place a little.", '{"edits": [{"op": "shift_segment", "t0": 6.2,}]}',
                   "```json\n" + json.dumps(GOOD) + "\n```")
-    res = nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model)
+    res = nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model, think=False)
     assert res.status == "repaired" and res.calls == 3
     assert "the reply has no JSON object" in model.prompts[1]
     assert "the JSON doesn't parse" in model.prompts[2]
@@ -238,3 +244,55 @@ def test_a_dry_run_stops_at_the_first_valid_plan():
     res = nr.repair_with_nemotron(demo, verdict, sig, None, chat_fn=Model("no json", GOOD, GOOD))
     assert res.status == "unverified" and res.calls == 2 and res.verification is None
     assert res.trajectory is not None and res.report.max_moved_cm == pytest.approx(2.5)
+
+
+def test_a_reply_cut_at_the_token_cap_is_re_asked_without_thinking_in_the_same_round():
+    demo, verdict, sig = _raw()
+    model, verify = Model(CUT, GOOD), Verifier()
+    res = nr.repair_with_nemotron(demo, verdict, sig, verify, chat_fn=model, max_rounds=1)
+    assert res.status == "repaired" and res.calls == 2 and len(res.rounds) == 1  # not a lost round
+    assert model.thinks == [True, False]
+    assert model.prompts[1].startswith(model.prompts[0]) and "JSON object only" in model.prompts[1]
+    assert res.rescues == [{"round": 1, "reason": "length"}]
+    assert res.rounds[0]["rescue"] == {"reason": "length", "first_reply": ""}
+    assert res.cost_usd == pytest.approx(0.002) and res.summary()["rescues"] == res.rescues
+
+
+def test_a_thinking_reply_without_json_is_rescued_too():
+    demo, verdict, sig = _raw()
+    model = Model("Let me think about the bin floor... (no answer)", GOOD)
+    res = nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model, max_rounds=1)
+    assert res.status == "repaired" and res.rescues == [{"round": 1, "reason": "no_json"}]
+
+
+def test_one_rescue_per_round_and_a_failed_rescue_spends_the_round():
+    demo, verdict, sig = _raw()
+    model = Model(CUT, CUT, CUT, GOOD)
+    res = nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model, max_rounds=2)
+    assert res.status == "repaired" and res.calls == 4 and len(res.rounds) == 2
+    assert res.rounds[0]["errors"] == ["the reply has no JSON object"]
+    assert [r["round"] for r in res.rescues] == [1, 2]
+    assert model.thinks == [True, False, True, False]
+
+
+def test_schema_errors_and_failed_verifications_are_not_rescued():
+    demo, verdict, sig = _raw()
+    bad_schema = {"edits": [{"op": "shift_segment", "t0": 6.2, "t1": 7.0, "dz": 0.2}]}
+    model = Model(bad_schema, GOOD)
+    res = nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model)
+    assert res.status == "repaired" and len(res.rounds) == 2 and res.rescues == []
+    assert model.thinks == [True, True]
+
+
+def test_without_thinking_there_is_nothing_to_rescue():
+    demo, verdict, sig = _raw()
+    model = Model(CUT, GOOD)
+    res = nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=model, think=False)
+    assert len(res.rounds) == 2 and res.rescues == [] and model.thinks == [False, False]
+
+
+def test_before_call_also_runs_before_a_rescue():
+    demo, verdict, sig = _raw()
+    seen = []
+    nr.repair_with_nemotron(demo, verdict, sig, Verifier(), chat_fn=Model(CUT, GOOD), before_call=lambda: seen.append(1))
+    assert seen == [1, 1]

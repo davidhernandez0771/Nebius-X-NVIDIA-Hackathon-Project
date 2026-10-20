@@ -66,7 +66,10 @@ def ab_settings() -> dict:
     return {"arms": list(ARMS), "metric": "repaired demos that pass physics (status perfected or kept)",
             "test": "mcnemar_exact_two_sided", "order": "even index: rules first; odd: nemotron-edits first",
             "tier": nemotron_repair.TIER, "think": nemotron_repair.THINK, "max_rounds": nemotron_repair.MAX_ROUNDS,
-            "repair_budget_m": REPAIR_BUDGET_M, "prompt_sha256": prompt_sha256()}
+            "repair_budget_m": REPAIR_BUDGET_M, "prompt_sha256": prompt_sha256(),
+            "rescue": "a thinking reply cut at the token cap or with no JSON is re-asked once in the same round, "
+                      "thinking off; not a round", "rescue_suffix_sha256": hashlib.sha256(
+                nemotron_repair.RESCUE_SUFFIX.encode("utf-8")).hexdigest()}
 
 
 def preregistration(config: dict, ab: dict) -> str:
@@ -86,8 +89,8 @@ many demos to a physics pass as the hand-written rules (with release_above_bin a
 **Arms**, both on each demo's one raw replay, the first arm alternating by demo ({ab['order']}):
 - **rules:** app.jobs.perfect_stored_demo(..., "rules"): up to 3 verifications.
 - **nemotron-edits:** app.jobs.perfect_stored_demo_edits: Nemotron `{ab['tier']}` (thinking {ab['think']}), at most
-  {ab['max_rounds']} model calls, edits within a {ab['repair_budget_m'] * 100:.0f} cm per-step budget; each valid plan
-  verified.
+  {ab['max_rounds']} rounds, edits within a {ab['repair_budget_m'] * 100:.0f} cm per-step budget; each valid plan
+  verified.{"" if "rescue" not in ab else " Rescue: " + ab["rescue"] + " (logged per demo and in ab_summary.json)."}
 
 **Metric.** {ab['metric']}, per arm, out of {config['n_human']}. The verdict is the sim worker's replay and the
 unchanged check_success, for both arms.
@@ -117,6 +120,12 @@ def summarize(rows: dict[str, dict]) -> dict[str, Any]:
     out["mcnemar_p"] = mcnemar_exact(only_rules, only_edits)
     out["nemotron_cost_usd"] = round(sum(rows[i]["nemotron-edits"].get("cost_usd", 0.0) for i in ids), 5)
     out["raw_pass"] = sum(rows[i]["raw"]["success"] for i in ids)
+    edits = [rows[i]["nemotron-edits"] for i in ids]
+    rescues = [r for e in edits for r in e.get("rescues", [])]
+    out["model_calls"] = sum(e.get("calls", 0) for e in edits)
+    out["rescues"] = {"total": len(rescues), "length": sum(r["reason"] == "length" for r in rescues),
+                      "no_json": sum(r["reason"] == "no_json" for r in rescues),
+                      "demos": [i for i in ids if rows[i]["nemotron-edits"].get("rescues")]}
     return out
 
 
@@ -130,7 +139,8 @@ def table(rows: dict[str, dict], s: dict) -> str:
     lines.append(f"\nrules {a['rules']['pass']}/{s['n']}  vs  nemotron-edits {a['nemotron-edits']['pass']}/{s['n']}"
                  f"   paired: both {s['paired']['both']}, only rules {s['paired']['only_rules']}, only edits "
                  f"{s['paired']['only_edits']}, neither {s['paired']['neither']}   exact McNemar p = "
-                 f"{s['mcnemar_p']:.3f}   Nemotron ${s['nemotron_cost_usd']:.3f}")
+                 f"{s['mcnemar_p']:.3f}   Nemotron ${s['nemotron_cost_usd']:.3f}, {s['model_calls']} calls, "
+                 f"{s['rescues']['total']} re-asked without thinking ({s['rescues']['length']} at the token cap)")
     return "\n".join(lines)
 
 

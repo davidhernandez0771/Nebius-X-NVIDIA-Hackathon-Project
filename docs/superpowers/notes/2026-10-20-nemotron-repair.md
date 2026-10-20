@@ -1,7 +1,17 @@
 # Nemotron as SANT's repairer: concrete trajectory edits, physics verifies (2026-10-20, branch `pm/nemotron-repair`)
 
-Branched from `pm/live-11` at `cef4033`. No Isaac and no GPU were used: the GPU was training. The Nemotron calls
-were real: text only, `super` tier, about $0.20 in all today.
+**In plain words.** On 10 webcam demos that all failed the physics check, NVIDIA Nemotron repaired 5 of 10 and the
+hand-written rules repaired 3 of 10 (p = 0.50, one run, not significant). Nemotron was never shown our hand-written
+fix.
+- **How it works.** For each demo, Nemotron read what the simulator measured: where the arm hit the bin, how far off
+  the grasp was, where the cube was let go. It then wrote small, concrete changes to the hand's path, never more than
+  5 cm anywhere. Isaac Sim replayed each change and judged it with the same success check as the rules.
+- **The result.** Nemotron fixed every demo the rules fixed, plus two the rules could not.
+- **How to read it.** With 10 demos and one run, this is a promising sign, not proof. The test was pre-registered,
+  and a re-run with one known fix (`repair_ab2`, below) is ready.
+
+Branched from `pm/live-11` at `cef4033`. Before the A/B, no Isaac and no GPU were used: the GPU was training. The
+Nemotron calls were real: text only, `super` tier, about $0.20 in all for the dry runs.
 
 ## What it is
 
@@ -85,7 +95,7 @@ The model is mocked, and the replay is a toy cube that sticks to closed fingers,
 - The what-changed report.
 - Max rounds, giving up, and the dry run.
 
-Full suite: 1926 passed, 15 skipped (4.5 min).
+Full suite: 1926 passed, 15 skipped (4.5 min); 1933 passed, 15 skipped after the token-cap fix.
 
 ## Real Nemotron calls on the 10 human demos' signals (no Isaac)
 
@@ -245,6 +255,74 @@ uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python
 - **Known caveat.** PhysX is not deterministic, and the live grasps were marginal. Replay fidelity was 2–4/10 in
   human10c. The two arms share the raw replay but not their verification replays, so a demo can pass or fail by
   luck in either arm.
+
+## The token-cap fix and the repair_ab2 re-run (code only; not run, the GPU is T4's)
+
+**The fix.** In repair_ab1, 3 of 23 calls used the whole 16 000-token budget thinking and returned no JSON. 0576
+lost 2 of its 3 rounds this way, and 3997 lost 1.
+- **What happens now.** When a thinking reply ends with `finish_reason == "length"`, or has no JSON object at all,
+  `repair_with_nemotron` asks the same round's prompt once more. The re-ask has thinking off and `RESCUE_SUFFIX`
+  ("…ran out of room before its JSON. Reply now with the JSON object only") added.
+- **Not a lost round.** The rescue doesn't count as a round: MAX_ROUNDS stays 3, so a demo can now make up to 6
+  calls.
+- **Limits.** One rescue per round. If the re-ask has no JSON either, the round is spent as before. Replies with
+  JSON go back as usual, valid or not.
+- **What triggers it, and what doesn't.** Schema errors, over-budget plans and failed verifications never trigger a
+  rescue. Neither does a reply made with thinking already off.
+- **Logged** per round (`rescue: {reason, first_reply}`), per demo (`RepairResult.rescues`, and `rescues` in
+  `perfect_stored_demo_edits`' summary and the dry-run output), and per run. `ab_summary.json` gets `model_calls`
+  and `rescues: {total, length, no_json, demos}`, and the printed table ends with them.
+- **Tests first.** 6 new tests in `tests/test_nemotron_repair.py`, all failing before the change, plus summary,
+  pre-registration and refusal checks in `tests/test_run_repair_ab.py`.
+  - The re-ask happens in the same round, without thinking, and the prompt keeps its prefix.
+  - "no_json" is rescued too.
+  - One rescue per round; a failed rescue spends the round.
+  - No rescue for schema errors, or when thinking is already off.
+  - `before_call` (the spend cap) runs before a rescue as well.
+- **Real check.** One call on c045 with the budget forced down to 1 200 tokens: the thinking call ended `length`.
+  The rescue answered in 1.2 s with a valid plan (place +2 cm, open at 7.85), so the round was not lost. $0.004.
+- **The new settings are frozen.** `ab_config.json` now records `rescue` and `rescue_suffix_sha256`. A resume of an
+  older run (repair_ab1's config) is refused; a test checks this. So the re-run needs a new `--name`.
+
+### Pre-registration draft: `repair_ab2` (the script writes the frozen copy)
+
+Everything is as in repair_ab1 (above), except the rescue.
+- **Question.** The same: on the 10 `human_20261019*` demos, does Nemotron's trajectory editing repair as many demos
+  to a physics pass as the hand-written rules?
+  - Nemotron is shown no hand-written op and no `release_above_bin`.
+  - The rules include `release_above_bin` and the rules' `recenter_grasp`.
+- **Demos.** The same 10, frozen by demo.json and steps.npz hashes. They replay the achieved path with lookahead 0.
+  Each demo gets a **new** raw replay in this run, and both arms share it.
+- **Arms.** The same, with the first arm alternating by index.
+  - **rules:** `perfect_stored_demo(..., "rules")`, with up to 3 verifications.
+  - **nemotron-edits:** `perfect_stored_demo_edits`.
+    - `super`, thinking on, 3 rounds, the 5 cm budget, the same prompt (sha256 `836b5291…`).
+    - **New:** the one-time rescue per round described above.
+- **Metric (primary).** Repaired demos that pass physics (status `perfected` or `kept`), per arm, out of 10. The
+  verdict is the sim worker's replay and the unchanged `check_success`.
+- **Test.** Exact two-sided McNemar on the paired outcomes, α = 0.05, with a Wilson 95% CI per arm.
+  - One test, no interim looks, n = 10 fixed.
+  - The counts and the paired table are reported whatever they say.
+- **Secondary, descriptive:**
+  - the number of rescues (at the cap / no JSON) and whether any round was still lost to having no answer;
+  - per-demo agreement with repair_ab1 for each arm. This is the stability of a non-deterministic simulator, and of
+    5 vs 3.
+- **Not counted.** A worker, API or spend-cap stop is redone on resume and never counted for either arm.
+- **Caveat.** Physics is not deterministic. repair_ab1 and repair_ab2 are two separate runs, not a pooled n = 20,
+  and they are reported side by side.
+
+**Command** (when T4's training is done and the GPU is free; from `C:\dev\pm-t3`, PowerShell; the script takes
+gpu.lock itself):
+
+```
+cd C:\dev\pm-t3
+uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python scripts/run_repair_ab.py --name repair_ab2 --tag "human_20261019*" --data-dir C:\dev\pm-t6\data --max-cost-usd 1.0
+```
+
+- **Time and cost.** About 55 min, like repair_ab1. Spend should be about $0.25: a rescue costs one short extra
+  call.
+- **Prerequisite.** Commit first, so `ab_config.json` has no `+dirty`.
+- **Output** goes to `C:\dev\pm-t6\data\human_exp\repair_ab2\`.
 
 ## Open
 
