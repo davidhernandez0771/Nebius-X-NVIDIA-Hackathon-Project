@@ -1,8 +1,10 @@
 // The forest floor's layout, pure and seeded so every visit is the same and the tests can hold it to
 // the camera's way (path.ts walkXZ): the crack's jagged lens (mirrored in the ground's shader,
-// placeShaders.ts), the trunks (clear of the walk, the crack and each other, crowding round the
-// clearing), the robot parts half buried in the moss beside the walk, and the light shafts falling
-// through the gaps. Forest.tsx turns them into geometry.
+// placeShaders.ts), the trunks in three depth layers (near / mid / far, each drawn at its own detail) plus
+// a far ring beyond the forest, the roots spreading from the near and mid trunks, fallen logs, ferns and
+// moss at the trunks' feet, the mist bands, the light shafts falling through the gaps, and the spores.
+// Everything stays clear of the walk and the crack. The robots lying in the moss are forestRobots.ts.
+// Forest.tsx and forestGeometry.ts turn them into geometry.
 import { CRACK, FOREST } from "./layout";
 import { seeded } from "./particles";
 
@@ -41,6 +43,9 @@ export function inCrack(x: number, z: number, margin = 0): boolean {
 
 const near = (walk: readonly XZ[], x: number, z: number) => Math.min(...walk.map(([a, b]) => Math.hypot(a - x, b - z)));
 
+/** Near (0): framing the walk, full detail. Mid (1). Far (2): silhouettes in the mist, the cheapest mesh. */
+export type Layer = 0 | 1 | 2;
+
 export interface Tree {
   x: number;
   z: number;
@@ -49,7 +54,13 @@ export interface Tree {
   height: number;
   /** A small lean (radians) about x and z. */
   lean: [number, number];
+  layer: Layer;
+  /** 0-1: the bark's own shade and grain, so no two trunks look alike. */
+  tint: number;
 }
+
+/** A trunk's layer, by how far it stands from the camera's way. */
+export const layerOf = (distanceToWalk: number): Layer => (distanceToWalk < 9 ? 0 : distanceToWalk < 22 ? 1 : 2);
 
 /** n trunks: about half crowding the walk, the rest through the whole forest. */
 export function trees(n: number, seed: number, walk: readonly XZ[]): Tree[] {
@@ -74,57 +85,13 @@ export function trees(n: number, seed: number, walk: readonly XZ[]): Tree[] {
     }
     const height = FOREST.canopy * (0.85 + rnd() * 0.3);
     const lean: [number, number] = [(rnd() - 0.5) * 0.08, (rnd() - 0.5) * 0.08];
+    const tint = rnd();
     if (Math.hypot(x - cx, z - cz) > FOREST.radius - 1) continue;
-    if (near(walk, x, z) <= radius + 1.7) continue;
+    const w = near(walk, x, z);
+    if (w <= radius + 1.7) continue;
     if (inCrack(x, z, -2.6)) continue;
     if (out.some((t) => Math.hypot(t.x - x, t.z - z) <= t.radius + radius + 0.6)) continue;
-    out.push({ x, z, radius, height, lean });
-  }
-  return out;
-}
-
-/** The robot's meshes (web/public/robots/franka_description/meshes/collision/*.stl). */
-export const PART_KINDS = ["link0", "link1", "link2", "link3", "link4", "link5", "link6", "link7", "hand", "finger"] as const;
-export type PartKind = (typeof PART_KINDS)[number];
-
-/** How many of each lie in the moss. */
-const COUNT: Partial<Record<PartKind, number>> = { hand: 3, finger: 4, link1: 2, link3: 2, link4: 2, link6: 2, link7: 2 };
-
-export interface Part {
-  kind: PartKind;
-  x: number;
-  z: number;
-  /** How much of its height is under the moss (0–1). */
-  sink: number;
-  /** Euler angles (radians). */
-  rot: [number, number, number];
-  /** World metres per mesh metre: the parts lie bigger than life, like ruins. */
-  scale: number;
-}
-
-/** The parts, beside the walk where the camera passes them, never in the crack or a trunk. */
-export function parts(seed: number, walk: readonly XZ[], forest: readonly Tree[]): Part[] {
-  const rnd = seeded(seed);
-  const out: Part[] = [];
-  // The walk's ground half: where the camera is down among the trunks, not the canopy above them.
-  const ground = walk.slice(Math.floor(walk.length * 0.35));
-  for (const kind of PART_KINDS) {
-    const want = COUNT[kind] ?? 1;
-    for (let k = 0, tries = 0; k < want && tries < 4000; tries++) {
-      const [wx, wz] = ground[Math.floor(rnd() * ground.length)];
-      const a = rnd() * Math.PI * 2;
-      // Most close enough to pass by, a few further off in the mist.
-      const d = 2.2 + rnd() ** 1.6 * 7;
-      const x = wx + Math.cos(a) * d;
-      const z = wz + Math.sin(a) * d;
-      const w = near(walk, x, z);
-      if (w <= 1.8 || w >= 11) continue;
-      if (inCrack(x, z, -1)) continue;
-      if (forest.some((t) => Math.hypot(t.x - x, t.z - z) <= t.radius + 0.9)) continue;
-      if (out.some((p) => Math.hypot(p.x - x, p.z - z) < 1.6)) continue;
-      out.push({ kind, x, z, sink: 0.25 + rnd() * 0.35, rot: [rnd() * Math.PI * 2, rnd() * Math.PI * 2, rnd() * Math.PI * 2], scale: 3.4 + rnd() * 1.6 });
-      k++;
-    }
+    out.push({ x, z, radius, height, lean, layer: layerOf(w), tint });
   }
   return out;
 }
@@ -153,6 +120,196 @@ export function shafts(seed: number, walk: readonly XZ[], forest: readonly Tree[
     if (forest.some((t) => Math.hypot(t.x - x, t.z - z) <= t.radius + radius * 0.5)) continue;
     if (out.some((s) => Math.hypot(s.x - x, s.z - z) < 3.5)) continue;
     out.push({ x, z, radius });
+  }
+  return out;
+}
+
+/** n far trunks in a ring beyond the forest (to FOREST.radius + 30 m): depth in the mist, the far layer's mesh. */
+export function farTrees(n: number, seed: number): Tree[] {
+  const rnd = seeded(seed);
+  const out: Tree[] = [];
+  const [cx, cz] = FOREST.center;
+  for (let tries = 0; out.length < n && tries < n * 200; tries++) {
+    const a = rnd() * Math.PI * 2;
+    const d = FOREST.radius + rnd() * 30;
+    const radius = 0.4 + rnd() * 0.8;
+    const x = cx + Math.cos(a) * d;
+    const z = cz + Math.sin(a) * d;
+    const height = FOREST.canopy * (0.9 + rnd() * 0.3);
+    const lean: [number, number] = [(rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.06];
+    const tint = rnd();
+    if (out.some((t) => Math.hypot(t.x - x, t.z - z) <= t.radius + radius + 1.2)) continue;
+    out.push({ x, z, radius, height, lean, layer: 2, tint });
+  }
+  return out;
+}
+
+export interface Root {
+  /** Index of the trunk it spreads from (in the trees() list). */
+  tree: number;
+  /** Direction out from the trunk (radians, from +x toward +z). */
+  angle: number;
+  /** How far it reaches beyond the trunk's surface (m). */
+  length: number;
+  /** Its thickness where it leaves the trunk (m). */
+  thick: number;
+}
+
+/** 3-6 roots from each near and mid trunk, spread round it; none reaches the walk or the crack. */
+export function roots(forest: readonly Tree[], seed: number, walk: readonly XZ[]): Root[] {
+  const rnd = seeded(seed);
+  const out: Root[] = [];
+  forest.forEach((t, tree) => {
+    if (t.layer === 2) return;
+    const k = 3 + Math.floor(rnd() * 4);
+    const turn = rnd() * Math.PI * 2;
+    for (let i = 0; i < k; i++) {
+      const angle = turn + (i / k) * Math.PI * 2 + (rnd() - 0.5) * 0.6;
+      const length = t.radius * (1.4 + rnd() * 2.2) + 0.3;
+      const thick = t.radius * (0.15 + rnd() * 0.2);
+      const tipX = t.x + Math.cos(angle) * (t.radius + length);
+      const tipZ = t.z + Math.sin(angle) * (t.radius + length);
+      if (near(walk, tipX, tipZ) <= 0.9 || inCrack(tipX, tipZ, -0.5)) continue;
+      out.push({ tree, angle, length, thick });
+    }
+  });
+  return out;
+}
+
+export interface Log {
+  x: number;
+  z: number;
+  /** Its axis's direction on the ground (radians, from +x toward +z). */
+  yaw: number;
+  length: number;
+  radius: number;
+  /** How much of its diameter is sunk in the moss (0-1). */
+  sink: number;
+}
+
+/** Distance from a ground point to a log's axis. */
+export function toLog(l: Log, x: number, z: number): number {
+  const dx = Math.cos(l.yaw) * (l.length / 2);
+  const dz = Math.sin(l.yaw) * (l.length / 2);
+  const ax = l.x - dx, az = l.z - dz;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx * 2 + (z - az) * dz * 2) / (l.length * l.length)));
+  return Math.hypot(x - (ax + dx * 2 * t), z - (az + dz * 2 * t));
+}
+
+/** n fallen logs beside the walk (within 14 m), clear of it, the crack, the trunks and each other. */
+export function logs(seed: number, walk: readonly XZ[], forest: readonly Tree[], n: number): Log[] {
+  const rnd = seeded(seed);
+  const out: Log[] = [];
+  const ground = walk.slice(Math.floor(walk.length * 0.35));
+  for (let tries = 0; out.length < n && tries < 20000; tries++) {
+    const [wx, wz] = ground[Math.floor(rnd() * ground.length)];
+    const a = rnd() * Math.PI * 2;
+    const d = 3 + rnd() * 9;
+    const l: Log = { x: wx + Math.cos(a) * d, z: wz + Math.sin(a) * d, yaw: rnd() * Math.PI, length: 4 + rnd() * 5,
+                     radius: 0.3 + rnd() * 0.3, sink: 0.2 + rnd() * 0.2 };
+    let ok = near(walk, l.x, l.z) < 14;
+    for (let k = 0; ok && k <= 10; k++) {
+      const u = k / 10 - 0.5;
+      const x = l.x + Math.cos(l.yaw) * l.length * u;
+      const z = l.z + Math.sin(l.yaw) * l.length * u;
+      if (near(walk, x, z) <= l.radius + 1.2 || inCrack(x, z, -1)) ok = false;
+      if (out.some((o) => toLog(o, x, z) < o.radius + l.radius + 0.4)) ok = false;
+    }
+    if (!ok || forest.some((t) => toLog(l, t.x, t.z) <= t.radius + l.radius + 0.2)) continue;
+    out.push(l);
+  }
+  return out;
+}
+
+export interface Fern {
+  x: number;
+  z: number;
+  yaw: number;
+  /** World metres per fern-mesh metre (the mesh is about a metre across). */
+  scale: number;
+}
+
+/** n ferns in clusters at the near and mid trunks' feet and along the logs, off the walk and the crack. */
+export function ferns(seed: number, walk: readonly XZ[], forest: readonly Tree[], fallen: readonly Log[], n: number): Fern[] {
+  const rnd = seeded(seed);
+  const out: Fern[] = [];
+  const anchors = forest.filter((t) => t.layer < 2);
+  for (let tries = 0; out.length < n && tries < n * 300; tries++) {
+    let x: number;
+    let z: number;
+    if (fallen.length && rnd() < 0.25) {
+      const l = fallen[Math.floor(rnd() * fallen.length)];
+      const u = rnd() - 0.5;
+      const side = (rnd() < 0.5 ? -1 : 1) * (l.radius + 0.3 + rnd() * 1.4);
+      x = l.x + Math.cos(l.yaw) * l.length * u - Math.sin(l.yaw) * side;
+      z = l.z + Math.sin(l.yaw) * l.length * u + Math.cos(l.yaw) * side;
+    } else {
+      const t = anchors[Math.floor(rnd() * anchors.length)];
+      const a = rnd() * Math.PI * 2;
+      const d = t.radius + 0.25 + rnd() ** 1.5 * 2.5;
+      x = t.x + Math.cos(a) * d;
+      z = t.z + Math.sin(a) * d;
+    }
+    if (near(walk, x, z) <= 0.9 || inCrack(x, z, -0.6)) continue;
+    if (forest.some((t) => Math.hypot(t.x - x, t.z - z) <= t.radius + 0.1)) continue;
+    if (fallen.some((l) => toLog(l, x, z) <= l.radius * 0.8)) continue;
+    out.push({ x, z, yaw: rnd() * Math.PI * 2, scale: 0.7 + rnd() * 0.9 });
+  }
+  return out;
+}
+
+export interface Moss {
+  x: number;
+  z: number;
+  /** The mound's radius (m). */
+  r: number;
+}
+
+/** n moss mounds round the trunks' feet and the logs, off the walk and the crack. */
+export function mossMounds(seed: number, walk: readonly XZ[], forest: readonly Tree[], fallen: readonly Log[], n: number): Moss[] {
+  const rnd = seeded(seed);
+  const out: Moss[] = [];
+  const anchors = forest.filter((t) => t.layer < 2);
+  for (let tries = 0; out.length < n && tries < n * 300; tries++) {
+    const r = 0.3 + rnd() * 0.6;
+    let x: number;
+    let z: number;
+    if (fallen.length && rnd() < 0.2) {
+      const l = fallen[Math.floor(rnd() * fallen.length)];
+      const u = rnd() - 0.5;
+      x = l.x + Math.cos(l.yaw) * l.length * u;
+      z = l.z + Math.sin(l.yaw) * l.length * u;
+    } else {
+      const t = anchors[Math.floor(rnd() * anchors.length)];
+      const a = rnd() * Math.PI * 2;
+      const d = t.radius + rnd() * 1.6;
+      x = t.x + Math.cos(a) * d;
+      z = t.z + Math.sin(a) * d;
+    }
+    if (near(walk, x, z) <= r * 0.5 + 0.3 || inCrack(x, z, -0.4)) continue;
+    out.push({ x, z, r });
+  }
+  return out;
+}
+
+/** The mist: three bands (height y over the floor and thickness in m), each drifting at its own speed (m/s):
+ *  one lying on the floor below the walking eye (2.3–2.4 m), two hanging between the trunks above it. */
+export const MIST_BANDS = [
+  { y: 0.35, thickness: 0.7, speed: 0.012, opacity: 0.5 },
+  { y: 4.6, thickness: 0.9, speed: 0.021, opacity: 0.4 },
+  { y: 8.2, thickness: 1.8, speed: 0.033, opacity: 0.3 },
+] as const;
+
+/** n spores (x, y, z) drifting along the walk: within 13 m of it, from the floor to 11.5 m up. */
+export function spores(seed: number, walk: readonly XZ[], n: number): [number, number, number][] {
+  const rnd = seeded(seed);
+  const ground = walk.slice(Math.floor(walk.length * 0.3));
+  const out: [number, number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const [wx, wz] = ground[Math.floor(rnd() * ground.length)];
+    const a = rnd() * Math.PI * 2;
+    const d = Math.sqrt(rnd()) * 13;
+    out.push([wx + Math.cos(a) * d, FOREST.floor + rnd() * 11.5, wz + Math.sin(a) * d]);
   }
   return out;
 }

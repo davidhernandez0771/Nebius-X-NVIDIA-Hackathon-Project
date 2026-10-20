@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crackHalfWidth, crackLocal, inCrack, PART_KINDS, parts, shafts, trees } from "./forestPlan";
+import { crackHalfWidth, crackLocal, inCrack, shafts, trees } from "./forestPlan";
 import { CRACK, FOREST } from "./layout";
 import { walkXZ } from "./path";
 
@@ -50,28 +50,6 @@ describe("the trees", () => {
 
   it("crowd round the clearing: some close enough to frame the walk", () => {
     expect(t.filter((a) => toWalk(a.x, a.z) < 8).length).toBeGreaterThan(10);
-  });
-});
-
-describe("the robot parts in the moss", () => {
-  const t = trees(140, 7, walk);
-  const p = parts(5, walk, t);
-
-  it("include every kind of part: the links, the hand and the fingers", () => {
-    for (const k of PART_KINDS) expect(p.some((q) => q.kind === k)).toBe(true);
-  });
-
-  it("lie beside the walk where they're seen, never in the crack or a trunk, half buried", () => {
-    for (const q of p) {
-      const d = toWalk(q.x, q.z);
-      expect(d).toBeGreaterThan(1.8);
-      expect(d).toBeLessThan(11);
-      expect(inCrack(q.x, q.z, -1)).toBe(false);
-      for (const a of t) expect(Math.hypot(a.x - q.x, a.z - q.z)).toBeGreaterThan(a.radius + 0.8);
-      expect(q.sink).toBeGreaterThanOrEqual(0.25);
-      expect(q.sink).toBeLessThanOrEqual(0.6);
-    }
-    expect(parts(5, walk, t)).toEqual(p);
   });
 });
 

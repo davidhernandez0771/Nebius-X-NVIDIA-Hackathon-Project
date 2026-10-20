@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import { WORLD_BG } from "../../core/layout";
 import { CRACK } from "./layout";
+import { MIST_GLSL } from "./mistBands";
 
 export interface PlaceFog {
   /** The fog's density (1 / metres). */
@@ -29,6 +30,11 @@ export function placeUniforms(f: PlaceFog) {
     uFogK: { value: f.k },
     uMistY: { value: f.mistY },
     uMistK: { value: f.mistK },
+    // Hanging mist bands (mistBands.ts), off unless a place sets their density.
+    uBandY: { value: new THREE.Vector3() },
+    uBandT: { value: new THREE.Vector3(1, 1, 1) },
+    uBandK: { value: new THREE.Vector3() },
+    uBandV: { value: new THREE.Vector3() },
   };
 }
 export type PlaceUniforms = ReturnType<typeof placeUniforms>;
@@ -48,11 +54,13 @@ float fbm3(vec3 p){ float s = 0., a = .5; for (int i = 0; i < 3; i++){ s += a * 
 /** The place's light and fog over a lit colour at world point `wp`. */
 export const PLACE_GLSL = /* glsl */ `
 uniform float uLight, uTime, uFogK, uMistY, uMistK; uniform vec3 uBg, uFog, uMist;
+${MIST_GLSL}
 vec3 place(vec3 c, vec3 wp){
   float d = distance(wp, cameraPosition);
   float fog = 1. - exp(-d * uFogK);
   float mist = exp(-max(0., wp.y - uMistY) * uMistK) * (1. - exp(-d * uFogK * 1.8));
   c = mix(c, mix(uFog, uMist, clamp(mist, 0., 1.)), clamp(fog + mist * .55, 0., 1.));
+  c = mistBands(c, wp);
   return mix(uBg, c, uLight);
 }
 `;
