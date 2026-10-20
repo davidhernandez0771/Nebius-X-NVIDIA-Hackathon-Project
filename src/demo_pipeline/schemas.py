@@ -100,6 +100,17 @@ class Assist(_Model):
 
     soft_floor: bool  # the soft floor was on for (part of) the take
     soft_floor_steps: int = Field(default=0, ge=0)  # recorded steps where it held the target up
+    # The assist zones that were active (soft_floor.AssistZones.to_dict(): the source, every zone's footprint, floor and
+    # speed cap); None while the soft floor was off, or for demos from before the zones.
+    zones: dict | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_zones(self, handler):
+        """Leave "zones" out while it is None, so a label from before the zones serializes byte for byte as before."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("zones") is None:
+            data.pop("zones", None)
+        return data
 
 
 class Demo(_Model):
