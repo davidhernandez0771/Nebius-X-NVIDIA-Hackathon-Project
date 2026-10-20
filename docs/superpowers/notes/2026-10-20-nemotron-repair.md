@@ -463,14 +463,18 @@ The lead asked for this after repair_ab2. Every change below was written tests-f
     question is what the edits add.
   - The keyboard demos' replay fidelity on achieved paths is unknown until tonight's physics step.
 
-**Prerequisite: run it from a checkout of pm/live-11 with this branch merged in.** This branch lacks `Demo.input` and
-the `--input` filter, which live in pm/live-11; the lead merges, I never do.
-- A trial merge, read-only (`git merge-tree`), is in the report.
+**Run it from `C:\dev\pm-t3`.** This branch now has pm/live-11 merged in (`d92c559`, merging `2abc94e`, with the
+user's OK), so it has `Demo.input` and the `--input` filter.
+- The one conflict was in `tests/test_run_human_demo_experiment.py`, where both sides had appended tests; both were
+  kept.
+- The suite on the merged tree: 2043 passed, 15 skipped (`uv run --no-sync pytest -q`).
+- Leave `C:\dev\pm-t7` alone: the live test and T4's runs use it.
+- When to run: after T4's keyboard run has finished and freed the GPU.
 - Commit first, so `ab_config.json` has no `+dirty`.
 - The script takes gpu.lock itself.
 
 ```
-cd C:\dev\pm-t7
+cd C:\dev\pm-t3
 uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python scripts/run_repair_ab.py --name repair_kb1 --tag "human_2026102[01]*" --input keyboard --data-dir C:\dev\pm-t6\data --max-cost-usd 1.0
 ```
 
