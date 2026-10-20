@@ -102,6 +102,11 @@ def list_episodes(robot: Literal["franka", "openarm", "flexiv"] | None = None, v
 
 @router.get("/episodes/{demo_id}")
 def get_episode(demo_id: str, store: DemoStore = Depends(get_store)) -> dict:
+    return episode_payload(store, demo_id)
+
+
+def episode_payload(store: DemoStore, demo_id: str) -> dict:
+    """The twin's replay of one demo in this store (the body of GET /episodes/{id}); also the data showcase's."""
     try:
         demo = store.get_demo(demo_id)
     except KeyError:
