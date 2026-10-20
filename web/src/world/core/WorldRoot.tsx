@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { WorldContext, type WorldApi } from "./WorldContext";
 import "./world.css";
 import "../ui/ui.css";
+import { Contact } from "../ui/Contact";
 
 const WorldCanvas = lazy(() => import("./WorldCanvas"));
 
@@ -373,6 +374,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
         <p className="world-brand world-u" aria-hidden="true">
           <b>S·A·N·T</b> &nbsp;perfect, then multiply
         </p>
+        <Contact />
         <JourneyRail stations={stations} at={at} goTo={jump} />
         {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />

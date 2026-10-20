@@ -336,3 +336,94 @@
 .world-detail-hint {
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.95);
 }
+
+/* Contact (Contact.tsx): quiet, top right, the brand's size and colour. On a phone the hub bar takes
+   the top and the tier badge the right, so it sits under the bar on the left (the brand is hidden there). */
+.world-contact {
+  position: fixed;
+  top: 18px;
+  right: 24px;
+  z-index: 7;
+  font-family: var(--w-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.world-contact__open,
+.world-contact__close {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--w-dim);
+  background: none;
+  border: 0;
+  padding: 4px 2px;
+  cursor: pointer;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.95);
+}
+.world-contact__open:hover,
+.world-contact__open:focus-visible,
+.world-contact__open[aria-expanded="true"],
+.world-contact__close:hover,
+.world-contact__close:focus-visible {
+  color: var(--w-teal);
+}
+.world-contact__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 13rem;
+  padding: 14px 16px 10px;
+  border: 1px solid var(--w-line);
+  border-radius: 2px;
+  background: rgba(4, 9, 10, 0.86);
+  color: var(--w-ink);
+  outline: none;
+}
+/* It takes focus when it opens (for Escape and the screen reader), quietly: its border is the cue. */
+.world-contact__panel:focus,
+.world-contact__panel:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.world-contact__h {
+  margin: 0 0 8px;
+  color: var(--w-teal);
+}
+.world-contact__links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+.world-contact__links a {
+  color: var(--w-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--w-line);
+}
+.world-contact__links a:hover,
+.world-contact__links a:focus-visible {
+  color: var(--w-teal);
+  border-color: var(--w-teal);
+}
+.world-contact__empty {
+  margin: 0;
+  color: var(--w-dim);
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+.world-contact__close {
+  margin-top: 8px;
+}
+@media (max-width: 700px) {
+  .world-contact {
+    top: 76px;
+    right: auto;
+    left: 16px;
+  }
+  .world-contact__panel {
+    right: auto;
+    left: 0;
+  }
+}
