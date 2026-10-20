@@ -394,6 +394,19 @@ def test_a_config_frozen_without_input_still_resumes(hx, tmp_path):
     assert "input" not in config  # unchanged for runs that don't filter
 
 
+def test_a_config_frozen_before_the_repairer_flag_resumes_with_the_default_repairer(hx, tmp_path):
+    # Configs have carried "repair": "rules" since the script's first commit (b489476), so the CLI now passing
+    # repair="rules" (the --repairer default) changes no frozen setting: human10c's resume is not refused.
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)  # as the CLI froze it before --repairer existed
+    path = tmp_path / "human_exp" / "smoke1" / "config.json"
+    before = json.loads(path.read_text(encoding="utf-8"))
+    assert before["repair"] == "rules"
+    exp.select(ids=None, tag=None, settings={**SMOKE, "repair": "rules"})  # today's CLI default: not refused
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert after == before  # nothing re-frozen, frozen_at kept
+
+
 def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
     exp, sim, _ = _exp(hx, tmp_path)
     exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "nemotron-edits"})
