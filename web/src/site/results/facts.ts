@@ -6,17 +6,17 @@
 // registry (sprint 9: R1–R18, C1–C4, B1–B5, A2, Y3). facts.test.ts checks that the sentences here
 // quote the same numbers as results.json. Line numbers are from the notes as of sprint 9; the
 // notes are append-only.
-import { RESULTS, experiment, formatP, measured, type Source } from "./data";
+import { RESULTS, experiment, formatP, isNote, measured, type NoteSource, type Source } from "./data";
 
 export type { Source };
 
 export const NOTES = RESULTS.notes;
 
-const t2 = (lines: string): Source => ({ note: "t2", lines });
-const t3 = (lines: string): Source => ({ note: "t3", lines });
-const web = (lines: string): Source => ({ note: "web", lines });
+const t2 = (lines: string): NoteSource => ({ note: "t2", lines });
+const t3 = (lines: string): NoteSource => ({ note: "t3", lines });
 
 export function cite(s: Source): string {
+  if (!isNote(s)) return `Experiment store: ${s.file}`;
   const many = /[–,]/.test(s.lines);
   return `${NOTES[s.note].name}, ${many ? "lines" : "line"} ${s.lines}`;
 }
@@ -102,14 +102,14 @@ export const HEADLINE = {
 };
 
 /** Said in the same viewport as every proof beat (spec wording rule 2). */
-export const PROOF_SO_FAR = { text: "Scripted-expert source demos; human demos come next.", source: t2("897") };
+export const PROOF_SO_FAR = { text: "Scripted-expert source demos. The real webcam and mouse demos are further down.", source: t2("897") };
 
 /** What the result does not show (C1–C4, A2). Shown next to it, never in a footnote only. */
 export const LIMITS = [
   { text: "One task (a 5 cm cube into a bin), one simulated arm (Franka), one policy type (ACT), and one training run per arm.", sources: [t3("1165–1166")] },
   {
-    text: "The 10 source demos came from a scripted expert and were already clean, so this tests multiplying, not perfecting. No real person's demo has been recorded and verified yet.",
-    sources: [t2("897"), web("436")],
+    text: "The 10 source demos came from a scripted expert and were already clean, so this tests multiplying, not perfecting. The real webcam and mouse demos are further down this page.",
+    sources: [t2("897")],
   },
   { text: "Every policy got the same 30k training steps, so the ones with fewer examples saw each one more often.", sources: [t3("1167, 1257")] },
   { text: "It still drops the cube: 22 of 23 failures with 100 copies, 23 of 24 with 300.", sources: [t3("1176, 1325")] },

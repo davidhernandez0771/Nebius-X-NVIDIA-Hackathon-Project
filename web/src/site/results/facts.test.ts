@@ -66,8 +66,10 @@ describe("sources", () => {
   it("are on every fact", () => {
     expect(all.length).toBeGreaterThan(20);
     for (const s of all) {
-      expect(Object.keys(NOTES)).toContain(s.note);
-      expect(s.lines).toMatch(/^\d+(–\d+)?(, \d+(–\d+)?)*$/);
+      expect("note" in s).toBe(true); // the curated facts all cite notes; store files are only in stores.json
+      const n = s as { note: string; lines: string };
+      expect(Object.keys(NOTES)).toContain(n.note);
+      expect(n.lines).toMatch(/^\d+(–\d+)?(, \d+(–\d+)?)*$/);
     }
   });
 

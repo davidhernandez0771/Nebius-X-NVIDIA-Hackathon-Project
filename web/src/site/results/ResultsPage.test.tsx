@@ -67,7 +67,7 @@ describe("Results page", () => {
     stubReducedMotion(true);
     page();
     const hero = screen.getByRole("region", { name: /Multiplying 10 demos/ });
-    expect(hero.textContent).toMatch(/Scripted-expert source demos; human demos come next\./);
+    expect(hero.textContent).toMatch(/Scripted-expert source demos\. The real webcam and mouse demos are further down\./);
   });
 
   it("shows the limits beside the result, not only in a footnote", () => {
@@ -185,14 +185,43 @@ describe("Results page", () => {
     expect(s.textContent).toMatch(/100–129/);
   });
 
+  it("shows the real demos from the stores: webcam, the repair A/B and tonight's mouse demos", () => {
+    stubReducedMotion(true);
+    page();
+    const real = screen.getByRole("region", { name: "Real demos" });
+    const webcam = within(real).getByRole("region", { name: "Real webcam demos: checked, repaired, multiplied, trained" });
+    expect(within(webcam).getByTestId("arm-webcam_raw").textContent).toMatch(/0\/10/);
+    expect(within(webcam).getByTestId("arm-webcam_copies").textContent).toMatch(/24\/30/);
+    expect(within(webcam).getByTestId("arm-webcam_policy").textContent).toMatch(/3\/40.*2\.6–19\.9%/);
+    expect(webcam.textContent).toMatch(/one arm, not a comparison/);
+    const ab = within(real).getByRole("region", { name: "Blind repair A/B: Nemotron's edits vs the hand-written rules" });
+    expect(within(ab).getAllByTestId("comparison").map((c) => c.textContent)).toEqual([
+      "3/10 vs 5/10: p = 0.5, not significant (exact McNemar, paired)",
+      "3/10 vs 2/10: p = 1.0, not significant (exact McNemar, paired)",
+    ]);
+    expect(within(ab).getByTestId("arm-union_edits").textContent).toMatch(/6\/10/);
+    const mouse = within(real).getByRole("region", { name: "Tonight's mouse demos: clean live, and raw vs SANT" });
+    const replay = within(mouse).getByTestId("arm-mouse_replay").textContent;
+    expect(replay).toMatch(/10\/10/);
+    expect(replay).toMatch(/1\.6–4\.6 mm on average \(max 11 mm\)/);
+    expect(within(mouse).getByTestId("arm-mouse_sant").textContent).toMatch(/Pending/);
+    expect(within(mouse).getByTestId("comparison").textContent).toMatch(/: pending$/);
+  });
+
+  it("links every note it cites to its lines", () => {
+    stubReducedMotion(true);
+    page();
+    const real = screen.getByRole("region", { name: "Real demos" });
+    const links = within(real).getAllByRole("link");
+    expect(links.length).toBeGreaterThan(8);
+    for (const a of links) expect(a.getAttribute("href")).toMatch(/\/docs\/superpowers\/notes\/[\w-]+\.md#L\d+(-L\d+)?$/);
+    expect(real.textContent).toMatch(/Experiment store: human_exp\/human10c\/results\.json/);
+  });
+
   it("marks what hasn't run as pending, never 0%", () => {
     stubReducedMotion(true);
     page();
     const pending = screen.getByRole("region", { name: "Not measured yet" });
-    const human = within(pending).getByRole("region", { name: "Does perfecting human demos before multiplying help more?" });
-    expect(within(human).getAllByText("Pending").length).toBeGreaterThanOrEqual(3);
-    expect(within(human).getByTestId("arm-perfected_multiply").textContent).not.toMatch(/\d%/);
-    expect(within(human).getByTestId("comparison").textContent).toMatch(/: pending$/);
     const run2 = within(pending).getByRole("region", { name: "Grasp fix, run 2: recovery copies and longer training" });
     expect(within(run2).getByTestId("arm-recovery_60k").textContent).toMatch(/Pending/);
     expect(within(run2).getByTestId("arm-centered_10x10").textContent).toMatch(/20\/40/);

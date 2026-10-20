@@ -1,9 +1,21 @@
-// The measured results behind the Results page: ./results.json, checked in, every number copied
-// from the note and lines cited next to it. A null count or p is not measured yet, and the page
-// says Pending, never 0. parseResults checks the file, so a bad edit fails the tests, not the page.
+// The measured results behind the Results page, from two checked-in files:
+// - ./results.json, curated: every number copied from the note and lines cited next to it;
+// - ./stores.json, generated from the experiment stores by scripts/build_site_results.py (read only): the real
+//   webcam and mouse demos and the repair A/B. Its experiments replace any curated one of the same id.
+// A null count or p is not measured yet, and the page says Pending, never 0. parseResults checks both files, so a bad
+// edit fails the tests, not the page. The intro's proof beat reads the same numbers (world/stations/intro/proof.ts).
 import raw from "./results.json";
+import stores from "./stores.json";
 
-export type Source = { note: string; lines: string };
+/** A note and its lines, or a file in the experiment stores (relative to DATA_DIR). */
+export type NoteSource = { note: string; lines: string };
+export type FileSource = { file: string };
+export type Source = NoteSource | FileSource;
+
+export const isNote = (s: Source): s is NoteSource => "note" in s;
+
+/** Where the notes are read on GitHub: the branch the work lands on. */
+export const REPO_BLOB = "https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project/blob/perfect-then-multiply";
 
 export type Arm = {
   key: string;
@@ -39,9 +51,14 @@ export type Experiment = {
   sources: Source[];
 };
 
+export type Fact = { text: string; source: Source };
+
 export type Results = {
   asOf: string;
+  /** When the store numbers were generated (the newest store file read). */
+  storesAsOf: string | null;
   notes: Record<string, { name: string; path: string }>;
+  facts: Record<string, Fact>;
   experiments: Experiment[];
 };
 
@@ -71,6 +88,8 @@ export function parseResults(input: unknown): Results {
   const source = (v: unknown, what: string): Source | null => {
     if (v == null) return null;
     const s = object(v, what);
+    if (typeof s.file === "string" && s.file) return { file: s.file };
+    if (typeof s.note !== "string") throw new Error(`${what} needs a note or a file`);
     if (typeof s.note !== "string" || !(s.note in notes)) throw new Error(`${what} cites ${s.note}, which isn't in notes`);
     if (typeof s.lines !== "string" || !/^\d+(–\d+)?(, \d+(–\d+)?)*$/.test(s.lines)) throw new Error(`${what} needs lines like "12–14, 20"`);
     return { note: s.note, lines: s.lines };
@@ -143,10 +162,43 @@ export function parseResults(input: unknown): Results {
       sources: list(e.sources, "sources").map((s, i) => source(s, `${e.id} source ${i}`)!),
     };
   });
-  return { asOf: String(r.as_of), notes, experiments };
+  const facts: Record<string, Fact> = {};
+  for (const [key, f] of Object.entries(r.facts == null ? {} : object(r.facts, "facts"))) {
+    const o = object(f, `fact ${key}`);
+    if (typeof o.text !== "string" || !o.text) throw new Error(`fact ${key} needs a text`);
+    facts[key] = { text: o.text, source: source(o.source, `fact ${key}`)! };
+  }
+  return { asOf: String(r.as_of), storesAsOf: text(r.stores_as_of), notes, facts, experiments };
 }
 
-export const RESULTS = parseResults(raw);
+type RawFile = { as_of?: unknown; notes?: object; facts?: object; experiments?: { id: string }[] };
+
+/** The curated file with the generated one merged in: its notes and facts added, its experiments replacing curated ones of the same id. */
+export function mergeResults(curated: RawFile, generated: RawFile) {
+  const ids = new Set((generated.experiments ?? []).map((e) => e.id));
+  return {
+    ...curated,
+    stores_as_of: generated.as_of ?? null,
+    notes: { ...curated.notes, ...generated.notes },
+    facts: { ...(curated.facts ?? {}), ...generated.facts },
+    experiments: [...(curated.experiments ?? []).filter((e) => !ids.has(e.id)), ...(generated.experiments ?? [])],
+  };
+}
+
+export const RESULTS = parseResults(mergeResults(raw as RawFile, stores as RawFile));
+
+export function fact(id: string): Fact {
+  const f = RESULTS.facts[id];
+  if (!f) throw new Error(`stores.json has no fact ${id}`);
+  return f;
+}
+
+/** A note on GitHub at its first cited range ("379–380, 390" -> #L379-L380); null for a store file. */
+export function noteUrl(s: Source): string | null {
+  if (!isNote(s)) return null;
+  const [a, b] = s.lines.split(",")[0].trim().split("–");
+  return `${REPO_BLOB}/${RESULTS.notes[s.note].path}#L${a}${b ? `-L${b}` : ""}`;
+}
 
 export function experiment(id: string): Experiment {
   const e = RESULTS.experiments.find((x) => x.id === id);

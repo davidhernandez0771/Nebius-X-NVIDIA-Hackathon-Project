@@ -7,8 +7,7 @@
     "web": { "name": "Web pages note", "path": "docs/superpowers/notes/2026-10-16-web-pages.md" },
     "grasp": { "name": "Grasp-fix note", "path": "docs/superpowers/notes/2026-10-18-t3-grasp-fix.md" },
     "judge": { "name": "Nemotron judge note", "path": "docs/superpowers/notes/2026-10-18-nemotron-judge.md" },
-    "byor": { "name": "Bring-your-own-robot note", "path": "docs/superpowers/notes/2026-10-18-byor-backend.md" },
-    "human": { "name": "Human-demo experiment note", "path": "docs/superpowers/notes/2026-10-18-human-demo-experiment.md" }
+    "byor": { "name": "Bring-your-own-robot note", "path": "docs/superpowers/notes/2026-10-18-byor-backend.md" }
   },
   "experiments": [
     {
@@ -194,28 +193,6 @@
       "finding": "The generic path reproduces the built-in Franka and the OpenArm's known wrist limit. Its reach map was optimistic for the OpenArm: a pose exists for about 60% of the grasp cells, yet the replay reached none.",
       "caveats": ["Tracking is 1.7 mm worse on average than the built-in Franka path."],
       "sources": [{ "note": "byor", "lines": "25, 55–68, 75, 84–97" }]
-    },
-    {
-      "id": "human_demos",
-      "title": "Does perfecting human demos before multiplying help more?",
-      "question": "About 10 webcam demos recorded with hand control. ACT on the demos as recorded, against the same demos rules-repaired, verified in Isaac and multiplied 10 × 10.",
-      "setup": "Both arms: ACT, 30k steps, the same recipe and seed, the same home start.",
-      "seeds": "5020–5059, n = 40 per arm (pre-registered).",
-      "test": "Two-sided Fisher exact, α = 0.05, Wilson 95% CIs.",
-      "pending": "No real human demo is recorded yet. The one-command experiment ran end to end on stand-in demos, as a smoke test with no numbers to report.",
-      "groups": [
-        {
-          "label": "Policy success on 40 unseen scenes",
-          "arms": [
-            { "key": "perfected_multiply", "label": "Perfected + multiplied", "k": null, "n": 40, "highlight": true },
-            { "key": "raw_human", "label": "Human demos as recorded", "k": null, "n": 40 }
-          ],
-          "comparisons": [{ "a": "perfected_multiply", "b": "raw_human", "p": null, "verdict": null }]
-        }
-      ],
-      "finding": null,
-      "caveats": [],
-      "sources": [{ "note": "human", "lines": "18, 172–189" }, { "note": "web", "lines": "436" }]
     },
     {
       "id": "grasp_fix_run2",

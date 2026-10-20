@@ -17,6 +17,8 @@ import "./results.css";
 
 const [RAW, X100] = ARMS;
 
+/** The real demos, from stores.json (scripts/build_site_results.py, read from the experiment stores). */
+const REAL = ["webcam", "repair_ab", "mouse"].map(experiment);
 /** results.json experiments the bespoke sections above don’t already show, measured or pending. */
 const MORE = ["grasp_fix", "nemotron"].map(experiment);
 const PENDING = RESULTS.experiments.filter((e) => e.pending);
@@ -120,6 +122,21 @@ function Limits() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function Real() {
+  return (
+    <section className="sant-results__section" aria-labelledby="results-real">
+      <SectionHeader
+        id="results-real"
+        title="Real demos"
+        lede="The result above is on scripted demos. These are a real person's: 10 webcam demos, the blind repair test on them, and tonight's 10 mouse demos. Every number is read from the experiment stores and links to its note."
+      />
+      {REAL.map((e) => (
+        <ExperimentSection key={e.id} e={e} />
+      ))}
     </section>
   );
 }
@@ -231,7 +248,7 @@ function Sources() {
         id="results-sources"
         level={3}
         title="Where the numbers come from"
-        lede={`Every number on this page comes from web/src/site/results/results.json (as of ${RESULTS.asOf}), and cites a line in one of these notes. They are append-only, so the lines stay put.`}
+        lede={`Every number on this page comes from web/src/site/results/results.json (as of ${RESULTS.asOf}) or, for the real demos, stores.json, generated read-only from the experiment stores by scripts/build_site_results.py (newest store file ${RESULTS.storesAsOf ?? "unknown"}). Each cites a line in one of these notes, or the store file it was read from. The notes are append-only, so the lines stay put.`}
       />
       <ul>
         {Object.values(NOTES).map((n) => (
@@ -250,6 +267,7 @@ export function ResultsPage() {
       <div className="sant-results">
         <Headline />
         <Limits />
+        <Real />
         <Copies />
         <More />
         <Cards />

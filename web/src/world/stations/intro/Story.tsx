@@ -4,12 +4,14 @@
 // the forest floor, then S·A·N·T, the proof and Nemotron as the reactor powers up; none on the way down.
 // Its lines slide up out of a mask and scramble into place as it scrolls in, the column follows line by
 // line, and it fades before the next drop. A small mono readout counts the reactor's power. Everything
-// moves through useStationFrame (no React state per frame). Honest numbers only: raw 3/40 vs
-// SANT-multiplied 17/40 (p = 0.0005), the user's 10 webcam demos (0/10 passed physics → 3 repaired →
-// 24 verified variants; 9 of them pressed into the bin at up to 927 N), Nemotron's labels 40/40.
+// moves through useStationFrame (no React state per frame). Honest numbers only, and none typed here: they come
+// from the Results page's data (./proof.ts): raw vs SANT-multiplied (3/40 vs 17/40, p = 0.0005 today), the user's
+// webcam demos (0/10 passed physics → 3 repaired → 24 verified variants; 9 pressed into the bin at up to 927 N),
+// Nemotron's labels (40/40).
 import { useRef, type ReactNode } from "react";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { scramble } from "../../ui/scramble";
+import { PROOF } from "./proof";
 import { beatState, INTRO_VH, placeLights, power, ringLift } from "./storyPlan";
 
 interface BeatCopy {
@@ -40,7 +42,8 @@ const COPY: BeatCopy[] = [
       <p key="a">A robot learns a task from demonstrations, and it takes hundreds of them.</p>,
       <p key="b">Teleoperation is expensive: the rig, and an operator's time for every demo.</p>,
       <p key="c">
-        Human demos are sloppy: placing the cube, 9 of our 10 webcam demos pressed the gripper into the bin, up to <b>927 N</b> against a 5 N limit.
+        Human demos are sloppy: placing the cube, {PROOF.pressed.split("/")[0]} of our {PROOF.webcam.demos} webcam demos pressed the gripper into
+        the bin, up to <b>{PROOF.peak}</b> against a 5 N limit.
       </p>,
     ],
   },
@@ -66,18 +69,20 @@ const COPY: BeatCopy[] = [
   },
   {
     kicker: "03 / The proof",
-    head: ["3/40", "→ 17/40"],
+    head: [PROOF.raw, `→ ${PROOF.multiplied}`],
     side: "right",
     className: "intro-beat--proof",
     items: [
       <p key="a">
-        The same ACT policy on 40 unseen seeds: trained on raw demos, <b>3/40</b>. Trained on SANT-multiplied demos, <b>17/40</b> (p = 0.0005).
+        The same ACT policy on 40 unseen seeds: trained on raw demos, <b>{PROOF.raw}</b>. Trained on SANT-multiplied demos,{" "}
+        <b>{PROOF.multiplied}</b> (p = {PROOF.p}).
       </p>,
       <p key="b">
-        10 webcam demos: <b>0/10</b> passed physics → <b>3</b> repaired → <b>24</b> verified variants.
+        {PROOF.webcam.demos} webcam demos: <b>{PROOF.webcam.passed}</b> passed physics → <b>{PROOF.webcam.repaired}</b> repaired →{" "}
+        <b>{PROOF.webcam.copies}</b> verified variants.
       </p>,
       <p key="c">
-        Nemotron labels: <b>40/40</b>.
+        Nemotron labels: <b>{PROOF.labels}</b>.
       </p>,
     ],
   },

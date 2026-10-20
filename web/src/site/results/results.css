@@ -587,3 +587,8 @@
     font-size: var(--sant-fs-caption);
   }
 }
+
+/* A store file path has no spaces: let it break anywhere, so it never widens the page (390 px). */
+.sant-cite--file {
+  overflow-wrap: anywhere;
+}
