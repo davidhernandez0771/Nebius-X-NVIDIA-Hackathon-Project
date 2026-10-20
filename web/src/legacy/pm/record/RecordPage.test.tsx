@@ -8,6 +8,7 @@ import { renderAt, stubBackend } from "../testing";
 import type { SimStatus } from "../../../record/recordLink";
 import type { HandFrame, HandLandmark, TrackedHand } from "../../../hand/contracts";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../../record/teleop/controlRegion";
+import { stableSize } from "../../../record/teleop/depthSignal";
 import { FIST_FLEX, VICTORY_FLEX, VICTORY_THUMB, canonicalHand, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../../record/teleop/__fixtures__/handPoses";
 
 const tracker = vi.hoisted(() => ({
@@ -319,9 +320,18 @@ describe("Record page: hand control", () => {
 // --- Reach (live test #2): forward/back was stuck at x 0.30 and invisible -------------------
 
 /** Frames every 33 ms from t0 for ms, with the hand at the frame center and the given palm width. */
+/** handAt for a hand at another distance: every point scaled about the centre (a hand 30% closer is 30% bigger
+ *  everywhere, not only across the knuckles), so the reach signal (depthSignal.stableSize) scales with palm too. */
+function handAtDistance(palm: number): HandLandmark[] {
+  const k = palm / 0.1;
+  return handAt(0.5, 0.45, 0.6, 0.1).map((p) => ({ ...p, x: 0.5 + (p.x - 0.5) * k, y: 0.45 + (p.y - 0.45) * k }));
+}
+/** The reach signal the page uses for that hand (pinch-stable, in palm-width units). */
+const reachOf = (palm: number) => stableSize(handAtDistance(palm), 640, 480)!;
+
 function holdHand(t0: number, ms: number, palm: number): number {
   let t = t0;
-  for (; t <= t0 + ms; t += 33) sendFrame(t, handAt(0.5, 0.45, 0.6, palm));
+  for (; t <= t0 + ms; t += 33) sendFrame(t, handAtDistance(palm));
   return t;
 }
 
@@ -332,10 +342,10 @@ describe("Record page: reach", () => {
     const link = await startCamera();
     // The user's live palm width, below the old 0.07 far default (which clamped depth to 0).
     let t = holdHand(500, 1100, 0.059);
-    expect(stored().depthFar).toBeCloseTo(0.059 / 1.3, 3);
-    expect(stored().depthNear).toBeCloseTo(0.059 * 1.3, 3);
+    expect(stored().depthFar).toBeCloseTo(reachOf(0.059) / 1.3, 3);
+    expect(stored().depthNear).toBeCloseTo(reachOf(0.059) * 1.3, 3);
     expect(stored().depthAuto).toBe(true);
-    expect((link.controls[link.controls.length - 1] as { depthFar: number }).depthFar).toBeCloseTo(0.059 / 1.3, 3);
+    expect((link.controls[link.controls.length - 1] as { depthFar: number }).depthFar).toBeCloseTo(reachOf(0.059) / 1.3, 3);
     t = holdHand(t, 600, 0.059); // let the smoothed depth settle
     expect(Number(meter(/reach/i).getAttribute("aria-valuenow"))).toBe(50);
     expect(meter(/reach/i).getAttribute("aria-valuetext")).toMatch(/x = 50 cm.*cube's row/i);
@@ -373,8 +383,8 @@ describe("Record page: reach", () => {
     fireEvent.click(screen.getByRole("button", { name: /re-center reach/i }));
     expect(screen.getByText(/hold your hand where it feels natural/i)).toBeTruthy();
     holdHand(2000, 1100, 0.08);
-    expect(stored().depthFar).toBeCloseTo(0.08 / 1.3, 3);
-    expect(stored().depthNear).toBeCloseTo(0.08 * 1.3, 3);
+    expect(stored().depthFar).toBeCloseTo(reachOf(0.08) / 1.3, 3);
+    expect(stored().depthNear).toBeCloseTo(reachOf(0.08) * 1.3, 3);
     expect(screen.queryByText(/hold your hand where it feels natural/i)).toBeNull();
   });
 
@@ -709,7 +719,8 @@ describe("Record page: debug trace", () => {
       expect(f.world).toHaveLength(21);
       expect(f.reach.palmWidth).toBeGreaterThan(0);
       expect(f.reach.size3d).toBeGreaterThan(f.reach.palmWidth); // turned: both are there to compare
-      expect(f.reach.used).toBe(f.reach.palmWidth); // 3D reach off by default
+      expect(f.reach.stable).toBeGreaterThan(0);
+      expect(f.reach.used).toBe(f.reach.stable); // 3D reach off by default: the pinch-stable size (no pinch: not rescaled)
       expect(f.pinch).toBeGreaterThan(0.5); // the 2D pinch gap, hand open
       expect(f.breakthrough).toMatchObject({ count: 0 });
       expect(f.sent.control).toHaveLength(3);

@@ -193,15 +193,16 @@ function Cube({ pose, glow }: { pose: TwinPose; glow: boolean }) {
 /** The operator's view: behind the robot, high and a little to its right, looking down the table (the robot's left
  *  on the left, as in the mirrored camera). Straight behind, the arm hid the cube and bin. A narrow pane steps back
  *  so the table still fits. Drag to turn, scroll to zoom. */
-function View({ interactive, aspect: fixed, dom }: { interactive: boolean; aspect?: number; dom?: HTMLElement | null }) {
+function View({ interactive, aspect: fixed, dom, facing = false }: { interactive: boolean; aspect?: number; dom?: HTMLElement | null; facing?: boolean }) {
   const whole = useThree((s) => s.size.width / Math.max(1, s.size.height));
   const aspect = fixed ?? whole;
   // three.js is y up; the sim is z up: (x, y, z)_sim -> (x, z, -y)_three
   const target = useMemo(() => new Vector3(0.42, 0.08, 0), []);
   const position = useMemo(() => {
     const back = Math.max(1, 1.25 / aspect);
-    return target.clone().add(new Vector3(-0.8, 1.25, 0.5).multiplyScalar(back));
-  }, [aspect, target]);
+    // facing (the mirror mapping): the same view from the front, over the robot's left, so your right is still on the right
+    return target.clone().add(new Vector3(facing ? 0.8 : -0.8, 1.25, facing ? -0.5 : 0.5).multiplyScalar(back));
+  }, [aspect, target, facing]);
   return (
     <>
       <PerspectiveCamera makeDefault manual={fixed !== undefined} position={position} fov={38} near={0.02} far={20} />
@@ -210,7 +211,7 @@ function View({ interactive, aspect: fixed, dom }: { interactive: boolean; aspec
   );
 }
 
-type Aiding = { aspect: number; dom: HTMLElement | null; cube: boolean; bin: boolean };
+type Aiding = { aspect: number; dom: HTMLElement | null; cube: boolean; bin: boolean; facing: boolean };
 
 function Scene({ loaded, state, base, interactive, aids }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null }) {
   return (
@@ -219,8 +220,8 @@ function Scene({ loaded, state, base, interactive, aids }: { loaded: LoadedTwin;
       <hemisphereLight args={["#B8D6D0", C.void, 0.65]} />
       <directionalLight position={[-1.5, 3, 1.5]} intensity={1.25} />
       <directionalLight position={[2.5, 1.2, -2]} intensity={0.5} color="#8FEFDC" />
-      <View interactive={interactive} aspect={aids?.aspect} dom={aids?.dom} />
-      {aids && <ThreeViews />}
+      <View interactive={interactive} aspect={aids?.aspect} dom={aids?.dom} facing={aids?.facing} />
+      {aids && <ThreeViews facing={aids.facing} />}
       <group rotation={[-Math.PI / 2, 0, 0]}>
         <Table />
         <Mat />
@@ -246,10 +247,13 @@ export type RobotTwinProps = TwinState & {
   /** Recording aids: front, side and top views, and the top-down alignment grid (tool point to cube, or to the bin
    *  while carrying it). */
   aids?: boolean;
+  /** The mirror mapping (the robot faces you): the main view, the top view and the grid turn round, so your right
+   *  stays on the right of the screen. Default: from behind the robot (your right is its right). */
+  facing?: boolean;
   className?: string;
 };
 
-export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false }: RobotTwinProps) {
+export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false }: RobotTwinProps) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [box, size] = useBox<HTMLDivElement>();
   const [frontEl, setFrontEl] = useState<HTMLDivElement | null>(null);
@@ -283,9 +287,10 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
         dom: frontEl,
         cube: align?.kind === "cube" && align.aligned,
         bin: align?.kind === "bin" && align.aligned,
+        facing,
       },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [layout?.front.w, layout?.front.h, frontEl, align?.kind, align?.aligned],
+    [layout?.front.w, layout?.front.h, frontEl, align?.kind, align?.aligned, facing],
   );
   const note =
     load.status === "ready" && load.loaded.stick
@@ -305,8 +310,8 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
       )}
       {layout && load.status === "ready" && (
         <>
-          <ViewCells front={layout.front} side={layout.side} top={layout.top} onFront={setFrontEl} />
-          <AlignGrid rect={layout.align} align={align} cube={cube} bin={bin} gripper={gripper} />
+          <ViewCells front={layout.front} side={layout.side} top={layout.top} onFront={setFrontEl} facing={facing} />
+          <AlignGrid rect={layout.align} align={align} cube={cube} bin={bin} gripper={gripper} facing={facing} />
         </>
       )}
       {(caption || note) && (

@@ -44,7 +44,7 @@ function frame(cam: OrthographicCamera, halfU: number, halfV: number, r: Rect) {
  * Takes over the canvas's drawing (a frame callback with a priority): the front view with the scene's camera, then
  * the side and top views, each in its own viewport. three.js is y up and the sim z up: (x, y, z)_sim -> (x, z, -y).
  */
-export function ThreeViews() {
+export function ThreeViews({ facing = false }: { facing?: boolean }) {
   const side = useMemo(() => {
     // from the robot's right (sim -y = three +z): reach to the right, height up
     const cam = ortho();
@@ -54,14 +54,15 @@ export function ThreeViews() {
     return cam;
   }, []);
   const top = useMemo(() => {
-    // from above, forward (sim +x) up, so the robot's left (+y) is on the left, as the operator stands
+    // from above, forward (sim +x) up, so the robot's left (+y) is on the left, as the operator stands behind it;
+    // facing it (the mirror mapping), turned round: forward down, the robot's left on the right
     const cam = ortho();
     const [x, y] = [mid(TOP_REGION.x), mid(TOP_REGION.y)];
     cam.position.set(x, 3, -y);
-    cam.up.set(1, 0, 0);
+    cam.up.set(facing ? -1 : 1, 0, 0);
     cam.lookAt(x, 0, -y);
     return cam;
-  }, []);
+  }, [facing]);
 
   useFrame(({ gl, scene, camera, size }) => {
     const L = viewLayout(size.width, size.height);
@@ -126,12 +127,14 @@ const points = (ps: Vec3[], centre: Vec3, b: ReturnType<typeof gridBox>) => ps.m
  * bin's centre. A line every 5 cm; the tool point live (in the needle colour while the gripper is closed); the
  * target brightens once lined up. Δx is forward, Δy to the robot's left.
  */
-export function AlignGrid({ rect, align, cube, bin, gripper }: { rect: Rect; align: Align | null; cube: TwinPose | null; bin: TwinPose | null; gripper: 0 | 1 | null }) {
+export function AlignGrid({ rect, align, cube, bin, gripper, facing = false }: { rect: Rect; align: Align | null; cube: TwinPose | null; bin: TwinPose | null; gripper: 0 | 1 | null; facing?: boolean }) {
   const { w, h } = rect;
-  const b = gridBox(w, h);
+  const box = gridBox(w, h);
   const centre: Vec3 = align?.target ?? cube?.pos ?? [0, 0, 0];
+  // facing (the mirror mapping): the grid turns round with the top view, a half turn about the target
+  const b = facing ? { ...box, scale: -box.scale } : box;
   const lines = Math.round(GRID_HALF / GRID_STEP);
-  const span = GRID_HALF * b.scale;
+  const span = GRID_HALF * box.scale;
   const tool = align ? gridPoint(align.tool, centre, b) : null;
   const toolClamped = align ? Math.max(Math.abs(align.tool[0] - centre[0]), Math.abs(align.tool[1] - centre[1])) > GRID_HALF : false;
   const text = align ? `${align.aligned ? "lined up over" : "line up with"} the ${align.kind}: forward ${formatCm(align.dx)} cm, left ${formatCm(align.dy)} cm` : "no cube to line up with";
@@ -156,7 +159,7 @@ export function AlignGrid({ rect, align, cube, bin, gripper }: { rect: Rect; ali
           {cube && (align === null || align.kind === "cube") && (
             <>
               <polygon className="twin3d__cube" data-on={align?.aligned || undefined} points={points(squareCorners(cube, CUBE_HALF), centre, b)} />
-              <circle className="twin3d__zone" data-on={align?.aligned || undefined} cx={b.cx} cy={b.cy} r={ALIGN_RADIUS * b.scale} />
+              <circle className="twin3d__zone" data-on={align?.aligned || undefined} cx={b.cx} cy={b.cy} r={ALIGN_RADIUS * box.scale} />
             </>
           )}
           {align?.kind === "bin" && cube && <polygon className="twin3d__cube twin3d__cube--carried" points={points(squareCorners(cube, CUBE_HALF), centre, b)} />}
@@ -187,11 +190,11 @@ export function AlignGrid({ rect, align, cube, bin, gripper }: { rect: Rect; ali
 }
 
 /** The three views' tags and the front view's drag area (the orbit controls listen on it, not the whole canvas). */
-export function ViewCells({ front, side, top, onFront }: { front: Rect; side: Rect; top: Rect; onFront: (el: HTMLDivElement | null) => void }) {
+export function ViewCells({ front, side, top, onFront, facing = false }: { front: Rect; side: Rect; top: Rect; onFront: (el: HTMLDivElement | null) => void; facing?: boolean }) {
   return (
     <>
       <div className="twin3d__cell twin3d__front" style={at(front)} ref={onFront}>
-        <span className="twin3d__tag">behind the robot</span>
+        <span className="twin3d__tag">{facing ? "facing the robot" : "behind the robot"}</span>
       </div>
       <div className="twin3d__cell" style={at(side)}>
         <span className="twin3d__tag">side</span>

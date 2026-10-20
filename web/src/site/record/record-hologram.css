@@ -1335,3 +1335,40 @@
 .rg-take:hover {
   color: var(--rg-live);
 }
+
+/* the camera's Sensitivity slider, in the camera pane's header */
+.rg-sens {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--rg-ink-3);
+}
+
+.rg-sens input {
+  width: 72px;
+  accent-color: var(--rg-live);
+}
+
+.rg-sens b {
+  min-width: 30px;
+  font-weight: 500;
+  color: var(--rg-ink-2);
+}
+
+/* the drawer's mapping group: the gripper input and the clutch key side by side, so the drawer still fits 720 px */
+.rg .rc-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.rg .rc-pair select {
+  width: 100%;
+  padding: 2px 4px;
+  font: 500 11px var(--rg-mono);
+  color: var(--rg-ink);
+  background: var(--rg-glass);
+  border: 1px solid var(--rg-hair);
+  border-radius: 2px;
+}

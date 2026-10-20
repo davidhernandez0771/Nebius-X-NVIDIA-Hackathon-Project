@@ -24,6 +24,7 @@ import { useMotion } from "../../sant/motion/MotionProvider";
 import { RobotTwin } from "../../twin";
 import { formatClock } from "../record-hud";
 import { GripDial, HeightGauge, SideGauge, Trace } from "./instruments";
+import { GAIN_MAX, GAIN_MIN } from "../../record/teleop/controlRegion";
 import { DrivePanel, InputSwitch } from "./DrivePanel";
 import { RecordSettings } from "./RecordSettings";
 import { useRecordTwin } from "./robotTwin";
@@ -121,6 +122,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const { phase, relay, sim, pose, settings, streaming, lost, simReady, recording, resetToast } = session;
   const input = session.drive.input;
   const driving = input !== "camera";
+  const facing = !driving && settings.view === "facing"; // the mirror mapping: the twin and the gauge turn round
   const twinPane = useRef<HTMLElement>(null);
   const live = useLive(pose);
   const twin = useRecordTwin();
@@ -276,6 +278,21 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           <div className="rg-hd">
             <InputSwitch session={session} />
             <span className="rg-hd__tools">
+              {!driving && (
+                <label className="rg-sens" title="Sensitivity: how far the arm moves for a hand movement (2× = half the hand motion)">
+                  <span aria-hidden="true">sens</span>
+                  <input
+                    type="range"
+                    aria-label="Sensitivity"
+                    min={GAIN_MIN}
+                    max={GAIN_MAX}
+                    step={0.1}
+                    value={settings.gain}
+                    onChange={(e) => session.updateSettings({ ...settings, gain: Number(e.target.value) })}
+                  />
+                  <b>{settings.gain.toFixed(1)}×</b>
+                </label>
+              )}
               {streaming && (
                 <>
                   <button type="button" className="rg-btn rg-btn--small" onClick={() => session.control("reset_scene")} disabled={!simReady || recording}>
@@ -318,6 +335,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               </div>
               <div className="rg-captions" aria-live="polite">
                 {lost && <Caption tone="wait">Hand tracking lost. The arm holds still until your hand is back.</Caption>}
+                {session.clutch && <Caption tone="wait">clutch: the arm holds still; let go to carry on from here</Caption>}
                 {pose?.framing.hints.map((hint) => (
                   <Caption key={hint} tone="wait">
                     {hint}
@@ -341,7 +359,11 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           )}
           <Brackets />
           <div className="rg-camfoot">
-            <span>{driving ? "space = grip · shift = fine · enter = record / stop & save" : "pinch = grip · ✌ hold 1.5 s = reset scene"}</span>
+            <span>
+              {driving
+                ? "space = grip · shift = fine · enter = record / stop & save"
+                : `${settings.gripperInput === "space" ? "space" : "pinch"} = grip · ${settings.clutchKey.toLowerCase()} = clutch · ✌ hold 1.5 s = reset scene`}
+            </span>
             <span className="rg-camfoot__status">
               {footStatus && <span>{footStatus}</span>}
               {fps && <span>{fps}</span>}
@@ -358,7 +380,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               </span>
             </div>
             <div className="rg-twin3d">
-              <RobotTwin {...twin.view} caption={twin.caption} aids />
+              <RobotTwin {...twin.view} caption={twin.caption} aids facing={facing} />
               {input === "mouse" && streaming && !session.driveUi?.locked && (
                 <button type="button" className="rg-take" onClick={() => twinPane.current && session.requestMouse(twinPane.current)}>
                   Click to drive with the mouse · Esc releases it
@@ -394,7 +416,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
                 <span>ee_target_y</span>
                 <span className="rg-hd__tag">m</span>
               </div>
-              <SideGauge y={t?.ee[1] ?? null} stale={stale} />
+              <SideGauge y={t?.ee[1] ?? null} stale={stale} facing={facing} />
               <p className="rg-big" data-stale={stale || undefined}>
                 {t ? t.ee[1].toFixed(2) : "—"}
                 <small>m</small>

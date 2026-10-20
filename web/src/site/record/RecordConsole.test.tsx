@@ -57,8 +57,8 @@ const twin = vi.hoisted(() => ({
   replayUrl: undefined as string | null | undefined,
 }));
 vi.mock("../../twin", () => ({
-  RobotTwin: ({ caption, joints, aids }: { caption?: string; joints: Record<string, number> | null; aids?: boolean }) => (
-    <div data-testid="twin3d" data-joints={JSON.stringify(joints)} data-aids={aids}>
+  RobotTwin: ({ caption, joints, aids, facing }: { caption?: string; joints: Record<string, number> | null; aids?: boolean; facing?: boolean }) => (
+    <div data-testid="twin3d" data-joints={JSON.stringify(joints)} data-aids={aids} data-facing={facing ? "true" : "false"}>
       {caption}
     </div>
   ),
@@ -441,7 +441,7 @@ describe("/record: the hologram's top bar and boot", () => {
     expect(screen.getByRole("meter", { name: "Arm left/right" }).getAttribute("aria-valuetext")).toBe("no target");
     holdFor(0, 200, hand());
     expect(screen.getByRole("meter", { name: "Arm height" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m$/);
-    expect(screen.getByRole("meter", { name: "Arm left/right" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m (left|right)$/);
+    expect(screen.getByRole("meter", { name: "Arm left/right" }).getAttribute("aria-valuetext")).toMatch(/^0\.\d\d m to the robot's (left|right)$/);
     expect(within(tile("ee_target_z")).queryByText("—")).toBeNull();
     expect(within(tile("ee_target_y")).queryByText("—")).toBeNull();
   });
@@ -529,5 +529,66 @@ describe("/record with the keyboard or the mouse (no camera)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start mouse" }));
     expect(screen.getByRole("button", { name: /Click to drive with the mouse/ })).toBeTruthy();
     expect(screen.getByRole("slider", { name: "Mouse sensitivity" })).toBeTruthy();
+  });
+});
+
+describe("/record with the camera: sensitivity, the clutch, the gripper input and the view (live test after #10)", () => {
+  type Sent = { control?: [number, number, number]; tracking_ok: boolean };
+  const lastControl = (link: FakeLink) => (link.msgs as Sent[]).filter((m) => m.tracking_ok).slice(-1)[0].control!;
+  const at = (x: number) => hand({ center: { x, y: 0.45 } });
+
+  it("shows the Sensitivity slider in the console, not only in the drawer, and saves it", async () => {
+    await startCamera();
+    const slider = screen.getByRole("slider", { name: "Sensitivity" }) as HTMLInputElement;
+    expect(slider.value).toBe("1");
+    fireEvent.change(slider, { target: { value: "2" } });
+    expect(JSON.parse(localStorage.getItem(TELEOP_CONTROL_STORAGE_KEY)!).gain).toBe(2);
+  });
+
+  it("holding Shift is the clutch: the target freezes, a quiet clutch caption shows, and letting go carries on with no jump", async () => {
+    const link = await startCamera();
+    let t = holdFor(0, 200, at(0.5));
+    const before = lastControl(link)[0];
+    act(() => void fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft" }));
+    expect(screen.getByText(/^clutch: the arm holds still/)).toBeTruthy();
+    t = holdFor(t, 300, at(0.35)); // the hand moves to the user's right while clutched
+    expect(lastControl(link)[0]).toBeCloseTo(before, 6);
+    act(() => void fireEvent.keyUp(window, { key: "Shift", code: "ShiftLeft" }));
+    expect(screen.queryByText(/^clutch: the arm holds still/)).toBeNull();
+    t = holdFor(t, 33, at(0.35));
+    expect(Math.abs(lastControl(link)[0] - before)).toBeLessThan(0.02); // no jump on release
+    holdFor(t, 300, at(0.3)); // then follows the hand from where it is now
+    expect(lastControl(link)[0]).toBeLessThan(before - 0.02);
+  });
+
+  it("with the spacebar as the gripper input, Space toggles the grip and a pinch does not", async () => {
+    localStorage.setItem(TELEOP_CONTROL_STORAGE_KEY, JSON.stringify({ ...DEFAULT_TELEOP_CONTROL, gripperInput: "space" }));
+    const link = await startCamera();
+    holdFor(0, 200, hand({ thumbTip: pinchThumbTip() }));
+    expect(link.grips[link.grips.length - 1]).toBe(0);
+    act(() => void fireEvent.keyDown(window, { key: " ", code: "Space" }));
+    sendHand(300, hand());
+    expect(link.grips[link.grips.length - 1]).toBe(1);
+    expect(screen.getByText(/space = grip/)).toBeTruthy();
+  });
+
+  it("the Robot's view (behind the robot) is on by default; off is the mirror, and the twin turns round with it", async () => {
+    await startCamera();
+    expect(screen.getByTestId("twin3d").getAttribute("data-facing")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const behind = screen.getByRole("checkbox", { name: /Robot's view \(behind the robot\)/ }) as HTMLInputElement;
+    expect(behind.checked).toBe(true);
+    fireEvent.click(behind);
+    expect(JSON.parse(localStorage.getItem(TELEOP_CONTROL_STORAGE_KEY)!).view).toBe("facing");
+    expect(screen.getByTestId("twin3d").getAttribute("data-facing")).toBe("true");
+  });
+
+  it("the drawer sets the gripper input and the clutch key", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Gripper" }), { target: { value: "space" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Clutch key" }), { target: { value: "Control" } });
+    const s = JSON.parse(localStorage.getItem(TELEOP_CONTROL_STORAGE_KEY)!);
+    expect([s.gripperInput, s.clutchKey]).toEqual(["space", "Control"]);
   });
 });

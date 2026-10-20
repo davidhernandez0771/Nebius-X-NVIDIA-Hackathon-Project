@@ -7,6 +7,10 @@
 // need no camera and no hand lock: a DriveSession (drive/driveSession.ts) makes the same HandPoseMsg and the same
 // link sends it. The sim is told the input (set_input) when it connects and before each recording, so it smooths
 // keyboard and mouse targets and saves the input with each demo.
+// The camera path's message comes from teleop/handControl.ts (pinch-stable depth anchored across every gripper
+// change, the view's left/right, sensitivity, the clutch); the page sends exactly the message it shows. In camera
+// mode the clutch key (Shift by default) freezes the arm while held, and Space toggles the gripper when the gripper
+// input is the spacebar.
 
 import { useEffect, useRef, useState } from "react";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../hand/contracts";
@@ -19,11 +23,10 @@ import {
   type CalibrationState,
   type TeleopControlSettings,
 } from "./teleop/controlRegion";
-import { toHandPoseMsg, type HandPoseMsg } from "./teleop/handPoseMessage";
-import { PinchLatch, pinchGap } from "./teleop/pinch";
+import type { HandPoseMsg } from "./teleop/handPoseMessage";
+import { HandControl } from "./teleop/handControl";
 import { createResetGesture, type ResetGestureStatus } from "./teleop/resetGesture";
 import { victoryScore } from "./teleop/victoryPose";
-import { reachSize3d } from "./teleop/reach3d";
 import { HandLock, type HandLockStatus } from "./teleop/handLock";
 import { DebugTrace, traceFileName, traceFrame, type TraceSignals } from "./teleop/debugTrace";
 import { latencyTraceRequested, type TeleopStatus } from "./teleop/teleopClient";
@@ -35,7 +38,7 @@ import { BreakthroughCue } from "./breakthroughCue";
 import { RecordLink, type ControlAction, type SimStatus } from "./recordLink";
 import { drawStage, type StagePalette } from "./stageDraw";
 import { loadDriveSettings, saveDriveSettings, type DriveSettings, type InputMode } from "./drive/drive";
-import { DriveSession, type DriveUi } from "./drive/driveSession";
+import { DriveSession, typingIn, type DriveUi } from "./drive/driveSession";
 
 const UI_INTERVAL_MS = 100; // framing text updates at ~10 Hz; the canvas draws every frame
 // Hand art (display only) changes style when something happens (ArtCue), crossfading; events
@@ -111,6 +114,9 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
   const [drive, setDrive] = useState<DriveSettings>(() => (inputs ? loadDriveSettings() : { ...loadDriveSettings(), input: "camera" }));
   const [driveUi, setDriveUi] = useState<Omit<DriveUi, "msg"> | null>(null);
   const driveRef = useRef(drive);
+  const [clutch, setClutch] = useState(false); // camera mode: the clutch key is held, the arm's target is frozen
+  const clutchRef = useRef(false);
+  const spaceGripRef = useRef<0 | 1>(0); // camera mode with the spacebar gripper: its toggle state
   const resetToastAt = useRef<number | null>(null);
   const tracer = useRef<{ trace: DebugTrace; startedAt: Date } | null>(null);
   const traceUrl = useRef<string | null>(null); // the finished file's object URL, revoked when replaced
@@ -119,7 +125,7 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
   const centerer = useRef<ReachCenterer | null>(null);
   const calibrationStep = useRef<CalibrationState["step"] | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const session = useRef<{ tracker: TrackingAdapter | null; link: RecordLink | null; drive: DriveSession | null; input: InputMode } | null>(null);
+  const session = useRef<{ tracker: TrackingAdapter | null; link: RecordLink | null; drive: DriveSession | null; input: InputMode; keys?: () => void } | null>(null);
   const handLockRef = useRef<HandLock | null>(null); // the running session's hand lock, for Re-pick
   const artHand = useRef<HandArtFrame | null>(null); // polled by the hand-art overlay each animation frame
   const artActive = useRef(false); // the overlay is drawing (WebGL up)
@@ -148,6 +154,7 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     centerer.current = null;
     session.current?.tracker?.cleanup();
     session.current?.drive?.stop();
+    session.current?.keys?.();
     session.current?.link?.close();
     session.current = null;
   }
@@ -205,6 +212,40 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     setPhase({ state: "streaming" });
   }
 
+  /** Camera mode's keys: the clutch key held freezes the arm (released: it carries on from the hand's new place);
+   *  Space toggles the gripper when that is the gripper input. Keys typed into a field are left alone. */
+  function cameraKeys(): () => void {
+    const setHeld = (on: boolean) => {
+      if (clutchRef.current === on) return;
+      clutchRef.current = on;
+      setClutch(on);
+    };
+    const down = (e: KeyboardEvent) => {
+      const s = settingsRef.current;
+      if (typingIn(e.target, e.code)) return;
+      if (e.key === s.clutchKey) setHeld(true);
+      else if (e.code === "Space" && s.gripperInput === "space") {
+        e.preventDefault();
+        if (!e.repeat) spaceGripRef.current = spaceGripRef.current ? 0 : 1;
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === settingsRef.current.clutchKey) setHeld(false);
+      if (e.code === "Space" && settingsRef.current.gripperInput === "space") e.preventDefault();
+    };
+    const blur = () => setHeld(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    spaceGripRef.current = 0;
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+      setHeld(false);
+    };
+  }
+
   /** Mouse mode: take Pointer Lock on this element (the twin pane's click). */
   function requestMouse(el: HTMLElement) {
     session.current?.drive?.requestMouse(el);
@@ -219,11 +260,10 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     setPhase({ state: "starting" });
     const { createMediapipeTracker } = await import("../hand/tracking");
     const tracker = createMediapipeTracker();
-    session.current = { tracker, link: null, drive: null, input };
+    session.current = { tracker, link: null, drive: null, input, keys: cameraKeys() };
     let lastUi = -Infinity;
     let framesSinceUi = 0; // for the fps readout (display only)
-    let last: HandPoseMsg | undefined;
-    const latch = new PinchLatch(); // the gripper: closes at once, opens after a wide gap held 150 ms
+    const hands = new HandControl(); // pinch / spacebar gripper, depth, view, sensitivity, clutch (handControl.ts)
     const handLock = new HandLock(); // the one hand that drives the arm (handLock.ts)
     handLockRef.current = handLock;
     let lockPhase: HandLockStatus["phase"] | null = null;
@@ -241,15 +281,11 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
       // every other hand in the frame is dropped here. `held`: this frame repeats the last pose.
       const { hand, status: lock } = handLock.update(frame);
       const held = lock.held !== null;
-      const view: HandFrame = { ...frame, hands: hand ? [hand] : [] };
-      // The same message the link sends, so what the page shows is what the sim gets.
-      const msg = toHandPoseMsg(hand, frame, last, s);
-      last = msg;
-      // The gripper: thumb tip and index tip together = closed; the link sends it as HandPoseMsg.grip.
-      // A held frame is no new evidence: the latch gets no gap, so the gripper stays as it was.
-      const pinch = msg.tracking_ok && hand && !held ? pinchGap(hand.landmarks, frame.frameWidth, frame.frameHeight) : null;
-      const gripper = latch.update(pinch, frame.timestamp);
-      session.current?.link?.push(view, gripper);
+      // The message the link sends, so what the page shows is what the sim gets. The gripper: thumb tip and index
+      // tip together = closed (or the spacebar); a held frame is no new evidence, so it stays as it was.
+      const out = hands.step(hand, frame, s, { clutch: clutchRef.current, spaceGripper: spaceGripRef.current }, held);
+      const { msg, pinch, gripper } = out;
+      session.current?.link?.send(msg, gripper);
       // Reset gesture: the V sign held 1.5 s, gripper open, hand still -> the Reset scene control.
       const victory = msg.tracking_ok && hand && !held ? victoryScore(hand, frame.frameWidth, frame.frameHeight).score : null;
       resetGesture ??= createResetGesture({ aspect: frame.frameWidth / frame.frameHeight });
@@ -270,9 +306,9 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
         resetToastAt.current = null;
         setResetToast(null);
       }
-      // Reach is computed from the palm width, or the 3D size with 3D reach on (falling back per frame).
-      const size3d = msg.tracking_ok && hand ? reachSize3d(hand, frame.frameWidth, frame.frameHeight) : null;
-      const reachSize = msg.tracking_ok ? (s.reach3d && size3d) || msg.palm_width : null;
+      // Reach: the pinch-stable size (or the 3D size with 3D reach on), anchored across gripper changes (depthSignal.ts).
+      const size3d = msg.tracking_ok ? out.size3d : null;
+      const reachSize = out.reachSize;
       if (centerer.current) recenter(centerer.current, frame.timestamp, held ? null : reachSize);
       const tracked = hand && reachSize !== null ? { center: palmCenter(hand.landmarks), palmWidth: reachSize } : null;
       const framing = s.enabled ? controlFraming(tracked, s) : framingCheck(msg);
@@ -294,6 +330,8 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
           victory,
           size3d,
           reachSize,
+          stable: msg.tracking_ok ? out.stable : null,
+          clutch: clutchRef.current,
           reach3d: s.reach3d,
           breakthrough: crossing.count,
           breakthroughDir: crossing.dir,
@@ -442,6 +480,7 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     recentering,
     trace,
     resetToast,
+    clutch,
     drive,
     driveUi,
     streaming,

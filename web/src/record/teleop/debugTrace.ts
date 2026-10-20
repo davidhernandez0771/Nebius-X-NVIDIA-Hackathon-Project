@@ -9,7 +9,7 @@ import { palmCenter } from "./controlRegion";
 import type { HandLockStatus } from "./handLock";
 
 export const TRACE_SECONDS = 10;
-export const TRACE_VERSION = 4; // 1: pm/t4-diagnoser's sprint 8 trace; 2: hand v3's 3D pinch {value, source}; 3: the 2D pinch gap; 4: the hand lock + every detection
+export const TRACE_VERSION = 5; // 1: pm/t4-diagnoser's sprint 8 trace; 2: hand v3's 3D pinch {value, source}; 3: the 2D pinch gap; 4: the hand lock + every detection; 5: the pinch-stable size (reach.stable; reach.used is it anchored) + the clutch
 
 /** The page's per-frame values beyond the message. */
 export interface TraceSignals {
@@ -17,7 +17,9 @@ export interface TraceSignals {
   gripper: 0 | 1;
   victory: number | null;
   size3d: number | null; // the 3D reach signal
-  reachSize: number | null; // the one reach used (palm width, or the 3D size with 3D reach on)
+  reachSize: number | null; // the reach used: the pinch-stable size (or the 3D size), anchored across gripper changes
+  stable?: number | null; // the pinch-stable size before anchoring (depthSignal.ts)
+  clutch?: boolean; // the clutch key is held: the arm's target is frozen
   reach3d: boolean;
   breakthrough: number;
   breakthroughDir: 1 | -1;
@@ -35,7 +37,8 @@ export interface TraceFrame {
   world: number[][] | null; // 21 x [x, y, z], meters (worldLandmarks)
   pinch: number | null; // the 2D pinch gap (pinch.ts)
   victory: number | null;
-  reach: { palmWidth: number | null; size3d: number | null; used: number | null; reach3d: boolean };
+  reach: { palmWidth: number | null; size3d: number | null; stable: number | null; used: number | null; reach3d: boolean };
+  clutch: boolean;
   breakthrough: { count: number; dir: 1 | -1 };
   sent: Pick<HandPoseMsg, "tracking_ok" | "wrist_uv" | "palm_width" | "pinch_ratio" | "control">;
   gripper: 0 | 1;
@@ -71,7 +74,8 @@ export function traceFrame(frame: HandFrame, hand: TrackedHand | null, msg: Hand
     world: hand?.worldLandmarks ? hand.worldLandmarks.map(xyz) : null,
     pinch: r5n(s.pinch),
     victory: r5n(s.victory),
-    reach: { palmWidth: msg.tracking_ok ? r5(msg.palm_width) : null, size3d: r5n(s.size3d), used: r5n(s.reachSize), reach3d: s.reach3d },
+    reach: { palmWidth: msg.tracking_ok ? r5(msg.palm_width) : null, size3d: r5n(s.size3d), stable: r5n(s.stable), used: r5n(s.reachSize), reach3d: s.reach3d },
+    clutch: s.clutch ?? false,
     breakthrough: { count: s.breakthrough, dir: s.breakthroughDir },
     sent: {
       tracking_ok: msg.tracking_ok,

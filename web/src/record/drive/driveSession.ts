@@ -31,7 +31,7 @@ const SHIFTS = ["ShiftLeft", "ShiftRight"];
 const TEXT_INPUTS = new Set(["text", "search", "email", "number", "password", "tel", "url"]);
 
 /** Whether a key on this element belongs to it: typing, or arrows on a slider. */
-function typingIn(target: EventTarget | null, code: string): boolean {
+export function typingIn(target: EventTarget | null, code: string): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return true;
   if (target.tagName !== "INPUT") return false;

@@ -133,13 +133,16 @@ export function HeightGauge({ z, stale }: { z: number | null; stale: boolean }) 
  * The left/right gauge, the height gauge's ladder laid on its side: the arm target's y on a 10-step scale of the
  * workspace's y range, the robot's left (+y) on the left, as the operator stands and the mirrored camera shows.
  */
-export function SideGauge({ y, stale }: { y: number | null; stale: boolean }) {
+/** facing (the mirror mapping): the robot faces you, so its left is on your right; the needle moves the way your hand
+ *  does either way, and L / R are your left and right. */
+export function SideGauge({ y, stale, facing = false }: { y: number | null; stale: boolean; facing?: boolean }) {
   const [ref, { w, h }] = useSize<SVGSVGElement>();
   const [lo, hi] = WORKSPACE.y;
   const by = Math.round(h * 0.42);
   const left = 22;
   const right = w - 22;
-  const f = y === null ? null : Math.min(1, Math.max(0, (hi - y) / (hi - lo)));
+  const behind = y === null ? null : Math.min(1, Math.max(0, (hi - y) / (hi - lo)));
+  const f = behind === null ? null : facing ? 1 - behind : behind;
   return (
     <svg
       ref={ref}
@@ -149,7 +152,7 @@ export function SideGauge({ y, stale }: { y: number | null; stale: boolean }) {
       aria-valuemin={lo}
       aria-valuemax={hi}
       aria-valuenow={y ?? undefined}
-      aria-valuetext={y === null ? "no target" : `${Math.abs(y).toFixed(2)} m ${y >= 0 ? "left" : "right"}`}
+      aria-valuetext={y === null ? "no target" : `${Math.abs(y).toFixed(2)} m to the robot's ${y >= 0 ? "left" : "right"}`}
       width={w || undefined}
       height={h || undefined}
       data-stale={stale || undefined}

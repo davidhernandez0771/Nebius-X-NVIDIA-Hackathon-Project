@@ -205,3 +205,14 @@ describe("the alignment grid", () => {
     close(turned[0], [-0.1, 0.1, 0]);
   });
 });
+
+describe("the grid in the mirror mapping (facing the robot)", () => {
+  it("is a half turn about the target: forward goes down and the robot's left goes right", () => {
+    const box = gridBox(180, 200);
+    const facing = { ...box, scale: -box.scale };
+    const c: Vec3 = [0.5, 0, 0];
+    expect(gridPoint(c, c, facing)).toEqual([90, 99]);
+    expect(gridPoint([0.55, 0, 0], c, facing)[1]).toBeGreaterThan(99);
+    expect(gridPoint([0.5, 0.05, 0], c, facing)[0]).toBeGreaterThan(90);
+  });
+});
