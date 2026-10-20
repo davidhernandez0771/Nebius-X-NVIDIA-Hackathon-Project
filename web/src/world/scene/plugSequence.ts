@@ -3,7 +3,7 @@
 // left end, the slot lights, and the projector comes up (beam, wireframe arm, the Record screen).
 // One timeline u 0–1 drives all of it; pure, so every phase is tested. World coordinates.
 import * as THREE from "three";
-import { HELIX, MACHINE_PIVOT } from "./layout";
+import { MACHINE_PIVOT, slotAt } from "./layout";
 
 export const PLUG_S = 3.6;
 
@@ -49,7 +49,7 @@ export interface CartridgePose {
 }
 
 function slotPose(slot: number) {
-  const s = HELIX[slot];
+  const s = slotAt(slot);
   const q = new THREE.Quaternion(...s.quaternion);
   const p = new THREE.Vector3(...s.position);
   const out = new THREE.Vector3(0, 0, 1).applyQuaternion(q);

@@ -39,7 +39,67 @@ export const HELIX: readonly HelixSlot[] = helix.map((s, index) => ({
   shell: s.shell ? [s.shell[0], s.shell[1], s.shell[2]] : null,
 }));
 
-export const LIBRARY: readonly Slot[] = library.map((s) => ({ position: vec3(s.pos), quaternion: zupQuat(s.quat_zup), scale: s.scale }));
+/** An empty place on the spiral (a gap Blender left in the helix), where a saved cartridge goes. */
+export interface SpareSlot extends Slot {
+  /** Numbered on after the helix slots: HELIX.length + its place. */
+  index: number;
+  /** The helix slot it follows. */
+  after: number;
+}
+
+const azimuth = (p: Vec3) => Math.atan2(p[2], p[0]);
+const wrapPi = (a: number) => ((a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
+
+/**
+ * The helix's gaps, filled: where the turn from one slot to the next is a whole step or more wider
+ * than usual, the missing places are spaced evenly between the two (angle, radius and height), each
+ * turned about the axis from the slot before it, so it faces out like its neighbours.
+ */
+function spareSlots(helix: readonly HelixSlot[]): SpareSlot[] {
+  const steps = helix.slice(1).map((s, i) => wrapPi(azimuth(s.position) - azimuth(helix[i].position)));
+  const sorted = steps.map(Math.abs).sort((a, b) => a - b);
+  const usual = sorted[Math.floor(sorted.length / 2)];
+  const out: SpareSlot[] = [];
+  steps.forEach((d, i) => {
+    const missing = Math.round(Math.abs(d) / usual) - 1;
+    const a = helix[i];
+    const b = helix[i + 1];
+    const a0 = azimuth(a.position);
+    const r0 = Math.hypot(a.position[0], a.position[2]);
+    const r1 = Math.hypot(b.position[0], b.position[2]);
+    for (let k = 1; k <= missing; k++) {
+      const f = k / (missing + 1);
+      const ang = a0 + d * f;
+      const r = r0 + (r1 - r0) * f;
+      // A turn of phi about +Y moves a point's azimuth by -phi.
+      const half = (-d * f) / 2;
+      const s = Math.sin(half);
+      const c = Math.cos(half);
+      const [x, y, z, w] = a.quaternion;
+      const q = [c * x + s * z, c * y + s * w, c * z - s * x, c * w - s * y];
+      const n = Math.hypot(...q);
+      out.push({
+        index: helix.length + out.length,
+        after: i,
+        position: [r * Math.cos(ang), a.position[1] + (b.position[1] - a.position[1]) * f, r * Math.sin(ang)],
+        quaternion: [q[0] / n, q[1] / n, q[2] / n, q[3] / n],
+        scale: a.scale + (b.scale - a.scale) * f,
+      });
+    }
+  });
+  return out;
+}
+
+export const SPARE: readonly SpareSlot[] = spareSlots(HELIX);
+
+/** A spiral place by number: a helix slot, or one of the empty places after them. */
+export function slotAt(index: number): Slot & { index: number } {
+  const s = index < HELIX.length ? HELIX[index] : SPARE[index - HELIX.length];
+  if (!s) throw new Error(`world: no slot ${index} on the spiral`);
+  return s;
+}
+
+export const LIBRARY: readonly Slot[] =library.map((s) => ({ position: vec3(s.pos), quaternion: zupQuat(s.quat_zup), scale: s.scale }));
 
 /** A Blender pivot: where a model's origin sits and its turn about the vertical axis (radians). */
 export interface Pivot {
