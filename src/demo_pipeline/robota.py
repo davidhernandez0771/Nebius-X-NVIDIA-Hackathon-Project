@@ -16,6 +16,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .scene_geometry import BIN_INNER, CUBE_SIZE
+
 FORMAT_VERSION = "sant-robota-embed/1"
 PAPER_URL = "https://arxiv.org/abs/2610.19495"
 PAD_DIM = 64
@@ -29,9 +31,8 @@ ACTION_NAMES = {
     "franka": [f"panda_joint{i}" for i in range(1, 8)] + ["panda_finger_joint1", "panda_finger_joint2"],
 }
 
-# Copied from sim_worker/scene_cfg.py, which imports Isaac Lab (tests/test_dp_robota.py checks they still match)
-CUBE_SIZE = 0.05
-BIN_INNER_XY = (0.20, 0.20)
+# The cube and bin sizes come from scene_geometry, the one copy the Isaac scene is built from.
+BIN_INNER_XY = BIN_INNER[:2]
 LIFT_M = 0.01  # the cube counts as lifted this far above its resting height
 # The tool frame (demo_pipeline.episode_io ee_pos/ee_quat): origin at the fingertip center, +z = approach,
 # fingers slide along +-y (sim_worker/robots.py). Franka: open fingers 0.04 m each side, hand ~0.11 m behind.

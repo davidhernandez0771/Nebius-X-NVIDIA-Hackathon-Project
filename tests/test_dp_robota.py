@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from demo_pipeline import robota
+from demo_pipeline import robota, scene_geometry
 
 
 # --- anchors and windows ---------------------------------------------------------------------------
@@ -172,8 +172,8 @@ def test_copied_sim_constants_match_sim_worker():
 
     cam = robota.FRONT_CAMERA
     assert tup("FRONT_EYE") == cam.eye and tup("FRONT_TARGET") == cam.target
-    assert tup("BIN_INNER")[:2] == robota.BIN_INNER_XY
-    assert float(re.search(r"^CUBE_SIZE = ([\d.]+)", src, re.M).group(1)) == robota.CUBE_SIZE
+    assert "from demo_pipeline.scene_geometry import BIN_INNER, BIN_WALL, CUBE_SIZE" in src
+    assert robota.BIN_INNER_XY == scene_geometry.BIN_INNER[:2] and robota.CUBE_SIZE == scene_geometry.CUBE_SIZE
     assert int(re.search(r"^IMAGE_SIZE = (\d+)", src, re.M).group(1)) == cam.width == cam.height
     front = src[src.index("front = CameraCfg"):src.index("wrist = CameraCfg")]
     assert f"focal_length={cam.focal_length}" in front and f"horizontal_aperture={cam.horizontal_aperture}" in front
