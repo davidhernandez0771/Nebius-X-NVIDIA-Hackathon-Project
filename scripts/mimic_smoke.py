@@ -31,6 +31,7 @@ if str(REPO) not in sys.path:
 
 from demo_pipeline import mimic  # noqa: E402
 from sim_worker.gpu_lock import GpuLock  # noqa: E402
+from sim_worker.keepawake import KeepAwake  # noqa: E402
 
 ISAAC_PY = Path(r"C:\isaac\env_isaaclab\Scripts\python.exe")
 ISAACLAB = Path(r"C:\isaac\IsaacLab")
@@ -63,9 +64,10 @@ def child_env(base: dict | None = None) -> dict:
 
 
 def run_generator(cmd: list[str], *, lock: GpuLock, log_path: Path, timeout_s: float, runner=subprocess.run) -> int:
-    """Run the generator while holding the GPU lock; the lock is released however it ends. Returns its exit code."""
+    """Run the generator while holding the GPU lock, and with Windows asked not to idle-sleep (an idle sleep killed
+    CUDA mid-run before: sim_worker.keepawake); both are released however it ends. Returns its exit code."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock, log_path.open("w", encoding="utf-8") as log:
+    with lock, KeepAwake(), log_path.open("w", encoding="utf-8") as log:
         proc = runner(cmd, env=child_env(), cwd=str(ISAACLAB), stdout=log, stderr=subprocess.STDOUT, timeout=timeout_s)
         return proc.returncode
 
@@ -87,10 +89,20 @@ def _demos(path: Path) -> list[tuple[str, dict]]:
 
 
 def report(output: Path) -> dict:
-    """Mimic's successes and failures, and SANT's check_success on every success."""
+    """Mimic's successes and failures, and SANT's check_success on every success. A file the generator left
+    unreadable (it was killed mid-write) is listed, not fatal."""
     output = Path(output)
-    ok = _demos(output)
-    failed = _demos(output.with_name(output.stem + "_failed" + output.suffix))
+    unreadable = []
+
+    def demos_of(path: Path) -> list[tuple[str, dict]]:
+        try:
+            return _demos(path)
+        except OSError as e:
+            unreadable.append({"file": str(path), "error": f"{type(e).__name__}: {e}"})
+            return []
+
+    ok = demos_of(output)
+    failed = demos_of(output.with_name(output.stem + "_failed" + output.suffix))
     demos, reasons = [], Counter()
     for name, d in ok:
         try:
@@ -103,7 +115,8 @@ def report(output: Path) -> dict:
         reasons.update(row["reasons"])
         demos.append(row)
     return {"output": str(output), "mimic_succeeded": len(ok), "mimic_failed": len(failed),
-            "sant_verified": sum(d["sant_success"] for d in demos), "sant_reasons": dict(reasons), "demos": demos}
+            "sant_verified": sum(d["sant_success"] for d in demos), "sant_reasons": dict(reasons),
+            "unreadable_files": unreadable, "demos": demos}
 
 
 def main(argv: list[str] | None = None) -> dict:

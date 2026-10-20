@@ -1,4 +1,5 @@
-"""sim_worker/mimic_env.py: SANT's pick-place as an Isaac Lab Mimic env, checked without starting Isaac.
+"""sim_worker/mimic_env_cfg.py and mimic_env.py: SANT's pick-place as an Isaac Lab Mimic env, checked without
+starting Isaac.
 
 Needs Isaac Lab (run with Isaac Lab's Python; SANT's venv skips the whole file). Nothing here launches the app or
 builds a simulation: the config is built and read, the gym registration is looked up, and the env's Mimic methods
@@ -27,6 +28,7 @@ import isaaclab.utils.math as PoseUtils  # noqa: E402
 
 from demo_pipeline import mimic  # noqa: E402
 from sim_worker import mimic_env as me  # noqa: E402
+from sim_worker import mimic_env_cfg as mc  # noqa: E402
 from sim_worker import scene_cfg  # noqa: E402
 
 DOWN_XYZW = torch.tensor([1.0, 0.0, 0.0, 0.0])  # 180 deg about x: the tool pointing down
@@ -34,7 +36,7 @@ DOWN_XYZW = torch.tensor([1.0, 0.0, 0.0, 0.0])  # 180 deg about x: the tool poin
 
 @pytest.fixture(scope="module")
 def cfg():
-    return me.SantPickPlaceMimicEnvCfg()
+    return mc.SantPickPlaceMimicEnvCfg()
 
 
 def test_the_action_is_absolute_ik_on_the_tool_centre_and_a_binary_gripper(cfg):
@@ -73,10 +75,10 @@ def test_the_subtasks_are_the_exports(cfg):
 
 
 def test_it_has_the_terms_mimic_needs(cfg):
-    assert cfg.terminations.success.func is me.sant_success
+    assert cfg.terminations.success.func is mc.sant_success
     assert cfg.terminations.time_out.time_out is True
     assert {"eef_pos", "eef_quat", "joint_pos", "cube_pos"} <= set(vars(cfg.observations.policy))
-    assert cfg.observations.subtask_terms.grasp.func is me.grasp_signal
+    assert cfg.observations.subtask_terms.grasp.func is mc.grasp_signal
 
 
 def test_register_adds_the_env_to_gym_and_its_config_loads_from_the_registry():
@@ -87,9 +89,10 @@ def test_register_adds_the_env_to_gym_and_its_config_loads_from_the_registry():
     assert mimic_register.register() is None  # nothing for generate_dataset's own argument check
     spec = gym.spec(mimic.ENV_NAME)
     assert spec.entry_point == "sim_worker.mimic_env:SantPickPlaceMimicEnv"
+    assert spec.kwargs["env_cfg_entry_point"] == "sim_worker.mimic_env_cfg:SantPickPlaceMimicEnvCfg"
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-    assert isinstance(load_cfg_from_registry(mimic.ENV_NAME, "env_cfg_entry_point"), me.SantPickPlaceMimicEnvCfg)
+    assert isinstance(load_cfg_from_registry(mimic.ENV_NAME, "env_cfg_entry_point"), mc.SantPickPlaceMimicEnvCfg)
 
 
 # --- the Mimic methods and terms on stand-in tensors ------------------------------------------------------
@@ -121,7 +124,7 @@ def _stub(cfg, *, cube=(0.5, 0.3, 0.035), cube_vel=(0.0, 0.0, 0.0), bin_=(0.5, 0
 
 def test_the_tool_pose_observation_is_the_hand_plus_the_offset_in_the_env_frame(cfg):
     e = _stub(cfg)
-    pos, quat = me.tcp_pos(e), me.tcp_quat(e)
+    pos, quat = mc.tcp_pos(e), mc.tcp_quat(e)
     assert pos[0].tolist() == pytest.approx([0.45, 0.0, 0.35], abs=1e-6)
     assert quat[0].tolist() == pytest.approx(DOWN_XYZW.tolist())
 
@@ -168,19 +171,19 @@ def test_object_poses_are_the_cube_and_the_bin_frame_in_the_env_frame(cfg):
     ],
 )
 def test_success_is_placed_settled_and_released(cfg, kw, want):
-    assert bool(me.sant_success(_stub(cfg, **kw))[0]) is want
+    assert bool(mc.sant_success(_stub(cfg, **kw))[0]) is want
 
 
 def test_the_grasp_signal_is_on_once_the_cube_is_held_a_centimetre_up(cfg):
-    assert bool(me.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.04), gripper=-1.0))[0])
-    assert not bool(me.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.025), gripper=-1.0))[0])
-    assert not bool(me.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.04), gripper=1.0))[0])
+    assert bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.04), gripper=-1.0))[0])
+    assert not bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.025), gripper=-1.0))[0])
+    assert not bool(mc.grasp_signal(_stub(cfg, cube=(0.5, 0.0, 0.04), gripper=1.0))[0])
     sig = me.SantPickPlaceMimicEnv.get_subtask_term_signals(NS(obs_buf={"subtask_terms": {"grasp": torch.tensor([True])}}))
     assert set(sig) == {"grasp"}
 
 
 def test_the_reset_scene_is_sampled_in_sants_ranges_with_the_bin_boxes_round_it():
-    poses = me.sampled_scene_poses(np.random.default_rng(3))
+    poses = mc.sampled_scene_poses(np.random.default_rng(3))
     assert set(poses) == {"cube", *mimic.BIN_PART_CENTERS}
     cx, cy, _ = poses["cube"][0]
     assert 0.40 <= cx <= 0.60 and -0.20 <= cy <= 0.20
@@ -194,15 +197,15 @@ def test_the_reset_scene_is_sampled_in_sants_ranges_with_the_bin_boxes_round_it(
 def test_the_sant_group_and_its_recorder_ride_along_with_mimics_default_recording(cfg):
     assert set(vars(cfg.observations.sant)) >= {"cube_pos", "contact_forces"}
     rec = cfg.mimic_recorder_config
-    assert isinstance(rec, me.SantRecorderManagerCfg)
+    assert isinstance(rec, mc.SantRecorderManagerCfg)
     # Isaac Lab's own recording stays (generation writes actions, policy obs, states and the initial state).
     assert rec.record_pre_step_actions is not None and rec.record_initial_state is not None
-    assert rec.record_post_step_sant.class_type is me.SantSignalsRecorder
+    assert rec.record_post_step_sant.class_type is mc.SantSignalsRecorder
 
 
 def test_the_recorder_writes_the_sant_group_after_each_step():
     sant = {"cube_pos": torch.zeros(1, 3), "contact_forces": torch.zeros(1, 3)}
-    key, value = me.SantSignalsRecorder.record_post_step(NS(_env=NS(obs_buf={"sant": sant})))
+    key, value = mc.SantSignalsRecorder.record_post_step(NS(_env=NS(obs_buf={"sant": sant})))
     assert key == "obs/sant" and value is sant
 
 
@@ -218,7 +221,7 @@ def test_contact_forces_are_the_largest_pair_force_per_group_as_replay_reads_the
     e.scene.update({"cube_contact": _sensor(0.5, 1.5), "table_contact": _sensor(0.0, 0.0)})
     for i, name in enumerate(scene_cfg.ARM_CONTACT_SENSORS["bin"]):
         e.scene[name] = _sensor(0.0, 3.0 if i == 2 else 0.1)
-    f = me.sant_contact_forces(e)
+    f = mc.sant_contact_forces(e)
     assert f.shape == (1, 3)
     assert f[0].tolist() == pytest.approx([1.5, 3.0, 0.0])
 
@@ -229,3 +232,62 @@ def test_the_contact_threshold_is_replays():
     except Exception as e:  # replay needs more of Isaac Sim than the config does
         pytest.skip(f"sim_worker.replay doesn't import without the app: {e}")
     assert mimic.CONTACT_N == replay.CONTACT_N
+
+
+def test_the_config_loads_no_usd_before_isaac_sim_starts():
+    """Mimic's generate_dataset.py builds the config before launching Isaac Sim. If that loads pxr (the pip USD build),
+    Kit's own USD libraries fail to load on Windows (0xc0000139): the first smoke test died exactly so. A clean
+    process, as the script's: register, load the config through the registry, build it."""
+    import subprocess
+
+    code = "\n".join([
+        "import sys",
+        "from sim_worker.mimic_register import register",
+        "register()",
+        "from isaaclab_tasks.utils.parse_cfg import parse_env_cfg",
+        f"parse_env_cfg({mimic.ENV_NAME!r}, device='cpu', num_envs=1)",
+        "print('PXR', 'pxr' in sys.modules)",
+    ])
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join([root, os.path.join(root, "src"), MIMIC_SRC]))
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, timeout=600)
+    assert "PXR False" in out.stdout, out.stdout[-2000:] + out.stderr[-2000:]
+
+
+class _Writes:
+    """A stand-in asset that remembers what was written to it."""
+
+    def __init__(self, joints=0):
+        self.calls = []
+        if joints:
+            self.data = NS(default_joint_pos=NS(torch=torch.arange(2 * joints, dtype=torch.float32).reshape(2, joints)),
+                           default_joint_vel=NS(torch=torch.zeros(2, joints)))
+
+    def __getattr__(self, name):
+        if name.startswith("write_"):
+            return lambda **kw: self.calls.append((name, kw))
+        raise AttributeError(name)
+
+
+def test_the_reset_takes_isaac_labs_all_envs_slice_and_moves_only_the_cube_with_velocity(cfg):
+    # Isaac Lab's first reset passes env_ids=slice(None); the bin boxes are kinematic (PhysX refuses their velocity).
+    scene = _Scene(robot=_Writes(joints=9), cube=_Writes(), **{n: _Writes() for n in mimic.BIN_PART_CENTERS})
+    scene.env_origins = torch.tensor([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0]])
+    env = NS(scene=scene, num_envs=2, device="cpu")
+    mc.reset_sant_scene(env, slice(None))
+    robot = [c for c in scene["robot"].calls]
+    assert [c[0] for c in robot] == ["write_joint_position_to_sim_index", "write_joint_velocity_to_sim_index"] * 2
+    assert robot[2][1]["env_ids"] == [1] and robot[2][1]["position"].tolist() == [list(range(9, 18))]
+    cube = [c[0] for c in scene["cube"].calls]
+    assert cube == ["write_root_pose_to_sim_index", "write_root_velocity_to_sim_index"] * 2
+    for n in mimic.BIN_PART_CENTERS:
+        assert [c[0] for c in scene[n].calls] == ["write_root_pose_to_sim_index"] * 2, n
+    # The second environment's bodies are placed round its own origin.
+    assert scene["cube"].calls[2][1]["root_pose"][0, 0].item() > 3.0
+
+
+def test_the_events_reset_the_scene_themselves_not_through_reset_scene_to_default(cfg):
+    import isaaclab.envs.mdp as mdp
+
+    funcs = [t.func for t in vars(cfg.events).values() if hasattr(t, "func")]
+    assert mc.reset_sant_scene in funcs and mdp.reset_scene_to_default not in funcs

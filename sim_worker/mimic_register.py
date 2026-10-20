@@ -2,14 +2,15 @@
 
     generate_dataset.py ... --external_callback sim_worker.mimic_register.register
 
-Mimic calls this before the app launches, so it registers by name only: the env and its config
-(sim_worker/mimic_env.py) are imported when gym makes the env, after Isaac Sim is up.
+Mimic calls this before the app launches, so it registers by name only. Mimic then builds the config
+(sim_worker/mimic_env_cfg.py, which imports no USD) before launching Isaac Sim, and gym imports the env class
+(sim_worker/mimic_env.py, which does) when it makes the env, after.
 """
 
 from __future__ import annotations
 
 ENTRY_POINT = "sim_worker.mimic_env:SantPickPlaceMimicEnv"
-CFG_ENTRY_POINT = "sim_worker.mimic_env:SantPickPlaceMimicEnvCfg"
+CFG_ENTRY_POINT = "sim_worker.mimic_env_cfg:SantPickPlaceMimicEnvCfg"
 
 
 def register() -> None:

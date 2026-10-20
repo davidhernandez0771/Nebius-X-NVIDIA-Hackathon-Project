@@ -100,3 +100,12 @@ def test_a_missing_output_reports_nothing_generated(tmp_path):
     pytest.importorskip("h5py")
     r = sm.report(tmp_path / "none.hdf5")
     assert r["mimic_succeeded"] == 0 and r["demos"] == []
+
+
+def test_a_truncated_output_is_reported_not_a_crash(tmp_path):
+    pytest.importorskip("h5py")
+    out = tmp_path / "smoke_10.hdf5"
+    out.write_bytes(b"\x89HDF\r\n\x1a\n" + b"\0" * 88)  # what a generator killed mid-write leaves
+    r = sm.report(out)
+    assert r["mimic_succeeded"] == 0 and r["demos"] == []
+    assert r["unreadable_files"] and r["unreadable_files"][0]["file"].endswith("smoke_10.hdf5")
