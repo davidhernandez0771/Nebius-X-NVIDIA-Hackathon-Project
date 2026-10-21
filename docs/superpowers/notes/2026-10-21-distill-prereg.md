@@ -567,7 +567,7 @@ test first, then part (b). Round 0 at 300 teacher runs starts only after that, o
 - The replay pairing (`351e737`'s row convention) is confirmed.
 - A student trained for 200 steps scored 0/2 on 5300–5301, which shows the path runs end to end.
   - This smoke student is not a candidate, and nothing is chosen from it. It is logged because 5300–5301 are
-    selection seeds.
+    selection seeds. The lead ruled it a disclosed note, not a deviation.
 
 **Gate attempt 2, part (b) started** at 15:08:04 (PID 55104), on 4000–4049 (≥ 45/50). Its result is added here.
 
