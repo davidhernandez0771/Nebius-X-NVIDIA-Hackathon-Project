@@ -147,6 +147,8 @@ describe("the hand-off between pages", () => {
     fireEvent.click(screen.getByRole("link", { name: "Run SANT →" }));
     expect(document.querySelector(".holo-handoff")).toBeNull();
     expect(screen.getByText("pipeline page")).toBeTruthy();
+    // Still the same place for the focus: the new page's title.
+    expect(document.activeElement).toBe(screen.getByRole("heading", { level: 1, name: "The pipeline" }));
   });
 
   it("leaves a click with a modifier (a new tab) to the browser", () => {
