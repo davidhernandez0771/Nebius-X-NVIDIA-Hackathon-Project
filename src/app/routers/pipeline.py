@@ -1,11 +1,15 @@
 """The whole SANT pipeline from the site (app/pipeline): start a run over saved demos, follow it stage by stage with
 time estimates, cancel or resume it, download what it made. The shape is the pipeline pages' (agreed with T2).
 
-    GET  /pipeline/config                   {enabled, presets, stop_after, timings}
+    GET  /pipeline/config                   {enabled, presets, stop_after, timings, recipes: {teacher: {presets, teacher_n}}}
+    GET  /pipeline/human-runs               {runs: [{name, cell, start_state}]}: the trained human runs a teacher recipe
+                                            can start from
     POST /pipeline/estimate                 recipe -> {demos, stages, remaining_s}: the plan, nothing started
     GET  /pipeline/runs                     {runs: [{id, name, created, status, stage, demos, detail, resumable}]}
     POST /pipeline/runs                     {demos: [ids]} | {tag, input?}, + name?, preset?, variants?, repairer?,
                                             eval_n?, stop_after?, multiplied_only?, nemotron?, dry_run? -> 201 {id}
+                                            | {kind: "teacher", human_run, teacher_n? (300|600), dagger?,
+                                               preset? (smoke|full), rl_iterations?, dry_run?} (app.pipeline.recipe)
     GET  /pipeline/runs/{id}                the run's state (app.pipeline.progress.snapshot)
     GET  /pipeline/runs/{id}/events         SSE: "snapshot", then patches (stage, gpu, check, repair, variant, train,
                                             checkpoint, evaluate, artifact, log), then "end" {status}
@@ -32,9 +36,10 @@ from pydantic import ValidationError
 
 from app.config import pipeline_enabled
 from app.pipeline.export import safe_name
-from app.pipeline.progress import PUBLIC_STATUS, snapshot
-from app.pipeline.recipe import PRESETS, Recipe
-from app.pipeline.runs import RunManager
+from app.pipeline.progress import PUBLIC_STATUS
+from app.pipeline.recipe import PRESETS, TEACHER_PRESETS, AnyRecipe, TeacherRecipe, parse_recipe
+from app.pipeline.runs import RunManager, snapshot_of
+from app.pipeline.teacher_runner import Refused, resolve_human
 from demo_pipeline.paths import data_dir
 
 from . import showcase
@@ -83,13 +88,13 @@ def _run_or_404(m: RunManager, run_id: str) -> dict:
         raise HTTPException(404, f"no pipeline run {run_id!r}") from None
 
 
-def _recipe(body: dict) -> tuple[Recipe, str | None]:
+def _recipe(body: dict) -> tuple[AnyRecipe, str | None]:
     body = dict(body)
     name = body.pop("name", None)
     if name is not None and (not isinstance(name, str) or len(name) > 120):
         raise HTTPException(422, "name is a short string")
     try:
-        return Recipe.model_validate(body), name
+        return parse_recipe(body), name
     except ValidationError as e:
         raise HTTPException(422, json.loads(e.json(include_url=False))) from None
 
@@ -97,19 +102,40 @@ def _recipe(body: dict) -> tuple[Recipe, str | None]:
 @router.get("/config")
 def config(m: RunManager = Depends(get_manager)) -> dict:
     return {"enabled": pipeline_enabled(), "presets": PRESETS, "stop_after": ["grid", "train", "eval", "results"],
-            "timings": m.timings().to_dict()}
+            "timings": m.timings().to_dict(),
+            "recipes": {"demos": {"presets": PRESETS},
+                        "teacher": {"presets": TEACHER_PRESETS, "teacher_n": [300, 600],
+                                    "stages": ["teacher", "gate", "distill", "dagger", "export"]}}}
+
+
+@router.get("/human-runs")
+def human_runs(m: RunManager = Depends(get_manager)) -> dict:
+    out = []
+    for root in sorted((m.data / "human_exp").glob("*/grid.json")):
+        try:
+            _, cell, start = resolve_human(m.data, root.parent.name)
+        except Refused:
+            continue
+        out.append({"name": root.parent.name, "cell": cell, "start_state": start.name})
+    return {"runs": out}
 
 
 @router.post("/estimate")
 def estimate(body: dict = Body(...), m: RunManager = Depends(get_manager)) -> dict:
     recipe, _ = _recipe(body)
     try:
-        n = m.count_demos(recipe)
+        if isinstance(recipe, TeacherRecipe):
+            resolve_human(m.data, recipe.human_run)
+            n, kind = 0, "teacher"
+            recipe_d = recipe.model_dump() | {"rl_iterations": recipe.iterations, "smoke": recipe.smoke}
+        else:
+            n, kind = m.count_demos(recipe), "demos"
+            recipe_d = recipe.model_dump() | {"steps": recipe.steps, "eval_n": recipe.eval_seeds}
     except ValueError as e:
         raise HTTPException(422, str(e)) from None
-    run = {"id": "estimate", "name": "estimate", "created": "", "status": "queued", "recipe": recipe.model_dump()
-           | {"steps": recipe.steps, "eval_n": recipe.eval_seeds}, "n_demos": n, "started_at": None, "stage_times": {}}
-    snap = snapshot(run, data=m.data, timings=m.timings(), now=m.now(), lock=None, position=None)
+    run = {"id": "estimate", "kind": kind, "name": "estimate", "created": "", "status": "queued", "recipe": recipe_d,
+           "n_demos": n, "started_at": None, "stage_times": {}}
+    snap = snapshot_of(run, data=m.data, timings=m.timings(), now=m.now(), lock=None, position=None)
     return {"demos": n, "stages": snap["stages"], "remaining_s": snap["remaining_s"]}
 
 
@@ -119,7 +145,7 @@ def list_runs(m: RunManager = Depends(get_manager)) -> dict:
     for run in reversed(m.list()):
         snap = m.snapshot(run["id"]) if run["status"] in ("running", "cancelling") else None
         stage = next((s["id"] for s in snap["stages"] if s["status"] == "running"), None) if snap else None
-        out.append({"id": run["id"], "name": run["name"], "created": run["created"],
+        out.append({"id": run["id"], "kind": run.get("kind", "demos"), "name": run["name"], "created": run["created"],
                     "status": PUBLIC_STATUS.get(run["status"], run["status"]), "stage": stage, "demos": run["n_demos"],
                     "detail": run.get("detail"), "resumable": bool(run.get("resumable"))})
     return {"runs": out}

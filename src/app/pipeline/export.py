@@ -246,3 +246,134 @@ def build_artifacts(run: dict, *, data: Path, out: Path, robota: Callable[[Path,
     arts.append(entry("provenance.json", None))
     _write(out / "artifacts.json", json.dumps(arts, indent=1))
     return arts
+
+
+def _teacher_report(run: dict, results: dict, arts: list[dict], notes: list[str]) -> str:
+    gate = results.get("teacher_gate") or {}
+    teacher = results.get("teacher") or {}
+    seeds = gate.get("seeds") or ["?", "?"]
+    lines = [f"# SANT teacher run: {run.get('name') or run['id']}", "",
+             f"Run `{run['id']}`, created {run.get('created')}. The student starts from human run "
+             f"`{results.get('human_run')}`.", ""]
+    if results.get("smoke"):
+        lines += ["**SMOKE TEST.** This run proves every stage works. It measures nothing, and no number in it is a result.", ""]
+    lines += ["## What each stage did", "",
+              f"- RL teacher: {teacher.get('iterations')} iterations, checkpoint `{Path(teacher.get('checkpoint') or '').name}`",
+              f"- teacher gate: {gate.get('successes')}/{gate.get('n')} in SANT's eval env on practice seeds "
+              f"{seeds[0]}-{seeds[1]} (gate {gate.get('gate') or 0:.0%})"]
+    for rd in results.get("rounds") or []:
+        roll = rd.get("rollouts") or {}
+        sel = rd.get("selection") or {}
+        what = "teacher" if rd["round"] == 0 else "DAgger"
+        lines.append(f"- round {rd['round']}: {roll.get('successes')}/{roll.get('attempted')} {what} rollouts succeeded"
+                     + (f"; chose step {sel.get('chosen_step')} (selection {sel.get('counts')})" if sel else
+                        f"; stopped: {(rd.get('decision') or {}).get('reason')}"))
+    lines += ["", results.get("note", ""), "", "## Downloads", ""]
+    lines += [f"- `{a['name']}` ({a['bytes']:,} bytes, sha256 `{a['sha256'][:12]}…`)" + (f": {a['note']}" if a.get("note") else "")
+              for a in arts] or ["- none"]
+    if notes:
+        lines += ["", "## Notes", "", *[f"- {x}" for x in notes]]
+    return "\n".join(lines) + "\n"
+
+
+def _commit_of(repo: Path) -> str | None:
+    try:
+        res = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo, capture_output=True, text=True, timeout=10)
+        return res.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def build_teacher_artifacts(run: dict, *, data: Path, out: Path, commit: str | None = None,
+                            progress: Callable[[str], None] = lambda s: None) -> list[dict]:
+    """A teacher run's downloads (app.pipeline.teacher_runner) in `out`, and the index (out/artifacts.json):
+
+    - dataset_distill_r<k>.zip  the final student's LeRobot dataset (the mixed grid it trained on)
+    - student_checkpoint.zip    the selected ACT checkpoint (pretrained_model)
+    - teacher_checkpoint.zip    the RL teacher: exported/policy.pt (the TorchScript actor T6's adapter loads), the final
+                                model_<i>.pt, and the trainer's params/ when there
+    - results.json, report.md, report.html, provenance.json
+    A missing part is noted in the report; the rest still exports.
+    """
+    data, out = Path(data), Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    root = data / "teacher" / run["id"]
+    results = _read_json(root / "results.json")
+    if results is None:
+        raise RuntimeError(f"no results.json in {root}: the run didn't finish")
+    config = _read_json(root / "config.json") or {}
+    notes: list[str] = []
+    made: list[tuple[str, str, str | None]] = []  # (file name, kind, note)
+
+    student = results.get("student") or {}
+    final_round = next((rd for rd in reversed(results.get("rounds") or []) if rd.get("selection")), None)
+    label = f"distill_r{final_round['round']}" if final_round else None
+    dataset = Path(student["train_run"]) / "datasets" / label if student.get("train_run") and label else None
+    if dataset is not None and dataset.is_dir():
+        progress(f"zipping {dataset.name}")
+        _zip_dir(dataset, out / f"dataset_{dataset.name}.zip", dataset.name)
+        made.append((f"dataset_{dataset.name}.zip", "dataset", f"round {final_round['round']}'s grid: human + teacher"
+                     + (" + DAgger" if final_round["round"] else "") + " episodes"))
+    else:
+        notes.append(f"no student dataset at {dataset}")
+    ck = Path(student["checkpoint"]) if student.get("checkpoint") else None
+    if ck is not None and ck.is_dir():
+        progress("zipping the student checkpoint")
+        _zip_dir(ck, out / "student_checkpoint.zip", "pretrained_model")
+        made.append(("student_checkpoint.zip", "checkpoint", f"ACT step {student.get('chosen_step')}"))
+    else:
+        notes.append(f"no student checkpoint at {ck}")
+
+    teacher = results.get("teacher") or {}
+    model = Path(teacher["checkpoint"]) if teacher.get("checkpoint") else None
+    if model is not None and model.is_file():
+        progress("zipping the teacher")
+        tmp = Path(tempfile.mkdtemp(prefix="sant-teacher-")) / "teacher"
+        try:
+            tmp.mkdir()
+            shutil.copy2(model, tmp / model.name)
+            policy = model.parent / "exported" / "policy.pt"
+            if policy.is_file():
+                (tmp / "exported").mkdir()
+                shutil.copy2(policy, tmp / "exported" / "policy.pt")
+            else:
+                notes.append(f"no exported policy at {policy}")
+            if (model.parent / "params").is_dir():
+                shutil.copytree(model.parent / "params", tmp / "params")
+            _zip_dir(tmp, out / "teacher_checkpoint.zip", "teacher")
+            made.append(("teacher_checkpoint.zip", "checkpoint", f"RL teacher {model.name} + exported/policy.pt"))
+        finally:
+            shutil.rmtree(tmp.parent, ignore_errors=True)
+    else:
+        notes.append(f"no teacher checkpoint at {model}")
+
+    shutil.copyfile(root / "results.json", out / "results.json")
+    made.append(("results.json", "other", None))
+
+    def entry(name: str, kind: str, note: str | None) -> dict:
+        p = out / name
+        return {"name": name, "kind": kind, "bytes": p.stat().st_size, "sha256": _sha256(p),
+                "url": f"/pipeline/runs/{run['id']}/artifacts/{name}", **({"note": note} if note else {})}
+
+    arts = [entry(n, k, note) for n, k, note in made]
+    md = _teacher_report(run, results, arts, notes)
+    _write(out / "report.md", md)
+    _write(out / "report.html", _html(md, f"SANT teacher run {run.get('name') or run['id']}"))
+    arts += [entry("report.md", "report", None), entry("report.html", "report", None)]
+    repo = Path(config["repo"]) if config.get("repo") else None
+    human_grid = Path(config["human_grid"]) if config.get("human_grid") else None
+    prov = {
+        "run_id": run["id"], "kind": "teacher", "name": run.get("name"), "created": run.get("created"),
+        "exported": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "git_commit": commit, "teacher_repo": str(repo) if repo else None,
+        "teacher_repo_commit": _commit_of(repo) if repo else None,
+        "recipe": run.get("recipe"), "runner_args": run.get("args"), "config": config,
+        "human_grid_sha256": _sha256(human_grid) if human_grid and human_grid.is_file() else None,
+        "teacher_checkpoint": str(model) if model else None, "student_checkpoint": str(ck) if ck else None,
+        "teacher_gate": results.get("teacher_gate"),
+        "artifacts": [{k: a[k] for k in ("name", "bytes", "sha256")} for a in arts], "notes": notes,
+    }
+    _write(out / "provenance.json", json.dumps(prov, indent=1, default=str))
+    arts.append(entry("provenance.json", "other", None))
+    _write(out / "artifacts.json", json.dumps(arts, indent=1))
+    return arts

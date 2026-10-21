@@ -60,7 +60,7 @@ def test_a_run_from_the_pages_body_lists_and_shows_its_state(setup):
     assert r.status_code == 201
     run_id = r.json()["id"]
     runs = client.get("/pipeline/runs").json()["runs"]
-    assert runs == [{"id": run_id, "name": "my run", "created": runs[0]["created"], "status": "queued", "stage": None,
+    assert runs == [{"id": run_id, "kind": "demos", "name": "my run", "created": runs[0]["created"], "status": "queued", "stage": None,
                      "demos": 2, "detail": None, "resumable": False}]
     snap = client.get(f"/pipeline/runs/{run_id}").json()
     assert snap["status"] == "queued" and snap["gpu"]["state"] == "queued" and snap["gpu"]["position"] == 1
@@ -155,6 +155,18 @@ def test_the_patches_match_the_pages_reducer():
     # elapsed alone moves the run patch only every 5 s
     tick = {**base, "elapsed_s": 12.0}
     assert [x["type"] for x in pipeline.patches(base, tick)] == []
+
+
+def test_more_local_dev_origins_come_from_an_env_var(monkeypatch):
+    from app.config import cors_origins
+
+    monkeypatch.delenv("SANT_CORS_ORIGINS", raising=False)
+    assert cors_origins() == ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # T2's pages on another Vite port; only this machine's origins are taken, the rest are ignored
+    monkeypatch.setenv("SANT_CORS_ORIGINS", "http://127.0.0.1:5197, http://localhost:5197,https://evil.example,*,"
+                                            "http://127.0.0.1:5197/x")
+    assert cors_origins() == ["http://localhost:5173", "http://127.0.0.1:5173", "http://127.0.0.1:5197",
+                              "http://localhost:5197"]
 
 
 def test_a_failed_variant_keeps_an_id_and_the_snapshot_has_the_log(setup):

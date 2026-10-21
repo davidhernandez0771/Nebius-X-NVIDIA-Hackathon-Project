@@ -9,6 +9,9 @@ States: queued -> running -> done | failed (stopped; resumable) | refused (bad s
 (resumable) | interrupted (the runner died, or the backend restarted without it; resumable). Cancel writes
 <experiment>/STOP: the runner stops before its next stage. How a run ended is read from its run.log ("done through",
 "REFUSED:", "STOPPED:"), so a runner this backend didn't start (a restart) is still read right.
+
+A "teacher" recipe (app.pipeline.recipe.TeacherRecipe) runs scripts/run_teacher_pipeline.py the same way instead; its
+folder is DATA_DIR/teacher/<id>/ (app.pipeline.teacher_runner) and its state app.pipeline.teacher_progress's.
 """
 from __future__ import annotations
 
@@ -28,15 +31,18 @@ from app.config import REPO_ROOT
 from demo_pipeline.store import write_atomic
 
 from .progress import snapshot
-from .recipe import Recipe, runner_args
+from .recipe import AnyRecipe, Recipe, TeacherRecipe, runner_args, teacher_args
+from .teacher_progress import teacher_snapshot
+from .teacher_runner import resolve_human
 from .timings import Timings, learn
 
 RUNNER = REPO_ROOT / "scripts" / "run_human_demo_experiment.py"
+TEACHER_RUNNER = REPO_ROOT / "scripts" / "run_teacher_pipeline.py"
 STOP_FILE = "STOP"  # the runner's (scripts/run_human_demo_experiment.py STOP_FILE)
 LOCK_PATH = Path(r"C:\dev\gpu.lock")
 ACTIVE = ("running", "cancelling")
 RESUMABLE = ("failed", "cancelled", "interrupted")
-_RESULT = re.compile(r"\[human-exp \d\d:\d\d:\d\d\] (done through '(\w+)'|REFUSED: (.*)|STOPPED: (.*))$")
+_RESULT = re.compile(r"\[(?:human-exp|teacher) \d\d:\d\d:\d\d\] (done through '(\w+)'|REFUSED: (.*)|STOPPED: (.*))$")
 
 
 def popen_launch(cmd: list[str], log_path: Path, env: dict):
@@ -85,10 +91,18 @@ def count_selection(data: Path) -> Callable[[Recipe], int]:
     return count
 
 
+def snapshot_of(run: dict, **kw) -> dict:
+    """The run's state, by its recipe's kind."""
+    return (teacher_snapshot if run.get("kind") == "teacher" else snapshot)(run, **kw)
+
+
 def default_export(run: dict, data: Path, out: Path) -> list[dict]:
     from functools import partial
 
-    from .export import assemble_in_lerobot_venv, build_artifacts, git_commit, robota_export
+    from .export import assemble_in_lerobot_venv, build_artifacts, build_teacher_artifacts, git_commit, robota_export
+
+    if run.get("kind") == "teacher":
+        return build_teacher_artifacts(run, data=data, out=out, commit=git_commit())
 
     return build_artifacts(run, data=data, out=out, robota=partial(robota_export, nemotron=bool(run["recipe"].get("nemotron"))),
                            assemble=assemble_in_lerobot_venv, commit=git_commit())
@@ -142,17 +156,28 @@ class RunManager:
         return queued.index(run_id) + 1 if run_id in queued else None
 
     def exp_root(self, run_id: str) -> Path:
-        return self.data / "human_exp" / run_id
+        """Where the run's runner writes (run.log, STOP): DATA_DIR/human_exp/<id>, or DATA_DIR/teacher/<id>."""
+        try:
+            kind = self.get(run_id).get("kind")
+        except KeyError:
+            kind = None
+        return self.data / ("teacher" if kind == "teacher" else "human_exp") / run_id
 
     # --- the API ------------------------------------------------------------------------------------------
-    def create(self, recipe: Recipe, name: str | None = None) -> dict:
-        n = self.count_demos(recipe)  # ValueError: nothing queued
+    def create(self, recipe: AnyRecipe, name: str | None = None) -> dict:
         stamp = datetime.fromtimestamp(self.now(), timezone.utc)
         run_id = f"pl_{stamp:%Y%m%d_%H%M%S}_{secrets.token_hex(2)}"
-        recipe_d = recipe.model_dump() | {"steps": recipe.steps, "eval_n": recipe.eval_seeds}
+        if isinstance(recipe, TeacherRecipe):
+            resolve_human(self.data, recipe.human_run)  # Refused (a ValueError): nothing queued
+            n, kind, args = 0, "teacher", teacher_args(recipe, run_id)
+            recipe_d = recipe.model_dump() | {"rl_iterations": recipe.iterations, "smoke": recipe.smoke}
+        else:
+            n = self.count_demos(recipe)  # ValueError: nothing queued
+            kind, args = "demos", runner_args(recipe, run_id)
+            recipe_d = recipe.model_dump() | {"steps": recipe.steps, "eval_n": recipe.eval_seeds}
         seq = max((r.get("seq", 0) for r in self.list()), default=0) + 1
-        run = {"id": run_id, "seq": seq, "name": name or run_id, "created": stamp.isoformat(timespec="seconds"), "status": "queued",
-               "detail": None, "resumable": False, "recipe": recipe_d, "args": runner_args(recipe, run_id), "n_demos": n,
+        run = {"id": run_id, "seq": seq, "kind": kind, "name": name or run_id, "created": stamp.isoformat(timespec="seconds"),
+               "status": "queued", "detail": None, "resumable": False, "recipe": recipe_d, "args": args, "n_demos": n,
                "pid": None, "started_at": None, "finished_at": None, "stage_times": {}, "export": None}
         with self._lock:
             return self._save(run)
@@ -181,7 +206,7 @@ class RunManager:
 
     def snapshot(self, run_id: str) -> dict:
         run = self.get(run_id)
-        return snapshot(run, data=self.data, timings=self._timings, now=self.now(), lock=self.lock_text(),
+        return snapshot_of(run, data=self.data, timings=self._timings, now=self.now(), lock=self.lock_text(),
                         position=self.position(run_id))
 
     def timings(self) -> Timings:
@@ -202,7 +227,7 @@ class RunManager:
     def _start(self, run: dict) -> None:
         env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
         env.update(DATA_DIR=str(self.data), PYTHONPATH=f"{REPO_ROOT / 'src'}{os.pathsep}{REPO_ROOT}", PYTHONUNBUFFERED="1")
-        cmd = [self.python, str(RUNNER), *run["args"]]
+        cmd = [self.python, str(TEACHER_RUNNER if run.get("kind") == "teacher" else RUNNER), *run["args"]]
         proc = self.launch(cmd, self.root / run["id"] / "runner.log", env)
         self._procs[run["id"]] = proc
         run.update(status="running", pid=getattr(proc, "pid", None), started_at=run.get("started_at") or self.now(),
@@ -224,7 +249,7 @@ class RunManager:
             self._record_stages(run)
 
     def _record_stages(self, run: dict) -> None:
-        snap = snapshot(run, data=self.data, timings=self._timings, now=self.now(), lock=None, position=None)
+        snap = snapshot_of(run, data=self.data, timings=self._timings, now=self.now(), lock=None, position=None)
         times = run.setdefault("stage_times", {})
         changed = False
         for st in snap["stages"]:
@@ -271,11 +296,13 @@ class RunManager:
         now = self.now()
         if kind == "done" and (rc in (0, None)):
             if recipe.get("dry_run"):
-                snap = snapshot({**run, "status": "done"}, data=self.data, timings=self._timings, now=now, lock=None,
-                                position=None)
+                snap = snapshot_of({**run, "status": "done"}, data=self.data, timings=self._timings, now=now, lock=None,
+                                   position=None)
                 hours = (snap.get("plan_s") or 0) / 3600
+                what = ("the scripts and inputs are there" if run.get("kind") == "teacher"
+                        else f"{snap['demos']} demos selected")
                 run.update(status="done", finished_at=now, resumable=False,
-                           detail=f"dry run: {snap['demos']} demos selected; the full run would take about {hours:.1f} h")
+                           detail=f"dry run: {what}; the full run would take about {hours:.1f} h")
             else:
                 self._export(run)
                 return
