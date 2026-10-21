@@ -237,6 +237,8 @@ recipe. It calls T3's and T6's scripts and never edits their branches.
   - `GET /pipeline/config` gains `recipes.teacher` {presets, teacher_n, stages}.
   - New: `GET /pipeline/human-runs` lists the trained human runs a teacher run can start from.
   - `/runs` rows gain `kind`.
+  - SSE: a `teacher` patch `{type: "teacher", ...the whole block}` whenever the block changes (T2's ask: gate
+    results, round phases, rollouts and the selection go live; the pages replace their block with it).
 
 ### Checked, without GPU
 
