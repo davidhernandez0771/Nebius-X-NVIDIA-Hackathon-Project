@@ -102,7 +102,13 @@ def run_gripper_deadband(path: Path) -> float:
         return 0.0
     import yaml
 
-    cfg = yaml.safe_load(env_yaml.read_text(encoding="utf-8")) or {}
+    class _Loader(yaml.SafeLoader):
+        """Safe, plus Isaac Lab's dumps: !!python/tuple as a list (135 of them in env.yaml), other python tags as
+        nothing. yaml.safe_load refuses the file (found on demo_v4's params, 2026-10-21)."""
+
+    _Loader.add_constructor("tag:yaml.org,2002:python/tuple", lambda loader, node: loader.construct_sequence(node))
+    _Loader.add_multi_constructor("tag:yaml.org,2002:python/", lambda loader, suffix, node: None)
+    cfg = yaml.load(env_yaml.read_text(encoding="utf-8"), Loader=_Loader) or {}
     return float(((cfg.get("actions") or {}).get("gripper_action") or {}).get("deadband") or 0.0)
 
 

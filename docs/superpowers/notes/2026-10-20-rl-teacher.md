@@ -232,3 +232,38 @@ The `test_rl_env.py` checks:
 - the config loads no USD before Isaac Sim starts (a clean subprocess, as the Mimic test).
 
 The full SANT suite is in the commit message.
+
+## Training day, 2026-10-21
+
+### The runs so far
+
+| Run | What | Result |
+|---|---|---|
+| smoke64 | 64 envs × 20 iterations | It runs; ~1 s/iteration. Needed utf-8 fixes (`f0beb24`). |
+| probe4096 | 4,096 envs × 10 iterations | ~1.2 s/iteration with short early episodes; ~1.5–2.5 s/iteration at full length. |
+| demo_v1 | absolute actions | **Failed.** Nothing learned (grasp/lift 0 at 300 iterations): random absolute targets threw the arm across the workspace, so demo starts were lost. 1,500 iterations, 50 min. |
+| demo_v2 | relative actions (`827a5fb`) | **Failed.** Lift 0 at 300. Stopped at ~950. |
+| probe_held | held starts, gripper closed | **The restore is fine:** 64/64 held at steps 1, 5 and 10; finger widths exact. So the cause is the policy's gripper (std 1, ~50% opens per step). |
+| demo_v3 | + grace 10, curriculum 48000, init std 0.6 | **Failed.** Stages flat at 300, and the action std rose 0.6 → 1.2: the entropy bonus outweighed the reward (Isaac scales rewards by dt 0.02). Stopped at ~300. |
+| demo_v4 | + **Amendment 1** (reward ×50), entropy 0.001, deadband 0.5 | running |
+
+### demo_v4's exact configuration
+
+Recorded in `2026-10-20-rl-teacher/demo_v4/`:
+- `command.txt`: the trainer's command line;
+- `env.yaml` and `agent.yaml`: the run's own params dump.
+
+Code `6008c41` plus these Hydra overrides (the code defaults are unchanged):
+
+| Setting | Code default | demo_v4 |
+|---|---|---|
+| `env.rewards.progress.weight` / `penalty` / `success` | 1 / −1 / 1 | **50 / −50 / 50** (Amendment 1: scale only. On the 3 fixtures the bonus still agrees with `check_success`; returns 430.6 / 28.0 / −10.0) |
+| `agent.algorithm.entropy_coef` | 0.006 | **0.001** |
+| `agent.actor.distribution_cfg.init_std` | 1.0 | **0.6** |
+| `env.actions.gripper_action.deadband` | 0.0 | **0.5** |
+| `env.events.reset_scene.params.held_grace_steps` | 0 | **10** |
+| `env.events.reset_scene.params.curriculum_steps` | 24000 | **48000** |
+
+If demo_v4 becomes the teacher, these become a named preset in code after the gate, so T5's pipeline recipe reproduces it.
+
+**T6's adapter reads the run's deadband** from `params/env.yaml`. Isaac Lab dumps tuples as `!!python/tuple`, which `yaml.safe_load` refuses, so the adapter uses a safe loader that also reads those (tested on demo_v4's real file).

@@ -170,3 +170,14 @@ def test_the_adapter_applies_the_runs_gripper_deadband(tmp_path):
     (run / "params" / "env.yaml").write_text("actions:\n  gripper_action:\n    deadband: 0.5\n", encoding="utf-8")
     assert rl_policy.run_gripper_deadband(run / "exported" / "policy.pt") == 0.5
     assert rl_policy.run_gripper_deadband(tmp_path / "other" / "exported" / "policy.pt") == 0.0
+
+
+def test_the_deadband_is_read_from_a_real_isaac_lab_env_yaml(tmp_path):
+    """Isaac Lab dumps tuples as !!python/tuple, which yaml.safe_load refuses: demo_v4's own env.yaml (2026-10-21)."""
+    import shutil
+
+    real = Path(__file__).resolve().parents[1] / "docs/superpowers/notes/2026-10-20-rl-teacher/demo_v4/env.yaml"
+    assert "!!python/tuple" in real.read_text(encoding="utf-8")
+    (tmp_path / "run" / "params").mkdir(parents=True)
+    shutil.copy(real, tmp_path / "run" / "params" / "env.yaml")
+    assert rl_policy.run_gripper_deadband(tmp_path / "run" / "exported" / "policy.pt") == 0.5
