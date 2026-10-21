@@ -132,6 +132,8 @@ def zero_mse(a, mask) -> list[float]:
     import numpy as np
 
     idx = np.flatnonzero(mask)
+    if len(idx) == 0:
+        return []
     return [round(float(e), 5) for e in (a[idx] ** 2).mean(0).cpu().numpy()]
 
 

@@ -382,3 +382,43 @@ loss.
 - Play episodes end 0.2 s after the bonus (`PLAY_SUCCESS_EXTRA_S`). Training is unchanged.
 - **Why:** the gate re-simulates each trajectory. A trajectory that ended exactly at 0.50 s of settle could fail there by one step. With the margin, a teacher that bumps the bin after placing also fails.
 - T6's round-0 rollouts are unaffected. They run check_success every 25 steps on their own env's records, until it passes or time runs out.
+
+### BC-initialised RL (built 56a3156; bc_v1 pretrained, PPO not yet run)
+
+**For T7's record:** this is a run-enabling change to how the teacher is initialised. The reward and success are unchanged.
+- The actor starts from behaviour cloning on the SANT-verified human demos instead of random weights; PPO then learns from the reward as before.
+- The human demos now seed the policy, not only its starts.
+- There is still no scripted or hand-written teacher.
+
+**Why** (2026-10-21):
+- The demo actions are small: mean |action| per motion dimension is 0.11–0.18, i.e. 2–4 mm per step of the 2 cm maximum.
+- PPO's exploration noise was much larger. v6's std was 0.83 (about 1.7 cm per step), and v5/v6's floor of 0.3 still meant about 6 mm per step.
+- A grasp needs mm alignment, and grasps stayed at 1–2% of steps.
+
+**Data** (`demo_pipeline/rl_bc.py`): the 110 bank episodes give 31,536 (observation, action) pairs, using the replay's step convention (the observation is the reached state k-1; the action is the step to target k).
+
+**Pretraining** (`scripts/rl_bc_pretrain.py`, CPU):
+- It builds the actor and critic as rsl_rl builds them.
+- The actor's mean is fitted by MSE (50 epochs, lr 1e-3).
+- The std is set to 0.12.
+
+**Validation:** holding out 2 of the 10 human takes (each with all its variants):
+
+| | MSE per motion dimension | gripper sign agreement |
+|---|---|---|
+| BC actor | 1e-4 to 3e-4 | 99.2% |
+| zero action | 0.015 to 0.09 | – |
+
+That report is `data/rl/bc/bc_v1/report_val20.json`. `model_0.pt` is then trained on all 10 takes.
+
+**Order once v6 ends:**
+1. The start-type breakdown on v6's last and best checkpoints.
+2. `scripts/rl_bc_check.py`, the obs-match check (about 3 min).
+3. bc_v1. It keeps v6's settings except the exploration std, judged at 600+ iterations:
+   - init std 0.12 (set in the checkpoint);
+   - `std_range=[0.05,1.0]`;
+   - `--reward lift`.
+
+The bc_v1 command:
+
+    uv run --no-sync python scripts\rl_train.py --run-name bc_v1 --reward lift --max-iterations 1500 --checkpoint data\rl\bc\bc_v1\model_0.pt --fresh-optimizer --override env.events.reset_scene.params.held_grace_steps=10 --override env.events.reset_scene.params.curriculum_steps=24000 --override env.events.reset_scene.params.uniform_share=0.5 --override "agent.actor.distribution_cfg.std_range=[0.05,1.0]" --override agent.algorithm.entropy_coef=0.005 --override env.actions.gripper_action.deadband=0.25
