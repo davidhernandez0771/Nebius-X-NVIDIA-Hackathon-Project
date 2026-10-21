@@ -671,6 +671,18 @@ reproducibility only.
 - **The rule from here:** if the selected checkpoint is below 60% on 5300–5329 (< 18/30), round 0 extends to 600
   teacher runs, then retrains and reselects.
 
+**Round 0's export took 71 min** (45 s per 1,000 frames), against the 27.9 s measured earlier. Windows was throttling
+the processes in the background.
+
+**A speed-only intervention, logged openly (the lead's, approved by the user): Windows' power throttling was turned
+off for the running trainer.**
+- **What:** the per-process power-throttling opt-out (EcoQoS): `SetProcessInformation` with `ProcessPowerThrottling`,
+  `ControlMask` 5 and `StateMask` 0. That is the same call as `sim_worker.teleop_qos.high_qos`.
+- **How:** the lead applied it from outside to round 0's running trainer processes. There was no restart, and no code
+  or setting changed.
+- **Effect:** training went from 11.6 to about 20.9 steps/s.
+- **What it changes:** speed only. The data, the mix, the flags, the steps and the seeds are unchanged.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
