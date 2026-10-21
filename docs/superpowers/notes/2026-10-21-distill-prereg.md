@@ -431,7 +431,68 @@ choice. Seeds 5020–5059 were not used for the teacher.
 
 **The gate runs once on `model_1499`.** T3's part, check (a) above, is `rl_eval_teacher` on practice seeds 5300–5349 plus
 `rl_verify_teacher`, and it passes at ≥ 45/50. Both checks must pass, so T6's 50-scene in-env gate on seeds
-4000–4049 (≥ 45/50) still applies before round 0. The results are added here. So noise at the
+4000–4049 (≥ 45/50) still applies before round 0. The results are added here.
+
+### Gate attempt 1: FAILED (`model_1499`, `demo_v6`)
+
+On practice seeds 5300–5349 (T3's note `df9dce6` on `pm/rl-teacher`):
+- **The replay verify (the gate number): 3/50** (Wilson 0.02–0.16). It needed ≥ 45/50.
+  - On the first 30 seeds it was 3/30 (seeds 5303, 5308, 5313).
+  - The replay failures: collision 44, not_in_bin 35, dropped 20, unreachable 6, not_settled 5. An episode can fail
+    for more than one reason.
+- **In the env, `check_success`: 43/50.** The in-env and replay verdicts agree on only 10 of the 50 seeds.
+
+T6's part (b) was not run, because part (a) failed. No rollout, distillation, training or selection ran. Seeds
+5300–5349 are now spent for the gate.
+
+**The cause (T3):** the teacher moves far faster than the human demos.
+- **The teacher's tool targets** move at a median 1.73 m/s (p99 3.17, max 3.49).
+- **The verified human demos** move at 0.20 m/s (p90 0.48).
+- **Why:** the RL action bound was relative to the tool's current position only. So the policy rode the env's
+  velocity feed-forward at 2–3 m/s.
+- **The replay can't follow that:** SANT's replay tracker has a 2.9 cm median tracking error and overshoots 15 cm on
+  seed 5300.
+
+So the teacher succeeds in its own env, but its motions don't survive SANT's replay, and SANT's replay is what makes a
+label verified.
+
+## Amendment 3 (2026-10-21, the lead's decision, after gate attempt 1 failed)
+
+**The gate definition is unchanged:** the replay verify stays the gate number, at ≥ 45/50, and both parts are still
+required.
+
+**What changes:**
+- **A speed cap in the teacher's action space**, in training, eval and `make()`. Each target must be:
+  - within 0.5 m/s × 0.02 s (1 cm) of the previous target;
+  - and within one step of the tool's position.
+
+  `make()` is what T6's distillation calls. So the labels come from the same capped teacher that is gated.
+- **The run `demo_v6c`** resumes from `model_1499`, with:
+  - the cap;
+  - the std reset to 0.3 (T3's `d292537`, `rl_checkpoint_std.py`: a resume would otherwise load the checkpoint's std);
+  - `std_range` [0.1, 0.5];
+  - both curricula held.
+- **Gate attempt 2 runs on fresh practice seeds 5350–5399**, because 5300–5349 are spent. They overlap no other range:
+  - teacher rollouts 4000–4599;
+  - DAgger 5200–5279;
+  - selection 5300–5329;
+  - test 5020–5059.
+
+  T6's part (b) on 4000–4049 is still required.
+
+**Unchanged:**
+- the reward (Amendment 2's `lift`);
+- the success definition and `check_success`;
+- the gate's threshold and both parts;
+- the selection rule, the mix weights and the test command;
+- the student's selection seeds 5300–5329, although they were also used in gate attempt 1. That overlap was in this
+  pre-registration from the start, and the teacher never trained on them.
+
+T3's commit for the cap, and `demo_v6c`'s command and start time, are added here when T3 sends them.
+
+**T6's guard, `da4a6cc`** (13:18, on `pm/distill-dagger`): the grid refuses any training episode from `data\rl`, or
+on a selection or test seed. It checks each episode's `scene.json` and records the result as `data_check`. This is a
+run-enabling safeguard. It makes the existing rule enforceable in code, and changes no rule. So noise at the
   earlier std swamped demo-like motion, which is why the planned initial std is low.
 
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
