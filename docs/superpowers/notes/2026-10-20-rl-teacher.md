@@ -355,3 +355,30 @@ loss.
 **Tests:**
 - SANT venv: full suite, 2594 passed, 35 skipped.
 - Isaac venv, CPU, no app: 86 passed, 1 skipped.
+
+### The bonus came one step early (found in v5, fixed in bf56c20 and 2333c96)
+
+**The symptom.** v5's `Metrics/bonus_agrees_with_check_success` was 0.91 at iteration 150 and 0.85 at 300.
+- The direction was "bonus paid, check_success fails". At 150, check_success was 0.00, so every disagreement was a bonus paid on a failed episode.
+- The episodes failed as `not_settled`. `Failures/not_settled` rose 0.03 → 0.09 → 0.17.
+- `Episode_Termination/success` was about 0.20 while check_success was 0.00 to 0.06.
+
+**The cause.**
+- The monitor read the cube's body velocity from physics. check_success measures speed by the change in position between steps.
+- The physics velocity drops below 0.01 m/s one step before the position change does. So the bonus, and the env's success termination, came at 0.48 s of check_success's settle time.
+- That hit every episode that ended on the bonus, whatever its start. It was not tied to held starts, and not to truncation at the time limit.
+- The offline calibration missed it because recorded episodes run on past the bonus.
+- It taught nothing wrong: the cube had been placed. But check_success undercounted.
+
+**Fix 1, `bf56c20`.**
+- The monitor measures the cube's speed from the change in position since the last step. An episode's first step counts as moving.
+- The bonus now fires exactly when check_success on the cut episode passes. The test makes physics report zero speed throughout:
+  - fixed, the bonus lands at step 391;
+  - unfixed, it landed at step 387.
+- This is a run-enabling fix: the bonus now matches its spec.
+- demo_v6 was launched before this fix, so its check_success undercounts. Read `Episode_Termination/success` beside it.
+
+**Fix 2, `2333c96`: the lead's decision A.**
+- Play episodes end 0.2 s after the bonus (`PLAY_SUCCESS_EXTRA_S`). Training is unchanged.
+- **Why:** the gate re-simulates each trajectory. A trajectory that ended exactly at 0.50 s of settle could fail there by one step. With the margin, a teacher that bumps the bin after placing also fails.
+- T6's round-0 rollouts are unaffected. They run check_success every 25 steps on their own env's records, until it passes or time runs out.
