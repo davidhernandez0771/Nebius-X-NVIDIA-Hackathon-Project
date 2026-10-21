@@ -161,6 +161,18 @@ The training options (`--augment shift`, `--dilation`) pass through `--train-arg
 - **Output:** episodes plus one row per seed, resumable.
 - **Shutdown:** the server is stopped inside the sim context (closing the app ends the process).
 
+## Tomorrow's order (from the lead, 2026-10-20 night)
+
+1. **Smoke ik_label first.** Run the smoke command below (`--run-id distill_smoke --teacher-n 4 ...`, about
+   30 min). It is the first time `IsaacDistillEnv` (teacher_state + ik_label) runs at all. Check that:
+   - the rollouts finish;
+   - the episodes' `action` columns look like joint targets;
+   - the front frames show the arm following the teacher.
+2. **The 50-scene teacher gate.** Use `--teacher-n 50 --stop-after rollouts` and require ≥ 0.9 in
+   `rollouts_done.json`.
+3. **Round 0 with `--teacher-n 300`.** This halves rollouts and export compared with 600. It resumes the 50 gate
+   seeds.
+
 ## The GPU commands (after T3's teacher is trained)
 
 Set these once (cmd). The teacher spec and checkpoint are T3's; the placeholders below are not real paths yet.
