@@ -39,6 +39,7 @@ const ReviewPage2 = lazy(() => import("./site/review/ReviewPage2"));
 const SetupPage = lazy(() => import("./site/setup/SetupPage"));
 // The new Record (the hologram). The old one stays at /legacy/pm/record.
 const RecordConsole = lazy(() => import("./site/record/RecordConsole"));
+const PipelinePage = lazy(() => import("./site/pipeline/PipelinePage"));
 const SiteResultsPage = lazy(() => import("./site/results/ResultsPage").then((m) => ({ default: m.ResultsPage })));
 const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
 // The data showcase: real demos through SANT, in the twin and the sim's camera, and SANT working live.
@@ -76,6 +77,9 @@ export default function App() {
           <Route path="/site/results" element={lazyPage(<SiteResultsPage />)} />
           <Route path="/robots" element={lazyPage(<RobotsPage />)} />
           <Route path="/data" element={lazyPage(<DataPage />)} />
+          <Route path="/pipeline" element={lazyPage(<PipelinePage />)} />
+          <Route path="/pipeline/:run" element={lazyPage(<PipelinePage />)} />
+          <Route path="/pipeline/:run/:stage" element={lazyPage(<PipelinePage />)} />
           <Route path="/robots/setup" element={lazyPage(<SetupPage />)} />
         </Route>
         {/* The work pages a cartridge opens, in the journey's look. Record is the hologram (/record). */}

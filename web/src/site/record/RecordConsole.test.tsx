@@ -265,6 +265,17 @@ describe("/record", () => {
     expect(within(tile("recorded")).getByText("1")).toBeTruthy();
   });
 
+  it("after Record, runs SANT on the demos saved this visit: the pipeline, with their ids", async () => {
+    const link = await startCamera();
+    const run = () => screen.getByRole("link", { name: /run sant/i });
+    expect(run().getAttribute("href")).toBe("/pipeline");
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ steps: 376, demoId: "human_a", lastResult: "saved human_a" })));
+    act(() => link.emitSim(sim({ steps: 200, demoId: "human_b", lastResult: "saved human_b" })));
+    expect(run().getAttribute("href")).toBe("/pipeline?demos=human_a,human_b");
+    expect(run().textContent).toMatch(/2 demos/);
+  });
+
   it("Stop & discard shows only while recording and sends record_discard; Record still stops and saves", async () => {
     const link = await startCamera();
     act(() => link.emitStatus(connected));
