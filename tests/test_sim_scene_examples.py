@@ -154,8 +154,20 @@ def test_an_unsettled_plan_is_reported_and_a_crashed_settle_fails(tmp_path):
     assert rows[0]["settled"] and not rows[2]["ran"]
 
 
+# The base is the branch point with pm/live-11, a local integration branch that was never pushed: CI's checkout
+# (and any shallow clone) has no such ref, so this test skips there instead of failing on `git merge-base`.
+BASE_REF = os.environ.get("SANT_BASE_REF", "pm/live-11")
+
+
+def _merge_base_or_skip(ref: str) -> None:
+    ok = subprocess.run(["git", "merge-base", "HEAD", ref], cwd=REPO, capture_output=True).returncode == 0
+    if not ok:
+        pytest.skip(f"no merge-base with {ref!r} in this checkout (a local-only branch; CI and shallow clones lack it)")
+
+
 def test_the_base_code_is_the_branch_point_exported_read_only(tmp_path):
-    commit = _smoke().export_base(tmp_path / "base_code")
+    _merge_base_or_skip(BASE_REF)
+    commit = _smoke().export_base(tmp_path / "base_code", ref=BASE_REF)
     assert len(commit) == 40
     want = subprocess.run(["git", "show", f"{commit}:sim_worker/replay.py"], cwd=REPO, capture_output=True, check=True).stdout
     got = (tmp_path / "base_code" / "sim_worker" / "replay.py").read_bytes()
