@@ -27,6 +27,8 @@ export interface CatalogRobot {
   result?: string;
   /** The arm joints' ranges, from its URDF chain (none when its description wasn't downloaded). */
   limits?: readonly { joint: string; range: string }[];
+  /** What stands for it on the robot wall: its maker's meshes (repo, commit, licence) or a stand-in. */
+  model: string;
   /** Where each fact comes from: repo paths, the notes, or the catalog note's upstream repos. */
   sources: readonly string[];
 }
@@ -46,6 +48,18 @@ function fromUrdf(spec: Spec) {
 
 const URDF = { franka: fromUrdf(specs.franka), so101: fromUrdf(specs.so101), piper: fromUrdf(specs.piper), openarm: fromUrdf(specs.openarm) };
 
+/** Licence caveats from C:/dev/assets/robots/SOURCES.md. */
+const LICENCE_NOTE: Partial<Record<keyof typeof specs, string>> = { piper: " (its package.xml says BSD)" };
+
+/**
+ * The robot wall's model of a robot: its maker's published meshes from its description repo, reduced
+ * and posed in Blender (docs/design/blender/robots.blend; web/public/world/models/robots).
+ */
+function modelLine(id: keyof typeof specs): string {
+  const s = specs[id];
+  return `Its maker's published meshes: ${s.repo}@${s.commit}, ${s.licence}${LICENCE_NOTE[id] ?? ""}.`;
+}
+
 const T2 = "docs/superpowers/notes/2026-10-15-t2-status.md";
 const BYOR = "docs/superpowers/notes/2026-10-18-byor-backend.md";
 const CATALOG_NOTE = "robot catalog note (open robot arm catalog, 2026-10-17)";
@@ -61,6 +75,7 @@ export const CATALOG: readonly CatalogRobot[] = [
     today: "SANT's main robot: record a demo, check it in physics, multiply it, train on it. The Record page's twin and the machine's hologram are this arm.",
     status: "tested",
     result: "Multiply 30/30 verified copies (seeds 100–129, 2026-10-18). A policy trained on SANT's copies: 17/40 vs 3/40 raw.",
+    model: modelLine("franka"),
     sources: [
       "web/public/robots/franka_description (package.xml, panda_arm_hand.urdf)",
       "sim_worker/robots.py, sim_worker/scene_cfg.py (FRANKA_PANDA_HIGH_PD_CFG)",
@@ -79,6 +94,7 @@ export const CATALOG: readonly CatalogRobot[] = [
     today: "Runs SANT's pick-and-place replay and multiply in Isaac (robot \"flexiv\").",
     status: "tested",
     result: "Multiply 9/30, scripted 5/30 (2026-10-16). It loses the grip (slip, drag), not the reach. Not re-run since the handover fix.",
+    model: "A simple stand-in: its meshes aren't among the downloaded descriptions (C:/dev/assets/robots/SOURCES.md), so the shape only suggests the arm.",
     sources: ["sim_worker/robots.py, sim_worker/scene_cfg.py (FLEXIV_RIZON4S_GRAV_GRIPPER_CFG)", `${T2} (Task 3: second-arm trial)`],
   },
   {
@@ -91,6 +107,7 @@ export const CATALOG: readonly CatalogRobot[] = [
     today: "Runs the replay and multiply in Isaac (robot \"openarm\"), and was a test robot for Bring your robot.",
     status: "tested",
     result: "Multiply 0/30 (2026-10-16), 0/30 again through Bring your robot (2026-10-18): its ±45° wrist can't keep the gripper vertical over the table.",
+    model: modelLine("openarm"),
     sources: ["sim_worker/robots.py, sim_worker/scene_cfg.py (OPENARM_UNI_HIGH_PD_CFG)", `${T2} (Task 5: shoulder to wrist <= 0.44 m)`, BYOR,
       `${CATALOG_NOTE} (maker)`, URDF.openarm.source],
   },
@@ -103,6 +120,7 @@ export const CATALOG: readonly CatalogRobot[] = [
     gripper: "One revolute jaw.",
     today: "Nothing yet. Planned through Bring your robot (its URDF, Apache-2.0); the URDF and meshes are downloaded, not imported yet.",
     status: "planned",
+    model: modelLine("so101"),
     sources: [`${CATALOG_NOTE}: github.com/TheRobotStudio/SO-ARM100`, `${BYOR} (SO-101 skipped)`, URDF.so101.source],
   },
   {
@@ -114,9 +132,26 @@ export const CATALOG: readonly CatalogRobot[] = [
     gripper: "Two sliding fingers.",
     today: "Nothing yet. Planned through Bring your robot (its URDF, MIT); Isaac doesn't ship it.",
     status: "planned",
+    model: modelLine("piper"),
     sources: [`${CATALOG_NOTE}: github.com/agilexrobotics/piper_ros`, URDF.piper.source],
   },
 ];
+
+/** An arm on the wall that SANT hasn't run (the right wall's middle shelf): no status, only what its URDF gives. */
+export interface WallOnlyRobot {
+  id: string;
+  name: string;
+  /** "DoF 6 · reach 0.97 m", from its URDF chain (specs.json). */
+  spec: string;
+  model: string;
+}
+
+export const WALL_ONLY: readonly WallOnlyRobot[] = (["fr3", "ur5e", "xarm6"] as const).map((id) => ({
+  id,
+  name: specs[id].label,
+  spec: `DoF ${specs[id].dof} · reach ${specs[id].reach_m.toFixed(2)} m`,
+  model: modelLine(id),
+}));
 
 const BY_ID = new Map(CATALOG.map((r) => [r.id, r]));
 
