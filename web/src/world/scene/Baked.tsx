@@ -9,7 +9,8 @@ import * as THREE from "three";
 import { bakedUrl, type BakedName } from "./assets";
 import { addBaked, markLoaded } from "./power";
 
-export function Baked({ name, anisotropy = 1 }: { name: BakedName; anisotropy?: number }) {
+/** `cut`: keeps part of the baked mesh (the machine body under the new machine keeps only its cable, machineV2.ts). */
+export function Baked({ name, anisotropy = 1, cut }: { name: BakedName; anisotropy?: number; cut?: (g: THREE.BufferGeometry) => THREE.BufferGeometry }) {
   const url = bakedUrl(name);
   const gltf = useGLTF(url, false);
   const invalidate = useThree((s) => s.invalidate);
@@ -23,8 +24,9 @@ export function Baked({ name, anisotropy = 1 }: { name: BakedName; anisotropy?: 
     }
     // The atlas is already the final picture: no tone mapping on top of it.
     const material = new THREE.MeshBasicMaterial({ map, toneMapped: false, side: THREE.DoubleSide });
-    return { geometry: src.geometry as THREE.BufferGeometry, material };
-  }, [gltf, name, url, anisotropy]);
+    const whole = src.geometry as THREE.BufferGeometry;
+    return { geometry: cut ? cut(whole) : whole, material };
+  }, [gltf, name, url, anisotropy, cut]);
 
   useEffect(() => {
     const off = addBaked(material);
@@ -35,6 +37,8 @@ export function Baked({ name, anisotropy = 1 }: { name: BakedName; anisotropy?: 
       material.dispose();
     };
   }, [material, url, invalidate]);
+  // A cut is this component's own geometry (the whole one is the cached file's).
+  useEffect(() => () => void (cut && geometry.dispose()), [geometry, cut]);
 
   return <mesh name={`baked:${name}`} geometry={geometry} material={material} matrixAutoUpdate={false} />;
 }

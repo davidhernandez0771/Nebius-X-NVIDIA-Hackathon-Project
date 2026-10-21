@@ -1,31 +1,36 @@
-// The machine's live parts, from machine.glb (its desk and body are baked, in the workshop's room):
-// - the two fans, spinning on high and ultra while the lamps are on (an idle loop, so never on low);
-// - the teal lights: the strip along the front, the fan marks, the slot (it flashes as a cartridge
-//   seats) and the projector's lens;
-// - the hologram: the beam, the wireframe arm and the Record screen, coming up after the click;
-// - the cartridge on its way: from its spiral slot to the port (scene/plugSequence.ts). A click
-//   runs it in PLUG_S; with nobody choosing, the machine's own dwell plugs the default one in.
+// The machine, from machine_v2.glb (scene/machineV2.ts): a realistic GPU-style card on the desk, drawn
+// live with its metals' reflections (the desk is baked, and the room's baked machine body keeps only the
+// power cable and plug, workshop/Scene.tsx):
+// - the body: every non-glowing part in one mesh, its colour, metalness and roughness per vertex;
+// - the two fans, turning slowly on high and ultra while the lamps are on (an idle loop, so never on low);
+// - the teal lights: the strip along the front and the dock's marks, the fan marks, the dock's slot
+//   (it flashes as a cartridge seats) and the projector's lens;
+// - the hologram: machine.glb's Record screen, and the particle twin over the lens (HoloTwin), coming up
+//   after the click;
+// - the cartridge on its way: from its spiral slot into the dock (scene/plugSequence.ts). A click runs
+//   it in PLUG_S; with nobody choosing, the machine's own dwell plugs the default one in.
 import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR } from "../../core/layout";
 import { ambient } from "../../core/activity";
 import { useWorld, useWorldState } from "../../core/WorldContext";
 import { HoloTwin } from "../../scene/HoloTwin";
 import type { StationSceneProps } from "../../core/types";
-import { CARTRIDGE_URL, MACHINE_URL } from "../../scene/assets";
+import { CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL } from "../../scene/assets";
 import { Materialize } from "../../scene/Materialize";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
 import { slotLook } from "../../scene/Helix";
 import { tileUv } from "../../scene/labels";
-import { liveMaterial, trackLive } from "../../scene/materials";
+import { HOLO_ABOVE_LENS, splitMachineV2 } from "../../scene/machineV2";
+import { liveMaterial, trackLive, vertexPbrMaterial } from "../../scene/materials";
 import { plug } from "../../scene/plug";
 import { cartridgePose, projection, scrollU, slotGlow, timeU, type CartridgePose } from "../../scene/plugSequence";
 import { addGlow, markLoaded, power, setGlowGain } from "../../scene/power";
 
-const FAN_RPS = 0.9;
+/** Slow: a card at idle, not a jet. */
+const FAN_RPS = 0.3;
 /** The projector's lens before it projects: a faint ready light. */
 const LENS_IDLE = 0.12;
 const is = (o: THREE.Object3D, ...names: string[]) => names.some((n) => o.name.startsWith(`mx_M_${n}`));
@@ -37,147 +42,75 @@ interface Built {
   lens: THREE.MeshBasicMaterial;
   holo: { mat: THREE.MeshBasicMaterial; peak: number }[];
   screen: THREE.Object3D | null;
-  /** Where the projector's lens is, local to the machine: the hologram stands on it. */
-  lensAt: THREE.Vector3;
+  /** Where the hologram stands, local to the machine: just over the lens. */
+  holoAt: THREE.Vector3;
   releases: (() => void)[];
 }
 
-/** Pick the live nodes out of machine.glb (cloned, so the cached file stays as loaded) with tier materials. */
-function build(scene: THREE.Object3D, tier: StationSceneProps["quality"]): Built {
+/** The machine from machine_v2.glb, and the hologram's screen from machine.glb, with tier materials. */
+function build(old: THREE.Object3D, v2: THREE.Object3D, tier: StationSceneProps["quality"]): Built {
   const root = new THREE.Group();
   const releases: (() => void)[] = [];
-  const glow = (src: THREE.Material, gain = 1) => {
-    const s = src as THREE.MeshStandardMaterial;
-    const m = new THREE.MeshBasicMaterial({ toneMapped: false, name: s.name });
-    releases.push(addGlow(m, s.emissive), () => m.dispose());
+  const glow = (color: THREE.Color, gain = 1, name = "glow") => {
+    const m = new THREE.MeshBasicMaterial({ toneMapped: false, name });
+    releases.push(addGlow(m, color), () => m.dispose());
     setGlowGain(m, gain);
     return m;
   };
-  const holo = (m: THREE.MeshBasicMaterial, peak: number) => {
+  const add = (parent: THREE.Object3D, geometry: THREE.BufferGeometry, material: THREE.Material, name: string) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = name;
+    mesh.raycast = () => {};
+    parent.add(mesh);
+    releases.push(() => geometry.dispose());
+    return mesh;
+  };
+
+  const parts = splitMachineV2(v2);
+  const pbr = vertexPbrMaterial(tier, "machine-v2");
+  releases.push(trackLive(pbr));
+  add(root, parts.body, pbr, "machine:body");
+  const teal = glow(parts.glowColor, 1, "machine:glow");
+  add(root, parts.glow, teal, "machine:glow");
+  const slot = glow(parts.glowColor, 0, "machine:slot");
+  add(root, parts.slot, slot, "machine:slot");
+  const lens = glow(parts.lensColor, LENS_IDLE, "machine:lens");
+  add(root, parts.lens, lens, "machine:lens");
+  const fans = parts.fans.map((f, k) => {
+    // Turns about the fan's own axis: a group there.
+    const g = new THREE.Group();
+    g.name = `machine:fan${k}`;
+    g.position.set(f.centre.x, 0, f.centre.z);
+    add(g, f.body, pbr, `machine:fan${k}:blades`);
+    add(g, f.mark, teal, `machine:fan${k}:mark`);
+    root.add(g);
+    return g;
+  });
+
+  // The Record screen over the hologram, from machine.glb (its beam and wire arm gave way to HoloTwin).
+  const holos: Built["holo"] = [];
+  let screen: THREE.Object3D | null = null;
+  old.updateMatrixWorld(true);
+  old.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || !is(o, "HoloScreen")) return;
+    const src = o.material as THREE.MeshStandardMaterial;
+    const m = glow(src.emissive, 1, src.name);
+    m.map = src.emissiveMap;
+    m.side = THREE.DoubleSide;
     m.transparent = true;
     m.opacity = 0;
     m.depthWrite = false;
-    return { mat: m, peak };
-  };
-  const metal = new Map<THREE.Material, THREE.Material>();
-  const metalFor = (src: THREE.Material) => {
-    let m = metal.get(src);
-    if (!m) {
-      m = liveMaterial(src, tier);
-      metal.set(src, m);
-      releases.push(trackLive(m));
-    }
-    return m;
-  };
-
-  const fanAt = [new THREE.Group(), new THREE.Group()];
-  const holos: Built["holo"] = [];
-  const stripGlow = new Map<THREE.Material, THREE.MeshBasicMaterial>();
-  const holoWire = new Map<THREE.Material, THREE.MeshBasicMaterial>();
-  let slot: THREE.MeshBasicMaterial | null = null;
-  let lens: THREE.MeshBasicMaterial | null = null;
-  let screen: THREE.Object3D | null = null;
-  let lensAt: THREE.Vector3 | null = null;
-
-  scene.updateMatrixWorld(true);
-  scene.traverse((o) => {
-    if (!(o instanceof THREE.Mesh)) return;
-    const src = o.material as THREE.MeshStandardMaterial;
-    let mat: THREE.Material;
-    let parent: THREE.Object3D = root;
-    if (is(o, "FanHub", "FanMark", "Blade", "FanRing")) {
-      const k = o.position.x < 0 ? 0 : 1;
-      if (is(o, "FanRing")) mat = metalFor(src);
-      else {
-        // Spin about the fan's own centre: parent it to a group there.
-        const g = fanAt[k];
-        if (g.parent === null) {
-          g.position.set(o.position.x, 0, o.position.z);
-          root.add(g);
-        }
-        parent = g;
-        mat = is(o, "FanMark") ? (stripGlow.get(src) ?? stripGlow.set(src, glow(src)).get(src)!) : metalFor(src);
-      }
-    } else if (is(o, "SlotGlow")) mat = slot = glow(src, 0);
-    else if (is(o, "Lens")) {
-      mat = lens = glow(src, LENS_IDLE);
-      lensAt = o.position.clone();
-    }
-    else if (is(o, "GlowStrip")) mat = stripGlow.get(src) ?? stripGlow.set(src, glow(src)).get(src)!;
-    // The old beam cone and wireframe arm: the particle hologram (HoloTwin) replaces both.
-    else if (is(o, "HoloBeam", "Holo_")) return;
-    else if (is(o, "HoloBeam")) {
-      const m = glow(src);
-      m.blending = THREE.AdditiveBlending;
-      m.side = THREE.DoubleSide;
-      holos.push(holo(m, 0.08));
-      mat = m;
-    } else if (is(o, "HoloScreen")) {
-      const m = glow(src);
-      m.map = src.emissiveMap;
-      m.side = THREE.DoubleSide;
-      holos.push(holo(m, 0.96));
-      mat = m;
-    } else if (is(o, "Holo_")) {
-      // One wireframe material per source, so the arm's parts merge into one mesh (mergeSiblings).
-      let m = holoWire.get(src);
-      if (!m) {
-        m = glow(src);
-        m.wireframe = true;
-        m.blending = THREE.AdditiveBlending;
-        holos.push(holo(m, 0.85));
-        holoWire.set(src, m);
-      }
-      mat = m;
-    } else return; // baked: the desk, fins, shroud, vents, heat pipes, cable, port
-    const mesh = new THREE.Mesh(o.geometry, mat);
+    holos.push({ mat: m, peak: 0.96 });
+    const mesh = new THREE.Mesh(o.geometry, m);
     mesh.name = o.name;
     mesh.position.copy(o.position);
     mesh.quaternion.copy(o.quaternion);
     mesh.scale.copy(o.scale);
-    if (parent !== root) mesh.position.sub(parent.position);
-    if (is(o, "HoloScreen")) screen = mesh;
     mesh.raycast = () => {};
-    parent.add(mesh);
+    root.add(mesh);
+    screen = mesh;
   });
-  mergeSiblings(root, screen, releases);
-  fanAt.forEach((g) => mergeSiblings(g, screen, releases));
-  return { root, fans: fanAt, slot: slot!, lens: lens!, holo: holos, screen, lensAt: lensAt ?? new THREE.Vector3(3.18, 3.44, -1.69), releases };
-}
-
-/**
- * Draw calls: the file has a mesh per fan blade and per hologram part. Siblings that share a
- * material and never move apart (a fan's blades turn together; the hologram lights as one) become
- * one mesh. `keep` (the screen, which scales on its own) stays apart.
- */
-function mergeSiblings(parent: THREE.Object3D, keep: THREE.Object3D | null, releases: (() => void)[]): void {
-  const buckets = new Map<THREE.Material, THREE.Mesh[]>();
-  for (const c of parent.children) {
-    if (!(c instanceof THREE.Mesh) || c === keep) continue;
-    const list = buckets.get(c.material as THREE.Material) ?? [];
-    list.push(c);
-    buckets.set(c.material as THREE.Material, list);
-  }
-  for (const [material, meshes] of buckets) {
-    if (meshes.length < 2) continue;
-    const names = Object.keys(meshes[0].geometry.attributes).filter((n) => meshes.every((m) => m.geometry.getAttribute(n)));
-    const geos = meshes.map((m) => {
-      m.updateMatrix();
-      const g = new THREE.BufferGeometry();
-      const src = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
-      for (const n of names) g.setAttribute(n, src.getAttribute(n).clone());
-      return g.applyMatrix4(m.matrix);
-    });
-    const merged = mergeGeometries(geos);
-    geos.forEach((g) => g.dispose());
-    if (!merged) continue;
-    const mesh = new THREE.Mesh(merged, material);
-    mesh.name = `${meshes[0].name}+${meshes.length - 1}`;
-    mesh.raycast = () => {};
-    meshes.forEach((m) => parent.remove(m));
-    parent.add(mesh);
-    releases.push(() => merged.dispose());
-  }
+  return { root, fans, slot, lens, holo: holos, screen, holoAt: parts.lensTop.clone().setY(parts.lensTop.y + HOLO_ABOVE_LENS), releases };
 }
 
 /** The cartridge in flight and plugged in: cartridge.glb's parts as plain meshes, retinted per slot. */
@@ -223,13 +156,15 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
   const { store, goTo } = useWorld();
   const label = useWorldState((c) => (c.cartridge ?? DEFAULT_CARTRIDGE).label);
   const gltf = useGLTF(MACHINE_URL, false);
+  const v2 = useGLTF(MACHINE_V2_URL, false);
   const invalidate = useThree((s) => s.invalidate);
-  const built = useMemo(() => build(gltf.scene, quality), [gltf, quality]);
+  const built = useMemo(() => build(gltf.scene, v2.scene, quality), [gltf, v2, quality]);
   const hero = useHero(quality);
   const st = useRef({ clicked: false, startedAt: 0, dressed: -1, pose: { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() } as CartridgePose });
 
   useEffect(() => {
     markLoaded(MACHINE_URL);
+    markLoaded(MACHINE_V2_URL);
     invalidate();
     return () => built.releases.forEach((r) => r());
   }, [built, invalidate]);
@@ -295,7 +230,7 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     <Materialize>
       <primitive object={built.root} />
       <primitive object={hero.group} />
-      {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} label={label} position={[built.lensAt.x, built.lensAt.y + 0.35, built.lensAt.z]} /> : null}
+      {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} label={label} position={[built.holoAt.x, built.holoAt.y, built.holoAt.z]} /> : null}
     </Materialize>
   );
 }

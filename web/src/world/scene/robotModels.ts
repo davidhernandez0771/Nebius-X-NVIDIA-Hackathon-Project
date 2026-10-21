@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { connectedPieces, subGeometry } from "./meshPieces";
 
 const BASE = `${import.meta.env.BASE_URL}world/`;
 
@@ -132,48 +133,17 @@ function standUp(g: THREE.BufferGeometry, axis: THREE.Vector3): void {
  * as connected (the export splits them where the normals break).
  */
 export function modelPieces(model: THREE.BufferGeometry, max = MAX_PIECES): THREE.BufferGeometry[] {
-  const pos = model.getAttribute("position");
-  const p = pos.array as ArrayLike<number>;
-  const n = pos.count;
-  const idx = model.index ? (model.index.array as ArrayLike<number>) : [...Array(n).keys()];
-  const parent = new Int32Array(n).map((_, i) => i);
-  const find = (x: number): number => {
-    while (parent[x] !== x) x = parent[x] = parent[parent[x]];
-    return x;
-  };
-  const join = (a: number, b: number) => {
-    const ra = find(a), rb = find(b);
-    if (ra !== rb) parent[rb] = ra;
-  };
-  for (let t = 0; t < idx.length; t += 3) {
-    join(idx[t], idx[t + 1]);
-    join(idx[t], idx[t + 2]);
-  }
   // Same place and same colour: the export's split at a hard edge, not a seam between two parts.
+  const pos = model.getAttribute("position");
   const rgb = model.getAttribute("color");
-  const at = new Map<string, number>();
-  for (let v = 0; v < n; v++) {
-    const k = `${Math.round(p[v * 3] * 1e5)},${Math.round(p[v * 3 + 1] * 1e5)},${Math.round(p[v * 3 + 2] * 1e5)},${rgb.getX(v).toFixed(3)},${rgb.getY(v).toFixed(3)}`;
-    const w = at.get(k);
-    if (w === undefined) at.set(k, v);
-    else join(w, v);
-  }
-
-  interface Comp { tris: number[]; box: THREE.Box3; vol: number }
-  const comps = new Map<number, Comp>();
+  const weld = (v: number) =>
+    `${Math.round(pos.getX(v) * 1e5)},${Math.round(pos.getY(v) * 1e5)},${Math.round(pos.getZ(v) * 1e5)},${rgb.getX(v).toFixed(3)},${rgb.getY(v).toFixed(3)}`;
   const v3 = new THREE.Vector3();
-  for (let t = 0; t < idx.length; t += 3) {
-    const r = find(idx[t]);
-    let c = comps.get(r);
-    if (!c) comps.set(r, (c = { tris: [], box: new THREE.Box3(), vol: 0 }));
-    c.tris.push(t);
-    for (let k = 0; k < 3; k++) c.box.expandByPoint(v3.fromBufferAttribute(pos as never, idx[t + k]));
-  }
-  const all = [...comps.values()];
-  for (const c of all) {
-    const s = c.box.getSize(v3);
-    c.vol = Math.max(s.x, 1e-4) * Math.max(s.y, 1e-4) * Math.max(s.z, 1e-4);
-  }
+  const all = connectedPieces(model, weld).map((c) => {
+    const sz = c.box.getSize(v3);
+    return { ...c, vol: Math.max(sz.x, 1e-4) * Math.max(sz.y, 1e-4) * Math.max(sz.z, 1e-4) };
+  });
+  type Comp = (typeof all)[number];
   all.sort((a, b) => b.vol - a.vol);
   const shells = all.filter((c) => c.vol >= all[0].vol * MIN_SHARE && c.tris.length >= MIN_TRIS);
   const members = new Map<Comp, Comp[]>(shells.map((s) => [s, [s]]));
@@ -186,34 +156,11 @@ export function modelPieces(model: THREE.BufferGeometry, max = MAX_PIECES): THRE
     if (home) members.get(home)!.push(c);
   }
 
-  const norm = model.getAttribute("normal");
-  const col = model.getAttribute("color");
   const out: THREE.BufferGeometry[] = [];
   for (const s of shells) {
-    const remap = new Map<number, number>();
-    const index: number[] = [];
-    for (const c of members.get(s)!)
-      for (const t of c.tris)
-        for (let k = 0; k < 3; k++) {
-          const v = idx[t + k];
-          let m = remap.get(v);
-          if (m === undefined) remap.set(v, (m = remap.size));
-          index.push(m);
-        }
-    const verts = [...remap.keys()];
-    const take = (a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, size: number) => {
-      const arr = new Float32Array(verts.length * size);
-      verts.forEach((v, i) => {
-        for (let k = 0; k < size; k++) arr[i * size + k] = a.getComponent(v, k);
-      });
-      return new THREE.BufferAttribute(arr, size);
-    };
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", take(pos, 3));
-    g.setAttribute("normal", take(norm, 3));
-    g.setAttribute("color", take(col, 3));
-    g.setIndex(index);
-    standUp(g, principalAxis(p, verts));
+    const g = subGeometry(model, members.get(s)!.flatMap((c) => c.tris), ["position", "normal", "color"]);
+    const p = g.getAttribute("position");
+    standUp(g, principalAxis(p.array as ArrayLike<number>, [...Array(p.count).keys()]));
     out.push(g);
   }
   const vol = (g: THREE.BufferGeometry) => {
