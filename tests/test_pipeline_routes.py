@@ -117,7 +117,7 @@ def test_the_event_stream_starts_with_the_snapshot_and_ends(setup):
         events = [json.loads(line[6:]) for line in r.iter_lines() if line.startswith("data: ")]
     assert events[0]["type"] == "snapshot" and events[0]["id"] == run_id
     assert any(e["type"] == "log" and "select: 4 demos" in e["line"] for e in events)
-    assert events[-1] == {"type": "end", "status": "done"}
+    assert events[-1] == {"type": "end", "status": "done", "detail": None}
 
 
 def test_the_patches_between_two_snapshots(setup):
@@ -133,5 +133,42 @@ def test_the_patches_between_two_snapshots(setup):
     kinds = [p["type"] for p in patches]
     assert kinds == ["stage", "gpu", "check", "variant", "train", "checkpoint", "evaluate", "artifact"]
     assert patches[0] == {"type": "stage", "id": "check", "stage": "check", "status": "running", "progress": 0.2}
-    assert patches[4] == {"type": "train", "step": 50, "steps": 100, "loss": [[50, 0.3]], "eta_s": 2}
+    assert patches[4] == {"type": "train", "step": 50, "steps": 100, "cell": None, "loss": 0.3, "loss_points": [[50, 0.3]],
+                          "eta_s": 2}
     assert pipeline.patches(after, after) == []
+
+
+def test_the_patches_match_the_pages_reducer():
+    # T2's model (web/src/site/pipeline/model.ts, pm/pipeline-pages): a train patch's `loss` is the latest loss at
+    # `step` (a number) with its `cell`; a "run" patch moves elapsed/remaining/status; "end" carries the detail.
+    base = {"status": "running", "detail": None, "resumable": False, "elapsed_s": 10.0, "remaining_s": 100.0,
+            "stages": [], "gpu": {}, "check": [], "repair": [], "variants": [],
+            "train": {"step": 0, "steps": 100, "cell": "raw_4", "loss": [], "checkpoints": [], "eta_s": 5},
+            "evaluate": {"seeds": [], "planned": 0}, "artifacts": []}
+    later = {**base, "elapsed_s": 16.0, "remaining_s": 90.0,
+             "train": {**base["train"], "step": 100, "loss": [[50, 0.3], [100, 0.2]], "eta_s": 0}}
+    p = {x["type"]: x for x in pipeline.patches(base, later)}
+    assert p["train"] == {"type": "train", "step": 100, "steps": 100, "cell": "raw_4", "loss": 0.2,
+                          "loss_points": [[50, 0.3], [100, 0.2]], "eta_s": 0}
+    assert p["run"] == {"type": "run", "status": "running", "detail": None, "resumable": False, "elapsed_s": 16.0,
+                        "remaining_s": 90.0}
+    # elapsed alone moves the run patch only every 5 s
+    tick = {**base, "elapsed_s": 12.0}
+    assert [x["type"] for x in pipeline.patches(base, tick)] == []
+
+
+def test_a_failed_variant_keeps_an_id_and_the_snapshot_has_the_log(setup):
+    client, m, procs, data, monkeypatch = setup
+    monkeypatch.setenv("SANT_PIPELINE", "1")
+    run_id = client.post("/pipeline/runs", json={"tag": "human_*"}).json()["id"]
+    root = data / "human_exp" / run_id
+    (root / "store").mkdir(parents=True)
+    (root / "config.json").write_text(json.dumps({"ids": ["human_a"], "variants": 2}), encoding="utf-8")
+    (root / "stages" / "multiply").mkdir(parents=True)
+    (root / "stages" / "multiply" / "human_a.json").write_text(json.dumps({"source": "human_a_rules_home", "attempts": [
+        {"seed": 3100, "id": "human_a_rules_home_m3100", "success": True, "reasons": []},
+        {"seed": 3101, "id": None, "success": False, "reasons": ["dropped"]}]}), encoding="utf-8")
+    (root / "run.log").write_text("".join(f"[human-exp 21:00:{i:02d}] line {i}\n" for i in range(50)), encoding="utf-8")
+    snap = client.get(f"/pipeline/runs/{run_id}").json()
+    assert [v["id"] for v in snap["variants"]] == ["human_a_rules_home_m3100", "human_a_rules_home_m3101"]
+    assert len(snap["log"]) == 40 and snap["log"][-1].endswith("line 49")

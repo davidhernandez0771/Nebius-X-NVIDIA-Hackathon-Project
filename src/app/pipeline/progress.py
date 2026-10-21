@@ -29,6 +29,14 @@ PUBLIC_STATUS = {"queued": "queued", "running": "running", "cancelling": "runnin
 # How far a recipe goes (stop_after), as the last stage it runs before the export
 LAST_STAGE = {"grid": "train", "train": "train", "eval": "evaluate", "results": "evaluate"}
 _STEP = re.compile(r"step:(\d+)(K?)\s.*?loss:([\d.]+)")
+LOG_LINES = 40  # run.log lines in a snapshot
+
+
+def _tail(path: Path, n: int) -> list[str]:
+    try:
+        return [x for x in path.read_text(encoding="utf-8", errors="replace").splitlines() if x.strip()][-n:]
+    except OSError:
+        return []
 
 
 def _read_json(path: Path):
@@ -207,7 +215,9 @@ def snapshot(run: dict, *, data: Path, timings: Timings, now: float, lock: str |
         "repair": [{"demo": r["id"], "status": r["repair"]["status"], "repairs": r["repair"]["repairs"],
                     "before": r["repair"]["before"], "after": r["repair"]["after"], "output_id": r["repair"]["output_id"]}
                    for r in rows if r["repair"]],
-        "variants": [{**v, "source": r["id"]} for r in rows for v in r["variants"]],
+        # A failed variant has no episode id in the stage file: it keeps the name it would have had, so each row has one
+        "variants": [{**v, "id": v.get("id") or f"{(_read_json(marker('multiply', r['id'])) or {}).get('source') or r['id']}_m{v.get('seed')}",
+                      "source": r["id"]} for r in rows for v in r["variants"]],
         "train": {"step": (min(curves[current][-1][0], steps) if current and curves.get(current) else 0), "steps": steps,
                   "cell": current, "loss": curves.get(current, []) if current else [],
                   "checkpoints": [{"step": int(p.name), "name": p.name}
@@ -216,6 +226,7 @@ def snapshot(run: dict, *, data: Path, timings: Timings, now: float, lock: str |
                   "eta_s": next(s["eta_s"] for s in out_stages if s["id"] == "train")},
         "evaluate": {"seeds": seeds, "planned": cells * eval_n},
         "artifacts": export.get("artifacts") or [],
+        "log": _tail(root / "run.log", LOG_LINES),
     }
     if recipe.get("dry_run"):
         snap["plan_s"] = sum(s["eta_s"] or 0 for s in out_stages)
