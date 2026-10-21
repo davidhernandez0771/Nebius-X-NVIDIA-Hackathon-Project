@@ -413,6 +413,11 @@ class SantTcpTargetActionCfg(SantTrackingIKActionCfg):
     """4 policy numbers -> SANT's absolute tool target (sim_worker/rl_action.py, named by string: it imports USD)."""
 
     class_type: type | str = "sim_worker.rl_action:SantTcpTargetAction"
+    v_max: float = rt.V_MAX
+    """m/s: each target moves at most this x 0.02 s from the previous one (rl_teacher.cap_speed); 0 = off, as runs
+    before demo_v6c trained (their params/env.yaml has no v_max: read as 0, sim_worker.rl_policy.run_speed_cap)."""
+    yaw_rate_max: float = rt.YAW_RATE_MAX
+    """rad/s, the same for the yaw; 0 = off."""
 
 
 @configclass

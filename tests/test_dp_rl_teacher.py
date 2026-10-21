@@ -206,3 +206,62 @@ def test_the_lift_terms_run_on_torch():
     t = rt.StepState(*(torch.as_tensor(np.asarray(v)) for v in s))
     a, b = rt.lift_level(rt.lift_level_terms(s)), rt.lift_level(rt.lift_level_terms(t))
     assert float(b[0]) == pytest.approx(float(a[0]), abs=1e-5)
+
+
+# --- the speed cap (demo_v6c): each target at most V_MAX * STEP_S from the previous one ------------------------
+
+
+def _rollout(gain: float, v_max: float, yaw_rate_max: float = 0.0, steps: int = 40):
+    """A toy tracker that overshoots (tcp += gain * (target - tcp), as demo_v6 rode the env's feed-forward) under a
+    policy that always says "full step in +x, full turn": the targets' step sizes (m) and yaw steps (rad)."""
+    tcp, yaw = np.array([[0.4, 0.0, 0.3]]), np.array([0.0])
+    prev, prev_yaw, out, turns = None, None, [], []
+    a = np.array([[1.0, 0.0, 0.0, 1.0, 1.0]])
+    for _ in range(steps):
+        pos, quat, _ = rt.action_to_target(a, tcp, yaw, prev if prev is not None else tcp,
+                                           prev_yaw if prev_yaw is not None else yaw, v_max, yaw_rate_max)
+        t_yaw = rt.tool_yaw(quat)
+        if prev is not None:
+            out.append(float(np.linalg.norm(pos - prev)))
+            turns.append(float(abs(t_yaw - prev_yaw)[0]))
+        prev, prev_yaw = pos, t_yaw
+        tcp = tcp + gain * (pos - tcp)
+        yaw = yaw + gain * (t_yaw - yaw)
+        if tcp[0, 0] > 0.7 or abs(yaw[0]) > 1.4:
+            break
+    return np.array(out), np.array(turns)
+
+
+def test_uncapped_targets_run_away_with_an_overshooting_tracker_and_the_cap_holds_them_to_v_max():
+    fast, _ = _rollout(gain=2.5, v_max=0.0)
+    assert fast.max() >= 0.049  # 5 cm a step: 2.5 m/s, as demo_v6 commanded
+    capped, _ = _rollout(gain=2.5, v_max=rt.V_MAX)
+    assert capped.max() <= rt.V_MAX * rt.STEP_S + 1e-9  # 1 cm a step
+    _, turns = _rollout(gain=2.5, v_max=rt.V_MAX, yaw_rate_max=rt.YAW_RATE_MAX)
+    assert turns.max() <= rt.YAW_RATE_MAX * rt.STEP_S + 1e-9
+    assert (rt.V_MAX, rt.YAW_RATE_MAX) == (0.5, 2.5)
+
+
+def test_the_cap_keeps_the_target_within_one_step_of_the_tool_and_is_off_at_zero():
+    tcp = np.array([[0.5, 0.0, 0.2]])
+    prev = np.array([[0.45, 0.0, 0.2]])  # the tool ran 5 cm past the last target
+    t, y = rt.cap_speed(tcp + 0.02, np.array([0.3]), prev, np.array([0.0]), tcp, rt.V_MAX, rt.YAW_RATE_MAX)
+    assert np.all(np.abs(t - tcp) <= rt.DELTA_M + 1e-12)
+    assert y[0] == pytest.approx(rt.YAW_RATE_MAX * rt.STEP_S)
+    # wrapped: from +3.1 to -3.1 is a 0.083 rad turn, not 6.2
+    _, y = rt.cap_speed(tcp, np.array([-3.1]), tcp, np.array([3.1]), tcp, 0.0, rt.YAW_RATE_MAX)
+    assert y[0] == pytest.approx(3.1 + rt.YAW_RATE_MAX * rt.STEP_S)
+    a = np.array([[1.0, -1.0, 0.5, 1.0, 1.0]])
+    off = rt.action_to_target(a, tcp, np.array([0.0]), prev, np.array([0.0]), 0.0, 0.0)
+    plain = rt.action_to_target(a, tcp, np.array([0.0]))
+    assert all(np.allclose(u, v) for u, v in zip(off, plain))
+
+
+def test_the_cap_runs_on_torch():
+    torch = pytest.importorskip("torch")
+    tcp, prev = np.array([[0.5, 0.0, 0.2]]), np.array([[0.47, 0.01, 0.2]])
+    tn, yn = rt.cap_speed(tcp + 0.02, np.array([0.4]), prev, np.array([0.0]), tcp, rt.V_MAX, rt.YAW_RATE_MAX)
+    T = lambda x: torch.as_tensor(x)  # noqa: E731
+    tt, yt = rt.cap_speed(T(tcp + 0.02), T(np.array([0.4])), T(prev), T(np.array([0.0])), T(tcp), rt.V_MAX,
+                          rt.YAW_RATE_MAX)
+    assert np.allclose(tt.numpy(), tn) and np.allclose(yt.numpy(), yn)

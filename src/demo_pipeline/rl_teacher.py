@@ -79,6 +79,13 @@ WORKSPACE = {"x": (0.20, 0.80), "y": (-0.45, 0.45), "z": (0.01, 0.50)}
 YAW_MAX = math.pi / 2
 DELTA_M = 0.02  # m per step: 1 m/s at 50 Hz, the tracking feed-forward's own cap
 DELTA_YAW = 0.1  # rad per step
+# The speed cap (demo_v6c, 2026-10-21): each target also moves at most V_MAX / YAW_RATE_MAX x STEP_S from the
+# previous target. Without it a target is only bounded relative to the moving tool, and demo_v6 learned to command
+# 1.7 m/s (median; 3.5 max) and 3.3 rad/s against the verified human demos' 0.20 m/s and 0.01 rad/s: SANT's replay
+# could not follow (gate replay 3/50). 0.5 m/s is just above the humans' p90 (0.48), 2.5 rad/s between their yaw
+# p90 (1.0) and p99 (3.8). 0 turns a cap off (runs before demo_v6c).
+V_MAX = 0.5  # m/s
+YAW_RATE_MAX = 2.5  # rad/s
 ACTION_DIM = 5
 DOWN_WXYZ = (0.0, 1.0, 0.0, 0.0)  # SANT's gripper pointing down (sim_worker.scripted.DOWN_WXYZ)
 
@@ -224,16 +231,41 @@ def _clip(v, lo, hi):
     return v.clip(lo, hi) if _is_np(v) else v.clamp(lo, hi)
 
 
-def action_to_target(a, tcp_pos, tcp_yaw):
+def action_to_target(a, tcp_pos, tcp_yaw, prev_pos=None, prev_yaw=None, v_max: float = 0.0,
+                     yaw_rate_max: float = 0.0):
     """Policy actions [N, 5] in [-1, 1], the tool's position [N, 3] and yaw [N] now -> (tool targets [N, 3], their
-    quaternions wxyz [N, 4], closed [N] bool): the step added to the current pose, kept in WORKSPACE and +-YAW_MAX.
-    Out-of-range actions are clipped."""
+    quaternions wxyz [N, 4], closed [N] bool): the step added to the current pose, speed-capped from the previous
+    target (prev_pos [N, 3], prev_yaw [N]; cap_speed, when given and v_max / yaw_rate_max > 0), kept in WORKSPACE and
+    +-YAW_MAX. Out-of-range actions are clipped."""
     a = _clip(a, -1.0, 1.0)
     target = tcp_pos + a[..., :3] * DELTA_M
+    yaw = tcp_yaw + a[..., 3] * DELTA_YAW
+    if prev_pos is not None:
+        target, yaw = cap_speed(target, yaw, prev_pos, prev_yaw, tcp_pos, v_max, yaw_rate_max)
     x, y, z = (_clip(target[..., i], *WORKSPACE[k]) for i, k in enumerate("xyz"))
-    yaw = _clip(tcp_yaw + a[..., 3] * DELTA_YAW, -YAW_MAX, YAW_MAX)
+    yaw = _clip(yaw, -YAW_MAX, YAW_MAX)
     pos = np.stack([x, y, z], -1) if _is_np(x) else _torch().stack([x, y, z], -1)
     return pos, _down_turned(yaw), a[..., 4] < 0
+
+
+def cap_speed(target_pos, target_yaw, prev_pos, prev_yaw, tcp_pos, v_max: float = V_MAX,
+              yaw_rate_max: float = YAW_RATE_MAX):
+    """The speed cap (see V_MAX): the target moved at most v_max * STEP_S (straight towards it) from the previous
+    target, then kept within one step (DELTA_M per axis) of the tool; the yaw at most yaw_rate_max * STEP_S from the
+    previous target's (wrapped). A cap of 0 is off. Either library; [N, 3] / [N]."""
+    if v_max > 0:
+        step = target_pos - prev_pos
+        n = _norm(step)
+        lim = v_max * STEP_S
+        scale = (lim / (n + 1e-12)).clip(max=1.0) if not _is_np(n) else np.minimum(1.0, lim / (n + 1e-12))
+        target_pos = prev_pos + step * scale[..., None]
+        target_pos = tcp_pos + _clip(target_pos - tcp_pos, -DELTA_M, DELTA_M)
+    if yaw_rate_max > 0:
+        d = target_yaw - prev_yaw
+        d = np.arctan2(np.sin(d), np.cos(d)) if _is_np(d) else _torch().atan2(d.sin(), d.cos())
+        lim = yaw_rate_max * STEP_S
+        target_yaw = prev_yaw + _clip(d, -lim, lim)
+    return target_pos, target_yaw
 
 
 def gripper_closed(grip, prev_closed, deadband: float = 0.0):

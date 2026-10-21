@@ -133,6 +133,9 @@ def main() -> int:
     env_cfg.scene.num_envs = args.n
     env_cfg.actions.gripper_action.deadband = float(
         ((trained.get("actions") or {}).get("gripper_action") or {}).get("deadband") or 0.0)
+    arm = (trained.get("actions") or {}).get("arm_action") or {}
+    env_cfg.actions.arm_action.v_max = float(arm.get("v_max") or 0.0)  # the speed cap it trained with (none before v6c)
+    env_cfg.actions.arm_action.yaw_rate_max = float(arm.get("yaw_rate_max") or 0.0)
     env_cfg.events.reset_scene.params.update(demo_prob=args.demo_prob, uniform_share=1.0, seed=args.seed,
                                              held_grace_steps=int(reset.get("held_grace_steps") or 0))
     out = args.out

@@ -153,12 +153,14 @@ def main() -> int:
 
     from sim_worker import rl_env_cfg as rc
 
-    from sim_worker.rl_policy import run_gripper_deadband
+    from sim_worker.rl_policy import run_gripper_deadband, run_speed_cap
 
     env_cfg = rc.SantPickPlaceRLPlayEnvCfg()
     env_cfg.scene.num_envs = args_cli.n
     # the gripper as the run trained it (its params/env.yaml), as T6's adapter does; the Play env's default is none
     env_cfg.actions.gripper_action.deadband = run_gripper_deadband(args_cli.checkpoint)
+    # and the speed cap it trained with (none before demo_v6c)
+    env_cfg.actions.arm_action.v_max, env_cfg.actions.arm_action.yaw_rate_max = run_speed_cap(args_cli.checkpoint)
     env_cfg.events.reset_scene = EventTermCfg(func=reset_eval_scenes, mode="reset", params={"seed0": args_cli.seed0})
     out = args_cli.out
     (out / "trajectories").mkdir(parents=True, exist_ok=True)
