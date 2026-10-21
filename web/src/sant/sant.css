@@ -397,6 +397,9 @@
 /* ------------------------------------------------------------------ logo */
 
 .sant-logo {
+  /* The lockup of the logo sheet: the mark, then SANT set wide. Ink and accent follow the ground. */
+  --logo-ink: var(--sant-text);
+  --logo-accent: var(--sant-accent);
   display: inline-flex;
   align-items: center;
   gap: 0.42em;
@@ -404,14 +407,14 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   line-height: 1;
-  color: var(--sant-text);
+  color: var(--logo-ink);
 }
 
 .sant-logo--sm { font-size: 1rem; }
 .sant-logo--md { font-size: 1.5rem; }
 .sant-logo--lg { font-size: clamp(3rem, 2rem + 4vw, 5rem); }
 
-/* The symbol: placeholder paths from logoSymbol.ts. The original rests in the accent, the copies in ink. */
+/* The mark (logoSymbol.ts): round-capped strokes, the inner cube in the accent, the frame in ink. */
 .sant-logo__symbol {
   display: block;
   width: 1.3em;
@@ -420,37 +423,40 @@
 }
 
 .sant-logo__unit {
-  fill: var(--sant-text);
+  stroke: var(--logo-ink);
 }
 
-.sant-logo__unit[data-part="original"] {
-  fill: var(--sant-accent);
+.sant-logo__unit[data-part="accent"] {
+  stroke: var(--logo-accent);
 }
 
-.sant-logo[data-lit="none"] .sant-logo__unit { fill: var(--sant-muted); }
+.sant-logo[data-lit="none"] .sant-logo__unit { stroke: var(--sant-muted); }
 
 .sant-logo[data-lit="sequence"] .sant-logo__unit {
   animation: sant-lit var(--sant-dur-story) var(--sant-ease-move) both;
   animation-delay: calc(var(--i) * var(--sant-stagger-sant));
 }
 
-.sant-logo[data-lit="sequence"] .sant-logo__unit[data-part="original"] {
-  animation-name: sant-lit-original;
+.sant-logo[data-lit="sequence"] .sant-logo__unit[data-part="accent"] {
+  animation-name: sant-lit-accent;
 }
 
 @keyframes sant-lit {
-  0% { fill: var(--sant-line); }
-  55% { fill: var(--sant-accent); }
-  100% { fill: var(--sant-text); }
+  0% { stroke: var(--sant-line); }
+  55% { stroke: var(--logo-accent); }
+  100% { stroke: var(--logo-ink); }
 }
 
-@keyframes sant-lit-original {
-  0% { fill: var(--sant-line); }
-  100% { fill: var(--sant-accent); }
+@keyframes sant-lit-accent {
+  0% { stroke: var(--sant-line); }
+  100% { stroke: var(--logo-accent); }
 }
 
+/* SANT set wide, as on the sheet (0.34em); the last letter's spacing is taken back so it centres. */
 .sant-logo__word {
   font-size: 0.86em;
+  letter-spacing: 0.34em;
+  margin-right: -0.34em;
 }
 
 .sant-logo-img.sant-logo--sm { height: 1.25rem; }
@@ -1488,21 +1494,21 @@
 }
 
 .sant-poweron__unit {
-  fill: var(--sant-line);
-  transition: fill var(--sant-dur-4) var(--sant-ease-move);
+  stroke: var(--sant-line);
+  transition: stroke var(--sant-dur-4) var(--sant-ease-move);
 }
 
 .sant-poweron__unit[data-lit="true"] {
-  fill: var(--sant-text);
+  stroke: var(--sant-text);
 }
 
-.sant-poweron__unit[data-lit="true"][data-part="original"] {
-  fill: var(--sant-accent);
+.sant-poweron__unit[data-lit="true"][data-part="accent"] {
+  stroke: var(--sant-accent);
 }
 
 /* With dust, a unit is invisible until its dust lands, then lights in its place. */
 .sant-poweron[data-dust="on"] .sant-poweron__unit:not([data-lit="true"]) {
-  fill: transparent;
+  stroke: transparent;
 }
 
 .sant-poweron__dust {

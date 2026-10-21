@@ -182,6 +182,17 @@
   min-width: 0;
 }
 
+.rg-brand {
+  display: inline-flex;
+  flex: none;
+}
+
+.rg-brand .sant-logo {
+  --logo-ink: var(--rg-ink);
+  --logo-accent: var(--rg-live);
+  font-size: 14px;
+}
+
 .rg-crumb {
   display: flex;
   align-items: center;

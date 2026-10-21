@@ -193,6 +193,21 @@ describe("Logo", () => {
     expect(container.textContent).toBe("");
   });
 
+  it("lights the inner cube in the accent and the open frame and its corner lines in ink", () => {
+    const { container } = wrap(<Logo wordmark={false} />);
+    const parts = [...container.querySelectorAll(".sant-logo__unit")].map((p) => p.getAttribute("data-part"));
+    expect(parts).toEqual(LOGO_SYMBOL.units.map((_, i) => (LOGO_SYMBOL.accent.includes(i) ? "accent" : "ink")));
+    expect(parts.filter((p) => p === "accent")).toHaveLength(2);
+    // Strokes, as the file draws it, round-capped.
+    expect(container.querySelector(".sant-logo__symbol")?.getAttribute("stroke-width")).toBe(String(LOGO_SYMBOL.stroke));
+    expect(container.querySelector(".sant-logo__symbol")?.getAttribute("stroke-linecap")).toBe("round");
+  });
+
+  it("can be the mark alone, still named SANT", () => {
+    wrap(<Logo wordmark={false} />);
+    expect(screen.getByRole("img", { name: "SANT" })).toBeTruthy();
+  });
+
   it("sets the wordmark beside the symbol by default", () => {
     const { container } = wrap(<Logo />);
     expect(container.querySelector(".sant-logo__symbol")).toBeTruthy();

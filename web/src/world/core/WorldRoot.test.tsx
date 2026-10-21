@@ -48,6 +48,17 @@ describe("WorldRoot (no WebGL)", () => {
     vi.useRealTimers();
   });
 
+  it("signs the page top left with the SANT lockup and its line, over the stills too", () => {
+    renderWorld();
+    const brand = document.querySelector<HTMLElement>(".world-brand")!;
+    expect(within(brand).getByRole("img", { name: "SANT" })).toBeTruthy();
+    expect(brand.querySelectorAll(".sant-logo__unit").length).toBe(4);
+    expect(brand.textContent).toContain("perfect, then multiply");
+    expect(brand.textContent).not.toContain("S·A·N·T");
+    // No WebGL here: the stills are the ground the brand sits on.
+    expect(document.querySelector(".world-stills")).toBeTruthy();
+  });
+
   it("opens on the intro, with the title, and a page as tall as the rail", () => {
     renderWorld();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Show a robot once. Get the data to teach it.");

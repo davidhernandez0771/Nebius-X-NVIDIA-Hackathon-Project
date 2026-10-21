@@ -209,19 +209,30 @@
 
 .world-brand {
   position: fixed;
-  top: 22px;
+  top: 18px;
   left: 24px;
   z-index: 6;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
   color: var(--w-dim);
   pointer-events: none;
   /* Over the 3D: a dark halo keeps it readable over a lit wall. */
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.95);
 }
 
-.world-brand b {
-  color: var(--w-ink);
-  font-weight: 500;
+/* The SANT lockup (sant/components/Logo) in the world's own ink and teal: the brand (over the loader,
+   the 3D and the stills alike) and the Contact panel. */
+.world-brand .sant-logo,
+.world-contact__h .sant-logo {
+  --logo-ink: var(--w-ink);
+  --logo-accent: var(--w-teal);
+  font-size: 15px;
+}
+
+.world-brand .sant-logo__symbol {
+  filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.9));
 }
 
 @media (max-width: 700px) {
@@ -387,8 +398,15 @@
   box-shadow: none;
 }
 .world-contact__h {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--w-teal);
+}
+
+.world-contact__h .sant-logo {
+  font-size: 14px;
 }
 .world-contact__links {
   margin: 0;

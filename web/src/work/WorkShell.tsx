@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import Icon from "../legacy/components/Icon";
+import { Logo } from "../sant/components/Logo";
 import { useHandPointer } from "../hand/integration/useHandPointer";
 import { HandCursorOverlay } from "../hand/overlay/HandCursorOverlay";
 import { HandToggle } from "../hand/integration/HandToggle";
@@ -36,8 +37,8 @@ export function WorkShell() {
     <div className="work">
       <header className="work-top">
         <Link to="/" className="work-brand work-u" onClick={backToWorkshop}>
-          <b>S·A·N·T</b>
-          <span>perfect, then multiply</span>
+          <Logo size="sm" lit="all" />
+          <span className="work-brand__line">perfect, then multiply</span>
         </Link>
         <nav className="work-steps work-u" aria-label="Pipeline">
           {STEPS.map((s, i) => (

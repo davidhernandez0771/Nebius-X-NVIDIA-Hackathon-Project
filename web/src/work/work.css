@@ -96,15 +96,17 @@
 
 .work-brand {
   display: inline-flex;
-  gap: 12px;
+  align-items: center;
+  gap: 14px;
   color: var(--w-dim);
   text-decoration: none;
   justify-self: start;
 }
 
-.work-brand b {
-  color: var(--w-ink);
-  font-weight: 500;
+.work-brand .sant-logo {
+  --logo-ink: var(--w-ink);
+  --logo-accent: var(--w-teal);
+  font-size: 15px;
 }
 
 .work-brand:hover {
@@ -196,7 +198,7 @@
     width: 16px;
     margin: 0 8px;
   }
-  .work-brand span {
+  .work-brand .work-brand__line {
     display: none;
   }
 }

@@ -59,10 +59,14 @@
   pointer-events: none;
 }
 .robots-mark {
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.06em;
+  display: inline-flex;
   color: var(--rb-ink);
+}
+
+.robots-mark .sant-logo {
+  --logo-ink: var(--rb-ink);
+  --logo-accent: #19f5c2;
+  font-size: 14px;
 }
 
 .robots-list {

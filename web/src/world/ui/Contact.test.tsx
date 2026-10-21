@@ -17,6 +17,8 @@ describe("the Contact entry point", () => {
     expect(button.getAttribute("aria-expanded")).toBe("true");
     const panel = screen.getByRole("dialog", { name: "Contact" });
     expect(within(panel).getByText("Links coming soon.")).toBeTruthy();
+    // Signed with the mark: the lockup, named SANT.
+    expect(within(panel).getByRole("img", { name: "SANT" })).toBeTruthy();
     fireEvent.keyDown(panel, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(button);

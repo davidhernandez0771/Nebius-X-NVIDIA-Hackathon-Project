@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-55 -55 110 110"><polyline points="38.11,-7.04 38.11,22.00 0.00,44.00 -38.11,22.00 -38.11,-22.00 0.00,-44.00 25.15,-29.48" fill="none" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="0.00" y1="-44.00" x2="7.00" y2="-25.00" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/>
+<line x1="38.11" y1="22.00" x2="23.45" y2="3.50" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/>
+<line x1="0.00" y1="44.00" x2="7.00" y2="13.00" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/>
+<line x1="-38.11" y1="22.00" x2="-9.45" y2="3.50" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/>
+<line x1="-38.11" y1="-22.00" x2="-9.45" y2="-15.50" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/>
+<polygon points="7.00,-25.00 23.45,-15.50 23.45,3.50 7.00,13.00 -9.45,3.50 -9.45,-15.50" fill="none" stroke="#0B0E11" stroke-width="5.2" stroke-linejoin="round"/>
+<line x1="7.00" y1="-6.00" x2="23.45" y2="-15.50" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/>
+<line x1="7.00" y1="-6.00" x2="7.00" y2="13.00" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/>
+<line x1="7.00" y1="-6.00" x2="-9.45" y2="-15.50" stroke="#0B0E11" stroke-width="5.2" stroke-linecap="round"/></svg>
