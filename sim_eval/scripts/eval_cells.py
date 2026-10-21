@@ -31,6 +31,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(REPO / "src"), str(REPO)]
+from sim_worker.own_code import check_own_code  # noqa: E402
 
 from demo_pipeline.paths import data_dir  # noqa: E402
 from lerobot_tools.policy_client import PolicyClient, PolicyServerError  # noqa: E402
@@ -162,6 +163,7 @@ def retryable(rc: int) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--run-id", required=True)
     p.add_argument("--n", type=int, default=20)

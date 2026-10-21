@@ -25,6 +25,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path[:0] = [str(REPO / "src"), str(REPO)]  # this worktree's code first (as run_eval.py)
+from sim_worker.own_code import check_own_code  # noqa: E402
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
@@ -66,6 +67,7 @@ def gpu_mib(field: str = "memory.used"):
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     t0 = time.time()
     urls = pool_urls(args_cli.num_envs, args_cli.base_port)
     clients = [PolicyClient(u, timeout=60) for u in urls]

@@ -60,6 +60,9 @@ if not args_cli.no_cameras:
     args_cli.enable_cameras = True  # cameras need the rendering extensions in headless launches
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 from demo_pipeline.schemas import Pose, Scene  # noqa: E402
 from demo_pipeline.store import DemoStore  # noqa: E402
@@ -134,6 +137,7 @@ def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trac
 
 
 def main() -> int:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     store = DemoStore(args_cli.data_dir)
     scene = base_scene()
     qos = high_qos() if args_cli.high_qos else False

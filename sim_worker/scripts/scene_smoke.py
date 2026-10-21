@@ -33,6 +33,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))  # for sim_worker (regression, gpulock)
 sys.path.insert(0, str(REPO / "src"))  # for demo_pipeline
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 EXAMPLES = REPO / "sim_worker" / "scene_examples"
 SETTLE = REPO / "sim_worker" / "scripts" / "settle_plan.py"
@@ -86,6 +89,7 @@ def _regression_report(reg_out: Path, episodes: list[Path]) -> tuple[dict, str]:
 
 
 def main(argv: list[str] | None = None, *, run=subprocess.run, lock=None, export=export_base) -> int:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     ap = argparse.ArgumentParser(description="Isaac-only tests, replay regression and plan settles, under one GPU lock.")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--episodes", type=Path, nargs="+", default=[Path(e) for e in EPISODES])

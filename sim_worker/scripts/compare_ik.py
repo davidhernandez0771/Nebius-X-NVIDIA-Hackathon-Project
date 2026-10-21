@@ -23,6 +23,9 @@ add_launcher_args(parser)
 args_cli = parser.parse_args()
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 from demo_pipeline.multiply import sample_scene  # noqa: E402
 from sim_worker.replay import make_sim_cfg, replay  # noqa: E402
@@ -61,6 +64,7 @@ def _summary(rows: list[dict]) -> dict:
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     names = [v for v in args_cli.variants.split(",") if v] or list(VARIANTS)
     scenes = [sample_scene(np.random.default_rng(seed), "franka", seed) for seed in range(args_cli.seeds)]
     rows, t0 = [], time.time()

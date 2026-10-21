@@ -29,6 +29,9 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))  # for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 parser = argparse.ArgumentParser(description="Report card for an uploaded robot.")
 parser.add_argument("--robot-dir", type=Path, required=True)
@@ -97,6 +100,7 @@ def _run_scene(robot: str, traj, scene: Scene, ep: Path, opts: TrackingOptions) 
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     t_start = time.time()
     robot_dir = args_cli.robot_dir.resolve()
     rid = robot_dir.name

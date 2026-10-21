@@ -21,7 +21,11 @@ from typing import Protocol
 
 from pydantic import BaseModel, ValidationError
 
-from demo_pipeline.sim_protocol import (
+from sim_worker.own_code import check_own_code, put_own_code_first
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
+
+from demo_pipeline.sim_protocol import (  # noqa: E402
     DEFAULT_PORT,
     PATHS,
     ErrorResponse,
@@ -159,6 +163,7 @@ def make_http_server(worker: SimWorker, host: str = "127.0.0.1", port: int = DEF
 
 
 def main(argv: list[str] | None = None) -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     import argparse
     import sys
     from pathlib import Path

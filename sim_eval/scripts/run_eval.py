@@ -28,6 +28,7 @@ REPO = Path(__file__).resolve().parents[2]
 # This worktree's demo_pipeline (src/) and sim_worker/sim_eval/lerobot_tools (root) go first: the Isaac env has an
 # editable demo_pipeline from C:\dev\pm-t2, which is being changed while we evaluate.
 sys.path[:0] = [str(REPO / "src"), str(REPO)]
+from sim_worker.own_code import check_own_code  # noqa: E402
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
@@ -119,6 +120,7 @@ class VramPoller(threading.Thread):
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     t0 = time.time()
     client = PolicyClient(args_cli.checkpoint_url, timeout=60)
     try:

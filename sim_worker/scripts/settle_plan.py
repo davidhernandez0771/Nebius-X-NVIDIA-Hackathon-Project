@@ -20,6 +20,9 @@ from isaaclab.app import add_launcher_args, launch_simulation
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))  # for `sim_worker`
 sys.path.insert(0, str(REPO / "src"))  # for `demo_pipeline`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 parser = argparse.ArgumentParser(description="Settle one ScenePlan in Isaac.")
 parser.add_argument("--plan", type=Path, required=True, help="a ScenePlan JSON file")
@@ -39,6 +42,7 @@ from sim_worker.replay import make_sim_cfg  # noqa: E402
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     plan = ScenePlan.model_validate_json(args_cli.plan.read_text(encoding="utf-8"))
     lock = nullcontext()
     if not args_cli.no_lock:
