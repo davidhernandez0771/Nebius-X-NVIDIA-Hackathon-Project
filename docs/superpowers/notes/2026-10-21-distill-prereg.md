@@ -601,8 +601,24 @@ test first, then part (b). Round 0 at 300 teacher runs starts only after that, o
 **Export speed-ups were declined.** The export stays serial, because writing the images in parallel changed the bytes
 of `meta/stats.json`.
 
-**Round 0 with `--teacher-n 300` was launched** on the lead's go. Its start time and PID are added here when T6 sends
-them. The revised estimate is 2.7–3.9 h. T6's notes for the smoke, part (b) and the timings are `da19c2a` (15:27).
+**Round 0 with `--teacher-n 300` was launched** at 15:27:53 on the lead's go. It **started at 15:33:01 (PID 34584)**,
+on seeds 4000–4299, with the cameras on. The revised estimate is 2.7–3.9 h. T6's notes for the smoke, part (b) and the
+timings are `da19c2a` (15:27).
+
+**A deviation, logged openly (T3): round 0's start was delayed by about 5 minutes.**
+- **What happened:** after the gate, T3 re-ran a start-type breakdown as a check only. It held `gpu.lock` 15:26–15:29,
+  so round 0 waited for the lock.
+- **Round 0's log** (`distill_round.log`, in `C:\dev\pm-t6`) shows:
+  - 15:27:53, the lock held by `rl-breakdown:v6c2_2098` (taken 15:26:38);
+  - then `rl-breakdown:v6c2_2000` (taken 15:28:00), whose process had exited by the 5-minute re-check;
+  - the lock taken at 15:33:01.
+- **The result, per T3:** `model_2000`'s breakdown is identical to `model_2098`'s (66/67, 31/31, 30/30).
+- **What it changes:** nothing in the pick or the gate. Both were done before it, and the teacher stays `demo_v6c2`
+  `model_2098`. It used `rng(7)` scenes only, no gate, selection or test seeds.
+
+**T3's gate-2 record is `1697c32`** (15:33, on `pm/rl-teacher`). It is docs only: it adds one note,
+`2026-10-21-rl-teacher-gate.md`, and leaves the code unchanged. So **T3's final code is still `b7935c0`**. The note
+matches this log, and adds that the first 30 gate seeds were 30/30 (Wilson 0.89–1.00).
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
