@@ -10,7 +10,8 @@ The user chose the "open-corner tesseract" mark (docs/design/logo). The hero's g
 - **The 4D maths** (`tesseractPlan.ts`, pure and tested):
   - The shape: 16 corners (±1 on x, y, z, w) and 32 edges. They sort into the inner cube (w = −1, teal, 12 edges), the outer cube (w = +1, chrome, 12 edges) and the 8 links between them (chrome).
   - The turn: the cube turns in the XW and ZW planes, the ZW turn at 0.618 of the XW one so the two never fall into a simple loop.
-  - The projection: 4D to 3D with perspective in w (eye at w = 2.5). So the inner cube is 0.43 the outer's size, as in the flat mark. The inner and outer cubes keep turning inside out into each other (frames 02–07).
+  - The projection: 4D to 3D scaled by depth in w (nearer in w is larger; 3/7 for each unit further away). So the inner cube is 0.43 the outer's size, as in the flat mark. The inner and outer cubes keep turning inside out into each other (frames 02–07).
+  - **Why not a true perspective in w:** at the mark's ratio, true perspective (eye at w = 2.5) blows a corner up to 2.6× the logo's size as it swings near the eye. The depth scaling turns inside out the same way and stays within `HYPER_RADIUS`, 1.38× its still size (tested), so the hero can fit it on screen.
 - **The open corner.** It is one fixed outer corner, the one that sits up and to the right in the mark's isometric view:
   - its 4 edges (3 outer and the link; the flat mark leaves the link out too) stop at 62% of their length in 4D, so the gap holds through every turn;
   - each ends in a round cap, as the mark's strokes do;
@@ -22,6 +23,33 @@ The user chose the "open-corner tesseract" mark (docs/design/logo). The hero's g
   - Joints: chrome balls at the outer corners, small teal caps at the inner ones, and the 4 round caps at the gap.
 
   The look follows `tesseract-3d-A.png`.
+
+## Where it floats: never over the type (`heroSlot.ts`)
+The first version sat in the middle, and the headline ran through it. Now:
+- `Scene.tsx` measures the page's boxes on load, as the fonts and words settle, and on every resize:
+  - the hero's headline and column;
+  - the scroll hint;
+  - the brand, the contact button, the station rail and the quality chip.
+- `heroSlot` finds the largest circle clear of them (16 px round each box, 12 px from the edges); among the largest, it takes the one nearest the centre.
+- The tesseract goes there, sized so its widest reach at any 4D angle (`HYPER_RADIUS`, plus a ball) fits. It is never larger than its old size.
+- The hero camera's field of view is fitted to the screen as the rig does (portrait screens get a wider one).
+
+Results (the tests use the boxes headless Chrome measured):
+
+| Screen | Where | Screenshot |
+|---|---|---|
+| 1280×720 | Upper right, above the column; the headline-to-column gap is only 106 px there | 01 |
+| 1920×1080 | Right of the headline | 01b |
+| 390×844 | Between the headline and the column | 10 |
+
+## The steel
+The chrome was too white under the bloom. It is now polished steel:
+- albedo #8a9197;
+- studio reflections 0.9 (from 1.4);
+- roughness 0.2;
+- clearcoat 0.25.
+
+The teal is the only glow.
 
 ## How it moves (`Scene.tsx`, `hyperPose`)
 - **Scroll.** The 4D turn follows the scroll from the top of the hero to the end of the sink, 1.5π in all. It is scrubbable (the same scroll gives the same pose) and played back in reverse when scrolling up.
@@ -55,7 +83,7 @@ The hero frame on ultra (HUD): 19 calls, 17,182 triangles, post-processing inclu
 The SVG path to the logo is gone: the mark is now the tesseract in code.
 
 ## Checked
-- **Tests.** Web 1676 passed, 1 skipped. New tests:
+- **Tests.** Web 1682 passed, 1 skipped. New tests:
   - `tesseractPlan.test.ts`: 10. It covers:
     - the vertices, edges and their kinds;
     - rotation keeps lengths, and a full turn comes back;
@@ -66,17 +94,21 @@ The SVG path to the logo is gone: the mark is now the tesseract in code.
     - reduced motion;
     - the scroll is scrubbable and holds past the sink.
   - `Tesseract.test.ts`: 3. It covers three draws with the right counts, tubes laid along their edges, and thinner tubes with fewer sides on low.
+  - `heroSlot.test.ts`: 5. It covers the three layouts, the size cap and centring, and determinism.
+  - In `tesseractPlan.test.ts`, the perspective test is now the depth-scaling ratio test, and there is a new test for the reach (`HYPER_RADIUS`).
 - **Typecheck and build** pass.
 - **Screenshots:**
-  - the hero with its copy (01);
+  - the hero with its copy (01; 01b at 1920×1080);
   - six frames of the 4D turn (02–07, scroll 0.1–1.45);
   - the still pose (08);
   - low (09);
   - a phone at 390×844 with no sideways scroll (10);
   - the stills fallback (11).
 - Shots came from this worktree's Vite on 127.0.0.1:5197.
+- **Overlap.** Mid-turn frames at 1280×720 with the copy showing (scroll 0.5 and 1.0) stay clear of the type. `heroSlot.test.ts` checks the slot against all the boxes at 1280×720, 1920×1080 and 390×844; `tesseractPlan.test.ts` checks the reach.
 
 ## Open
-- **Real-GPU look and frame time** aren't checked (SwiftShader only). The chrome reads quite white under the bloom in SwiftShader.
+- **Real-GPU look and frame time** aren't checked (SwiftShader only).
+- **The backdrop's soft teal glow** still sits near the screen's centre, where the old logo was, not behind the tesseract.
 - **Frames 01–07 include some idle turn** (the shots wait a few seconds), so they aren't exact scroll-only poses.
 - **The site header's small logo and the favicon** are separate and not touched here.

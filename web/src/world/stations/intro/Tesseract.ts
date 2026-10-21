@@ -12,6 +12,9 @@ export const TESSERACT_LOOK: Record<TierName, { tube: number; sides: number; bal
   ultra: { tube: 0.034, sides: 20, ball: [24, 16] },
 };
 
+/** The steel's reflection strength (the hero fades it with its light). */
+export const CHROME_ENV = 0.9;
+
 /** A joint's radius, to the tube's (the outer cube's chrome balls); the inner cube's joints just round its corners. */
 const BALL = 1.7;
 const TEAL = new THREE.Color("#19f5c2");
@@ -26,14 +29,15 @@ export interface TesseractHandle {
 
 export function makeTesseract(q: QualityTier, env: THREE.Texture): TesseractHandle {
   const look = TESSERACT_LOOK[q.name];
+  // Polished steel, not white: a mid-grey metal and a dimmer studio, so the teal stays the only glow under the bloom.
   const chrome = new THREE.MeshPhysicalMaterial({
-    color: 0xe6eaed,
+    color: 0x8a9197,
     metalness: 1,
-    roughness: 0.12,
-    clearcoat: q.name === "low" ? 0 : 0.6,
-    clearcoatRoughness: 0.08,
+    roughness: 0.2,
+    clearcoat: q.name === "low" ? 0 : 0.25,
+    clearcoatRoughness: 0.12,
     envMap: env,
-    envMapIntensity: 1.4,
+    envMapIntensity: CHROME_ENV,
   });
   const teal = new THREE.MeshPhysicalMaterial({
     color: 0xa2f4e0,
