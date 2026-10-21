@@ -343,7 +343,9 @@ of episodes, against 196/196 on the recorded ones. T3 is investigating. Its expl
 before `demo_v6`'s teacher is gated. A fix to the bonus would be logged as a run-enabling fix if it only makes the
 bonus match `check_success`.
 
-The exact `demo_v6` command, and its start time from `gpu.lock`, are added when T3 sends them.
+**`demo_v6` started** at 11:47:06, when it took `gpu.lock` (wrapper pid 25664). Its command, as the lead gave it:
+`--run-name demo_v6 --reward lift --max-iterations 1500`, plus `demo_v5`'s overrides, including `uniform_share` 0.5.
+T3's `command.txt` is added here when T3 sends it.
 
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
