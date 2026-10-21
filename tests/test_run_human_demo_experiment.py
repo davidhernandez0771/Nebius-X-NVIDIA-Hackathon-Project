@@ -542,3 +542,71 @@ def test_the_preregistration_states_the_data_fixes_only_when_used(hx, tmp_path):
     text = hx.preregistration(config)
     assert "**Data fixes**" in text and "grasp retime" in text and "yaw wrap" in text and "up to 4 cm" in text
     assert "**Data fixes**" in hx.preregistration({**config, "multiplied_only": True})
+
+
+# --- the improved recipe (2026-10-20 research note, Stage 1): training options, checkpoint selection, inference -------
+
+RECIPE = {"augment": "shift", "dilation": True, "select_steps": [1000, 2000], "practice_seed0": 5300, "practice_n": 5,
+          "inference": {"binarize_gripper": True, "n_action_steps": 20, "temporal_ensemble_coeff": None}}
+
+
+def test_the_recipe_is_frozen_only_when_set_and_reaches_training_and_the_eval(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    assert not set(RECIPE) & set(config)  # older configs resume unchanged
+
+    exp, _, _ = _exp(hx, tmp_path, name="recipe")
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "save_freq": 1000, **RECIPE})
+    exp.run()
+    config = json.loads((tmp_path / "human_exp" / "recipe" / "config.json").read_text())
+    assert {k: config[k] for k in RECIPE} == RECIPE
+    train_cmd, eval_cmd = exp.deps.run.cmds
+    assert train_cmd[train_cmd.index("--augment") + 1] == "shift" and "--dilation" in train_cmd
+    i = eval_cmd.index("--select-steps")
+    assert eval_cmd[i + 1:i + 3] == ["1000", "2000"]
+    assert eval_cmd[eval_cmd.index("--practice-seed0") + 1] == "5300"
+    assert eval_cmd[eval_cmd.index("--practice-n") + 1] == "5"
+    assert "--binarize-gripper" in eval_cmd and eval_cmd[eval_cmd.index("--n-action-steps") + 1] == "20"
+    assert "--temporal-ensemble" not in eval_cmd
+
+
+def test_the_default_recipe_adds_no_flags(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    exp.run()
+    train_cmd, eval_cmd = exp.deps.run.cmds
+    assert not {"--augment", "--dilation"} & set(train_cmd)
+    assert not {"--select-steps", "--binarize-gripper", "--n-action-steps", "--temporal-ensemble"} & set(eval_cmd)
+
+
+@pytest.mark.parametrize("bad", [
+    ["--select-steps", "1500", "--save-freq", "1000", "--steps", "2000"],  # 1500 is never saved
+    ["--select-steps", "4000", "--save-freq", "1000", "--steps", "2000"],  # past the end of training
+    ["--select-steps", "2000", "--save-freq", "1000", "--steps", "2000", "--practice-seed0", "5030"],  # overlaps 5020-5059
+    ["--steps", "100001"],
+    ["--temporal-ensemble", "0.01", "--n-action-steps", "20"],
+])
+def test_the_cli_refuses_an_impossible_recipe(hx, bad):
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--no-nemotron", *bad])
+
+
+def test_the_cli_allows_80k_steps_with_selection_at_40_60_80k(hx, tmp_path):
+    # refused only because the store is empty: the recipe itself passed the checks
+    rc = hx.main(["--name", "x", "--tag", "standin_*", "--no-nemotron", "--data-dir", str(tmp_path), "--steps", "80000",
+                  "--save-freq", "10000", "--select-steps", "40000", "60000", "80000", "--augment", "shift",
+                  "--dilation", "--binarize-gripper", "--n-action-steps", "20"])
+    assert rc == 1
+
+
+def test_the_preregistration_states_the_recipe_only_when_used(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text()))
+    assert "Training and evaluation recipe" not in plain and hx.recipe_text({}) == ""
+    text = hx.recipe_text({**SMOKE, "save_freq": 1000, **RECIPE})
+    assert "**Training and evaluation recipe**" in text
+    assert "shift augmentation" in text and "dilation" in text
+    assert "1000, 2000" in text and "5300-5304" in text
+    assert "binarized gripper" in text and "every 20 steps" in text
