@@ -1,6 +1,7 @@
 // One page per stage of a run (PipelinePage): what the stage is doing, how far it has got and on what basis its time
 // is estimated, and what it has produced so far. The verdict badges, the repair wording and the before/after table
 // are /data's (site/data), so the two read the same.
+import type { CSSProperties } from "react";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { FootageView } from "../data/FootageView";
 import { useAsync, useClock } from "../data/hooks";
@@ -8,7 +9,7 @@ import { VerdictBadge } from "../data/Pane";
 import { repairText, verdictOf, whatChanged, demoName, type RepairStage, type Verification } from "../data/model";
 import { downloadUrl, fetchArtifacts, fetchRunFootage, type Fetch } from "./api";
 import {
-  evalCells, evalScore, formatDuration, lossPath, stageMeta, stageOf, type Metrics, type RepairRow, type RunState, type Stage, type StageId, type VariantRow,
+  evalCells, evalScore, formatDuration, lossHead, lossPath, stageMeta, stageOf, stagesFor, type Metrics, type RepairRow, type RunState, type Stage, type StageId, type VariantRow,
 } from "./model";
 
 const nf = new Intl.NumberFormat("en-US");
@@ -17,8 +18,13 @@ function StageHead({ stage, run }: { stage: Stage; run: RunState }) {
   const meta = stageMeta(stage.id);
   // Train counts its steps itself, per cell (TrainView); its items add up every cell.
   const items = stage.id === "train" ? null : stage.items;
+  const order = stagesFor(run.kind);
+  const at = String(order.findIndex((s) => s.id === stage.id) + 1).padStart(2, "0");
   return (
     <header className="pipe-head">
+      <p className="pipe-eyebrow">
+        Stage {at} of {String(order.length).padStart(2, "0")}
+      </p>
       <h2 className="data-h2">{meta.label}</h2>
       <p className="data-lede">{meta.blurb}</p>
       <p className="pipe-head__state" data-status={stage.status}>
@@ -154,6 +160,8 @@ function MultiplyView({ run, fetchImpl }: { run: RunState; fetchImpl?: Fetch }) 
 function TrainView({ run }: { run: RunState }) {
   const t = run.train;
   const W = 640, H = 200;
+  const d = lossPath(t.loss, W, H);
+  const head = lossHead(t.loss, W, H);
   return (
     <>
       <p className="data-summary">
@@ -162,7 +170,13 @@ function TrainView({ run }: { run: RunState }) {
       </p>
       <figure className="pipe-loss">
         <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Training loss over steps (log scale)">
-          <path className="pipe-loss__line" d={lossPath(t.loss, W, H)} />
+          {/* a faint grid, the trace's glow (a wide soft stroke, no filter) under the line, and its head */}
+          {[1, 2, 3].map((i) => (
+            <line key={i} className="pipe-loss__grid" x1="0" x2={W} y1={(H * i) / 4} y2={(H * i) / 4} />
+          ))}
+          <path className="pipe-loss__glow" d={d} />
+          <path className="pipe-loss__line" d={d} />
+          {head && <circle className="pipe-loss__head" cx={head[0]} cy={head[1]} r="3.5" />}
         </svg>
         <figcaption>
           Loss {t.loss.length ? `${t.loss[t.loss.length - 1][1].toFixed(3)} now, from ${t.loss[0][1].toFixed(3)}` : "not yet"} (log scale)
@@ -260,6 +274,18 @@ function GateView({ run }: { run: RunState }) {
           ? `${g.successes ?? 0} of ${g.n} replays verified (${pct((g.successes ?? 0) / g.n)}); ${gate}${g.passed === null ? "" : g.passed ? ": passed" : ": failed"}`
           : `Not scored yet; ${gate}.`}
       </p>
+      {g && g.n ? (
+        // The sentence above says it; this draws it: the score, the gate's line.
+        <div
+          className="pipe-gate"
+          aria-hidden="true"
+          data-passed={g.passed === null ? undefined : String(g.passed)}
+          style={{ "--pipe-score": ((g.successes ?? 0) / g.n).toFixed(4), "--pipe-min": g.min ?? 0 } as CSSProperties}
+        >
+          <i className="pipe-gate__fill" />
+          {g.min !== null && <i className="pipe-gate__min" />}
+        </div>
+      ) : null}
       {g?.seeds && (
         <p className="data-note">
           Seeds {g.seeds[0]}–{g.seeds[1]}, which no demo saw. The teacher runs each, then SANT's physics replays what it did.
@@ -267,6 +293,27 @@ function GateView({ run }: { run: RunState }) {
       )}
       <SeedTiles run={run} />
     </>
+  );
+}
+
+/** A round's phases in order, drawn as a short track (the bar's conduit in small). */
+const PHASES = [
+  ["rollouts", "Rollouts"],
+  ["grid", "Mix"],
+  ["train", "Train"],
+  ["select", "Pick"],
+] as const;
+
+function PhaseTrack({ round, phase }: { round: number; phase: string }) {
+  const at = phase === "done" || phase === "stopped" ? PHASES.length : PHASES.findIndex(([id]) => id === phase);
+  return (
+    <ol className="pipe-phases" aria-label={`Round ${round}'s phases`}>
+      {PHASES.map(([id, label], i) => (
+        <li key={id} data-state={i < at ? "done" : i === at ? "now" : "next"} aria-current={i === at ? "step" : undefined}>
+          {label}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -290,6 +337,7 @@ function RoundView({ run, round }: { run: RunState; round: number }) {
       <p className="data-summary">
         Round {round}: {PHASE[rd.phase] ?? rd.phase}
       </p>
+      <PhaseTrack round={round} phase={rd.phase} />
       <ul className="data-list">
         <li>
           {rd.rollouts.done} of {rd.rollouts.total} {round === 0 ? "teacher" : "DAgger"} rollouts ({rd.rollouts.successes} succeeded)
@@ -324,7 +372,7 @@ function ExportView({ run, fetchImpl }: { run: RunState; fetchImpl?: Fetch }) {
   return (
     <ul className="pipe-files" aria-label="Downloads">
       {files.map((a) => (
-        <li key={a.name} className="pipe-file">
+        <li key={a.name} className="pipe-file" data-kind={a.kind}>
           <span className="pipe-file__kind">{kindOf(a)}</span>
           {a.url ? (
             <a className="pipe-file__link" href={downloadUrl(a.url)} download={a.name}>
@@ -357,7 +405,7 @@ const VIEWS: Record<StageId, (p: { run: RunState; fetchImpl?: Fetch }) => JSX.El
 export function StageView({ run, stage, fetchImpl }: { run: RunState; stage: StageId; fetchImpl?: Fetch }) {
   const View = VIEWS[stage];
   return (
-    <section className="pipe-stage-page" aria-label={stageMeta(stage).label}>
+    <section className="pipe-stage-page" data-stage={stage} aria-label={stageMeta(stage).label}>
       <StageHead stage={stageOf(run, stage)} run={run} />
       {run.plan_s !== null ? <p className="data-note">A dry run plans the stages and runs none of them.</p> : <View run={run} fetchImpl={fetchImpl} />}
     </section>

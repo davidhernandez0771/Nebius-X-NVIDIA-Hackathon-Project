@@ -414,6 +414,26 @@ describe("the pipeline pages", () => {
       expect(screen.getByText(/40 of 50 replays verified \(80%\); the gate is 90%: failed/i)).toBeTruthy();
     });
 
+    it("Gate and Distill in the same language: a gate meter with its line at the threshold, the round's phases as a track", async () => {
+      show("/pipeline/t1/gate", teacherBackend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(TSNAP);
+      expect(document.querySelector(".pipe-eyebrow")?.textContent).toMatch(/stage 02 of 05/i);
+      const meter = document.querySelector<HTMLElement>(".pipe-gate")!;
+      expect(meter.getAttribute("aria-hidden")).toBe("true"); // the sentence above says it
+      expect(Number(meter.style.getPropertyValue("--pipe-score"))).toBeCloseTo(0.92, 3);
+      expect(Number(meter.style.getPropertyValue("--pipe-min"))).toBeCloseTo(0.9, 3);
+      expect(meter.dataset.passed).toBe("true");
+      cleanup();
+      FakeSource.all = [];
+      show("/pipeline/t1/distill", teacherBackend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(TSNAP);
+      const phases = screen.getByRole("list", { name: /round 0.s phases/i });
+      expect(phases.querySelector("[aria-current=step]")?.textContent).toMatch(/train/i);
+      expect([...phases.querySelectorAll("li")].map((li) => li.dataset.state)).toEqual(["done", "done", "now", "next"]);
+    });
+
     it("Distill: the round's phase, the teacher's rollouts, the student's loss curve and the checkpoint chosen", async () => {
       show("/pipeline/t1/distill", teacherBackend().f);
       await waitFor(() => expect(FakeSource.all.length).toBe(1));
@@ -423,6 +443,53 @@ describe("the pipeline pages", () => {
       expect(document.querySelector("svg path.pipe-loss__line")?.getAttribute("d")).toMatch(/^M/);
       live().send({ type: "teacher", ...TSNAP.teacher, rounds: [{ ...TSNAP.teacher.rounds[0], phase: "done", selection: { chosen_step: 60000 } }] });
       expect(screen.getByText(/chose the checkpoint at step 60,000/i)).toBeTruthy();
+    });
+  });
+
+  describe("the holo look (inside the machine): the markup the CSS hangs on", () => {
+    it("the stage strip is a conduit: one node per stage, filled by the work done", async () => {
+      show("/pipeline/r1/check", backend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(SNAP); // check done, repair half way
+      const strip = document.querySelector<HTMLElement>(".pipe-stages")!;
+      expect(strip.style.getPropertyValue("--pipe-n")).toBe("6");
+      expect(Number(strip.style.getPropertyValue("--pipe-fill"))).toBeCloseTo(1.5 / 6, 3);
+      expect(strip.querySelectorAll(".pipe-stage__node")).toHaveLength(6);
+      live().send({ type: "stage", stage: "repair", status: "done", progress: 1 });
+      expect(Number(strip.style.getPropertyValue("--pipe-fill"))).toBeCloseTo(2 / 6, 3);
+    });
+
+    it("each stage is its own panel, labelled with its place in the run, and a new stage mounts a new panel", async () => {
+      show("/pipeline/r1/repair", backend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(SNAP);
+      const panel = () => document.querySelector<HTMLElement>(".pipe-stage-page")!;
+      expect(panel().dataset.stage).toBe("repair");
+      expect(panel().querySelector(".pipe-eyebrow")?.textContent).toMatch(/stage 02 of 06/i);
+      const first = panel();
+      fireEvent.click(within(screen.getByRole("navigation", { name: /pipeline/i })).getByRole("link", { name: /check/i }));
+      await waitFor(() => expect(panel().dataset.stage).toBe("check"));
+      expect(panel()).not.toBe(first);
+    });
+
+    it("the loss curve is a glowing trace with a head at the latest point", async () => {
+      show("/pipeline/r1/train", backend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(SNAP);
+      const line = document.querySelector("svg path.pipe-loss__line")!.getAttribute("d");
+      expect(document.querySelector("svg path.pipe-loss__glow")?.getAttribute("d")).toBe(line);
+      const head = document.querySelector("svg circle.pipe-loss__head")!;
+      expect(Number(head.getAttribute("cx"))).toBeCloseTo(640, 0);
+    });
+
+    it("the downloads are cards that know their kind; the runs in the list show their state", async () => {
+      show("/pipeline/r1/export", backend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(SNAP);
+      expect(document.querySelector(".pipe-file")?.getAttribute("data-kind")).toBe("dataset");
+      cleanup();
+      show("/pipeline", backend().f);
+      expect((await screen.findByRole("link", { name: /tonight's mouse demos/i })).getAttribute("data-status")).toBe("running");
     });
   });
 

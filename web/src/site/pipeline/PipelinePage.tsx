@@ -66,7 +66,7 @@ function Runs({ fetchImpl }: { fetchImpl?: Fetch }) {
           <ul className="pipe-runs__list">
             {runs.value.map((r) => (
               <li key={r.id}>
-                <Link className="pipe-run" to={`/pipeline/${encodeURIComponent(r.id)}`}>
+                <Link className="pipe-run" data-status={r.status} to={`/pipeline/${encodeURIComponent(r.id)}`}>
                   <span className="pipe-run__name">{r.name || r.id}</span>
                   <span className="pipe-run__meta">
                     {r.kind === "teacher" ? "teacher" : `${r.demos} demos`} · {r.status === "running" && r.stage ? `at ${r.stage}` : r.status}
@@ -109,7 +109,8 @@ function RunView({ id, stage, Source, fetchImpl }: { id: string; stage?: string;
           <Link to={`/pipeline/${encodeURIComponent(run.id)}/export${search}`}>Your data is ready: download it →</Link>
         </p>
       )}
-      <StageView run={run} stage={shown} fetchImpl={fetchImpl} />
+      {/* a new stage mounts a new panel, which draws in (pipeline.css) */}
+      <StageView key={shown} run={run} stage={shown} fetchImpl={fetchImpl} />
     </>
   );
 }

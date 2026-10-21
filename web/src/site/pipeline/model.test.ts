@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PIPELINE_STAGES, applyRunEvent, barOf, emptyRun, evalCells, evalScore, formatDuration, lossPath, parseRun, parseRunEvent, parseRuns, stageOf, stagesFor,
+  PIPELINE_STAGES, applyRunEvent, barOf, conduitOf, emptyRun, evalCells, evalScore, formatDuration, lossHead, lossPath, parseRun, parseRunEvent, parseRuns, stageOf, stagesFor,
   type RunState,
 } from "./model";
 
@@ -209,5 +209,30 @@ describe("the pipeline's model", () => {
     const ys = [...d.matchAll(/[ML][\d.]+,([\d.]+)/g)].map((m) => Number(m[1]));
     expect(ys[0]).toBeLessThan(ys[2]); // falling loss goes down the box
     expect(lossPath([], 200, 100)).toBe("");
+  });
+  it("finds the loss curve's head, the latest point, in the same box (null before any loss)", () => {
+    expect(lossHead([[0, 1], [100, 0.1], [200, 0.01]], 200, 100)).toEqual([200, 100]);
+    expect(lossHead([[0, 1], [100, 0.1]], 200, 100)?.[0]).toBe(200);
+    expect(lossHead([], 200, 100)).toBeNull();
+  });
+
+  it("fills the stage conduit with the work done: whole stages done, the running one's share, none for a dry run", () => {
+    const r = parseRun(SNAP); // check done, repair 40%
+    expect(conduitOf(r)).toBeCloseTo(1.4 / 6, 5);
+    expect(conduitOf(emptyRun("x"))).toBe(0);
+    const done = parseRun({ ...SNAP, status: "done", stages: PIPELINE_STAGES.map((s) => ({ id: s.id, status: "done", progress: 1 })) });
+    expect(conduitOf(done)).toBe(1);
+    // A real run skips a stage nobody asked for (DAgger): the flow passes through it.
+    const teacher = parseRun({ id: "t", kind: "teacher", status: "done", stages: [
+      { id: "teacher", status: "done", progress: 1 }, { id: "gate", status: "done", progress: 1 }, { id: "distill", status: "done", progress: 1 },
+      { id: "dagger", status: "skipped", progress: 0 }, { id: "export", status: "done", progress: 1 },
+    ] });
+    expect(conduitOf(teacher)).toBe(1);
+    // A dry run plans every stage and runs none.
+    const dry = parseRun({ id: "d", status: "done", plan_s: 9000, stages: PIPELINE_STAGES.map((s) => ({ id: s.id, status: "skipped", eta_s: 60 })) });
+    expect(conduitOf(dry)).toBe(0);
+    // A stage that stopped keeps what it had done.
+    const failed = parseRun({ ...SNAP, status: "failed", stages: [{ id: "check", status: "done", progress: 1 }, { id: "repair", status: "failed", progress: 0.5 }] });
+    expect(conduitOf(failed)).toBeCloseTo(1.5 / 6, 5);
   });
 });
