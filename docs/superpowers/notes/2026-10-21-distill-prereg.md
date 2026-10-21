@@ -489,7 +489,32 @@ required.
 - the student's selection seeds 5300–5329, although they were also used in gate attempt 1. That overlap was in this
   pre-registration from the start, and the teacher never trained on them.
 
-T3's commit for the cap, and `demo_v6c`'s command and start time, are added here when T3 sends them.
+**The cap is `f5b6646`** (T3, 13:29, on `pm/rl-teacher`), in `rl_teacher.cap_speed`. Each new target:
+- moves at most 0.5 m/s × 0.02 s (1 cm) from the previous target;
+- turns at most **2.5 rad/s × 0.02 s in yaw** from the previous target. This yaw-rate cap is T3's addition, which the
+  lead approved under this amendment;
+- stays within one step of the tool.
+
+**Where it applies:** in training (the env's action term, on by default for new runs), in Play/eval, and in `make()`
+for T6's rollouts. `make()` reads the cap from the run's `params/env.yaml`, as it does the deadband. Runs before
+`demo_v6c` have no cap in their `env.yaml` and stay uncapped.
+
+**Why the yaw cap too:** `demo_v6` turned at a median 3.3 rad/s (p99 10.4), against the human demos' 0.01 rad/s (p99
+3.8).
+
+**`demo_v6c` started** at 13:29:22 (pid 1356). It resumes from `model_1499` for 600 more iterations, with:
+- the cap;
+- the std reset to 0.3;
+- `std_range` [0.1, 0.5];
+- both curricula held where `demo_v6` ended.
+
+**T3's plan:**
+- check-ins at +300 and +600 iterations;
+- then the start-type breakdown, plus a replay check on non-gate episodes, to pick a checkpoint before the gate;
+- then gate attempt 2 on 5350–5399.
+
+5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
+run-enabling initialisation change; it has not been used.
 
 **T6's guard, `da4a6cc`** (13:18, on `pm/distill-dagger`): the grid refuses any training episode from `data\rl`, or
 on a selection or test seed. It checks each episode's `scene.json` and records the result as `data_check`. This is a
