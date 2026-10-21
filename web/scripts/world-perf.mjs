@@ -8,7 +8,9 @@
 // Env: TIERS=low,high,ultra (default all); CHROME=<path to chrome.exe>;
 //   MODE=parts  GPU time with each part hidden (PARTS=..., BIG=WxH also renders at that CSS size);
 //   MODE=shot   SHOTS="name:vh,..." screenshots (REDUCED=1, CLICK="x,y" CLICK_AT=name for a click);
-//   MODE=load   frames of the load sequence on a throttled network (KBPS, STEP ms, N frames).
+//   MODE=load   frames of the load sequence on a throttled network (KBPS, STEP ms, N frames);
+//   MODE=hold   frame and GPU time holding scroll positions (AT="name:vh,...", default the hero; SECONDS).
+// W, H, DPR: the viewport (default 1280 x 800 at 1.5); HEADFUL=1: a visible window instead of headless.
 import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +21,8 @@ const PORT = 9333;
 const CHROME = process.env.CHROME ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const profile = mkdtempSync(join(process.env.PERF_TMP ?? tmpdir(), "world-perf-"));
 const chrome = spawn(CHROME, [
-  "--headless=new",
+  // HEADFUL=1: a visible window (what a person sees), else headless.
+  ...(process.env.HEADFUL ? [] : ["--headless=new"]),
   `--remote-debugging-port=${PORT}`,
   `--user-data-dir=${profile}`,
   "--use-angle=d3d11",
@@ -28,7 +31,7 @@ const chrome = spawn(CHROME, [
   "--disable-background-timer-throttling",
   "--disable-renderer-backgrounding",
   "--disable-backgrounding-occluded-windows",
-  "--window-size=1280,800",
+  `--window-size=${process.env.W ?? 1280},${process.env.H ?? 800}`,
   "about:blank",
 ], { stdio: "ignore" });
 
@@ -72,8 +75,9 @@ const evaluate = async (expr) => {
 await send("Page.enable");
 await send("Performance.enable");
 await send("Runtime.enable");
-// A mid laptop's screen: 1280 x 800 CSS px at 1.5x (1920 x 1200 device px).
-await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1.5, mobile: false });
+// A mid laptop's screen by default: 1280 x 800 CSS px at 1.5x (1920 x 1200 device px); W, H, DPR override it.
+const W = Number(process.env.W ?? 1280), H = Number(process.env.H ?? 800), DPR = Number(process.env.DPR ?? 1.5);
+await send("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: DPR, mobile: false });
 await send("Emulation.setCPUThrottlingRate", { rate: Number(THROTTLE) });
 
 // The in-page probe: wraps the renderer to time each frame on the GPU (EXT_disjoint_timer_query_webgl2)
@@ -122,7 +126,7 @@ window.__perf = async function (opts) {
 };
 "ok"`;
 
-const results = { base: BASE, cpuThrottle: Number(THROTTLE), screen: "1280x800 CSS at 1.5x", runs: {} };
+const results = { base: BASE, cpuThrottle: Number(THROTTLE), screen: `${W}x${H} CSS at ${DPR}x`, runs: {} };
 
 async function open(url) {
   await send("Page.navigate", { url });
@@ -238,6 +242,25 @@ async function measured(expr) {
   r.mainThreadBusyPct = +((busy / (r.seconds * 1000)) * 100).toFixed(1);
   r.jsHeapMB = +(b.JSHeapUsedSize / 1048576).toFixed(1);
   return r;
+}
+
+if (process.env.MODE === "hold") {
+  // Hold each scroll position (AT="name:vh,...", default the hero at 0) on each tier and measure it (SECONDS).
+  for (const tier of (process.env.TIERS ?? "high,ultra").split(",")) {
+    await open(`${BASE}/world?quality=${tier}`);
+    results.runs[tier] = {};
+    for (const spec of (process.env.AT ?? "hero:0").split(",")) {
+      const [name, vh] = spec.split(":");
+      await evaluate(`window.scrollTo(0, ${Number(vh)} * innerHeight)`);
+      await sleep(Number(process.env.WAIT ?? 5000));
+      const r = await measured(`window.__perf({ seconds: ${Number(process.env.SECONDS ?? 5)} })`);
+      results.runs[tier][name] = r;
+      console.log(tier, name, JSON.stringify({ fps: r.renderedPerSec, frame: r.frameMs?.p50, frame95: r.frameMs?.p95, gpu: r.gpuMs?.p50, gpu95: r.gpuMs?.p95, cpu: r.renderCpuMs?.p50, main: r.mainThreadMsPerFrame, calls: r.drawCalls?.p50, tris: r.triangles?.p50, canvas: r.canvas }));
+    }
+  }
+  writeFileSync(OUT, JSON.stringify(results, null, 2));
+  chrome.kill();
+  process.exit(0);
 }
 
 const VH = { intro: 6.7, shelf: 8.2, machine: 9.0, plug: 9.8, projection: 10.6 };

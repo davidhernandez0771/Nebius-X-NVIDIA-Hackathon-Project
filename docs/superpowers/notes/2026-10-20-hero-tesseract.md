@@ -85,6 +85,41 @@ The hero frame on ultra (HUD): 19 calls, 17,182 triangles, post-processing inclu
 
 The SVG path to the logo is gone: the mark is now the tesseract in code.
 
+## Performance on the real GPU (RTX 5080, 2560x1440 @ 119 Hz)
+The user saw about 20 fps on ultra at the hero. Measured with `web/scripts/world-perf.mjs` (new: `MODE=hold`, `W/H/DPR`, `HEADFUL=1`) and a CPU profile of the opening.
+
+**Holding the hero:** 120 fps, the refresh cap (8.3 ms per frame at p50, 8.5 at p95).
+- The main thread takes about 0.1 ms per frame, so nothing runs every frame. `heroSlot` runs only on load, on resize and while the fonts settle.
+- The canvas is capped near 2.5 MP by the resolution scaler.
+- That held on high and ultra, before and after the fix:
+  - at 1280x800 @1.5, 1920x1080 @1 and @2, and 2560x1440 @1.5;
+  - in headless and in a visible window;
+  - on this branch and on pm/live-12.
+
+**The stalls were at the opening.** The loader lets go at about 1.2 s; the hero then stalled on shader compiles:
+- **The tesseract.**
+  - Its three `MeshPhysicalMaterial` programs compiled on its first visible frame (38–59 ms each). It was hidden during the loader's warm-up.
+  - They compiled again a second later, when the workshop's lamps joined the scene (lit programs depend on the light count; 43–70 ms each).
+- **The backdrop and the tesseract, once more.** Every warm-up compiled for the screen, while frames draw into the post chain's linear target (a different program), so each object compiled again on its first frame.
+- **The studio PMREM bake** (about 67 ms).
+
+**Fixed:**
+- The tesseract is unlit: `MeshMatcapMaterial` with polished-steel and glow matcaps made in code. It has no lights, no clearcoat and no environment map.
+- It is shown for the loader's compile, and the studio PMREM is gone.
+- `compileSafe` compiles for the post chain's target, which `PostFX` registers.
+
+**Results** (pm/live-12 with the fix, ultra, headless, 3 runs each):
+
+| | Before | After |
+|---|---|---|
+| Hero draw stalls after the loader | 6 tesseract compiles, about 340 ms, plus the backdrop's | one 7 ms draw |
+| Worst frame after the loader | 192–325 ms | 150 ms |
+| Total stalls after the loader | about 900–1,000 ms | 708–985 ms |
+
+**Left, not the hero's:** React mounting the other stations right after the loader (the descent's Generator build alone is about 200 ms), the workshop's environment PMREM, and other first draws. Deferring those builds to idle time is the next step.
+
+**I could not reproduce the 20 fps holding the hero** on this GPU, headless or in a visible window. The user's on-screen HUD (`?hud`: fps, calls, tris, dpr, the GPU) would say what differs there.
+
 ## Checked
 - **Tests.** Web 1683 passed, 1 skipped. One full run had a timing failure in `DataPage.test.tsx` (the data page, untouched here). It passed 3 times alone, and the full rerun was green. New tests:
   - `tesseractPlan.test.ts`: 10. It covers:

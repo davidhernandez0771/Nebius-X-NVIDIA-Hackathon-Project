@@ -11,7 +11,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { ambient } from "../../core/activity";
 import { assets } from "../../core/assets";
 import { forestFiles } from "../../core/waiting";
@@ -27,7 +26,7 @@ import { dustBuffers } from "./particles";
 import { FRAMES, frameGate, load } from "./progress";
 import { backdropFrag, backdropVert, dustFrag, dustVert } from "./shaders";
 import { INTRO_VH, logoPose, placeLights } from "./storyPlan";
-import { CHROME_ENV, makeTesseract, TESSERACT_LOOK, type TesseractHandle } from "./Tesseract";
+import { makeTesseract, TESSERACT_LOOK, type TesseractHandle } from "./Tesseract";
 import { HYPER_RADIUS, hyperPose, ISO, STILL_RADIUS } from "./tesseractPlan";
 
 // The forest and the reactor: after the first frame, with their STL loader and shaders.
@@ -40,19 +39,6 @@ const SPIN = 0.12;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeOutBack = (u: number) => 1 + 2.2 * (u - 1) ** 3 + 1.2 * (u - 1) ** 2;
 
-/** A small prefiltered studio for the glass and the chrome to reflect. */
-function useStudio(): THREE.Texture {
-  const gl = useThree((s) => s.gl);
-  const env = useMemo(() => {
-    const pmrem = new THREE.PMREMGenerator(gl);
-    const t = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
-    return t;
-  }, [gl]);
-  useEffect(() => () => env.dispose(), [env]);
-  return env;
-}
-
 interface Logo {
   /** Turned by the scroll's gentle 3D turn and the pointer. */
   group: THREE.Group;
@@ -61,8 +47,8 @@ interface Logo {
 }
 
 /** The tesseract, seen as the flat mark (isometric) inside a group the scroll and the pointer turn. */
-function makeLogo(q: QualityTier, env: THREE.Texture): Logo {
-  const tesseract = makeTesseract(q, env);
+function makeLogo(q: QualityTier): Logo {
+  const tesseract = makeTesseract(q);
   tesseract.group.rotation.copy(ISO);
   const group = new THREE.Group();
   group.add(tesseract.group);
@@ -186,8 +172,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   const scene = useThree((s) => s.scene);
   const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
-  const env = useStudio();
-  const logo = useMemo(() => makeLogo(quality, env), [quality, env]);
+  const logo = useMemo(() => makeLogo(quality), [quality]);
   const loaded = useSyncExternalStore(store.subscribe, () => store.getCoarse().ready);
   const backdrop = useMemo(() => makeBackdrop(), []);
   // Sparse: a third of the tier's dust, so the space reads empty and deep.
@@ -234,7 +219,12 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
       st.current.frames = [];
       invalidate();
     };
+    // The tesseract is hidden until it grows in, and three compiles only what is visible: show it for the compile,
+    // so its first frame on screen doesn't stall on its shaders.
+    const was = logo.group.visible;
+    logo.group.visible = true;
     compileSafe(gl, scene, camera, 10000, (n, total) => live && load.count("shaders", n, total)).then(done, done);
+    logo.group.visible = was;
     return () => {
       live = false;
     };
@@ -279,10 +269,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     logo.group.rotation.set((reduced ? 0 : pose.tilt) - s.my * 0.14, turn + s.mx * 0.22, 0);
     logo.group.position.copy(slot.current.position);
     logo.group.scale.setScalar(LOGO_R * slot.current.scale * (reduced ? 1 : Math.max(0.001, easeOutBack(grow))));
-    const { chrome, teal, joints } = logo.tesseract.materials;
-    chrome.envMapIntensity = joints.envMapIntensity = CHROME_ENV * light;
-    teal.emissiveIntensity = 0.85 * light;
-    teal.envMapIntensity = 0.6 * light;
+    logo.tesseract.setLight(light);
     logo.group.visible = grow > 0 && light > 0;
 
     const b = backdrop.mat.uniforms;
