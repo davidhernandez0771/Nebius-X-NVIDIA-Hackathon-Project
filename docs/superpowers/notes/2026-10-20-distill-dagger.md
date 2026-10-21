@@ -183,6 +183,20 @@ A stop skips grid, train and select, and is written to `decision.json` and `roun
 | Checkpoint selection | 5300–5329 (eval_cells' own practice range) |
 | Test | 5020–5059, never touched by any round |
 
+**What may train the student (guard added 2026-10-21, the lead's request).** T3's gate writes teacher trajectories
+on 5300–5349 (under `data\rl\eval\v6_gate`), and those are our selection seeds. The grid phase runs
+`check_training_episodes` on every episode before mixing and stops the round (PhaseFailed) on the first offender:
+
+| Source | Must be |
+|---|---|
+| Any | Carries a `scene.json` with its seed; not in a `data\rl` tree; not on a selection (5300–5399) or test (5020–5059) seed |
+| Human (the SANT cell) | A training-side seed, < 5000 (the mouse cell: 110 episodes, seeds 0 and 3100–4009) |
+| Teacher | This round's teacher range, inside `r0\episodes` |
+| DAgger | The practice seeds 5200–5279, inside its own round's `episodes` |
+
+`round.json` records the result as `data_check` (episodes and seed range per source). No code reads `data\rl` for
+training: the sources are only the human grid's cell and our own round folders. The guard makes that a checked fact.
+
 **Inference options:** the `lerobot_tools.inference` flags from the Stage-0 test (`--binarize-gripper`,
 `--n-action-steps`, `--temporal-ensemble`) pass through `--inference-args` to the DAgger student and the selection.
 The training options (`--augment shift`, `--dilation`) pass through `--train-args`.
@@ -323,7 +337,11 @@ That fits the research note's Oct 25 (round 0) / Oct 26 (round 1) / Oct 27 (test
   - **Episodes:** written, with provenance, and assemble counts them as "teacher"; failed teacher rollouts are
     dropped; DAgger keeps every segment and needs the student checkpoint.
   - **Script helpers:** seed rules, resume rows, the done summary, and stale folders moved aside.
-- **`sim_eval/tests/test_distill_round.py` (16).** A fake runner stands in for Isaac, LeRobot and eval_cells.
+- **`sim_eval/tests/test_distill_round.py` (20).** A fake runner stands in for Isaac, LeRobot and eval_cells.
+  - **Added 2026-10-21 (later):** the training-data guard refuses a `data\rl` folder, selection and test seeds in any
+    source, teacher seeds outside the round's range or outside `r0\episodes`, DAgger seeds off the practice range,
+    and episodes without `scene.json`; a round stops at grid on a selection-seed episode; `round.json` records
+    `data_check`.
   - **Added 2026-10-21:**
     - round 0 at a larger `--teacher-n` keeps the old rollouts, then retrains and reselects under new names, with
       `selection.json` as the latest;
@@ -336,7 +354,7 @@ That fits the research note's Oct 25 (round 0) / Oct 26 (round 1) / Oct 27 (test
   - **Rules and options:** the seed rules; inference and train option pass-through; `--stop-after` with a resumed
     larger run; the wrapper's dry run writes nothing.
 - **`lerobot_tools/tests/test_assemble.py`:** unchanged and green with the new `sources` field.
-- **Full suite** (`uv run --no-sync pytest -q` from the repo root): 2599 passed, 28 skipped, 0 failed.
+- **Full suite** (`uv run --no-sync pytest -q` from the repo root): 2655 passed, 32 skipped, 0 failed (2026-10-21, with T3's ba9e664 merged as 957ec1e and the guard; 10 min 51 s).
 
 ## Unknowns only Isaac (and T3) can answer
 

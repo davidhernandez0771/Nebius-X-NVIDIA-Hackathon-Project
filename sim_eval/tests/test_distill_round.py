@@ -95,14 +95,20 @@ def test_stop_rule():
 
 # --- the rounds --------------------------------------------------------------------------------------------------------
 
+def write_scene(ep: Path, seed: int) -> Path:
+    """The scene.json every real episode carries (the seed is what the training-data guard reads)."""
+    (Path(ep) / "scene.json").write_text(json.dumps({"seed": seed}), encoding="utf-8")
+    return Path(ep)
+
+
 def cfg(tmp_path: Path, round_id: int = 0, **over) -> RoundConfig:
     repo = tmp_path / "repo"
     data = repo / "data"
     eps = data / "human_exp" / "m" / "eps"
     if not eps.exists():
         for i in range(2):
-            make_episode(eps, f"h{i}", [f"h{i}"], n_steps=30)
-            make_episode(eps, f"h{i}_v0", [f"h{i}", f"h{i}_v0"], n_steps=30)
+            write_scene(make_episode(eps, f"h{i}", [f"h{i}"], n_steps=30), 0)  # recorded at the home scene
+            write_scene(make_episode(eps, f"h{i}_v0", [f"h{i}", f"h{i}_v0"], n_steps=30), 3100 + i)  # a variant
     grid = data / "human_exp" / "m" / "grid.json"
     grid.write_text(json.dumps({"name": "m", "cells": [
         {"condition": "raw", "n_human": 2, "episode_dirs": ["eps/h0", "eps/h1"]},
@@ -145,7 +151,7 @@ class FakeRunner:
                 if kind == "dagger" or ok:
                     name = f"teacher_r0_{s}" if kind == "teacher" else f"dagger_r{r}_{s}_0"
                     root = "teacher-rl" if kind == "teacher" else f"dagger-r{r}-rl"
-                    make_episode(out / "episodes", name, [root, name], n_steps=50)
+                    write_scene(make_episode(out / "episodes", name, [root, name], n_steps=50), s)
                     names, frames = [name], frames + 50
                 rows.append({"seed": s, "success": ok, "episodes": names})
             (out / "rollouts.jsonl").write_text("".join(json.dumps(x) + "\n" for x in rows), encoding="utf-8")
@@ -194,6 +200,8 @@ def test_round0_teacher_rollouts_mix_train_select(tmp_path):
     assert rnd0["round"] == 0 and rnd0["teacher_gate"] == {"verified": 4, "attempted": 4, "rate": 1.0,
                                                            "passes": True, "threshold": 0.9}
     assert set(rnd0["mix"]) == {"human", "teacher"}
+    assert rnd0["data_check"] == {"human": {"episodes": 4, "seeds": [0, 3101]},
+                                  "teacher": {"episodes": 4, "seeds": [4000, 4003]}}
     sel = json.loads(c.selection_file.read_text(encoding="utf-8"))
     assert sel["chosen_step"] == 200 and sel["counts"] == {"100": [1, 2], "200": [2, 2]}
     assert sel["seeds"] == [5300, 5301]
@@ -373,6 +381,52 @@ def test_code_version_names_the_commit_and_whether_it_is_clean(tmp_path):
     assert len(v["commit"]) == 40 and v["branch"] == "trial" and v["dirty"] is False
     (repo / "f.txt").write_text("b", encoding="utf-8")
     assert code_version(repo)["dirty"] is True
+
+
+def test_training_data_guard_refuses_eval_side_seeds_and_rl_folders(tmp_path):
+    """Nothing seen on the selection (5300-5399) or test (5020-5059) seeds may train the student: T3's gate writes
+    teacher trajectories on 5300-5349 under data/rl/eval. Human and teacher episodes stay on the training side
+    (< 5000; the teacher's within this round's range), DAgger ones on the practice seeds, and teacher / DAgger ones
+    inside their round's own episodes folder."""
+    from sim_eval.distill_round import check_training_episodes
+
+    h = [write_scene(make_episode(tmp_path / "h", "h0", ["h0"]), 0),
+         write_scene(make_episode(tmp_path / "h", "h0_v", ["h0", "h0_v"]), 4009)]
+    r0 = tmp_path / "r0" / "episodes"
+    r1 = tmp_path / "r1" / "episodes"
+    t = [write_scene(make_episode(r0, f"teacher_r0_{s}", ["teacher-rl", f"teacher_r0_{s}"]), s) for s in (4000, 4001)]
+    d = [write_scene(make_episode(r1, "dagger_r1_5200_0", ["dagger-r1-rl", "dagger_r1_5200_0"]), 5200)]
+    ok = {"human": h, "teacher": t, "dagger": d}
+    folders = {"teacher": [r0], "dagger": [r1]}
+    report = check_training_episodes(ok, teacher_seeds=(4000, 4001), folders=folders)
+    assert report == {"human": {"episodes": 2, "seeds": [0, 4009]}, "teacher": {"episodes": 2, "seeds": [4000, 4001]},
+                      "dagger": {"episodes": 1, "seeds": [5200, 5200]}}
+
+    def refused(src, ep, match):
+        with pytest.raises(ValueError, match=match):
+            check_training_episodes({**ok, src: ok[src] + [ep]}, teacher_seeds=(4000, 4001), folders=folders)
+
+    gate = tmp_path / "data" / "rl" / "eval" / "v6_gate"
+    refused("human", write_scene(make_episode(gate, "ep_4000", ["ep_4000"]), 4000), "rl")  # T3's folder, any seed
+    refused("human", write_scene(make_episode(tmp_path / "h", "h_sel", ["h_sel"]), 5301), "5301")
+    refused("human", write_scene(make_episode(tmp_path / "h", "h_test", ["h_test"]), 5020), "5020")
+    refused("teacher", write_scene(make_episode(r0, "teacher_r0_5302", ["teacher-rl", "x"]), 5302), "5302")
+    refused("teacher", write_scene(make_episode(r0, "teacher_r0_4002", ["teacher-rl", "y"]), 4002), "4002")
+    stray = write_scene(make_episode(tmp_path / "elsewhere", "teacher_r0_4000", ["teacher-rl", "z"]), 4000)
+    refused("teacher", stray, "folder")
+    refused("dagger", write_scene(make_episode(r1, "dagger_r1_5300_0", ["dagger-r1-rl", "w"]), 5300), "5300")
+    no_scene = make_episode(tmp_path / "h", "h_noscene", ["h_noscene"])
+    refused("human", no_scene, "scene.json")
+
+
+def test_round_grid_stops_on_a_selection_seed_episode(tmp_path):
+    c = cfg(tmp_path, teacher_n=2)
+    run_phases(plan_round(c, log=lambda m: None, runner=FakeRunner(c.data), stop_after="rollouts"),
+               log=lambda m: None)
+    write_scene(c.round_dir(0) / "episodes" / "teacher_r0_4001", 5301)  # a selection-seed scene under a teacher name
+    with pytest.raises(PhaseFailed, match="5301"):
+        run(c, FakeRunner(c.data))
+    assert not c.grid_file.exists()
 
 
 def test_round_records_name_the_code(tmp_path):

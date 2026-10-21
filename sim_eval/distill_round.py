@@ -316,6 +316,48 @@ def _episode_seed(ep: Path) -> int:
     return int(Path(ep).name.split("_")[2])
 
 
+TRAINING_SIDE = range(0, 5000)  # every eval-side seed (test 5020-5059, practice 5200-5279, selection 5300-5399) is above
+
+
+def _rl_folder(ep: Path) -> bool:
+    """Inside a data/rl tree: T3's RL runs and evals (its gate writes teacher trajectories on the selection seeds)."""
+    parts = [p.lower() for p in Path(ep).resolve().parts]
+    return any(a == "data" and b == "rl" for a, b in zip(parts, parts[1:]))
+
+
+def check_training_episodes(sources: dict[str, list[Path]], *, teacher_seeds: tuple[int, int],
+                            folders: dict[str, list[Path]]) -> dict:
+    """Refuse training data that saw an evaluation seed. Every episode must carry its scene.json seed, and none may sit
+    in a data/rl tree. Human: training-side seeds (< 5000). Teacher: this round's teacher range, inside round 0's
+    episodes folder. DAgger: the practice seeds, inside its round's episodes folder. The selection and test seeds are
+    refused everywhere. folders: {"teacher": [...], "dagger": [...]}. Returns {source: {episodes, seeds [min, max]}};
+    raises ValueError naming the first offending episode."""
+    t0, t1 = teacher_seeds
+    allowed = {"human": TRAINING_SIDE, "teacher": range(t0, t1 + 1), "dagger": PRACTICE_SEEDS}
+    report = {}
+    for src, eps in sources.items():
+        seeds = []
+        for ep in eps:
+            ep = Path(ep)
+            if _rl_folder(ep):
+                raise ValueError(f"{src} episode {ep} is in a data/rl folder (RL runs and evals never train the student)")
+            if src in folders and not any(ep.resolve().parent == Path(f).resolve() for f in folders[src]):
+                raise ValueError(f"{src} episode {ep} is outside its round's episodes folder {folders[src]}")
+            scene = ep / "scene.json"
+            if not scene.is_file():
+                raise ValueError(f"{src} episode {ep} has no scene.json: its seed cannot be checked")
+            seed = int(json.loads(scene.read_text(encoding="utf-8"))["seed"])
+            if seed in SELECT_SEEDS or seed in TEST_SEEDS:
+                raise ValueError(f"{src} episode {ep} is on seed {seed}, a selection/test seed")
+            if seed not in allowed[src]:
+                raise ValueError(f"{src} episode {ep} is on seed {seed}, outside its seeds "
+                                 f"{allowed[src].start}-{allowed[src].stop - 1}")
+            seeds.append(seed)
+        if seeds:
+            report[src] = {"episodes": len(seeds), "seeds": [min(seeds), max(seeds)]}
+    return report
+
+
 def _read(path: Path) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -410,13 +452,19 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         dagger = [ep for k in range(1, r + 1) for ep in _round_episodes(c, k)]
         if dagger:
             sources["dagger"] = dagger
+        try:
+            data_check = check_training_episodes(sources, teacher_seeds=(t0, t1), folders={
+                "teacher": [c.round_dir(0) / "episodes"],
+                "dagger": [c.round_dir(k) / "episodes" for k in range(1, r + 1)]})
+        except ValueError as e:
+            raise PhaseFailed(f"grid: {e}") from e
         cell, report = mix_cell(sources, c.weights, label=c.label, n_human=n_human, max_repeat=c.max_repeat)
         c.grid_file.parent.mkdir(parents=True, exist_ok=True)
         c.grid_file.write_text(json.dumps({"name": c.grid_name, "cells": [cell]}, indent=1), encoding="utf-8")
         info = _read(c.round_file) if r >= 1 else {"run_id": c.run_id, "round": r, "teacher": c.teacher,
                                                    "teacher_checkpoint": str(c.teacher_checkpoint)}
         info.update(human={"grid": str(c.human_grid), "cell": c.human_cell, "n_human": n_human}, teacher_gate=gate,
-                    teacher_seeds=[t0, t1], mix=report, grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)),
+                    teacher_seeds=[t0, t1], mix=report, data_check=data_check, grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)),
                     code=code_version(c.repo), rollouts_code=_read(c.done_file()).get("code"))
         c.round_file.write_text(json.dumps(info, indent=1), encoding="utf-8")
         log(f"[distill]   cell {c.label}: " + ", ".join(f"{s} {v['frames']} frames x{v['repeat']} ({v['share']:.0%})"
