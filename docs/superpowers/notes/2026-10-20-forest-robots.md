@@ -1,4 +1,4 @@
-# Forest robots: the real robots in the moss, and the Blender crack (2026-10-20)
+# Forest robots: the real robots in the moss, and the lit Blender crack (2026-10-20)
 
 Branch `pm/forest-robots`, from pm/live-12 (`af0ea91`). The screenshots are in `2026-10-20-forest-robots/`.
 
@@ -6,12 +6,14 @@ Branch `pm/forest-robots`, from pm/live-12 (`af0ea91`). The screenshots are in `
 
 **Screenshots 01–06** hide the page's text so the robots can be seen; 07 has the text. They are:
 - 01–05: the robots along the walk;
-- 06: the crack's lip;
+- 06: the crack's lip, from the forest;
 - 07: the same view with the text;
 - 08: the low tier (HUD on);
 - 09: a phone at 390×844, low tier;
 - 10: the stills that SwiftShader gets by default;
-- 11: reduced motion (the static logo, as before).
+- 11: reduced motion (the static logo, as before);
+- 12–18: the fall down the lit crack, from the lip to the reactor below;
+- 19: the low tier's fall (the procedural crack, lit the same way).
 
 ## The robots
 
@@ -41,8 +43,8 @@ There are no textures.
 
 **Two levels of detail, made in code** (`robotLod.ts`). Nothing in the project decimates a mesh, so the code snaps vertices to a grid and drops the triangles that collapse:
 - every robot has a coarse level (a 2–2.5 cm grid);
-- robots within 4 m of the camera also get a detailed level (a 1.2 cm grid);
-- the two levels dissolve into each other over the last 1.2 m.
+- robots within 3.5 m of the camera also get a detailed level (a 1.2 cm grid);
+- the two levels dissolve into each other over the last 1 m.
 
 It is all one geometry and one draw call. The index list is rebuilt only when a robot's level changes, a handful of times along the walk.
 
@@ -51,67 +53,88 @@ It is all one geometry and one draw call. The index list is rebuilt only when a 
 | Tier | Robots | Coarse grid | Detailed level |
 |---|---|---|---|
 | low (phones) | 4: franka, piper, ur5e, xarm6 (the others aren't downloaded) | 2.5 cm | none |
-| high | all 7 | 2.5 cm | within 4 m |
-| ultra | all 7 | 2 cm | within 4 m |
-
-**Budget: forest pieces + robots, at the worst point of the camera's path.** These are the counts from `robotBudget.test.ts`, which loads the real GLBs and walks the path:
-
-| Tier | Before (pieces + stand-in Franka ×7) | After (pieces + real robots) | Budget |
-|---|---|---|---|
-| low | 49,354 + 14,784 = **64,138** (over budget) | 49,354 + 8,024 = **57,378** | 60,000 |
-| high | 128,540 + 14,784 = 143,324 | 128,540 + 28,333 = **156,873** | 160,000 |
-| ultra | 153,260 + 14,784 = 168,044 | 153,260 + 33,427 = **186,687** | 190,000 |
-
-The robots are 1 draw call both before and after; the pieces are 8 of 10.
+| high | all 7 | 2.5 cm | within 3.5 m |
+| ultra | all 7 | 2 cm | within 3.5 m |
 
 **Loading.** The robots load lazily: after the loader, with a dynamic import of `robotWrecks`. The low tier fetches only its 4 GLBs. The forest no longer loads the URDF stand-in.
 
-## The Blender crack (`crack.glb`)
+## The crack: lit during the fall
 
-The lead's export (26,856 triangles, 1.33 MB, one mesh) is copied to `web/public/world/models/crack.glb`. It shows in the crack slot on high and ultra (screenshot 06).
+The lead's second export (20,142 triangles, 1.21 MB, one mesh, sha256 checked) is at `web/public/world/models/crack.glb`.
 
-**Cost.** It is 1 draw call and 26,856 triangles, where the procedural fissure was 160.
-- **Low tier and phones:** the procedural crack stays (a new `makeCrack(..., model)` flag). With it, low's frame is 58,546 triangles; with the GLB it was 85,242.
-- **High and ultra:** the forest budget above doesn't count the crack (it never did). With it, high would be about 183.7k and ultra about 213.5k.
+**The fall is lit.** `storyPlan.ts` has a new `dropLight(vh)`. It is part of the drop, not a place: `PLACES` and "one place lit at a time" are unchanged.
+- It comes up while the forest goes out (30–45% of the crack span) and hands over to the reactor at 80–98%.
+- The forest is not drawn during the fall, only the crack (`Forest.tsx`).
+- The crack's shader (`Crack.tsx`) lights the walls from below with the reactor's teal:
+  - brighter with depth;
+  - faces turned down catch the most light;
+  - rock fades into the dark with distance, so walls, roots and boulders stream past.
+- The procedural fissure now has a glowing cap at the bottom, so looking down there is light, not a black hole:
+  - from the forest it glows faintly;
+  - it thins out over the last 6 m above it;
+  - it dissolves as the fall hands over to the reactor. The camera passes it at about 90% of the drop light, when the reactor is barely lit, so it never hides the reveal.
+- **Low tier:** the procedural crack is lit the same way (screenshot 19).
 
-**Fit, measured on the mesh** (model frame, as in `crackSlot.ts`):
-- **No floating slabs.** All 26 lip slabs reach 0.36–1.5 m below the floor and stand up to 1.16 m above it.
-- **Slabs overhang the opening.** Several reach 0.3–1.0 m inside the cut, e.g. x −6.75…−5.06 (by 0.98 m), x −2.54…−0.79 on +z (0.82 m) and x 1.09…2.37 on −z (0.63 m).
-- **Gaps between the cut and the walls, all on the +z side.** At 33 of 320 points along the lens edge there is no wall within 35 cm of the cut, in the top 1.2 m:
-  - x −1.0…+1.4, z ≈ 1.6–2.1: up to 0.60 m;
-  - x 5.3…6.3, z ≈ 1.0–0.4: up to 0.66 m;
-  - x −4.2, z 1.25: 0.40 m.
+**The fissure stays behind the model.** It sits at the floor's cut and closes any gap between the cut and the model's walls (see "Fit"), at 160 triangles.
 
-  The fix is to move those walls out to the lens, or let the lip slabs cover the gap.
-- **The dive.** The camera doesn't fall down the crack's centre line:
+**From the forest only the crack's top is drawn.** The rock below is dark until the fall. The model's triangles are ordered top first (`crackSlot.ts` `depthOrder`):
+- the walk draws those reaching above −3 m (7,767 triangles);
+- the fall draws all 20,142.
 
-  | depth y | x | z |
+**Budget: the frame, crack included.** These are the worst frames along the camera's path, from `robotBudget.test.ts`, which loads the real GLBs and the crack:
+
+| Tier | First commit (pieces + robots; crack not counted) | Now (pieces + robots + crack) | The fall alone | Budget |
+|---|---|---|---|---|
+| low | 57,378 | 49,354 + 8,024 + 160 = **57,538** | 160 | 60,000 |
+| high | 156,873 | 126,940 + 22,832 + 160 + 7,767 = **159,630** | 20,302 | 160,000 |
+| ultra | 186,687 | 151,660 + 27,926 + 160 + 7,767 = **189,444** | 20,302 | 190,000 |
+
+To fit the crack I did the following:
+- **The crack's walk cut** is −3 m (from −4).
+- **The robots' detail radius** is 3.5 m (from 4).
+- **Ferns:** 10 fewer on high and on ultra (170 → 160, 260 → 250), about 1.6k triangles each.
+
+**Draw calls.** The pieces are 8 of 10, the robots 1. The crack is 2 on high and ultra (fissure and model) and 1 on low. The HUD in the fall: 16 calls, 20,316 triangles.
+
+**Fit, measured on the new mesh against its triangle surfaces** (model frame, as in `crackSlot.ts`):
+- **Slabs.** All 26 reach 0.36–1.5 m below the floor (none float) and stand up to 1.16 m above it. The largest overhang into the opening:
+
+  | | Old export | New export |
   |---|---|---|
-  | +1 | −0.08 | 0.97 |
-  | −7 | −0.06 | 0.76 |
-  | −15 | −0.05 | 0.55 |
-  | −23 | −0.03 | 0.34 |
-  | −31 | −0.01 | 0.13 |
+  | Largest | 0.98 m | 0.44 m (x −6.7…−5.1, at the crack's narrow end) |
+  | Next | | 0.39 m |
+  | The rest | | ≤ 0.28 m |
+- **Gaps at the cut.** At 140 of 320 lens-edge points the wall's top, 5 cm below the floor, is more than 10 cm inside the cut. The old export had 167; the worst is 0.69 m in both. The fissure behind the model closes them, so no strip of sky shows. (My first report measured to vertices: decimation makes that look worse than it is.)
+- **The dive.** The camera falls at x ≈ −0.05, z 0.97 → 0.13. Its closest approach to any rock surface:
 
-  Its closest approach to the crack's geometry is **0.15 m, at y −16.2**: a ledge or root vertex at (−0.17, −16.22, 0.60). Clearance is 0.45–0.5 m in the top 4 m, about 1.1 m from −7 to −15, then 0.55–1.6 m below.
-- **The fall is dark.** The forest, the crack included, fades out between 30% and 45% of the crack span (`storyPlan.ts`), about 1–3 m below the floor. So the ledges, boulders and roots further down are never seen today, the 0.15 m pass included. **14,276 of the 26,856 triangles lie entirely below −3 m.** Two ways forward:
-  - trim the export to the top ~3–4 m (about 12.6k triangles), or
-  - keep the crack lit during the fall (a story change).
+  | | Closest | Where |
+  |---|---|---|
+  | Old export | 0.01 m | 16.5 m down |
+  | New export | 0.42 m | at the lip |
+
+  Clearance with the new export:
+  - 0.42 m in the top 8 m;
+  - 0.7–1.1 m from 8 to 12 m down;
+  - 1.0–1.55 m from 12 to 32 m down;
+  - 0.65–0.8 m from 32 to 36 m down, the cavern's ceiling.
 
 ## Checked
-- **Tests.** Web 1568 passed, 1 skipped. New tests:
+- **Tests.** Web 1570 passed, 1 skipped. Tests added or changed:
   - `robotLod.test.ts`: 6;
-  - `robotBudget.test.ts`: 3, using the real GLBs;
-  - `forestRobots.test.ts`: rewritten, 8 tests, including GLB bounds against the files and the visibility check;
-  - `robotWrecks.test.ts`: rewritten, 6;
-  - `Crack.test.ts`: plus 1, the low tier doesn't fetch.
-- **Typecheck and build** pass. The 7 GLBs ship in `dist`.
+  - `robotBudget.test.ts`: 3, real GLBs and the crack, every frame along the path;
+  - `forestRobots.test.ts`: 8, including GLB bounds against the files and the visibility check;
+  - `robotWrecks.test.ts`: 6;
+  - `crackSlot.test.ts`: plus 1, `depthOrder`;
+  - `Crack.test.ts`: plus 1 (the low tier doesn't fetch), and the model now sits in front of the fissure;
+  - `storyPlan.test.ts`: plus 1, `dropLight`.
+- **Typecheck and build** pass. The GLBs ship in `dist`.
 - **Phone** (390×844, low): no sideways scroll, and the Franka is in view (screenshot 09).
-- **Stills and reduced motion** render as before (screenshots 10 and 11).
-- **Console:** no errors or warnings from the world, only React Router's future-flag warnings.
+- **Stills and reduced motion** render as before (screenshots 10 and 11). Reduced motion has no drop light.
+- **Console:** no errors from the world.
+- **Note on ports:** another worktree's Vite also listens on 5193 (127.0.0.1). These shots were from this worktree's server (they show code only this branch has). Use a separate port.
 
 ## Not done / open
 - **Real-GPU frame times** on the 4060/5080 aren't measured (SwiftShader only).
-- **The detailed level is a 1.2 cm grid, not the full GLB.** The full GLB (15k triangles each) didn't fit the budget with up to 3 robots within 4 m.
+- **The detailed robot level is a 1.2 cm grid, not the full GLB.** The full GLB didn't fit the budget.
 - **Up close, the fr3's moss and seams look a little like camouflage** (screenshot 03).
-- **The crack items above** are for the lead's Blender pass: the +z gaps, the overhanging slabs, the 0.15 m ledge, and the dark fall.
+- **The lit walls are smooth** after decimation and read as soft shapes in SwiftShader. Strata and noise carry the detail. A GPU check with bloom is still to do.

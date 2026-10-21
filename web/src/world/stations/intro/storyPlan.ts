@@ -96,6 +96,15 @@ export function placeLights(vh: number): Record<Place, number> {
   };
 }
 
+/**
+ * The fall's own light, 0–1: the crack's walls lit from below by the reactor's cold glow (Crack.tsx). Part of the
+ * drop, not a place: it comes up as the forest goes out, so rock, roots and boulders stream past, and hands over
+ * to the reactor as its glow comes up near the fissure's bottom.
+ */
+export function dropLight(vh: number): number {
+  return smooth(at("crack", 0.3), at("crack", 0.45), vh) * (1 - smooth(at("crack", 0.8), at("crack", 0.98), vh));
+}
+
 /** The reactor's power, 0–1: dormant as the camera arrives, climbing through its three beats, full for the ring. */
 export function power(vh: number): number {
   return progress("reactor", vh) ** 1.1;

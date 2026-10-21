@@ -26,6 +26,8 @@ const MAX_SHAFTS = 12;
 
 export interface ForestState {
   light: number;
+  /** The fall's light (storyPlan.ts dropLight): only the crack is drawn by it. */
+  drop: number;
   /** The crack's glow comes up as the camera nears it (0–1). */
   glow: number;
   time: number;
@@ -414,7 +416,10 @@ export function useForest(quality: QualityTier): ForestHandle {
         u.uTime.value = s.time;
         glow.value = s.glow;
         pr.value = s.pr;
-        group.visible = s.light > 0;
+        crack.update(s.drop);
+        // Through the fall the forest is out and only the crack's walls are drawn.
+        group.visible = s.light > 0 || s.drop > 0;
+        for (const c of group.children) c.visible = c === crack.group || s.light > 0;
       },
       dispose() {
         live = false;

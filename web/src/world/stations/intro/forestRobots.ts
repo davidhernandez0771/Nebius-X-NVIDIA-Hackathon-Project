@@ -172,6 +172,6 @@ export interface RobotTier {
 export const ROBOT_TIERS: Record<TierName, RobotTier> = {
   // Phones and slow GPUs: four robots, spaced along the walk, coarse only (one level, no dissolve).
   low: { ids: ["franka", "piper", "ur5e", "xarm6"], coarse: 0.025, detail: 0, near: 0, band: 0 },
-  high: { ids: ROBOT_IDS, coarse: 0.025, detail: 0.012, near: 4, band: 1.2 },
-  ultra: { ids: ROBOT_IDS, coarse: 0.02, detail: 0.012, near: 4, band: 1.2 },
+  high: { ids: ROBOT_IDS, coarse: 0.025, detail: 0.012, near: 3.5, band: 1 },
+  ultra: { ids: ROBOT_IDS, coarse: 0.02, detail: 0.012, near: 3.5, band: 1 },
 };
