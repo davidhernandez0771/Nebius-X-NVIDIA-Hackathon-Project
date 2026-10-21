@@ -83,6 +83,21 @@ describe("the tesseract, drawn", () => {
     t.dispose();
   });
 
+  it("glows: the teal's core, clamped to 1 as the bloom's high pass does, is brighter than the bloom's 0.8 threshold", () => {
+    const t = makeTesseract(TIERS.ultra);
+    t.setLight(1);
+    const teal = meshes(t.group).find((x) => x.name === "tesseract:teal")!.material as THREE.MeshMatcapMaterial;
+    const px = teal.matcap!.image.data as Uint8Array;
+    const size = teal.matcap!.image.width;
+    const i = (Math.floor(size / 2) * size + Math.floor(size / 2)) * 4; // the centre: a face toward the camera
+    const lin = (v: number) => new THREE.Color().setRGB(v / 255, 0, 0, THREE.SRGBColorSpace).r;
+    const c = [teal.color.r, teal.color.g, teal.color.b].map((k, j) => Math.min(1, k * lin(px[i + j])));
+    expect(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]).toBeGreaterThan(0.85);
+    // And it reaches the bloom as it is: not tone-mapped down first.
+    expect(teal.toneMapped).toBe(false);
+    t.dispose();
+  });
+
   it("is thinner, with fewer sides, on the low tier (and phones)", () => {
     const hi = makeTesseract(TIERS.high);
     const lo = makeTesseract(TIERS.low);

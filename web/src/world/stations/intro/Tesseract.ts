@@ -19,8 +19,10 @@ export const TESSERACT_LOOK: Record<TierName, { tube: number; sides: number; bal
 
 /** A joint's radius, to the tube's (the outer cube's chrome balls); the inner cube's joints just round its corners. */
 const BALL = 1.7;
-/** The inner cube's colour: brighter than white (linear), so the bloom makes it the hero's one glow. */
-const TEAL_GLOW = new THREE.Color("#19f5c2").multiplyScalar(1.8);
+/** The inner cube's colour: brighter than white (linear), with a pale, hot core. The bloom clamps each pixel to 1
+ *  before its 0.8 threshold; a pure teal (no red) clamps to about 0.78 and never blooms, so the core carries some
+ *  red and blue, and the hero's one glow comes back. */
+const TEAL_GLOW = new THREE.Color(0.62, 1.35, 1.12);
 
 const toSrgb = (c: number) => {
   const v = Math.min(1, Math.max(0, c));
@@ -52,7 +54,8 @@ function matcap(size: number, kind: "steel" | "glow"): THREE.DataTexture {
         const a = [0.25, 0.28, 0.31];
         c = [0, 1, 2].map((i) => a[i] * (0.14 + 0.1 * Math.max(0, n.dot(fill))) + band * 0.55 + floor + spec + rim * 0.2 * (i ? 1.06 : 0.94)) as [number, number, number];
       } else {
-        const l = 0.45 + 0.4 * n.z + 0.25 * spec;
+        // Bright across the whole tube, not just its middle, so all of it clears the bloom's threshold.
+        const l = 0.75 + 0.3 * n.z + 0.2 * spec;
         c = [l, l, l];
       }
       data.set([toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]), 255], (y * size + x) * 4);
@@ -80,7 +83,8 @@ export function makeTesseract(q: QualityTier): TesseractHandle {
   const steel = steelMatcap(q.name === "low" ? 64 : 128);
   const glow = matcap(64, "glow");
   const chrome = new THREE.MeshMatcapMaterial({ matcap: steel });
-  const teal = new THREE.MeshMatcapMaterial({ matcap: glow, color: TEAL_GLOW });
+  // Not tone-mapped, as the site's other glows (PostFX.tsx): tone mapping would squeeze it under the bloom's threshold.
+  const teal = new THREE.MeshMatcapMaterial({ matcap: glow, color: TEAL_GLOW, toneMapped: false });
   const joints = new THREE.MeshMatcapMaterial({ matcap: steel });
 
   const tubeGeo = new THREE.CylinderGeometry(look.tube, look.tube, 1, look.sides, 1, true);
