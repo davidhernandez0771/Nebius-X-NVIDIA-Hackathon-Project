@@ -1,6 +1,7 @@
 // The robot's hologram mesh on the bench: the chosen robot (robotHolo.ts) drawn as teal light standing on a
 // ring of light on the cartridge's top. Edges glow (fresnel), scanlines climb it, and it materializes
-// from its base up behind a bright line each time the robot changes. One mesh, one draw call: the ring
+// from its base up behind a bright line each time the robot changes; while its model loads, an arc of
+// light runs round the ring. One mesh, one draw call: the ring
 // is merged into the robot's geometry and told apart by `aRing`. Additive, no lighting, no shadows.
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -29,7 +30,7 @@ const vert = /* glsl */ `
 `;
 const frag = /* glsl */ `
   uniform vec3 uColor;
-  uniform float uLevel, uReveal, uTime;
+  uniform float uLevel, uReveal, uTime, uWait;
   varying float vRing, vH, vY;
   varying vec3 vN, vView;
   varying vec2 vXZ;
@@ -42,6 +43,9 @@ const frag = /* glsl */ `
       float pool = (1.0 - smoothstep(0.0, 0.95, r)) * 0.22;
       float pulse = 0.75 + 0.25 * sin(uTime * 2.4 - r * 6.0);
       a = (line * 0.9 + pool) * pulse;
+      // Its model still loading: a bright arc runs round the ring.
+      float arc = pow(max(0.0, cos(atan(vXZ.y, vXZ.x) - uTime * 4.0)), 8.0) * smoothstep(0.55, 0.95, r);
+      a += uWait * (arc * 1.2 + 0.15);
     } else {
       if (vH > uReveal) discard;
       float facing = abs(dot(normalize(vN), normalize(vView)));
@@ -59,7 +63,7 @@ const frag = /* glsl */ `
 
 export interface HoloRobot {
   mesh: THREE.Mesh;
-  uniforms: { uLevel: { value: number }; uReveal: { value: number }; uTime: { value: number } };
+  uniforms: { uLevel: { value: number }; uReveal: { value: number }; uTime: { value: number }; uWait: { value: number } };
   /** Stand a robot's geometry (robotHolo.ts) on the ring; null keeps only the ring. */
   setRobot(geo: THREE.BufferGeometry | null): void;
   dispose(): void;
@@ -80,7 +84,7 @@ function tagged(g: THREE.BufferGeometry, ring: number): THREE.BufferGeometry {
 }
 
 export function makeHoloRobot(): HoloRobot {
-  const uniforms = { uLevel: { value: 0 }, uReveal: { value: 0 }, uTime: { value: 0 } };
+  const uniforms = { uLevel: { value: 0 }, uReveal: { value: 0 }, uTime: { value: 0 }, uWait: { value: 0 } };
   const material = new THREE.ShaderMaterial({
     vertexShader: vert,
     fragmentShader: frag,

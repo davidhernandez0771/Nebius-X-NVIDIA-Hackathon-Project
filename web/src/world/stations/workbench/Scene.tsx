@@ -29,7 +29,7 @@ import { bench, draftLabel, endFlight, pickFinish, setHover, subscribeBench } fr
 import { FINALE, finaleAt, popParticle, printWipe } from "./finale";
 import { makeHoloRobot } from "./holoMesh";
 import { BENCH_SCALE, HOLO_BASE, PICK_S, PRINT_H, PRINT_QUATERNION, PRINT_S, PRINT_W, benchCartridge, blankPose, flightPose, pickPose, printPose, type FlightPose } from "./layout";
-import { robotHoloGeometry } from "./robotHolo";
+import { holoFor, holoNow } from "./robotHolo";
 import { applyFinish, finishAttribute, withFinish, withPrintHead, type FinishUniforms } from "./shellSurface";
 
 /** The bench is seen close: its labels print at twice a spiral tile's size. */
@@ -294,18 +294,6 @@ function useRoomTile(open: boolean) {
   }, [open]);
 }
 
-/** The twin's Franka, as the robot wall stands it (its meshes load once, with urdf-loader, on first use). */
-let frankaArm: Promise<THREE.BufferGeometry | null> | null = null;
-function loadFrankaArm(): Promise<THREE.BufferGeometry | null> {
-  frankaArm ??= Promise.all([import("../../../twin/loadTwinRobot"), import("../../scene/wallParts")])
-    .then(([twin, wall]) => twin.loadTwinRobot().then((t) => (t.stick ? null : wall.frankaPieces(t.robot).arm)))
-    .catch((e) => {
-      console.warn("world: the Franka's meshes didn't load for the bench's hologram", e);
-      return null;
-    });
-  return frankaArm;
-}
-
 const ease = (x: number) => 1 - (1 - Math.min(1, Math.max(0, x))) ** 3;
 const inOut = (x: number) => {
   const k = Math.min(1, Math.max(0, x));
@@ -342,9 +330,14 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
     /** When each blank came back to the mat (it drops in), or -1. */
     dropAt: new Float32Array(FINISHES.length).fill(-1),
     away: FINISHES.map(() => false),
+    /** The robot the turntable last turned for. */
     robot: "",
     robotAt: -1,
     holoLevel: 0,
+    /** The robot's model is still loading: the ring shimmers. */
+    holoWaiting: true,
+    /** Its model just came in: it materializes from the next frame. */
+    holoArrived: false,
     name: bench.draft.name,
     nameAt: -1,
     printAt: -1,
@@ -379,29 +372,38 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
   useEffect(() => () => printed.release(), [printed]);
   useEffect(() => () => sparks.release(), [sparks]);
 
-  // The hologram's robot: the stand-ins at once, the Franka once its meshes are in.
+  // The hologram's robot: its model (robotHolo.ts, loaded once and kept). Until it is in, only the
+  // ring shows, shimmering; then the robot materializes. A model that fails to load leaves the ring, steady.
   useEffect(() => {
     if (!open) return;
-    let live = true;
-    const show = (arm: THREE.BufferGeometry | null) => {
-      if (!live) return;
-      b.holo.setRobot(robotHoloGeometry(bench.draft.robot, arm));
-      invalidate();
-    };
-    let arm: THREE.BufferGeometry | null = null;
-    show(null);
-    void loadFrankaArm().then((g) => {
-      arm = g;
-      show(arm);
-    });
-    let robot = bench.draft.robot;
-    const off = subscribeBench(() => {
+    let robot = "";
+    const show = () => {
       if (bench.draft.robot === robot) return;
       robot = bench.draft.robot;
-      show(arm);
-    });
+      const code = robot;
+      const arrive = (g: THREE.BufferGeometry) => {
+        if (code !== robot) return;
+        b.holo.setRobot(g);
+        st.current.holoWaiting = false;
+        st.current.holoArrived = true;
+        invalidate();
+      };
+      const now = holoNow(code);
+      if (now) return arrive(now);
+      b.holo.setRobot(null);
+      st.current.holoWaiting = true;
+      invalidate();
+      holoFor(code).then(arrive, (e) => {
+        console.warn(`world: the ${code} model didn't load for the bench's hologram`, e);
+        // The ring stays, steady: not "still loading" for ever.
+        if (code === robot) st.current.holoWaiting = false;
+        invalidate();
+      });
+    };
+    show();
+    const off = subscribeBench(show);
     return () => {
-      live = false;
+      robot = "";
       off();
     };
   }, [open, b, invalidate]);
@@ -644,8 +646,9 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
     }
 
     // ---- The robot's hologram ----
-    if (d.robot !== s.robot) {
-      s.robot = d.robot;
+    s.robot = d.robot;
+    if (s.holoArrived) {
+      s.holoArrived = false;
       s.robotAt = now;
     }
     // On the robot stage only: the name's close shot would cut it off.
@@ -662,11 +665,14 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
       const reveal = reduced ? 1 : ease((now - s.robotAt) / REVEAL_S);
       holo.uniforms.uReveal.value = reveal < 1 ? reveal : 1.01;
       if (reveal < 1) busy = true;
-      holo.uniforms.uTime.value = now;
+      // Waiting for its model: the ring shimmers (held still with reduced motion).
+      holo.uniforms.uWait.value = s.holoWaiting ? 1 : 0;
+      if (s.holoWaiting && !reduced) busy = true;
+      holo.uniforms.uTime.value = reduced ? 0 : now;
       holo.mesh.position.set(HOLO_BASE.x, HOLO_BASE.y + (y - home.position.y), HOLO_BASE.z);
-      // Side on, reaching along the bench; turning slowly where the tier moves on its own.
+      // Side on, reaching along the bench (the models reach along +x); turning slowly where the tier moves on its own.
       const spin = reduced || !quality.idleMotion ? 0 : now * 0.45;
-      holo.mesh.rotation.y = BENCH_PIVOT.yaw + Math.PI / 2 + spin;
+      holo.mesh.rotation.y = BENCH_PIVOT.yaw + spin;
     }
 
     // ---- The finish: sparks, then the flight to the spiral ----
