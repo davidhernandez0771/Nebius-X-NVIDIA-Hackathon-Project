@@ -33,7 +33,7 @@ class ToyEnv:
     bin_inner = (0.20, 0.20, 0.08)
 
     def __init__(self):
-        self.resets = 0
+        self.resets, self.teacher_steps, self.student_steps = 0, [], []
 
     def reset(self, scene):
         self.scene, self.k, self.resets = scene, 0, self.resets + 1
@@ -60,7 +60,16 @@ class ToyEnv:
     def ik_label(self, a: TeacherAction):
         return np.r_[a.ee_pos, [0.0] * 4, fingers(a.gripper)]
 
+    def step_teacher(self, a: TeacherAction):
+        """The teacher's own tracking: in the toy it reaches the target exactly too."""
+        self.teacher_steps.append(self.k)
+        return self._move(self.ik_label(a))
+
     def step(self, action):
+        self.student_steps.append(self.k)
+        return self._move(action)
+
+    def _move(self, action):
         action = np.asarray(action, dtype=float)
         self.tcp = action[:3].copy()
         self.grip = gripper_command(action)
@@ -203,6 +212,19 @@ def test_student_rollout_relabels_the_visited_states_without_replacing_the_traje
     assert np.allclose(r.tcp_pos[5], student.target)  # at step 5 the student had already moved the hand
     assert np.linalg.norm(r.teacher_ee[5, :3] - student.target) <= 0.02 + 1e-9  # one teacher step from there
     assert not np.allclose(r.label[:, :3], r.executed[:, :3])
+
+
+def test_teacher_commands_run_through_the_teachers_own_tracking(scene):
+    """Every step the teacher executes goes through env.step_teacher (its RL env's IK scheme); every step the
+    student executes goes through env.step (its held 9-joint target)."""
+    env = ToyEnv()
+    r = rollout(env, scene, StubTeacher(), RolloutConfig(driver="teacher"))
+    assert env.teacher_steps == list(range(len(r.records))) and env.student_steps == []
+    env = ToyEnv()
+    r = rollout(env, scene, StubTeacher(), RolloutConfig(driver="student", beta=0.5, max_seconds=2.0, rng_seed=3),
+                student=StubStudent())
+    assert env.teacher_steps == np.flatnonzero(r.by_teacher).tolist()
+    assert env.student_steps == np.flatnonzero(~r.by_teacher).tolist()
 
 
 def test_beta_mixes_in_the_teacher_deterministically(scene):

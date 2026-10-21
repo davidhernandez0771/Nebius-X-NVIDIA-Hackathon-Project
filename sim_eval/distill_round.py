@@ -197,11 +197,19 @@ class RoundConfig:
         return self.round_dir(r) / "rollouts_done.json"
 
     def selection_path(self, r: int) -> Path:
+        """Round r's latest selection: what the next round starts from."""
         return self.round_dir(r) / "selection.json"
 
     @property
+    def tag(self) -> str:
+        """Round 0's grid, training run, evals, round record and selection are per teacher set ("_t300"): re-running
+        round 0 with a larger --teacher-n keeps the rollouts done, adds the new seeds, and then mixes, trains and
+        selects again from scratch instead of finding the smaller set's files and skipping."""
+        return f"_t{self.teacher_n}" if self.round_id == 0 else ""
+
+    @property
     def round_file(self) -> Path:
-        return self.round_dir() / "round.json"
+        return self.round_dir() / f"round{self.tag}.json"
 
     @property
     def decision_file(self) -> Path:
@@ -209,11 +217,11 @@ class RoundConfig:
 
     @property
     def selection_file(self) -> Path:
-        return self.selection_path(self.round_id)
+        return self.round_dir() / f"selection{self.tag}.json"
 
     @property
     def grid_name(self) -> str:
-        return f"{self.run_id}_r{self.round_id}"
+        return f"{self.run_id}_r{self.round_id}{self.tag}"
 
     @property
     def label(self) -> str:
@@ -284,6 +292,11 @@ def human_episodes(grid_path: Path, cell: str) -> tuple[list[Path], int]:
 def _round_episodes(c: RoundConfig, r: int) -> list[Path]:
     root = c.round_dir(r) / "episodes"
     return sorted(p for p in root.iterdir() if (p / "episode.json").exists()) if root.is_dir() else []
+
+
+def _episode_seed(ep: Path) -> int:
+    """teacher_r0_<seed> / dagger_r<k>_<seed>_<i> (sim_eval.distill.write_rollout's names)."""
+    return int(Path(ep).name.split("_")[2])
 
 
 def _read(path: Path) -> dict:
@@ -370,7 +383,8 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         gate = {"verified": done0["successes"], "attempted": done0["attempted"],
                 "rate": round(done0["successes"] / done0["attempted"], 4), "threshold": c.teacher_gate}
         gate["passes"] = gate["rate"] >= c.teacher_gate
-        teacher_eps = _round_episodes(c, 0)
+        t0, t1 = teacher_seeds()
+        teacher_eps = [ep for ep in _round_episodes(c, 0) if t0 <= _episode_seed(ep) <= t1]
         if len(teacher_eps) < c.min_teacher:
             raise PhaseFailed(f"grid: only {len(teacher_eps)} teacher rollouts passed check_success in our env "
                               f"(need {c.min_teacher}); the teacher is not ready")
@@ -384,10 +398,17 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         info = _read(c.round_file) if r >= 1 else {"run_id": c.run_id, "round": r, "teacher": c.teacher,
                                                    "teacher_checkpoint": str(c.teacher_checkpoint)}
         info.update(human={"grid": str(c.human_grid), "cell": c.human_cell, "n_human": n_human}, teacher_gate=gate,
-                    mix=report, grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)))
+                    teacher_seeds=[t0, t1], mix=report, grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)))
         c.round_file.write_text(json.dumps(info, indent=1), encoding="utf-8")
         log(f"[distill]   cell {c.label}: " + ", ".join(f"{s} {v['frames']} frames x{v['repeat']} ({v['share']:.0%})"
                                                      for s, v in report.items()))
+
+    def teacher_seeds() -> tuple[int, int]:
+        """Round 0: this run's teacher seeds. DAgger rounds: the teacher set round 0's latest selection trained on."""
+        if r == 0:
+            return c.teacher_seed0, c.teacher_seed0 + c.teacher_n - 1
+        s0, s1 = _read(c.selection_path(0))["teacher_seeds"]
+        return int(s0), int(s1)
 
     def run_dir() -> Path | None:
         return find_train_run(c.data / "experiments", c.grid_name, c.label, c.steps)
@@ -409,8 +430,11 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         chosen = pick_step(counts)
         sel = {"counts": {str(k): list(v) for k, v in counts.items()}, "chosen_step": chosen,
                "checkpoint": str(checkpoint_of(run, c.label, chosen)), "train_run": str(run),
-               "seeds": [c.select_seed0, c.select_seed0 + c.select_n - 1], "inference_args": list(c.inference_args)}
+               "seeds": [c.select_seed0, c.select_seed0 + c.select_n - 1], "inference_args": list(c.inference_args),
+               "grid": str(c.grid_file), "teacher_seeds": list(teacher_seeds())}
         c.selection_file.write_text(json.dumps(sel, indent=1), encoding="utf-8")
+        if c.selection_file != c.selection_path(r):  # round 0: the latest selection is the one the next round uses
+            c.selection_path(r).write_text(json.dumps(sel, indent=1), encoding="utf-8")
         info = _read(c.round_file)
         info["selection"] = sel
         c.round_file.write_text(json.dumps(info, indent=1), encoding="utf-8")

@@ -23,13 +23,27 @@ teacher and a stub student stand in.
   differential-IK output, not an end-effector pose.
 - **T3's teacher** outputs an **absolute tool target + binary gripper**.
 
-**The bridge:** `IsaacDistillEnv.ik_label()` turns the teacher's tool target into the student's 9 joint targets.
-- It takes one damped-least-squares step from the visited joints, using the same Isaac Lab
-  `DifferentialIKController` ("dls", same limit gain) that replay records episodes with.
+**Executing the teacher (changed 2026-10-21; agreed with T3, approved by the lead as a run-enabling fix).**
+`IsaacDistillEnv.step_teacher()` runs a teacher command exactly as T3's RL env does (pm/rl-teacher
+`sim_worker/rl_action.py` on `mimic_tracking.py`):
+- **Every physics substep (twice per 50 Hz step):** Isaac Lab's absolute damped-least-squares IK on the **tool
+  frame** (panda_hand + the 0.1034 m TCP offset as `body_offset`), λ = 0.01, no joint-limit term, as the position
+  target.
+- **Once per step:** SANT's joint-velocity feed-forward. It is the twist from the previous teacher command to this
+  one over 0.02 s, clamped to 1 m/s and 3 rad/s, solved by one DLS step, and used as the velocity target. There is
+  none on the first step after a reset or after a student step.
+- **Where the arithmetic lives:** `sim_eval/teacher_ik.py` (numpy). Its formulas are Isaac Lab 3.0's
+  (`differential_ik.py` "dls", `compute_pose_error` axis-angle, `_compute_frame_jacobian` with the offset).
+  `tests/test_teacher_ik.py` checks them against finite differences on a 3-joint spatial arm.
+- **Why:** the 50-scene gate then measures the teacher in our scene, not a different controller.
+
+**The bridge to the student:** `IsaacDistillEnv.ik_label()` is the label.
+- It is one DLS step on the tool frame from the observed joints toward the teacher's target. That equals the first
+  substep's position target in `step_teacher`, and is the 9-joint target the student holds for the step.
 - The finger targets are open or closed.
 - So the student keeps its action space and nothing downstream changes (export, training, eval).
-- **Difference from replay:** replay re-solves the IK at both physics substeps; here it's solved once per control
-  step and held. That is exactly how the student's own action is executed at test time.
+- The student's own steps (`step`) hold their 9-joint target for both substeps with zero arm velocity targets,
+  exactly as in the eval env.
 - The raw teacher targets are kept beside every episode (`teacher.npz`). An end-effector-space student would be
   possible later, but isn't built.
 
@@ -128,6 +142,16 @@ research note's day-4 gate).
 - The grid refuses if fewer than `--min-teacher` (100) passed.
 - `--stop-after rollouts` checks the gate on a few seeds first. A later larger `--teacher-n` resumes the same folder.
 
+**Round 0 at a larger `--teacher-n` (the preregistered "300 → 600" path; fixed 2026-10-21).**
+- **What runs:** the same command with `--teacher-n 600` after a finished round 0 at 300 keeps the 300 rollouts and
+  rolls out only 4300–4599. It then mixes, trains from scratch and selects again.
+- **Names:** round 0's grid, training run, evals, round record and selection are per teacher set
+  (`distill_mouse_r0_t300` / `_t600`, `r0\round_t300.json`, `r0\selection_t300.json`). Nothing of the 300 run is
+  overwritten.
+- **Teacher episodes:** each round-0 grid takes only its own seed range, 4000 to 4000 + n − 1.
+- **What round 1 uses:** `r0\selection.json` is always the latest selection. DAgger round 1 starts from it and mixes
+  in the teacher set it was trained on (its `teacher_seeds`).
+
 **Stop rule (`stop_decision`)**, checked after a DAgger round's rollouts. Those rollouts measure the previous round's
 student on seeds it never trained on. The round stops when:
 - the student already succeeds on ≥ 90% of them (nothing left to correct); or
@@ -152,8 +176,10 @@ The training options (`--augment shift`, `--dilation`) pass through `--train-arg
 
 ### `sim_eval/isaac_distill_env.py` + `sim_eval/scripts/distill_rollouts.py` (Isaac; **never run**)
 
-**`IsaacDistillEnv(IsaacEvalEnv)`** has the same scene, cameras, physics, start pose and stepping, plus
-`teacher_state()` and `ik_label()`.
+**`IsaacDistillEnv(IsaacEvalEnv)`** has the same scene, cameras, physics, start pose and student stepping, plus
+`teacher_state()`, `step_teacher()` (the teacher's own tracking, see the top) and `ik_label()`.
+`IsaacEvalEnv.step` was split into `_apply` + `_record` (no behaviour change) so teacher steps record the same
+StepRecord.
 
 **`distill_rollouts.py`:**
 - **DAgger mode:** starts the student's policy server (eval_cells' own helpers) on port 8766.
@@ -161,25 +187,18 @@ The training options (`--augment shift`, `--dilation`) pass through `--train-arg
 - **Output:** episodes plus one row per seed, resumable.
 - **Shutdown:** the server is stopped inside the sim context (closing the app ends the process).
 
-## Tomorrow's order (from the lead, 2026-10-20 night)
+## The order for 2026-10-21 (bound by T7's preregistration)
 
-1. **Smoke ik_label first.** Run the smoke command below (`--run-id distill_smoke --teacher-n 4 ...`, about
-   30 min). It is the first time `IsaacDistillEnv` (teacher_state + ik_label) runs at all. Check that:
-   - the rollouts finish;
-   - the episodes' `action` columns look like joint targets;
-   - the front frames show the arm following the teacher.
-2. **The 50-scene teacher gate.** Use `--teacher-n 50 --stop-after rollouts` and require ≥ 0.9 in
-   `rollouts_done.json`.
-3. **Round 0 with `--teacher-n 300`.** This halves rollouts and export compared with 600. It resumes the 50 gate
-   seeds.
+The preregistration is `pm/live-13` 23adef0, `C:\dev\pm-t8\docs\superpowers\notes\2026-10-21-distill-prereg.md`.
+- **Fixed recipe:** 60k steps, candidates 40k / 60k, selection 5300–5329, weights 0.25 / 0.5 / 0.25.
+- **No extra flags:** no `--train-args`, no `--inference-args`.
+- **No round 2.**
 
-## The GPU commands (after T3's teacher is trained)
-
-Set these once (cmd). The teacher spec and checkpoint are T3's; the placeholders below are not real paths yet.
+Run the steps strictly one after another, one heavy GPU job at a time. Set these once (cmd):
 
 ```
 cd C:\dev\pm-t6
-set TEACHER=--teacher <t3_package.module:factory> --teacher-checkpoint <T3 checkpoint>
+set TEACHER=--teacher sim_worker.rl_policy:make --teacher-checkpoint <T3: data\rl\logs\rsl_rl\sant_rl_teacher\<run>\exported\policy.pt>
 set HUMAN=--human-grid data\human_exp\mouse20261020\grid.json --human-cell perfected_multiply_10 --start-state data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10
 set PY=C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\distill_round.py
 ```
@@ -187,54 +206,61 @@ set PY=C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\distill_round.p
 1. **Dry run** (writes nothing):
 
    ```
-   %PY% --round 0 --run-id distill_mouse %TEACHER% %HUMAN% --dry-run
+   %PY% --round 0 --run-id distill_mouse %TEACHER% %HUMAN% --teacher-n 300 --dry-run
    ```
 
-2. **Teacher gate on 50 scenes, about 20 min:**
+   `sim_worker.rl_policy` lives on pm/rl-teacher. For the real runs it must be importable from this worktree (merged
+   in, or T3's checkout on the path).
+2. **Smoke test, about 30 min.** This is the first time `teacher_state`, `step_teacher` and `ik_label` run in Isaac.
+
+   ```
+   %PY% --round 0 --run-id distill_smoke %TEACHER% %HUMAN% --teacher-n 4 --min-teacher 1 --steps 200 --save-freq 100 --candidates 100 200 --select-n 2
+   ```
+
+   Check that:
+   - the rollouts finish;
+   - the `action` columns are joint targets close to `joint_pos`;
+   - the front frames show the arm following the teacher;
+   - training and selection run.
+3. **Teacher gate (b), 4000–4049, about 20 min.** It needs **≥ 45/50**. If it is below, stop and report to the lead.
 
    ```
    %PY% --round 0 --run-id distill_mouse %TEACHER% %HUMAN% --teacher-n 50 --stop-after rollouts
    ```
 
    Read `data\distill\distill_mouse\r0\rollouts_done.json`:
-   - `successes / attempted` should be ≥ 0.9;
-   - check `ended_by`;
-   - look at 2–3 episodes' `front/` frames.
-
-   If it is far below 0.9, the RL env differs from ours (gains, control rate, friction). Fix that with T3 before
-   rendering 600.
-3. **Round 0, about 6.5–7.5 h:**
+   - `successes / attempted`;
+   - `ended_by`;
+   - 2–3 episodes' `front/` frames.
+4. **Round 0 at 300, about 4–5 h**, detached, under gpu.lock, with KeepAwake. It resumes the 50 gate seeds.
 
    ```
-   %PY% --round 0 --run-id distill_mouse %TEACHER% %HUMAN%
+   %PY% --round 0 --run-id distill_mouse %TEACHER% %HUMAN% --teacher-n 300
    ```
 
-   It resumes the 50 seeds and goes on to 600.
-4. **Round 1, about 4–4.5 h:**
+   Selection result: `r0\selection_t300.json`. **≥ 18/30 means it is the final model.**
+5. **Only if below 18/30: round 0 at 600** (keeps the 300, adds 4300–4599, retrains and reselects under `_t600`):
+
+   ```
+   %PY% --round 0 --run-id distill_mouse %TEACHER% %HUMAN% --teacher-n 600
+   ```
+
+6. **Only if that is also below 18/30: DAgger round 1** (5200–5239, starts from `r0\selection.json`, which is then the
+   600 one):
 
    ```
    %PY% --round 1 --run-id distill_mouse %TEACHER% %HUMAN%
    ```
 
-5. **Round 2** (same command with `--round 2`, about 4.5–5 h) runs only if round 1's `decision.json` says continue.
-6. **The test, once, after pre-registering the arm.** Use the last round's chosen checkpoint from
-   `data\distill\distill_mouse\r<k>\selection.json`, with the same inference flags as the selection, about 45 min:
+   The final model is the one with the most selection successes, round 0 at 600 or round 1; a tie goes to round 1.
+7. **The test, once, only after the lead's go.** Use the final model's checkpoint from its selection file, no
+   inference flags, about 45 min:
 
    ```
    C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\eval_cells.py --run-id distill_mouse_final ^
-     --checkpoint distill_r<k>=<selection.json checkpoint> --seed0 5020 --n 40 ^
+     --checkpoint distill_final=<the final model's checkpoint> --seed0 5020 --n 40 ^
      --start-state data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset --trace
    ```
-
-**Options:**
-- Add `--inference-args "--binarize-gripper --n-action-steps 20"` (or whatever the Stage-0 test picks) to every round.
-- Add `--train-args "--augment shift"` if Stage 1 says so.
-
-**Smoke test** of the whole chain, about 30 min:
-
-```
-%PY% --round 0 --run-id distill_smoke %TEACHER% %HUMAN% --teacher-n 4 --min-teacher 1 --steps 200 --save-freq 100 --candidates 100 200 --select-n 2
-```
 
 ### Time estimates on the RTX 5080
 
@@ -259,7 +285,16 @@ That fits the research note's Oct 25 (round 0) / Oct 26 (round 1) / Oct 27 (test
 
 ## Tests
 
-- **`sim_eval/tests/test_distill.py` (21).** All against a toy kinematic env, a stub teacher and a stub student.
+- **`sim_eval/tests/test_teacher_ik.py` (6, added 2026-10-21).**
+  - Isaac Lab's axis-angle pose error.
+  - The tool-frame Jacobian vs finite differences of the tool point on a 3-joint spatial arm.
+  - The damped pseudo-inverse.
+  - Repeated substep IK converging.
+  - Feed-forward clamping (1 m/s, 3 rad/s).
+  - No feed-forward after a reset.
+- **`sim_eval/tests/test_distill.py` (22).** All against a toy kinematic env, a stub teacher and a stub student.
+  - **Added 2026-10-21:** every teacher-executed step goes through `step_teacher`, and every student step through
+    `step`.
   - **Teacher interface:** check_action, the 8-vector round trip, load_teacher, and the no-hand-written-teacher guard.
   - **Teacher rollouts:** label = executed; stops at the first passing check.
   - **Student rollouts:** labels are the teacher's commands at the student's own states (the trajectory is the
@@ -270,7 +305,11 @@ That fits the research note's Oct 25 (round 0) / Oct 26 (round 1) / Oct 27 (test
   - **Episodes:** written, with provenance, and assemble counts them as "teacher"; failed teacher rollouts are
     dropped; DAgger keeps every segment and needs the student checkpoint.
   - **Script helpers:** seed rules, resume rows, the done summary, and stale folders moved aside.
-- **`sim_eval/tests/test_distill_round.py` (14).** A fake runner stands in for Isaac, LeRobot and eval_cells.
+- **`sim_eval/tests/test_distill_round.py` (16).** A fake runner stands in for Isaac, LeRobot and eval_cells.
+  - **Added 2026-10-21:**
+    - round 0 at a larger `--teacher-n` keeps the old rollouts, then retrains and reselects under new names, with
+      `selection.json` as the latest;
+    - each round-0 grid takes only its own teacher seeds.
   - **Mixing:** repeats and shares, the cap, zero weights; `mix_cell` provenance and source checks.
   - **The stop rule.**
   - **Round 0** end to end, including the rerun skip, and its refusal when the teacher fails.

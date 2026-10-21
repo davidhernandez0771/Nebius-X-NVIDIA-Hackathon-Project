@@ -189,7 +189,7 @@ def test_round0_teacher_rollouts_mix_train_select(tmp_path):
     assert t_cmd[t_cmd.index("--teacher") + 1] == "rl_teacher.policy:make_teacher"
     grid = json.loads(c.grid_file.read_text(encoding="utf-8"))
     (cell,) = grid["cells"]
-    assert grid["name"] == "dist_test_r0" and cell["label"] == "distill_r0" and cell["n_human"] == 2
+    assert grid["name"] == "dist_test_r0_t4" and cell["label"] == "distill_r0" and cell["n_human"] == 2
     rnd0 = json.loads(c.round_file.read_text(encoding="utf-8"))
     assert rnd0["round"] == 0 and rnd0["teacher_gate"] == {"verified": 4, "attempted": 4, "rate": 1.0,
                                                            "passes": True, "threshold": 0.9}
@@ -198,10 +198,53 @@ def test_round0_teacher_rollouts_mix_train_select(tmp_path):
     assert sel["chosen_step"] == 200 and sel["counts"] == {"100": [1, 2], "200": [2, 2]}
     assert sel["seeds"] == [5300, 5301]
     assert sel["checkpoint"].endswith(str(Path("distill_r0", "checkpoints", "000200", "pretrained_model")))
+    assert sel["teacher_seeds"] == [4000, 4003]
+    assert json.loads(c.selection_path(0).read_text(encoding="utf-8")) == sel  # the latest, for round 1
     # a re-run skips every finished phase
     again = FakeRunner(c.data)
     run(c, again)
     assert again.cmds == []
+
+
+def test_round0_with_more_teacher_runs_keeps_the_old_ones_and_retrains(tmp_path):
+    """The preregistered "round 0 at 600" path: the same command with a larger --teacher-n after a finished round 0
+    resumes the rollouts (only the new seeds), then mixes, trains and selects again from scratch, under new names; the
+    smaller set's grid, training run and selection stay as they were."""
+    small = cfg(tmp_path, teacher_n=2)
+    run(small, FakeRunner(small.data, practice=(2, 1)))
+    sel_small = json.loads(small.selection_file.read_text(encoding="utf-8"))
+    assert sel_small["chosen_step"] == 100 and small.selection_file.name == "selection_t2.json"
+
+    big = cfg(tmp_path, teacher_n=4)
+    runner = FakeRunner(big.data)
+    run(big, runner)
+    kinds = [Path(x[0][1]).name if not x[0][1].startswith("-m") else x[0][2] for x in runner.cmds]
+    assert kinds == ["distill_rollouts.py", "lerobot_tools.experiments", "eval_cells.py", "eval_cells.py"]
+    t_cmd = runner.cmds[0][0]
+    assert t_cmd[t_cmd.index("--n") + 1] == "4" and t_cmd[t_cmd.index("--out") + 1] == str(small.round_dir())
+    (cell,) = json.loads(big.grid_file.read_text(encoding="utf-8"))["cells"]
+    assert big.grid_file.name == "dist_test_r0_t4.json" and small.grid_file.exists()
+    teacher = {Path(d).name for d in cell["episode_dirs"] if "teacher" in Path(d).name}
+    assert teacher == {f"teacher_r0_{s}" for s in range(4000, 4004)}
+    (small_cell,) = json.loads(small.grid_file.read_text(encoding="utf-8"))["cells"]
+    assert {Path(d).name for d in small_cell["episode_dirs"] if "teacher" in Path(d).name} == {
+        "teacher_r0_4000", "teacher_r0_4001"}
+    sel_big = json.loads(big.selection_file.read_text(encoding="utf-8"))
+    assert sel_big["chosen_step"] == 200 and sel_big["teacher_seeds"] == [4000, 4003]
+    assert "dist_test_r0_t4_" in sel_big["train_run"]
+    assert json.loads(big.selection_path(0).read_text(encoding="utf-8")) == sel_big
+    assert json.loads(small.selection_file.read_text(encoding="utf-8")) == sel_small  # kept as it was
+
+
+def test_round0_takes_only_its_own_teacher_seeds(tmp_path):
+    """A 300 run after a 600 one (or a 50-seed gate folder with more in it) mixes only its own seed range."""
+    big = cfg(tmp_path, teacher_n=4)
+    run(big, FakeRunner(big.data))
+    small = cfg(tmp_path, teacher_n=2)
+    run(small, FakeRunner(small.data))
+    (cell,) = json.loads(small.grid_file.read_text(encoding="utf-8"))["cells"]
+    assert {Path(d).name for d in cell["episode_dirs"] if "teacher" in Path(d).name} == {
+        "teacher_r0_4000", "teacher_r0_4001"}
 
 
 def test_round0_stops_when_the_teacher_fails_in_our_env(tmp_path):

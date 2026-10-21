@@ -3,8 +3,10 @@
 The teacher (sim_eval.teacher; T3's state-based RL policy) has privileged state; the student is our camera policy
 (ACT, 9-joint targets). Two kinds of rollout, both in the eval env with the cameras on (sim_eval.isaac_distill_env):
 
-- teacher (round 0): the teacher drives. Each step its absolute tool target becomes a 9-joint target by one
-  differential-IK step from the current state (env.ik_label), is executed, and is the label. Only rollouts that pass
+- teacher (round 0): the teacher drives. Each step its absolute tool target is executed as the teacher's own RL env
+  executes it (env.step_teacher: IK at every physics substep + velocity feed-forward, sim_eval.teacher_ik), and its
+  label is the 9-joint target of one differential-IK step from the observed state (env.ik_label: the first substep's
+  target, the action the student will hold for the step). Only rollouts that pass
   the unchanged check_success are kept, so round 0 also validates the teacher in the eval env (the research note's
   risk 2: an RL env that differs from ours).
 - student (DAgger rounds): the student drives (with probability `beta` per step the teacher's command is executed
@@ -59,7 +61,8 @@ class DistillEnv(Protocol):
 
     def reset(self, scene: Scene) -> None: ...
     def observe(self) -> Observation: ...
-    def step(self, action: np.ndarray) -> StepRecord: ...
+    def step(self, action: np.ndarray) -> StepRecord: ...  # the student's 9-joint target, held for the step
+    def step_teacher(self, action: TeacherAction) -> StepRecord: ...  # as the teacher's own env executes it
     def teacher_state(self, scene: Scene, k: int, gripper: int) -> TeacherState: ...
     def ik_label(self, action: TeacherAction) -> np.ndarray: ...
 
@@ -169,7 +172,9 @@ def rollout(env: DistillEnv, scene: Scene, teacher: Teacher, cfg: RolloutConfig,
             use_teacher = label is not None and cfg.beta > 0 and rng.random() < cfg.beta
             action, by_teacher = (label, True) if use_teacher else (s_act, False)
         try:
-            rec = env.step(action)
+            # The teacher's command runs through its own tracking (sim_eval.teacher_ik: IK at every substep plus the
+            # velocity feed-forward, as in T3's env); the student's 9-joint target is held for the step.
+            rec = env.step_teacher(t_act) if by_teacher else env.step(action)
         except Exception as e:  # noqa: BLE001
             return done("sim_error", e)
         rows["joint_pos"].append(np.asarray(obs.joint_pos, dtype=np.float64))
