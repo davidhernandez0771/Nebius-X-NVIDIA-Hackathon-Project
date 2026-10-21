@@ -645,6 +645,32 @@ reproducibility only.
 - **The teacher's code is still `b7935c0`.** `pm/rl-teacher`'s tip is now `f8a3633`, which is what merges into
   `pm/live-13` after the final test.
 
+**Round 0's rollouts are done: 295/300 passed `check_success` (98.3%)** on 4000–4299. They took 62.1 min (15:33:01 →
+16:35:10) and gave 40,830 teacher frames.
+- **The 5 failures** all hit the time limit: seeds 4022, 4159, 4174, 4240 and 4279. 4022 is part (b)'s failure.
+- **Only the 295 passing rollouts** become episodes.
+
+**The grid** (16:35:11, `distill_mouse_r0_t300`, cell `distill_r0`):
+
+| Source | Episodes | Frames | Repeat | Copies | Target share | Realised share |
+|---|---|---|---|---|---|---|
+| human (`mouse20261020`, `perfected_multiply_10`) | 110 | 31,536 | ×1.0 | 110 | 0.3333 | 0.3333 |
+| teacher (`demo_v6c2` `model_2098`) | 295 | 40,830 | ×1.5447 | 456 | 0.6667 | 0.6667 |
+
+- **`data_check` is clean.** The human seeds are 0–4009 and the teacher seeds 4000–4299. Nothing comes from `data\rl`,
+  or from the selection (5300–5329) or test (5020–5059) seeds.
+  - Both training sources include scenes 4000–4009. That is overlap between two training sources only, not with
+    selection or test, so it breaks no rule. It is noted here for completeness.
+- **The code** is `da19c2a` on `pm/distill-dagger`, with a clean tree. It includes the mix fix `1d0aaf8`.
+- **Checked here,** in `C:\dev\pm-t6\data\distill\distill_mouse\r0`: `rollouts_done.json` (300 attempted, 295
+  successes, ended by success 295 and time limit 5, 40,830 frames, `da19c2a`, `dirty: false`), and `round_t300.json`
+  (the mix and `data_check` as above). `distill_round.log` has the grid at 16:35:11 and training starting then.
+
+**Training started at 16:35:11:** ACT, 60,000 steps, after an export of about 94.6k frames.
+- **The lead's estimate:** training ends about 18:05–18:20, and selection on 5300–5329 runs about 18:30–19:30.
+- **The rule from here:** if the selected checkpoint is below 60% on 5300–5329 (< 18/30), round 0 extends to 600
+  teacher runs, then retrains and reselects.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
