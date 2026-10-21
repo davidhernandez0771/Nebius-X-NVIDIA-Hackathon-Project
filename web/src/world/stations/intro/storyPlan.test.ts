@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BEATS, beatSpan, beatState, INTRO_VH, logoPose, placeLights, PLACES, PLAN, power, ringLift, span, type Place } from "./storyPlan";
+import { BEATS, beatSpan, beatState, dropLight, INTRO_VH, logoPose, placeLights, PLACES, PLAN, power, ringLift, span, type Place } from "./storyPlan";
 
 const STEP = 0.01;
 const each = (fn: (vh: number) => void) => {
@@ -90,6 +90,25 @@ describe("the places' light: one place at a time, darkness between", () => {
     expect(placeLights(0).hero).toBe(1);
     // The reactor stays lit to the end: the descent's burst takes it.
     expect(placeLights(INTRO_VH).reactor).toBe(1);
+  });
+
+  it("lights the crack's walls during the fall (part of the drop, not a place): up as the forest goes out, gone when the reactor is in", () => {
+    const [a, b] = span("crack");
+    const at = (k: number) => a + (b - a) * k;
+    each((vh) => {
+      const d = dropLight(vh);
+      expect(d).toBeGreaterThanOrEqual(0);
+      expect(d).toBeLessThanOrEqual(1);
+      if (vh < a || vh > b) expect(d).toBe(0);
+      const l = placeLights(vh);
+      if (l.forest === 1 || l.reactor === 1 || l.hero > 0) expect(d).toBe(0);
+    });
+    expect(dropLight(at(0.6))).toBe(1);
+    // It comes up while the forest goes out, and hands over to the reactor's glow.
+    expect(dropLight(at(0.4))).toBeGreaterThan(0);
+    expect(placeLights(at(0.4)).forest).toBeGreaterThan(0);
+    expect(dropLight(at(0.9))).toBeGreaterThan(0);
+    expect(placeLights(at(0.9)).reactor).toBeGreaterThan(0);
   });
 
   it("plays backwards: the same scroll gives the same light, whichever way it came", () => {

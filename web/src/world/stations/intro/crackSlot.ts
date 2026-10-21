@@ -35,3 +35,20 @@ export function isGlb(bytes: ArrayBuffer): boolean {
   const v = new DataView(bytes);
   return v.getUint32(0, true) === 0x46546c67 && v.getUint32(4, true) === 2;
 }
+
+/** A model's triangles reordered top first (by each one's highest point), and how many indices belong to those
+ *  reaching above `cutoff` (m, the model's frame): from the forest the camera sees only the top of the crack, so
+ *  the walk draws that prefix and the fall draws them all. */
+export function depthOrder(index: ArrayLike<number>, position: ArrayLike<number>, cutoff: number): { index: Uint32Array; above: number } {
+  const n = index.length / 3;
+  const top = new Float32Array(n);
+  for (let t = 0; t < n; t++) top[t] = Math.max(position[index[t * 3] * 3 + 1], position[index[t * 3 + 1] * 3 + 1], position[index[t * 3 + 2] * 3 + 1]);
+  const order = Array.from({ length: n }, (_, t) => t).sort((a, b) => top[b] - top[a]);
+  const out = new Uint32Array(n * 3);
+  let above = 0;
+  order.forEach((t, k) => {
+    out.set([index[t * 3], index[t * 3 + 1], index[t * 3 + 2]], k * 3);
+    if (top[t] > cutoff) above += 3;
+  });
+  return { index: out, above };
+}
