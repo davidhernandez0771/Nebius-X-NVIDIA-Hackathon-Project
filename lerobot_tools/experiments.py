@@ -33,9 +33,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from demo_pipeline.paths import data_dir
-from lerobot_tools.assemble import Cell, build_manifest
-from lerobot_tools.train import MAX_BATCH, MAX_STEPS, resolve_last_checkpoint
+from sim_worker.own_code import check_own_code, put_own_code_first
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
+
+from demo_pipeline.paths import data_dir  # noqa: E402
+from lerobot_tools.assemble import Cell, build_manifest  # noqa: E402
+from lerobot_tools.train import MAX_BATCH, MAX_STEPS, resolve_last_checkpoint  # noqa: E402
 
 REGISTRY_FIELDS = ("run_id", "grid", "cell", "dataset", "checkpoint", "checkpoints", "steps", "save_freq",
                    "batch_size", "policy", "n_episodes", "n_frames", "train_time_s", "final_loss", "loss_curve",
@@ -170,6 +174,7 @@ def dry_run(grid: Grid, steps: int, batch_size: int, save_freq: int | None = Non
 
 
 def main(argv: list[str] | None = None) -> int:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--grid", type=Path, required=True)
     p.add_argument("--steps", type=int, required=True)

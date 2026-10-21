@@ -15,7 +15,11 @@ from pathlib import Path
 
 import numpy as np
 
-from sim_eval.start_state import check_start, save_starts
+from sim_worker.own_code import check_own_code, put_own_code_first
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
+
+from sim_eval.start_state import check_start, save_starts  # noqa: E402
 
 STATE_KEY = "observation.state"
 
@@ -46,6 +50,7 @@ def write_start_state(root: Path) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     p = argparse.ArgumentParser(description="Compare a dataset's start poses with the sim_eval reset pose")
     p.add_argument("dataset", type=Path, help="LeRobot v3 dataset root")
     p.add_argument("--write", action="store_true", help="save start_state.json into the dataset root")

@@ -20,6 +20,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(REPO / "src"), str(REPO)]  # this worktree's demo_pipeline first (the Isaac env has pm-t2's)
+from sim_worker.own_code import check_own_code  # noqa: E402
 
 parser = argparse.ArgumentParser(description="Replay recovery copies from traced policy states.")
 parser.add_argument("--states", type=Path, required=True)
@@ -40,6 +41,7 @@ from sim_worker.replay import make_sim_cfg  # noqa: E402
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     states = [RecoveryState.model_validate(s) for s in json.loads(args_cli.states.read_text("utf-8"))["states"]]
     seeds = sorted({s.seed for s in states})
     bin_poses = {sc.seed: sc.bin_pose for seed in seeds for sc in eval_scenes(1, seed)}

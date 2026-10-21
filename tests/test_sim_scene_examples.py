@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -111,6 +112,24 @@ def test_one_command_unit_tests_then_replay_regression_then_settles_under_one_lo
     assert summary["regression"]["verdicts"] == {"ep_a": "identical", "ep_b": "identical"}
     assert summary["regression"]["base_commit"] == "abc1234"
     assert "identical" in (out / "regression.md").read_text(encoding="utf-8")
+
+
+def test_the_unit_tests_import_this_checkout_and_write_their_log(tmp_path):
+    # Isaac's venv has an editable install of the project pointing at another worktree's src (C:\dev\pm-t2\src on
+    # 2026-10-20), so the pytest stage must put this checkout's src first or it tests someone else's demo_pipeline.
+    eps, calls, run = _fake_world(tmp_path)
+    seen = {}
+
+    def run_logged(cmd, cwd=None, **kw):
+        if "pytest" in cmd:
+            seen.update(kw)
+            kw["stdout"].write("1 passed\n")
+        return run(cmd, cwd=cwd, **kw)
+
+    assert _main(tmp_path, eps, run_logged) == 0
+    src = str(_smoke().REPO / "src")
+    assert seen["env"]["PYTHONPATH"].split(os.pathsep)[0] == src
+    assert "1 passed" in (tmp_path / "out" / "unit_tests.log").read_text(encoding="utf-8")
 
 
 def test_a_replay_that_differs_from_the_base_fails_the_smoke_test(tmp_path):

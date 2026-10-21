@@ -31,8 +31,7 @@ add_launcher_args(parser)
 args_cli = parser.parse_args()
 
 CODE = args_cli.code.resolve()
-sys.path.insert(0, str(CODE / "src"))
-sys.path.insert(0, str(CODE))
+sys.path[:0] = [str(CODE / "src"), str(CODE)]  # --code's src first: the venv's editable install points elsewhere
 
 from contextlib import nullcontext  # noqa: E402
 
@@ -42,7 +41,23 @@ from sim_worker.replay import make_sim_cfg, replay  # noqa: E402
 from sim_worker.tracking import TrackingOptions  # noqa: E402
 
 
+def check_own_code() -> None:
+    """sim_worker.own_code's startup check, for --code (inline: the base commit's export predates own_code): log where
+    demo_pipeline and sim_worker came from, and stop unless both are --code's."""
+    import os
+
+    import demo_pipeline
+    import sim_worker
+
+    for mod, want in ((demo_pipeline, CODE / "src" / "demo_pipeline"), (sim_worker, CODE / "sim_worker")):
+        got = Path(mod.__file__).resolve().parent
+        print(f"[imports] {mod.__name__} from {got}", file=sys.stderr, flush=True)
+        if os.path.normcase(str(got)) != os.path.normcase(str(want.resolve())):
+            raise ImportError(f"{mod.__name__} came from {got}, not --code's {want}")
+
+
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline and sim_worker came from; stops if not --code's
     import sim_worker
 
     print(f"[regression] {args_cli.label}: replaying with {Path(sim_worker.__file__).parent}", flush=True)
