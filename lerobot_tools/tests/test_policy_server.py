@@ -273,3 +273,50 @@ def test_client_works_with_a_close_after_each_response_server():
         client.close()
         server.shutdown()
         server.server_close()
+
+
+# --- inference options (lerobot_tools.inference): the server applies --n-action-steps / --temporal-ensemble ---------
+
+def test_the_server_takes_the_inference_flags_and_not_the_gripper_one():
+    from lerobot_tools.policy_server import build_parser
+
+    args = build_parser().parse_args(["--checkpoint", "x", "--n-action-steps", "20"])
+    assert (args.n_action_steps, args.temporal_ensemble) == (20, None)
+    assert build_parser().parse_args(["--checkpoint", "x", "--temporal-ensemble", "0.01"]).temporal_ensemble == 0.01
+    plain = build_parser().parse_args(["--checkpoint", "x"])
+    assert (plain.n_action_steps, plain.temporal_ensemble) == (None, None)  # default: the checkpoint's own
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--checkpoint", "x", "--binarize-gripper"])  # eval-side only
+
+
+def test_health_carries_the_runners_inference_settings():
+    class Tuned(FakeRunner):
+        def describe(self):
+            return {**super().describe(), "inference": {"overrides": {"n_action_steps": 20}, "n_action_steps": 20}}
+
+    server, url = _serve(Tuned())
+    try:
+        assert PolicyClient(url).health()["inference"]["overrides"] == {"n_action_steps": 20}
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_a_real_checkpoint_loads_with_the_overrides_on_cpu():
+    pytest.importorskip("lerobot")
+    from lerobot_tools.inference import InferenceOptions
+    from lerobot_tools.policy_server import PolicyRunner
+
+    ckpt = Path(os.environ.get("T3_CHECKPOINT", SMOKE_CKPT))
+    if not ckpt.exists():
+        pytest.skip(f"no checkpoint at {ckpt}")
+    plain = PolicyRunner(ckpt, device="cpu")
+    assert plain.describe()["inference"]["overrides"] == {}
+    replan = PolicyRunner(ckpt, device="cpu", inference=InferenceOptions(n_action_steps=20))
+    assert replan.policy.config.n_action_steps == 20 and replan.describe()["inference"]["n_action_steps"] == 20
+    ens = PolicyRunner(ckpt, device="cpu", inference=InferenceOptions(temporal_ensemble_coeff=0.01))
+    assert ens.policy.config.n_action_steps == 1 and hasattr(ens.policy, "temporal_ensembler")
+    ens.reset()
+    h, w = ens.cameras["front"]
+    a = [ens.act(np.zeros(9, dtype=np.float32), _images(h, w)) for _ in range(3)]
+    assert all(x.shape == (9,) and np.isfinite(x).all() for x in a)

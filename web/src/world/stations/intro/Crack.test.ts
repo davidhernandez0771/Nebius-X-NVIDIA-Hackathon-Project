@@ -41,12 +41,23 @@ describe("the crack's slot", () => {
     expect(c.source()).toBe("procedural");
   });
 
-  it("puts a real crack.glb in the slot's frame, in place of the fissure", async () => {
+  it("keeps the procedural crack without fetching the model where the tier asks it to (low: phones)", async () => {
+    let fetched = 0;
+    const c = makeCrack(u(), { value: 0 }, (async () => {
+      fetched++;
+      return new Response(tinyGlb());
+    }) as unknown as typeof fetch, false);
+    await settle();
+    expect(fetched).toBe(0);
+    expect(c.source()).toBe("procedural");
+  });
+
+  it("puts a real crack.glb in the slot's frame, in front of the fissure (which closes any gap behind the floor's cut)", async () => {
     const c = makeCrack(u(), { value: 0 }, respond(tinyGlb()));
     await settle();
     expect(c.source()).toBe("glb");
-    expect(c.group.getObjectByName("forest:fissure")).toBeUndefined();
-    const model = c.group.children[0];
+    expect(c.group.getObjectByName("forest:fissure")).toBeTruthy();
+    const model = c.group.children[1];
     expect(model.position.toArray()).toEqual(crackToWorld([0, 0, 0]).map((v) => expect.closeTo(v, 5)));
     expect(model.rotation.y).toBeCloseTo(CRACK_YAW, 9);
     expect(model.getObjectByName("crack")).toBeInstanceOf(THREE.Object3D);

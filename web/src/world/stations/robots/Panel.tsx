@@ -3,7 +3,7 @@
 // brings its entry into view and focus. Back (or Escape, WorldRoot) returns to the room view.
 import { Fragment, useEffect, useRef, useSyncExternalStore } from "react";
 import { useWorld } from "../../core/WorldContext";
-import { CATALOG, STATUS_LABEL, type CatalogRobot } from "./catalog";
+import { CATALOG, STATUS_LABEL, WALL_ONLY, type CatalogRobot } from "./catalog";
 import { robotsView } from "./hot";
 import "./robots.css";
 
@@ -53,6 +53,8 @@ function Entry({ r, n, hot, buttonRef }: { r: CatalogRobot; n: number; hot: bool
               <dd>{r.result}</dd>
             </>
           ) : null}
+          <dt>On the wall</dt>
+          <dd>{r.model}</dd>
         </dl>
         {r.limits ? (
           <details className="world-robots__src">
@@ -81,7 +83,9 @@ function Entry({ r, n, hot, buttonRef }: { r: CatalogRobot; n: number; hot: bool
 }
 
 export function Panel({ current, reduced }: { current: boolean; reduced: boolean }) {
-  const { back } = useWorld();
+  const { back, quality } = useWorld();
+  // The low tier leaves the extra arms off the wall (RobotWall), so the panel doesn't list them there.
+  const extras = quality?.name !== "low";
   const view = useSyncExternalStore(robotsView.subscribe, robotsView.get);
   const buttons = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -112,16 +116,35 @@ export function Panel({ current, reduced }: { current: boolean; reduced: boolean
       <p className="world-robots__lede">
         The arms SANT has run, and the next ones. <b>Tested in Isaac</b>: SANT&apos;s pick-and-place ran on it in Isaac Lab. <b>Planned</b>: nothing has run on it yet.
       </p>
-      <ol className="world-robots__list">
-        {CATALOG.map((r, i) => (
-          <Entry key={r.id} r={r} n={i + 1} hot={view.hot === r.id} buttonRef={(el) => (buttons.current[r.id] = el)} />
-        ))}
-      </ol>
-      <p className="world-robots__note">
-        On the wall, the Franka is built from its URDF&apos;s collision meshes; the others are simple stand-ins, not their real shape or size. Reach is
-        shoulder to flange, the most over the joint limits, computed from each robot&apos;s URDF chain (brochures measure
-        it differently). A field is left out when the sources don&apos;t record it (no payloads).
-      </p>
+      <div className="world-robots__scroll">
+        <ol className="world-robots__list">
+          {CATALOG.map((r, i) => (
+            <Entry key={r.id} r={r} n={i + 1} hot={view.hot === r.id} buttonRef={(el) => (buttons.current[r.id] = el)} />
+          ))}
+        </ol>
+        {extras ? (
+          <section className="world-robots__also" aria-labelledby="world-robots-also">
+            <h3 id="world-robots-also" className="world-robots__subtitle">
+              Also on the wall
+            </h3>
+            <p>On the right wall, for comparison: SANT hasn&apos;t run them, so they have no status.</p>
+            <ul>
+              {WALL_ONLY.map((r) => (
+                <li key={r.id}>
+                  <b>{r.name}</b> · {r.spec}. {r.model}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        <p className="world-robots__note">
+          On the wall, the arms are their makers&apos; published CAD meshes, from each robot&apos;s description repository (the licence is in its
+          entry), reduced to about 15,000 triangles and posed in Blender. They all stand at one scale, so their real sizes compare; the parts shelves
+          hold pieces of the same meshes, enlarged. The Flexiv&apos;s meshes weren&apos;t downloaded, so it is a simple stand-in, not its real shape or
+          size. Reach is shoulder to flange, the most over the joint limits, computed from each robot&apos;s URDF chain (brochures measure it
+          differently). A field is left out when the sources don&apos;t record it (no payloads).
+        </p>
+      </div>
     </aside>
   );
 }

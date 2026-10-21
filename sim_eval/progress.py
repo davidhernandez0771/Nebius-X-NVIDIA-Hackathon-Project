@@ -18,7 +18,8 @@ from pathlib import Path
 from demo_pipeline.schemas import Scene
 from sim_eval.results import EpisodeResult
 
-RESUME_KEYS = ("checkpoint", "seed0", "max_seconds", "cameras", "reset_pose")
+# inference: lerobot_tools.inference options (None for a default eval, and in logs written before they existed)
+RESUME_KEYS = ("checkpoint", "seed0", "max_seconds", "cameras", "reset_pose", "inference")
 RERUN_ON_RESUME = ("sim_error", "policy_error")
 
 

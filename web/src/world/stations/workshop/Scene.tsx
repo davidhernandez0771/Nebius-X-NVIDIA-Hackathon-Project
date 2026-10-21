@@ -11,6 +11,7 @@ import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { BAKED } from "../../scene/assets";
 import { Baked } from "../../scene/Baked";
+import { cutBakedBody } from "../../scene/machineV2";
 import { Arm } from "../../scene/Arm";
 import { dissolve, FIELD_MAX, LAMPS_AT, revealAt } from "../../scene/dissolve";
 import { Helix, type BenchInstance } from "../../scene/Helix";
@@ -117,7 +118,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
       <Materialize>
         {BAKED.map((name) => (
           <Suspense key={name} fallback={null}>
-            <Baked name={name} anisotropy={anisotropy} />
+            <Baked name={name} anisotropy={anisotropy} cut={name === "machine_body" ? cutBakedBody : undefined} />
           </Suspense>
         ))}
         <Pendants />

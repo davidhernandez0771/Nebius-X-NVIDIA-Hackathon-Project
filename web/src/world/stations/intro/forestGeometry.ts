@@ -42,8 +42,8 @@ export interface ForestTier {
 
 export const FOREST_TIERS: Record<TierName, ForestTier> = {
   low: { trees: 110, far: 50, ferns: 70, moss: 60, logs: 3, shafts: 6, spores: 160, mistBands: 2, rootLayer: 0, maxDraws: 10, maxTriangles: 60_000 },
-  high: { trees: 220, far: 120, ferns: 170, moss: 120, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 160_000 },
-  ultra: { trees: 220, far: 160, ferns: 260, moss: 180, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 190_000 },
+  high: { trees: 220, far: 120, ferns: 160, moss: 120, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 160_000 },
+  ultra: { trees: 220, far: 160, ferns: 250, moss: 180, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 190_000 },
 };
 
 export interface ForestLayout {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CRACK_SLOT, crackToWorld, isGlb } from "./crackSlot";
+import { CRACK_SLOT, crackToWorld, depthOrder, isGlb } from "./crackSlot";
 import { crackHalfWidth, inCrack } from "./forestPlan";
 import { CRACK, FOREST, ROCK } from "./layout";
 
@@ -28,5 +28,18 @@ describe("the crack's GLB slot (Blender re-models the crack later)", () => {
     expect(isGlb(new TextEncoder().encode("<!doctype html><html>").buffer)).toBe(false);
     expect(isGlb(new Uint8Array([0x67, 0x6c, 0x54, 0x46, 1, 0, 0, 0]).buffer)).toBe(false); // glTF 1
     expect(isGlb(new ArrayBuffer(3))).toBe(false);
+  });
+});
+
+describe("the crack model's triangles, top first", () => {
+  it("orders them by their highest point, and counts those reaching above a depth (the walk draws only those)", () => {
+    // Three triangles: one 10 m down, one at the lip, one 3 m down (y of each vertex).
+    const ys = [-10, -11, -12, 0.2, -0.5, -1, -3, -3.5, -4];
+    const position = new Float32Array(ys.flatMap((y) => [0, y, 0]));
+    const index = Uint32Array.from([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    const o = depthOrder(index, position, -4);
+    expect([...o.index]).toEqual([3, 4, 5, 6, 7, 8, 0, 1, 2]);
+    expect(o.above).toBe(6);
+    expect(depthOrder(index, position, -2).above).toBe(3);
   });
 });

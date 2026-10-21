@@ -22,7 +22,9 @@ from pathlib import Path
 
 LAST_POINTER = "last.txt"
 VIDEO_BACKEND = "pyav"
-MAX_STEPS, MAX_BATCH = 60_000, 8  # GPU budget: sprint 3 set 10k; sprint 7 30k for equal epochs; grasp-fix run 2 60k
+# GPU budget: sprint 3 set 10k; sprint 7 30k for equal epochs; grasp-fix run 2 60k; the 2026-10-20 research note's
+# Stage 1 trains to 80k (LeRobot's ACT reference runs ~80-100k) and picks the checkpoint on practice seeds.
+MAX_STEPS, MAX_BATCH = 100_000, 8
 
 
 def update_last_checkpoint_pointer(checkpoint_dir: Path) -> Path:

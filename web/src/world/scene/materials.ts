@@ -23,6 +23,27 @@ export function liveMaterial(src: THREE.Material, tier: QualityTier, extra: { ma
   return m;
 }
 
+/**
+ * One material for many: the colour, metalness and roughness come per vertex (`color`, and `aMR` as
+ * metalness, roughness), so parts in different materials merge into one mesh and one draw call (the
+ * machine's body, machineV2.ts). Low gets Lambert with the colours (no reflections, as liveMaterial).
+ */
+export function vertexPbrMaterial(tier: QualityTier, name = "vertex-pbr"): THREE.Material {
+  if (tier.name === "low") return new THREE.MeshLambertMaterial({ vertexColors: true, name });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 1, roughness: 1, name });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 aMR;\nvarying vec2 vMR;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vMR = aMR;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vMR;")
+      .replace("#include <metalnessmap_fragment>", "float metalnessFactor = metalness * vMR.x;")
+      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = roughness * vMR.y;");
+  };
+  m.customProgramCacheKey = () => "vertex-pbr";
+  return m;
+}
+
 /** The release for a live material (its reflections follow the lamps through the scene, power.ts). */
 export function trackLive(m: THREE.Material): () => void {
   return () => m.dispose();
