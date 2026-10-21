@@ -181,3 +181,27 @@ def test_the_deadband_is_read_from_a_real_isaac_lab_env_yaml(tmp_path):
     (tmp_path / "run" / "params").mkdir(parents=True)
     shutil.copy(real, tmp_path / "run" / "params" / "env.yaml")
     assert rl_policy.run_gripper_deadband(tmp_path / "run" / "exported" / "policy.pt") == 0.5
+
+
+def test_the_adapter_applies_the_runs_speed_cap_from_the_previous_target(tmp_path):
+    """make() gives T6's rollouts the cap the run trained with (rl_teacher.cap_speed): the targets step at most
+    V_MAX * STEP_S apart however fast the tool runs; a reset forgets the previous target."""
+    full_x = lambda obs: np.array([1.0, 0.0, 0.0, 0.0, 1.0])  # noqa: E731
+    t = rl_policy.RLTeacher(full_x, name="rl-test", v_max=rt.V_MAX, yaw_rate_max=rt.YAW_RATE_MAX)
+    t.reset(None)
+    first = t.act(_state(tcp=(0.45, 0.0, 0.35))).ee_pos
+    assert first[0] == pytest.approx(0.45 + rt.V_MAX * rt.STEP_S)  # from the tool after a reset: 1 cm, not 2
+    second = t.act(_state(tcp=(0.465, 0.0, 0.35))).ee_pos  # the tool 1.5 cm on: a full step would be 2.5 cm
+    assert np.linalg.norm(second - first) == pytest.approx(rt.V_MAX * rt.STEP_S)
+    third = t.act(_state(tcp=(0.53, 0.0, 0.35))).ee_pos  # the tool ran 5 cm past: one step from it wins
+    assert np.all(np.abs(third - np.array([0.53, 0.0, 0.35])) <= rt.DELTA_M + 1e-9)
+    t.reset(None)
+    assert t.act(_state(tcp=(0.45, 0.0, 0.35))).ee_pos[0] == pytest.approx(first[0])
+    uncapped = rl_policy.RLTeacher(full_x, name="rl-test").act(_state(tcp=(0.45, 0.0, 0.35))).ee_pos
+    assert uncapped[0] == pytest.approx(0.45 + rt.DELTA_M)
+    run = tmp_path / "2026-10-21_demo_v6c"
+    (run / "params").mkdir(parents=True)
+    (run / "params" / "env.yaml").write_text("actions:\n  arm_action:\n    v_max: 0.5\n    yaw_rate_max: 2.5\n",
+                                             encoding="utf-8")
+    assert rl_policy.run_speed_cap(run / "exported" / "policy.pt") == (0.5, 2.5)
+    assert rl_policy.run_speed_cap(tmp_path / "old" / "exported" / "policy.pt") == (0.0, 0.0)  # before the cap

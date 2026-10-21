@@ -443,3 +443,10 @@ def test_a_checkpoint_copy_gets_the_std_set_on_the_motion_dims_only():
     assert out["actor_state_dict"]["distribution.std_param"].tolist() == pytest.approx([0.3] * 5)
     assert ck["actor_state_dict"]["distribution.std_param"].tolist()[0] == 1.0  # the original untouched
     assert out["iter"] == 1499 and out["actor_state_dict"]["w"] is ck["actor_state_dict"]["w"]
+
+
+def test_new_runs_train_with_the_speed_cap_on():
+    arm = rc.SantPickPlaceRLEnvCfg().actions.arm_action
+    assert (arm.v_max, arm.yaw_rate_max) == (rt.V_MAX, rt.YAW_RATE_MAX) == (0.5, 2.5)
+    lift = rc.SantPickPlaceRLLiftEnvCfg().actions.arm_action
+    assert (lift.v_max, lift.yaw_rate_max) == (0.5, 2.5)

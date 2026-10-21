@@ -59,25 +59,32 @@ class RLTeacher:
     """sim_eval.teacher.Teacher around a policy: a function from the observation (rl_teacher.OBS_DIM floats) to the
     action (rl_teacher.ACTION_DIM floats)."""
 
-    def __init__(self, policy: Callable[[np.ndarray], np.ndarray], name: str, gripper_deadband: float = 0.0):
+    def __init__(self, policy: Callable[[np.ndarray], np.ndarray], name: str, gripper_deadband: float = 0.0,
+                 v_max: float = 0.0, yaw_rate_max: float = 0.0):
         self.policy = policy
         self.name = name
         self.gripper_deadband = gripper_deadband  # the training env's (rl_teacher.gripper_closed)
+        self.v_max, self.yaw_rate_max = v_max, yaw_rate_max  # the training env's speed cap (rl_teacher.cap_speed)
         self._last = np.zeros(rt.ACTION_DIM)
+        self._prev: tuple[np.ndarray, np.ndarray] | None = None  # the previous target (position [1, 3], yaw [1])
         self._action = _action_type()
 
     def reset(self, scene) -> None:
         self._last = np.zeros(rt.ACTION_DIM)
+        self._prev = None
 
     def act(self, state):
         obs = rt.policy_observation(state, self._last)
         a = np.clip(np.asarray(self.policy(obs), dtype=np.float64).reshape(rt.ACTION_DIM), -1.0, 1.0)
         self._last = a
         tcp_q = np.asarray(state.tcp_quat_wxyz, dtype=np.float64)[None]
-        pos, quat, closed = rt.action_to_target(a[None], np.asarray(state.tcp_pos, dtype=np.float64)[None],
-                                                rt.tool_yaw(tcp_q))
+        tcp, tcp_yaw = np.asarray(state.tcp_pos, dtype=np.float64)[None], rt.tool_yaw(tcp_q)
+        prev_pos, prev_yaw = self._prev if self._prev is not None else (tcp, tcp_yaw)  # after a reset: the tool
+        pos, quat, closed = rt.action_to_target(a[None], tcp, tcp_yaw, prev_pos, prev_yaw, self.v_max,
+                                                self.yaw_rate_max)
         bin_pos = np.asarray(state.bin_pos, dtype=np.float64)[None]
         pos = rt.clamp_to_soft_floor(pos, bin_pos, np.array([rt.yaw_of_wxyz(state.bin_quat_wxyz)]))
+        self._prev = (pos, rt.tool_yaw(quat))  # as the env's action term keeps it
         closed = rt.gripper_closed(a[4:5], np.array([int(state.gripper) == 1]), self.gripper_deadband)  # as the env
         return self._action(ee_pos=pos[0].astype(np.float64), ee_quat_wxyz=quat[0].astype(np.float64),
                             gripper=int(bool(closed[0])))
@@ -98,6 +105,12 @@ def run_gripper_deadband(path: Path) -> float:
     """The gripper deadband the run trained with (its params/env.yaml, written by Isaac Lab's trainer); 0 if none."""
     cfg = run_env_cfg(path)
     return float(((cfg.get("actions") or {}).get("gripper_action") or {}).get("deadband") or 0.0)
+
+
+def run_speed_cap(path: Path) -> tuple[float, float]:
+    """(v_max, yaw_rate_max) the run trained with (its params/env.yaml); 0 for a run before the cap (demo_v6c)."""
+    arm = (run_env_cfg(path).get("actions") or {}).get("arm_action") or {}
+    return float(arm.get("v_max") or 0.0), float(arm.get("yaw_rate_max") or 0.0)
 
 
 def run_env_cfg(path: Path) -> dict:
@@ -137,4 +150,6 @@ def make(checkpoint, device: str = "cuda:0", **_) -> RLTeacher:
             return model(x)[0].float().cpu().numpy()
 
     run = path.parent.parent.name if path.parent.name == "exported" else path.stem
-    return RLTeacher(policy, name=f"rl-{run}", gripper_deadband=run_gripper_deadband(path))
+    v_max, yaw_rate_max = run_speed_cap(path)
+    return RLTeacher(policy, name=f"rl-{run}", gripper_deadband=run_gripper_deadband(path), v_max=v_max,
+                     yaw_rate_max=yaw_rate_max)
