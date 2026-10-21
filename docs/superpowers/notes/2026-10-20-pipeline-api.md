@@ -145,8 +145,12 @@ T2's shape, with these deltas (sent to T2):
 
 ## Not done, or not known yet
 
-- **No GPU stage ran through the API.** First real run: the smoke preset (`"preset": "smoke"`, about 3 demos), with
-  the lead's go and the GPU free.
+- **No GPU stage ran through the API.** **Next step:** the first real run, with the smoke preset, needs the user's
+  go and a free GPU (no `C:\dev\gpu.lock`).
+  1. Start the backend with `SANT_PIPELINE=1` and `DATA_DIR` set.
+  2. `POST /pipeline/runs {"tag": "<about 3 demos>", "preset": "smoke"}`.
+  3. Watch `/pipeline/runs/{id}/events`.
+  4. Check the downloads.
 - **Untested with real files:** assembling the LeRobot datasets for a data-only run (the LeRobot venv subprocess),
   and the Robota export inside a real run.
 - **`nemotron: true`** needs Pillow in the backend's venv, as the runner does. Without it the runner refuses, and
