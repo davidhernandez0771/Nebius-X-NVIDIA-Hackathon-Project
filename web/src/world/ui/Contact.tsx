@@ -1,6 +1,7 @@
 // A quiet Contact entry point, top right: a small button that opens a panel under it listing the links
 // in site/contact.ts (empty for now, so the panel says they are coming). Escape, Close or a click
 // outside closes it, and focus goes back to the button.
+import { Logo } from "../../sant/components/Logo";
 import { useEffect, useId, useRef, useState } from "react";
 import { CONTACT_LINKS, type ContactLink } from "../../site/contact";
 import "./ui.css";
@@ -52,7 +53,10 @@ export function Contact({ links = CONTACT_LINKS }: { links?: readonly ContactLin
             close();
           }}
         >
-          <p className="world-contact__h">Contact</p>
+          <p className="world-contact__h">
+            <Logo size="sm" lit="all" wordmark={false} />
+            <span>Contact</span>
+          </p>
           {shown.length ? (
             <ul className="world-contact__links">
               {shown.map((l) => (

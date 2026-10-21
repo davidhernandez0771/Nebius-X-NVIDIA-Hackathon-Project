@@ -66,7 +66,13 @@ function partPoints(svg: SVGSVGElement, d: string): Pt[] {
   const ctx = off.getContext("2d");
   if (!ctx) return [];
   ctx.setTransform(k, 0, 0, k, ox, oy);
-  ctx.fill(new Path2D(d));
+  // The mark is strokes (logoSymbol.ts): the dust lands on the lines as they are drawn.
+  if (LOGO_SYMBOL.stroke > 0) {
+    ctx.lineWidth = LOGO_SYMBOL.stroke;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke(new Path2D(d));
+  } else ctx.fill(new Path2D(d));
   const step = Math.max(2, Math.round(w / 64));
   return sampleMask(ctx.getImageData(0, 0, w, h), step).map((p) => ({ x: rect.left + p.x, y: rect.top + p.y }));
 }
@@ -361,9 +367,17 @@ export function PowerOnProvider({ children, modeOf = siteModeOf }: { children: R
             style={{ "--x": `${run.x}px`, "--y": `${run.y}px` } as CSSProperties}
           >
             <canvas ref={canvas} className="sant-poweron__dust" />
-            <svg className="sant-poweron__mark" viewBox={LOGO_SYMBOL.viewBox} focusable="false">
+            <svg
+              className="sant-poweron__mark"
+              viewBox={LOGO_SYMBOL.viewBox}
+              focusable="false"
+              fill={LOGO_SYMBOL.stroke > 0 ? "none" : undefined}
+              strokeWidth={LOGO_SYMBOL.stroke || undefined}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               {LOGO_SYMBOL.units.map((d, i) => (
-                <path key={i} className="sant-poweron__unit" d={d} data-part={i === 0 ? "original" : "copy"} data-lit={stepOf(i) < run.lit} />
+                <path key={i} className="sant-poweron__unit" d={d} data-part={LOGO_SYMBOL.accent.includes(i) ? "accent" : "ink"} data-lit={stepOf(i) < run.lit} />
               ))}
             </svg>
           </div>,
