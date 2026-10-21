@@ -3,21 +3,13 @@
 // Read only. ?set=<experiment> picks the experiment, ?mode=live the live view.
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AppShell } from "../../sant/shells/AppShell";
+import { HoloPage } from "../holo/Holo";
 import { fetchSets, type Fetch } from "./api";
 import { useAsync } from "./hooks";
 import { LiveView } from "./LiveView";
 import { Showcase } from "./Showcase";
 import type { SetSummary } from "./model";
 import "./data.css";
-
-const LINKS = [
-  { to: "/robots", label: "Robots" },
-  { to: "/record", label: "Record" },
-  { to: "/pipeline", label: "Pipeline" },
-  { to: "/data", label: "Data" },
-  { to: "/site/results", label: "Results" },
-];
 
 /** The experiments shown up front, in this order (tonight's mouse demos first); the store's others (earlier
  *  attempts, the repair A/B runs) sit behind "Show all". */
@@ -51,10 +43,9 @@ export default function DataPage({ fetchImpl, Source }: { fetchImpl?: Fetch; Sou
   }, { replace: true });
 
   return (
-    <AppShell
+    <HoloPage
       title="The data"
-      active={null}
-      links={LINKS}
+      here="data"
       actions={
         <div className="data-modes" role="tablist" aria-label="View">
           <button type="button" role="tab" aria-selected={mode === "showcase"} className="data-mode" onClick={() => go({ mode: "showcase" })}>
@@ -99,6 +90,6 @@ export default function DataPage({ fetchImpl, Source }: { fetchImpl?: Fetch; Sou
         )}
         {sets.state === "ok" && list.length === 0 && <p className="data-note">No experiments in this data folder yet.</p>}
       </div>
-    </AppShell>
+    </HoloPage>
   );
 }

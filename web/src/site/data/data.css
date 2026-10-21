@@ -1,10 +1,15 @@
-/* The data (/data). Volt, inside the SANT app shell: a black stage, thin ink frames, teal for what physics verified,
-   amber for what it rejected. Every rule sits under .sant .data-*, so nothing leaks. Tokens: web/src/sant/tokens.css. */
+/* The data (/data), in the holo language of the work pages (site/holo/holo.css): the void and its grid, see-through
+   panels with corner ticks, hairlines, mono labels, teal for what physics verified, amber for what it rejected.
+   Inside the frame the --sant-* tokens take the holo values (holo.css), so these rules read them as before.
+   /pipeline imports this file too (data-note, data-btn, data-badge, data-chip, data-h3): keep the names.
+   Every rule sits under .sant .data-*, so nothing leaks. */
 
 .sant .data-page {
   display: grid;
   gap: var(--sant-space-5);
   min-width: 0;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 .sant .data-lede {
@@ -18,21 +23,33 @@
 
 .sant .data-h2 {
   margin: 0;
-  font-family: var(--sant-font-display);
-  font-size: var(--sant-fs-3);
+  font-family: var(--holo-mono, var(--sant-font-data));
+  font-size: var(--sant-fs-5);
   font-weight: 400;
+  letter-spacing: 0.02em;
 }
 
+/* A section's label: mono capitals, a hairline running on from it. */
 .sant .data-h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 var(--sant-space-3);
-  font-size: var(--sant-fs-small);
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font: 500 11px/1.3 var(--holo-mono, var(--sant-font-data));
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--sant-muted);
 }
 
-/* ------------------------------------------------------------ modes and sets */
+.sant .data-h3::after {
+  content: "";
+  flex: 1;
+  min-width: 2rem;
+  height: 1px;
+  background: linear-gradient(90deg, var(--holo-line, var(--sant-line)), transparent);
+}
+
+/* ------------------------------------------------------------ modes, sets and buttons */
 
 .sant .data-modes,
 .sant .data-sets {
@@ -44,31 +61,45 @@
 .sant .data-mode,
 .sant .data-set,
 .sant .data-btn {
-  padding: var(--sant-space-2) var(--sant-space-4);
+  padding: 6px 12px;
   border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-pill);
   background: transparent;
   color: var(--sant-text);
-  font: inherit;
-  font-size: var(--sant-fs-small);
+  font: 500 11px/1.4 var(--holo-mono, var(--sant-font-data));
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: pointer;
+  transition: border-color var(--sant-dur-2) var(--sant-ease-out), color var(--sant-dur-2) var(--sant-ease-out), background-color var(--sant-dur-2) var(--sant-ease-out);
 }
 
-.sant .data-mode[aria-selected="true"],
-.sant .data-set[aria-pressed="true"] {
+.sant .data-mode:hover:not(:disabled),
+.sant .data-set:hover:not(:disabled),
+.sant .data-btn:hover:not(:disabled) {
+  border-color: var(--holo-line-hi, var(--sant-accent));
+}
+
+/* :not(:disabled) lifts these over sant.css's button:hover reset, so the selected one keeps its fill on hover. */
+.sant .data-mode[aria-selected="true"]:not(:disabled),
+.sant .data-set[aria-pressed="true"]:not(:disabled) {
   border-color: var(--sant-accent);
+  background: var(--sant-accent-soft);
   color: var(--sant-accent);
 }
 
-.sant .data-set { display: inline-flex; gap: var(--sant-space-2); align-items: baseline; }
-.sant .data-set__name { font-family: var(--sant-font-data); }
-.sant .data-set__input { color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+/* An experiment's name is data: it keeps its case. */
+.sant .data-set { display: inline-flex; gap: var(--sant-space-2); align-items: baseline; text-transform: none; letter-spacing: 0.02em; }
+.sant .data-set__name { font-size: 12px; }
+.sant .data-set__input { color: var(--sant-muted); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
+.sant .data-set[aria-pressed="true"] .data-set__input { color: inherit; opacity: 0.75; }
 .sant .data-btn--quiet { border-color: transparent; color: var(--sant-muted); }
 
+/* The store's numbers for the experiment: a readout, teal tick on its left. */
 .sant .data-summary {
   margin: 0;
-  font-family: var(--sant-font-data);
-  font-size: var(--sant-fs-caption);
+  padding-left: 10px;
+  border-left: 1px solid var(--sant-accent);
+  font: 12px/1.5 var(--holo-mono, var(--sant-font-data));
   color: var(--sant-muted);
 }
 
@@ -87,11 +118,13 @@
   min-width: 0;
 }
 
+/* The demos: a rail with a hairline, the shown one ticked in teal. */
 .sant .data-demos {
   display: grid;
-  gap: var(--sant-space-1);
+  gap: 2px;
   margin: 0;
-  padding: 0;
+  padding: 0 0 0 1px;
+  border-left: 1px solid var(--sant-line);
   list-style: none;
 }
 
@@ -100,31 +133,34 @@
   gap: 4px;
   width: 100%;
   padding: var(--sant-space-2) var(--sant-space-3);
-  border: 1px solid transparent;
-  border-radius: var(--sant-radius-sm);
+  border: 0;
+  border-radius: 0;
   background: transparent;
   color: var(--sant-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color var(--sant-dur-2) var(--sant-ease-out), box-shadow var(--sant-dur-2) var(--sant-ease-out);
 }
 
-.sant .data-demo:hover { border-color: var(--sant-line); }
-.sant .data-demo[aria-pressed="true"] { border-color: var(--sant-accent); }
-.sant .data-demo__name { font-family: var(--sant-font-data); font-size: var(--sant-fs-small); }
+.sant .data-demo:hover:not(:disabled) { background: rgba(25, 245, 194, 0.03); }
+.sant .data-demo[aria-pressed="true"]:not(:disabled) { background: var(--sant-accent-soft); box-shadow: inset 2px 0 0 var(--sant-accent); }
+.sant .data-demo__name { font-family: var(--holo-mono, var(--sant-font-data)); font-size: 12px; }
 .sant .data-demo__chips { display: flex; flex-wrap: wrap; gap: 4px; }
 
 .sant .data-chip {
-  padding: 0 6px;
+  padding: 0 5px;
   border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-xs);
-  font-size: var(--sant-fs-caption);
+  font: 500 10px/1.6 var(--holo-mono, var(--sant-font-data));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--sant-muted);
   white-space: nowrap;
 }
 
-.sant .data-chip.is-pass { border-color: var(--sant-accent); color: var(--sant-accent); }
-.sant .data-chip.is-fail { border-color: var(--sant-issue); color: var(--sant-issue); }
+.sant .data-chip.is-pass { border-color: var(--holo-line, var(--sant-accent)); color: var(--sant-accent); }
+.sant .data-chip.is-fail { border-color: rgba(255, 176, 0, 0.4); color: var(--sant-issue); }
 .sant .data-chip.is-wait { border-style: dashed; }
 
 /* ------------------------------------------------------------ panes */
@@ -135,13 +171,11 @@
   gap: var(--sant-space-4);
 }
 
+/* The frame and its ticks are .holo-panel's; a verified view's turn teal, a failed one's amber. */
 .sant .data-pane {
   display: grid;
   gap: var(--sant-space-2);
   padding: var(--sant-space-3);
-  border: 1px solid var(--sant-line);
-  border-radius: var(--sant-radius-md);
-  background: var(--sant-surface);
   min-width: 0;
 }
 
@@ -152,18 +186,27 @@
   justify-content: space-between;
 }
 
-.sant .data-pane__title { margin: 0; font-size: var(--sant-fs-5); font-weight: 600; }
+.sant .data-pane__title {
+  margin: 0;
+  font: 500 12px/1.3 var(--holo-mono, var(--sant-font-data));
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sant .data-pane[data-holo-state="pass"] .data-pane__title { color: var(--sant-accent); }
+.sant .data-pane[data-holo-state="fail"] .data-pane__title { color: var(--sant-issue); }
 
 .sant .data-pane__pick select {
   max-width: 14rem;
-  padding: 2px var(--sant-space-2);
+  padding: 3px var(--sant-space-2);
   border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-sm);
   background: var(--sant-bg);
   color: var(--sant-text);
-  font: inherit;
-  font-size: var(--sant-fs-small);
+  font: 12px/1.4 var(--holo-mono, var(--sant-font-data));
 }
+
+.sant .data-pane__pick select:hover { border-color: var(--holo-line-hi, var(--sant-accent)); }
 
 .sant .data-pane__what { margin: 0; font-size: var(--sant-fs-caption); color: var(--sant-muted); }
 
@@ -177,6 +220,7 @@
 .sant .data-pane__twin {
   position: relative;
   min-height: 15rem;
+  border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-sm);
   overflow: hidden;
   background: var(--sant-bg);
@@ -189,16 +233,24 @@
   place-items: center;
   padding: var(--sant-space-3);
   color: var(--sant-muted);
-  font-size: var(--sant-fs-caption);
+  font: 11px/1.4 var(--holo-mono, var(--sant-font-data));
   text-align: center;
 }
 
 .sant .data-pane__cam { display: grid; gap: 4px; align-content: start; margin: 0; }
-.sant .data-pane__cam figcaption { font-size: var(--sant-fs-caption); color: var(--sant-muted); }
+
+.sant .data-pane__cam figcaption,
+.sant .data-variant__name {
+  font: 10px/1.4 var(--holo-mono, var(--sant-font-data));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sant-muted);
+}
 
 .sant .data-footage {
   width: 100%;
   aspect-ratio: 1 / 1;
+  border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-sm);
   background-color: var(--sant-bg);
   background-repeat: no-repeat;
@@ -206,20 +258,24 @@
 }
 
 .sant .data-footage--empty {
-  border: 1px dashed var(--sant-line);
+  border-style: dashed;
 }
 
+/* The verdict: mono, a small square before it, teal or amber. Normal case: the reasons are sentences. */
 .sant .data-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   justify-self: start;
-  padding: 2px var(--sant-space-2);
+  padding: 3px 8px;
   border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-pill);
-  font-size: var(--sant-fs-caption);
+  font: 11px/1.4 var(--holo-mono, var(--sant-font-data));
   color: var(--sant-muted);
 }
 
-.sant .data-badge--pass { border-color: var(--sant-accent); color: var(--sant-accent); }
-.sant .data-badge--fail { border-color: var(--sant-issue); color: var(--sant-issue); }
+.sant .data-badge--pass { border-color: var(--holo-line, var(--sant-accent)); background: var(--sant-accent-soft); color: var(--sant-accent); }
+.sant .data-badge--fail { border-color: rgba(255, 176, 0, 0.4); background: rgba(255, 176, 0, 0.06); color: var(--sant-issue); }
 
 /* ------------------------------------------------------------ transport */
 
@@ -229,13 +285,48 @@
   align-items: center;
 }
 
-.sant .data-transport__scrub { flex: 1; }
-.sant .data-transport__scrub input { width: 100%; accent-color: var(--sant-accent); }
-.sant .data-transport__time { min-width: 4.5ch; font-family: var(--sant-font-data); font-size: var(--sant-fs-caption); color: var(--sant-muted); text-align: right; }
+.sant .data-transport__scrub { flex: 1; display: flex; align-items: center; }
+
+/* The scrubber: a hairline with a small square head (the native control, restyled; keyboard as before). */
+.sant .data-transport__scrub input {
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  accent-color: var(--sant-accent);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.sant .data-transport__scrub input::-webkit-slider-runnable-track { height: 1px; background: var(--holo-line, var(--sant-line)); }
+.sant .data-transport__scrub input::-moz-range-track { height: 1px; background: var(--holo-line, var(--sant-line)); }
+.sant .data-transport__scrub input::-moz-range-progress { height: 1px; background: var(--sant-accent); }
+
+.sant .data-transport__scrub input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 9px;
+  height: 9px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 1px;
+  background: var(--sant-accent);
+}
+
+.sant .data-transport__scrub input::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: 0;
+  border-radius: 1px;
+  background: var(--sant-accent);
+}
+
+.sant .data-transport__time { min-width: 4.5ch; font-family: var(--holo-mono, var(--sant-font-data)); font-size: 12px; color: var(--sant-muted); text-align: right; }
 
 /* ------------------------------------------------------------ what changed */
 
-.sant .data-changed { display: grid; gap: var(--sant-space-3); }
+.sant .data-changed { display: grid; gap: var(--sant-space-3); padding: var(--sant-space-4); }
+.sant .data-changed .data-h3 { margin: 0; }
 
 .sant .data-list {
   display: grid;
@@ -244,6 +335,8 @@
   padding-left: 1.1em;
   font-size: var(--sant-fs-small);
 }
+
+.sant .data-list li::marker { color: var(--sant-accent); }
 
 .sant .data-table {
   width: 100%;
@@ -260,8 +353,9 @@
   font-weight: 400;
 }
 
-.sant .data-table td { font-family: var(--sant-font-data); }
-.sant .data-table thead th { color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+.sant .data-table td { font-family: var(--holo-mono, var(--sant-font-data)); font-size: 12px; }
+.sant .data-table td:last-child { color: var(--sant-accent); }
+.sant .data-table thead th { color: var(--sant-muted); font: 500 10px/1.4 var(--holo-mono, var(--sant-font-data)); letter-spacing: 0.12em; text-transform: uppercase; }
 
 /* ------------------------------------------------------------ variants */
 
@@ -274,9 +368,9 @@
   list-style: none;
 }
 
-.sant .data-variant { display: grid; gap: 4px; min-width: 0; align-content: start; }
-/* A failure badge can run to two lines under a thumbnail: a rounded box, not a stretched pill. */
-.sant .data-variant .data-badge { border-radius: var(--sant-radius-sm); }
+.sant .data-variant { display: grid; gap: 6px; min-width: 0; align-content: start; padding: 6px; }
+/* A failure badge can run to two lines under a thumbnail. */
+.sant .data-variant .data-badge { justify-self: stretch; }
 
 .sant .data-variant > button {
   display: grid;
@@ -291,7 +385,7 @@
   cursor: pointer;
 }
 
-.sant .data-variant__name { font-family: var(--sant-font-data); font-size: var(--sant-fs-caption); }
+.sant .data-variant > button:hover .data-footage { border-color: var(--holo-line-hi, var(--sant-accent)); }
 
 .sant .data-variant--live { animation: data-pop var(--sant-dur-3) var(--sant-ease-out) both; }
 
@@ -303,7 +397,7 @@
 /* ------------------------------------------------------------ live */
 
 .sant .data-live { display: grid; gap: var(--sant-space-5); }
-.sant .data-live__conn { margin: 0; font-size: var(--sant-fs-caption); color: var(--sant-muted); }
+.sant .data-live__conn { margin: 0; font: 11px/1.4 var(--holo-mono, var(--sant-font-data)); letter-spacing: 0.08em; color: var(--sant-muted); }
 
 .sant .data-stages {
   display: grid;
@@ -316,26 +410,31 @@
 }
 
 .sant .data-stage {
+  position: relative;
   display: grid;
   gap: 4px;
   padding: var(--sant-space-3);
   border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-md);
+  background: var(--sant-surface);
   color: var(--sant-muted);
   transition: border-color var(--sant-dur-2) var(--sant-ease-out), color var(--sant-dur-2) var(--sant-ease-out);
 }
 
 .sant .data-stage__dot {
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
   border: 1px solid currentColor;
-  border-radius: 50%;
+  border-radius: 1px;
 }
 
-.sant .data-stage__label { font-weight: 600; font-size: var(--sant-fs-small); }
-.sant .data-stage__status { font-size: var(--sant-fs-caption); }
+.sant .data-stage__label { font: 500 11px/1.3 var(--holo-mono, var(--sant-font-data)); letter-spacing: 0.12em; text-transform: uppercase; }
+.sant .data-stage__status { font: 11px/1.4 var(--holo-mono, var(--sant-font-data)); }
 
-.sant .data-stage[data-status="running"] { border-color: var(--sant-accent); color: var(--sant-text); }
+/* The running stage: a light runs along its foot (holo-trace). */
+.sant .data-stage__trace { position: absolute; left: 0; right: 0; bottom: -1px; }
+
+.sant .data-stage[data-status="running"] { border-color: var(--holo-line, var(--sant-accent)); color: var(--sant-text); }
 .sant .data-stage[data-status="running"] .data-stage__dot { background: var(--sant-accent); border-color: var(--sant-accent); animation: data-pulse 1.2s ease-in-out infinite; }
 .sant .data-stage[data-status="done"] { color: var(--sant-accent); }
 .sant .data-stage[data-status="done"] .data-stage__dot { background: var(--sant-accent); border-color: var(--sant-accent); }
@@ -359,20 +458,32 @@
   padding: var(--sant-space-2) var(--sant-space-3);
   border: 1px solid var(--sant-line);
   border-radius: var(--sant-radius-sm);
+  background: var(--sant-surface);
 }
 
-.sant .data-live__demo[data-done="true"] { border-color: var(--sant-accent); }
+.sant .data-live__demo[data-done="true"] { border-color: var(--holo-line, var(--sant-accent)); }
 
 @media (prefers-reduced-motion: reduce) {
   .sant .data-variant--live,
   .sant .data-stage[data-status="running"] .data-stage__dot { animation: none; }
 }
 
+[data-motion="reduced"] .sant .data-variant--live,
+[data-motion="reduced"] .sant .data-stage[data-status="running"] .data-stage__dot { animation: none; }
+
 /* ------------------------------------------------------------ narrow screens */
 
 @media (max-width: 900px) {
   .sant .data-showcase { grid-template-columns: minmax(0, 1fr); }
-  .sant .data-demos { grid-auto-flow: column; grid-auto-columns: minmax(11rem, 1fr); overflow-x: auto; padding-bottom: var(--sant-space-2); }
+  .sant .data-demos {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(11rem, 1fr);
+    overflow-x: auto;
+    padding: 0 0 var(--sant-space-2);
+    border-left: 0;
+    border-bottom: 1px solid var(--sant-line);
+  }
+  .sant .data-demo[aria-pressed="true"]:not(:disabled) { box-shadow: inset 0 -2px 0 var(--sant-accent); }
   .sant .data-panes { grid-template-columns: minmax(0, 1fr); }
   .sant .data-stages { grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); }
 }
@@ -380,4 +491,5 @@
 @media (max-width: 520px) {
   .sant .data-pane__stage { grid-template-columns: minmax(0, 1fr); }
   .sant .data-pane__head { flex-wrap: wrap; }
+  .sant .data-changed { padding: var(--sant-space-3); }
 }

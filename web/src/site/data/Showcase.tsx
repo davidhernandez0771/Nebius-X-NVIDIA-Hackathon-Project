@@ -41,7 +41,7 @@ function WhatChanged({ demo }: { demo: DemoRow }) {
   if (!r) return null;
   const rows = whatChanged(r);
   return (
-    <section className="data-changed" aria-labelledby="data-changed-title">
+    <section className="holo-panel data-changed" aria-labelledby="data-changed-title">
       <h3 id="data-changed-title" className="data-h3">
         What SANT changed
       </h3>
@@ -96,7 +96,7 @@ function WhatChanged({ demo }: { demo: DemoRow }) {
 function VariantCard({ name, view, t, onShow, fetchImpl }: { name: string; view: View; t: number; onShow: () => void; fetchImpl?: Fetch }) {
   const footage = useAsync(`${name}:${view.id}`, () => fetchFootage(name, view, "front", fetchImpl));
   return (
-    <li className="data-variant">
+    <li className="holo-panel data-variant" data-holo-state={view.verdict ? (view.verdict.pass ? "pass" : "fail") : undefined}>
       <button type="button" onClick={onShow} aria-label={`Show ${view.label} in the right view`}>
         <FootageView footage={footage.state === "ok" ? footage.value : null} t={t} label={`Isaac Sim front camera, ${view.label}`} />
         <span className="data-variant__name">{view.label}</span>
