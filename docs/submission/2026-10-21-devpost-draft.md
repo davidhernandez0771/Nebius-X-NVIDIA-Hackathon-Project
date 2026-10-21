@@ -1,4 +1,4 @@
-﻿# SANT: Devpost submission draft, in the form's fields (2026-10-21)
+# SANT: Devpost submission draft, in the form's fields (2026-10-21)
 
 <!-- For the user to paste into Devpost from Sunday 2026-10-25. The deadline is Fri 2026-10-30, 10:00 a.m. PDT.
      The structure follows the real form, field by field.
@@ -14,13 +14,13 @@
 
 # OVERVIEW
 
-## Project name (â‰¤ 60 characters)
+## Project name (≤ 60 characters)
 
 SANT: perfect one robot demo, then multiply it
 
 <!-- 46 characters. Shorter alternative: "SANT: Perfect, then multiply" (28). -->
 
-## Elevator pitch (â‰¤ 200 characters)
+## Elevator pitch (≤ 200 characters)
 
 Record a sloppy robot demo with a webcam, keyboard or mouse. SANT checks it in NVIDIA Isaac Lab physics, repairs it
 with code or Nemotron, and multiplies it into verified training data.
@@ -37,14 +37,14 @@ Paste everything between the two rules below.
 
 ---
 
-**SANT** stands for **S**imulate Â· **A**ugment Â· **N**eaten Â· **T**rain. *Perfect one demo, then multiply it.*
+**SANT** stands for **S**imulate · **A**ugment · **N**eaten · **T**rain. *Perfect one demo, then multiply it.*
 
 ### Inspiration
 
 Robot policies learn by imitating human demonstrations, and they need a lot of them.
-- **Collecting them is the expensive part.** Teleop rigs cost \$6kâ€“\$80k, operators cost \$25â€“\$50 an hour, and 20â€“30%
+- **Collecting them is the expensive part.** Teleop rigs cost \$6k–\$80k, operators cost \$25–\$50 an hour, and 20–30%
   of demos are thrown away (vendor estimates).
-  <!-- src: docs/superpowers/specs/2026-10-15-perfect-then-multiply-design.md Â§2 -->
+  <!-- src: docs/superpowers/specs/2026-10-15-perfect-then-multiply-design.md §2 -->
 - **A webcam is almost free, but its demos are sloppy.** The hand pauses, shakes and grabs off centre, and it presses
   the gripper into the bin.
 - **Existing multipliers start from good demos.** NVIDIA's Isaac Lab Mimic multiplies demos that already succeed, and
@@ -90,17 +90,17 @@ written down and committed before anything runs.
   - a pick-place scene with contact sensors and front and wrist cameras;
   - differential-IK replay with joint-velocity feed-forward;
   - a live teleop sink. The sink saves the path the arm actually took, not the hand's targets, which it lagged by
-    2.5â€“5 cm.
+    2.5–5 cm.
 - **NVIDIA Nemotron on Nebius Token Factory** (OpenAI-compatible API):
   - `nvidia/Nemotron-3.5-Super-VL` labels demos and judges intent from camera frames;
   - `nvidia/nemotron-3-super-120b-a12b`, with thinking on, is the trajectory repairer and the scene creator (a sentence
-    â†’ a validated scene plan).
+    → a validated scene plan).
 - **The backend and the web:** a FastAPI backend with a WebSocket teleop relay, a demo store and a pipeline API, and a
   React + three.js site.
 - **The experiments:** one command per experiment.
   - It freezes every demo by content hash and writes the pre-registration before anything trains.
   - A GPU lock lets only one heavy job run at a time on our single 16 GB GPU.
-- **The RL teacher â†’ camera student** (today's work):
+- **The RL teacher → camera student** (today's work):
   - a PPO teacher trained in Isaac Lab (rsl_rl, 4,096 parallel envs), started from SANT-verified human demos;
   - the teacher distilled into the ACT camera policy, with DAgger rounds if needed.
 - **The tests:** built tests-first, with every AI call mocked: 2,618 Python tests and 1,789 web tests pass.
@@ -113,15 +113,15 @@ written down and committed before anything runs.
 | Scripted demos: 10 alone vs 10 + 100 verified copies | **3/40 vs 17/40**, Fisher **p = 0.0005** |
 | The same with 300 copies, trained separately | **16/40** |
 | 10 real webcam demos, physics as recorded | **0/10** pass (the gripper pressed into the bin, up to 927 N against a 5 N limit) |
-| Rules repair â†’ multiply | 3/10 repaired â†’ **24/30** copies verified |
+| Rules repair → multiply | 3/10 repaired → **24/30** copies verified |
 | Blind repair test: Nemotron edits vs rules | 5/10 vs 3/10 (p = 0.50), then **2/10 vs 3/10** in the re-run (p = 1.0). **Not significant, and it did not replicate** |
 | 10 real mouse demos: raw vs SANT (pre-registered) | **0/40 vs 3/40**, p = 0.24. **Not significant** |
 | Isaac Lab Mimic on SANT's repaired demos | SANT verified Mimic's output at the same rate as its own multiplier: 82% vs 80% (p = 0.79). It rejected 9 of Mimic's 100 self-reported successes |
-| RL teacher â†’ distilled camera policy (pre-registered, goal â‰¥ 24/40) | **TODO (RESULT):** k/40, Wilson CI, Fisher p vs 3/40 and vs 0/40 |
+| RL teacher → distilled camera policy (pre-registered, goal ≥ 24/40) | **TODO (RESULT):** k/40, Wilson CI, Fisher p vs 3/40 and vs 0/40 |
 
-<!-- src: 2026-10-15-t3-status.md (sprint 7â€“8); 2026-10-19-live-test-10-results.md; 2026-10-20-nemotron-repair.md;
+<!-- src: 2026-10-15-t3-status.md (sprint 7–8); 2026-10-19-live-test-10-results.md; 2026-10-20-nemotron-repair.md;
      2026-10-20-mouse20261020-results.md; 2026-10-20-mimic-export.md; 2026-10-21-distill-prereg.md.
-     For the last row: p < 0.05 needs â‰¥ 11/40 vs 3/40, or â‰¥ 6/40 vs 0/40. Scripted multiply's 17/40 is a reference only. -->
+     For the last row: p < 0.05 needs ≥ 11/40 vs 3/40, or ≥ 6/40 vs 0/40. Scripted multiply's 17/40 is a reference only. -->
 
 **Not shown yet:** that SANT's data trains a better policy from *human* demos. Our only two-arm human test is not
 significant, and we say so. TODO (RESULT): update after the distillation test.
@@ -155,8 +155,8 @@ significant, and we say so. TODO (RESULT): update after the distillation test.
 
 ### Accomplishments that we're proud of
 
-- **Multiplying made a better robot:** 3/40 â†’ 17/40 (p = 0.0005), and a separate 300-copy set replicated it (16/40).
-- **The full loop with a real person, twice:** webcam (0/10 â†’ repaired 3/10 â†’ 24/30 copies) and mouse (10/10 â†’
+- **Multiplying made a better robot:** 3/40 → 17/40 (p = 0.0005), and a separate 300-copy set replicated it (16/40).
+- **The full loop with a real person, twice:** webcam (0/10 → repaired 3/10 → 24/30 copies) and mouse (10/10 →
   100/100 copies).
 - **Tests that tell on us.** We published pre-registered results that went against us:
   - Nemotron's repair win didn't replicate;
@@ -185,7 +185,7 @@ significant, and we say so. TODO (RESULT): update after the distillation test.
 
 ---
 
-## Built with (â‰¤ 25 tags)
+## Built with (≤ 25 tags)
 
 nvidia-isaac-sim, nvidia-isaac-lab, isaac-lab-mimic, nvidia-nemotron, nemotron-3.5-super-vl, nemotron-3-super,
 nebius-token-factory, python, pytorch, rsl-rl, lerobot, act, numpy, pydantic, fastapi, websockets, react, three.js,
@@ -199,11 +199,11 @@ typescript, vite, mediapipe, blender, uv, openai-python-sdk
 - Demo URL: optional for Physical AI. TODO (USER): add one only if the site is hosted.
 - Maybe the video, if the form allows it as a link.
 
-## Image gallery (suggest â‰¤ 15, 3:2)
+## Image gallery (suggest ≤ 15, 3:2)
 
 These already exist in the repo. Two caveats:
-- **They are SwiftShader (software) renders at 1280Ã—720 (16:9).** For 3:2, crop to 1080Ã—720, or better, re-shoot at
-  1800Ã—1200 on the real GPU after training day. The real GPU looks better than SwiftShader.
+- **They are SwiftShader (software) renders at 1280×720 (16:9).** For 3:2, crop to 1080×720, or better, re-shoot at
+  1800×1200 on the real GPU after training day. The real GPU looks better than SwiftShader.
 - **Set the site's quality tier to `?q=high`** before shooting.
 
 | # | Shot | File (under `docs/superpowers/notes/`) |
@@ -219,15 +219,15 @@ These already exist in the repo. Two caveats:
 | 9 | Data showcase: a mouse demo, live vs repaired | `2026-10-20-data-showcase/01-mouse-live-vs-repaired.jpg` |
 | 10 | Data showcase: a webcam replay, failed vs repaired | `2026-10-20-data-showcase/05-webcam-replay-failed-vs-repaired.jpg` |
 | 11 | Data showcase: multiplying, variants arriving | `2026-10-20-data-showcase/07-live-variants-arriving.jpg` |
-| 12 | Results: the proof (3/40 â†’ 17/40) | `2026-10-20-site-results-live/d-i2-proof.jpg` |
+| 12 | Results: the proof (3/40 → 17/40) | `2026-10-20-site-results-live/d-i2-proof.jpg` |
 | 13 | Results: the repair A/B (shown with its re-run) | `2026-10-20-site-results-live/d-r4-repair-ab.jpg` |
 | 14 | The pipeline page: the teacher recipe | `2026-10-20-live-13-merge/pipeline-teacher-5173.jpg` |
-| 15 | Raw vs perfected demo in Isaac Lab (GIF â†’ still) | `docs/media/s1_0002_raw_vs_perfected.gif` (outside `notes/`) |
+| 15 | Raw vs perfected demo in Isaac Lab (GIF → still) | `docs/media/s1_0002_raw_vs_perfected.gif` (outside `notes/`) |
 
 TODO (RESULT): swap one shot for an Isaac Lab frame of the RL teacher or the distilled student succeeding, if one is
 recorded.
 
-## Demo video (â‰¤ 3 minutes reviewed)
+## Demo video (≤ 3 minutes reviewed)
 
 The full shot list, with the rules for what can be on screen, is `docs/submission/video_script.md`. Update it on the day
 of recording for:
@@ -243,15 +243,15 @@ The condensed plan:
 
 | Time | Picture | Voice-over (gist) |
 |---|---|---|
-| 0:00â€“0:10 | Loader â†’ tesseract hero | "Robots learn by copying people." |
-| 0:10â€“0:25 | Forest: real robots in the moss; "927 N vs 5 N" | "They need hundreds of demos. A webcam is free, but human demos are sloppy: nine of our ten pressed into the bin." |
-| 0:25â€“0:45 | Reactor: SÂ·AÂ·NÂ·T, the proof slab 3/40 â†’ 17/40 | "SANT checks every demo in Isaac Lab, repairs what fails and multiplies what passes. On scripted demos: 3 â†’ 17 of 40." |
-| 0:45â€“1:00 | Workshop â†’ robot wall â†’ drag a cartridge onto the machine â†’ hologram | "A cartridge is a job. The machine replays a real, physics-checked demo." |
-| 1:00â€“1:30 | `/record`: keyboard or webcam, three twin views, grid, save | "Drive the simulated arm with your hand, keyboard or mouse." |
-| 1:30â€“2:05 | Cards: 0/10 as recorded â†’ one Nemotron plan â†’ the A/B with its re-run | "Nemotron, on Nebius Token Factory, reads the simulator's measurements and writes path edits. Code caps them; physics decides. 5/10 vs 3/10, then 2/10 vs 3/10: it adds to the rules." |
-| 2:05â€“2:35 | Results page: 3/40 vs 17/40, then the mouse result (not significant) | "Copies make better robots on scripted demos. On human demos, not yet significant." |
-| 2:35â€“2:52 | Isaac Lab: the RL teacher, then the student | TODO (RESULT) |
-| 2:52â€“3:00 | Back to the hero, repo URL | "Perfect one demo, then multiply it." |
+| 0:00–0:10 | Loader → tesseract hero | "Robots learn by copying people." |
+| 0:10–0:25 | Forest: real robots in the moss; "927 N vs 5 N" | "They need hundreds of demos. A webcam is free, but human demos are sloppy: nine of our ten pressed into the bin." |
+| 0:25–0:45 | Reactor: S·A·N·T, the proof slab 3/40 → 17/40 | "SANT checks every demo in Isaac Lab, repairs what fails and multiplies what passes. On scripted demos: 3 → 17 of 40." |
+| 0:45–1:00 | Workshop → robot wall → drag a cartridge onto the machine → hologram | "A cartridge is a job. The machine replays a real, physics-checked demo." |
+| 1:00–1:30 | `/record`: keyboard or webcam, three twin views, grid, save | "Drive the simulated arm with your hand, keyboard or mouse." |
+| 1:30–2:05 | Cards: 0/10 as recorded → one Nemotron plan → the A/B with its re-run | "Nemotron, on Nebius Token Factory, reads the simulator's measurements and writes path edits. Code caps them; physics decides. 5/10 vs 3/10, then 2/10 vs 3/10: it adds to the rules." |
+| 2:05–2:35 | Results page: 3/40 vs 17/40, then the mouse result (not significant) | "Copies make better robots on scripted demos. On human demos, not yet significant." |
+| 2:35–2:52 | Isaac Lab: the RL teacher, then the student | TODO (RESULT) |
+| 2:52–3:00 | Back to the hero, repo URL | "Perfect one demo, then multiply it." |
 
 ---
 
@@ -290,16 +290,16 @@ TODO (USER): confirm no earlier private repo or prototype existed.
 TODO (USER): the URL.
 
 **Requirements checked on `pm/live-13`:**
-- **An OSI license:** `LICENSE` is MIT. âœ“
-- **A README with setup:** "Run it" points to `docs/RUNBOOK.md` Â§2, which covers a fresh Windows setup: the SANT
+- **An OSI license:** `LICENSE` is MIT. ✓
+- **A README with setup:** "Run it" points to `docs/RUNBOOK.md` §2, which covers a fresh Windows setup: the SANT
   venv, Isaac Sim + Isaac Lab, LeRobot, Node, the MediaPipe files and `DATA_DIR`. `.env` is set up from
-  `.env.example` with `NEBIUS_API_KEY`. âœ“
+  `.env.example` with `NEBIUS_API_KEY`. ✓
 - **The README must highlight Nemotron/NVIDIA models, where Token Factory accelerated the workflow, and any other
   Nebius tools.** Partly; see the gaps below.
 
 **README gaps** (to fix before submitting):
-1. **There is no "where Token Factory accelerated the workflow" text.** README Â§"Where NVIDIA Nemotron fits" has one
-   line ("runs on Nebius Token Factory â€¦ well under 1 cent per call") and nothing on how it helped. Suggested points:
+1. **There is no "where Token Factory accelerated the workflow" text.** README §"Where NVIDIA Nemotron fits" has one
+   line ("runs on Nebius Token Factory … well under 1 cent per call") and nothing on how it helped. Suggested points:
    - a 120B model and a VL model with no GPU of our own, while our one GPU ran Isaac Lab all day;
    - the OpenAI-compatible SDK, so no new client;
    - the free `/v1/models?verbose=true` listing as our price source;
@@ -323,14 +323,14 @@ Not required for Physical AI. TODO (USER): add one only if the site is hosted.
 
 ## Which models, and why that size or variant
 
-**Called, per our usage logs** (`usage_log.jsonl` in worktrees pm-t3, pm-t4, pm-t5 and pm-t7, 2026-10-15 â†’ 10-21; the
+**Called, per our usage logs** (`usage_log.jsonl` in worktrees pm-t3, pm-t4, pm-t5 and pm-t7, 2026-10-15 → 10-21; the
 cost is our estimate from our price config and each reply's token counts):
 
 | Model (Token Factory) | Calls | Est. spend | What for | Why this variant |
 |---|---|---|---|---|
-| `nvidia/Nemotron-3.5-Super-VL` | 249 | â‰ˆ $0.31 | Demo diagnosis (sprints 2â€“6), the labeler and the intent judge (pre-registered 40/40 and 59/60) | The only Nemotron that takes images: it reads 7 front frames + 1 wrist frame. A 1M context, and about $0.0013 a call |
-| `nvidia/nemotron-3-super-120b-a12b`, thinking on | 234 | â‰ˆ $0.84 | The trajectory repairer (blind A/B), the scene creator, repair-request translation | A text task that needs multi-step reasoning about forces and geometry. The 120B mixture-of-experts (12B active) model with thinking is cheap enough for this, and we needed the reasoning more than the speed |
-| **Total** | **483** | **â‰ˆ $1.14** | | |
+| `nvidia/Nemotron-3.5-Super-VL` | 249 | ≈ $0.31 | Demo diagnosis (sprints 2–6), the labeler and the intent judge (pre-registered 40/40 and 59/60) | The only Nemotron that takes images: it reads 7 front frames + 1 wrist frame. A 1M context, and about $0.0013 a call |
+| `nvidia/nemotron-3-super-120b-a12b`, thinking on | 234 | ≈ $0.84 | The trajectory repairer (blind A/B), the scene creator, repair-request translation | A text task that needs multi-step reasoning about forces and geometry. The 120B mixture-of-experts (12B active) model with thinking is cheap enough for this, and we needed the reasoning more than the speed |
+| **Total** | **483** | **≈ $1.14** | | |
 
 **Configured but not in the logs:**
 - **`nvidia/Nemotron-3_5-Lightning` (the nano tier):**
@@ -341,7 +341,7 @@ cost is our estimate from our price config and each reply's token counts):
 
 TODO (USER): check against the Token Factory billing page. Other machines or checkouts may have logged more.
 
-## Nemotron quality, 1â€“10, and what worked or fell short
+## Nemotron quality, 1–10, and what worked or fell short
 
 **SUGGESTED: 6/10.** The user decides.
 
@@ -357,13 +357,13 @@ TODO (USER): check against the Token Factory billing page. Other machines or che
 - **The repair didn't replicate:** 2/10 vs 3/10 in the re-run. Its plans vary from run to run.
 - **It added nothing over code as a diagnoser:** F1 0.86 vs code's 0.90.
 - **It never reported a drop.**
-- **It didn't read grasp centring from a 128Ã—128 wrist frame.**
+- **It didn't read grasp centring from a 128×128 wrist frame.**
 - **Calibration was a seesaw:** after calibration it missed all 9 real issues.
 - **Thinking overran the budget:** 3 of 23 thinking calls used up the 16,000-token cap (thinking + answer;
   `MAX_TOKENS = 16000` in `nemotron_repair.py`) and returned no answer. A one-time re-ask with thinking off rescues
   them.
 
-<!-- src: docs/submission/feedback.md Â§2; 2026-10-18-nemotron-judge.md; 2026-10-20-nemotron-repair.md;
+<!-- src: docs/submission/feedback.md §2; 2026-10-18-nemotron-judge.md; 2026-10-20-nemotron-repair.md;
      2026-10-15-t4-status.md; 2026-10-19-scene-creator.md -->
 
 ## Fine-tuned, prompt-engineered, or out of the box?
@@ -394,7 +394,7 @@ helped where words or open-ended edits are needed. TODO (USER): add any personal
   - `usage` on every reply, for a hard spend cap;
   - the price: the whole project cost about a dollar.
 
-## Would you recommend it? (1â€“10)
+## Would you recommend it? (1–10)
 
 **SUGGESTED: 8/10.** Easy to integrate and cheap. It loses points for missing metadata:
 - the 8-image limit isn't in the listing;
@@ -404,7 +404,7 @@ helped where words or open-ended edits are needed. TODO (USER): add any personal
 
 TODO (USER).
 
-## Experience vs other environments (1â€“10)
+## Experience vs other environments (1–10)
 
 **SUGGESTED: 8/10**, for the same OpenAI-SDK flow as other providers, with better metadata on prices and limits.
 TODO (USER): compare with the platforms you've used.
@@ -466,8 +466,8 @@ TODO (USER).
 - **Isaac Lab Mimic:** it ran on Windows on SANT's demos. SANT's check rejected 9 of its 100 self-reported
   successes.
 - **Hydra overrides worked well:** they record each RL run as one exact command line.
-- **Nebius AI Cloud:** not used. We priced an H100 for Cosmos showcase clips (about $10â€“$60) and didn't run it.
+- **Nebius AI Cloud:** not used. We priced an H100 for Cosmos showcase clips (about $10–$60) and didn't run it.
 - **NVIDIA Cosmos:** not used in SANT. In the earlier room-organizer version, NVIDIA's hosted Cosmos vision API returned
   HTTP 404 for every model ID, and NVIDIA staff confirmed it was disabled. So we removed it.
 
-ðŸ¤– Generated with [Claude Code](https://claude.com/claude-code)
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
