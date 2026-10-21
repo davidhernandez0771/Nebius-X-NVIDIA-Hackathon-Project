@@ -1,4 +1,4 @@
-# Forest robots: the real robots in the moss, and the lit Blender crack (2026-10-20)
+# Forest robots: the real robots in the moss, the lit Blender crack, and fireflies (2026-10-20)
 
 Branch `pm/forest-robots`, from pm/live-12 (`af0ea91`). The screenshots are in `2026-10-20-forest-robots/`.
 
@@ -13,7 +13,9 @@ Branch `pm/forest-robots`, from pm/live-12 (`af0ea91`). The screenshots are in `
 - 10: the stills that SwiftShader gets by default;
 - 11: reduced motion (the static logo, as before);
 - 12–18: the fall down the lit crack, from the lip to the reactor below;
-- 19: the low tier's fall (the procedural crack, lit the same way).
+- 19: the low tier's fall (the procedural crack, lit the same way);
+- 20–24: the fireflies (landing, round the robots, an orbit, swirling over the crack, falling with the camera);
+- 25: the low tier's fireflies; 26: a phone's; 27: reduced motion.
 
 ## The robots
 
@@ -118,23 +120,48 @@ To fit the crack I did the following:
   - 1.0–1.55 m from 12 to 32 m down;
   - 0.65–0.8 m from 32 to 36 m down, the cavern's ceiling.
 
+## Fireflies
+
+Small glowing points in many colours over the forest, as the user asked: Active Theory-style, not just the teal dust.
+
+**The plan** (`fireflyPlan.ts`, pure, seeded):
+- **Palette:** teal, ice blue, violet (cool, 60% by weight); amber, pale gold, coral (warm, 40%). A test keeps every hue out of 60–110°, so nothing near NVIDIA green.
+- **Counts:** ultra 1,500, high 1,000, low 300, phones 200 (`max-width: 600px`).
+- **Four kinds:**
+  - most drift on slow curving paths along the walk;
+  - about 10% circle the fallen robots shown on the tier (at least 6 per robot), as if the robots were waking up;
+  - 12% wait over the crack, swirl into it over the last stretch of the walk, then fall with the camera as a loose shell around it, and go as the fall hands over to the reactor;
+  - 4% are large, soft, out-of-focus discs near the camera's way.
+
+**The drawing** (`fireflies.ts`):
+- One `Points` draw, with all motion in the shader (`update` only writes uniforms; a test holds this).
+- Each firefly blinks on its own rhythm: mostly a low glow, now and then a soft flash.
+- Additive blending, so the bloom picks them up on high and ultra.
+- Depth parallax comes from real 3D positions.
+- **Reduced motion:** they hold still and only blink (`uStill`). The camera stays on the hero then, so they aren't seen anyway.
+
+**Cost:** 1 draw call (the HUD's calls go from 29 to 30 in the forest) and 0 triangles. Points: 4,000 in the forest on ultra, dust and spores included.
+
 ## Checked
-- **Tests.** Web 1570 passed, 1 skipped. Tests added or changed:
+- **Tests.** Web 1580 passed, 1 skipped. Tests added or changed:
   - `robotLod.test.ts`: 6;
   - `robotBudget.test.ts`: 3, real GLBs and the crack, every frame along the path;
   - `forestRobots.test.ts`: 8, including GLB bounds against the files and the visibility check;
   - `robotWrecks.test.ts`: 6;
   - `crackSlot.test.ts`: plus 1, `depthOrder`;
   - `Crack.test.ts`: plus 1 (the low tier doesn't fetch), and the model now sits in front of the fissure;
-  - `storyPlan.test.ts`: plus 1, `dropLight`.
+  - `storyPlan.test.ts`: plus 1, `dropLight`;
+  - `fireflyPlan.test.ts`: 7 (palette and hue rule, counts, kinds, robots, crack, colours and rhythms, determinism);
+  - `fireflies.test.ts`: 3 (one Points draw, shader-only motion, still under reduced motion).
 - **Typecheck and build** pass. The GLBs ship in `dist`.
 - **Phone** (390×844, low): no sideways scroll, and the Franka is in view (screenshot 09).
 - **Stills and reduced motion** render as before (screenshots 10 and 11). Reduced motion has no drop light.
 - **Console:** no errors from the world.
-- **Note on ports:** another worktree's Vite also listens on 5193 (127.0.0.1). These shots were from this worktree's server (they show code only this branch has). Use a separate port.
+- **Note on ports:** another worktree's Vite also listens on 5193 (127.0.0.1). The shots up to 19 came from this worktree's server (they show code only this branch has). The firefly shots came from this worktree on 127.0.0.1:5197.
 
 ## Not done / open
 - **Real-GPU frame times** on the 4060/5080 aren't measured (SwiftShader only).
 - **The detailed robot level is a 1.2 cm grid, not the full GLB.** The full GLB didn't fit the budget.
 - **Up close, the fr3's moss and seams look a little like camouflage** (screenshot 03).
+- **Firefly orbits round the robots** read as small dots in SwiftShader, with the large near ones dominating. Brightness and size may want a pass on a real GPU with bloom.
 - **The lit walls are smooth** after decimation and read as soft shapes in SwiftShader. Strata and noise carry the detail. A GPU check with bloom is still to do.

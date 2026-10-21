@@ -3,7 +3,8 @@
 // fallen logs, ferns and moss mounds at the trunks' feet, three drifting bands of mist, shafts of moonlight
 // through the canopy with pools under them, dust and glowing spores. Lying in the moss: the real robots
 // (forestRobots.ts spots, their GLBs, two levels of detail by distance), mossy and faintly lit. In the
-// floor is the crack (Crack.tsx: a Blender model can replace it). All of it fades with the forest's light
+// floor is the crack (Crack.tsx: a Blender model can replace it). Fireflies in many colours drift over it all
+// (fireflies.ts). All of it fades with the forest's light
 // (storyPlan.ts); nothing is drawn while that is 0.
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
@@ -11,6 +12,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { QualityTier } from "../../core/quality";
 import { makeCrack } from "./Crack";
 import { buildForest, FOREST_TIERS, MOON, type ForestPiece } from "./forestGeometry";
+import { fireflies, fireflyCount } from "./fireflyPlan";
+import { makeFireflies } from "./fireflies";
 import { MIST_BANDS } from "./forestPlan";
 import { ROBOT_TIERS, robotUrl } from "./forestRobots";
 import type { Wrecks } from "./robotWrecks";
@@ -26,8 +29,10 @@ const MAX_SHAFTS = 12;
 
 export interface ForestState {
   light: number;
-  /** The fall's light (storyPlan.ts dropLight): only the crack is drawn by it. */
+  /** The fall's light (storyPlan.ts dropLight): only the crack (and the fireflies falling into it) is drawn by it. */
   drop: number;
+  /** Reduced motion: the fireflies hold still and only blink. */
+  still?: boolean;
   /** The crack's glow comes up as the camera nears it (0–1). */
   glow: number;
   time: number;
@@ -379,6 +384,12 @@ export function useForest(quality: QualityTier): ForestHandle {
     const sporesPts = add(motes(layout.spores, u, pr, { size: 2.6, rise: 0.03, color: "#7ff0d4" }), "forest:spores");
     disposables.push(dust.geometry, dust.material as THREE.Material, sporesPts.geometry, sporesPts.material as THREE.Material);
 
+    // Fireflies in many colours (fireflyPlan.ts): one Points draw, all motion in the shader; fewer on phones.
+    const phone = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 600px)").matches;
+    const flies = makeFireflies(fireflies(fireflyCount(tier, phone), layout, ROBOT_TIERS[tier].ids));
+    add(flies.points, "forest:fireflies");
+    disposables.push(flies);
+
     // The robots: empty until their GLBs have loaded (after the loader; the low tier fetches four). Each frame the
     // index list holds every robot's coarse level and, near the camera, its detailed one (robotWrecks.ts).
     const robotTier = ROBOT_TIERS[tier];
@@ -417,9 +428,12 @@ export function useForest(quality: QualityTier): ForestHandle {
         glow.value = s.glow;
         pr.value = s.pr;
         crack.update(s.drop);
-        // Through the fall the forest is out and only the crack's walls are drawn.
+        // The crack's fireflies swirl into it over the last stretch of the walk toward it (s.glow comes up then).
+        const near = Math.min(1, Math.max(0, (s.glow - 0.25) / 0.75));
+        flies.update({ time: s.time, light: s.light, drop: s.drop, swirl: near * near * (3 - 2 * near), pr: s.pr, still: !!s.still });
+        // Through the fall the forest is out: only the crack's walls and the fireflies falling with the camera.
         group.visible = s.light > 0 || s.drop > 0;
-        for (const c of group.children) c.visible = c === crack.group || s.light > 0;
+        for (const c of group.children) c.visible = c === crack.group || c === flies.points || s.light > 0;
       },
       dispose() {
         live = false;

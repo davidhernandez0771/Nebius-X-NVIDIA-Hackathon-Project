@@ -64,7 +64,7 @@ export default function Places({ quality, reduced }: { quality: QualityTier; red
     const l = reduced ? { hero: 1, forest: 0, reactor: 0 } : placeLights(vh);
     // The crack's glow comes up as the camera walks toward it.
     const glow = 0.25 + 0.75 * smooth(0.3, 1, progress("forest", vh));
-    forest.update({ light: l.forest, drop: reduced ? 0 : dropLight(vh), glow, time, pr });
+    forest.update({ light: l.forest, drop: reduced ? 0 : dropLight(vh), glow, time, pr, still: reduced });
     reactor.update({
       light: l.reactor * (1 - smooth(0.03, 0.12, d)),
       ringLight: l.reactor,
