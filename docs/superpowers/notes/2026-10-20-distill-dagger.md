@@ -206,6 +206,9 @@ through our rollout loop.
   that is the teacher's last label, not where the student's tool went. The one-step-from-the-tool bound still keeps
   every label within 2 cm per axis of the tool. In T3's env, too, the previous target is the last command, not the
   tool. Round 0 is unaffected (the teacher drives).
+- **Open DAgger item (the lead, 2026-10-21):** if round 1 runs, add a forget-prev-target hook in T3's adapter so labels
+  cap from the student's tool. It is only needed if r0@600 misses. `RLTeacher.reset()` can't be reused, because it
+  also zeroes the policy's previous-action observation. Log it for T7 as a run-enabling DAgger detail when made.
 
 `round.json` records the result as `data_check` (episodes and seed range per source). No code reads `data\rl` for
 training: the sources are only the human grid's cell and our own round folders. The guard makes that a checked fact.
