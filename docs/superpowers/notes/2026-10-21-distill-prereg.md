@@ -629,6 +629,22 @@ timings are `da19c2a` (15:27).
 together they add one note, `2026-10-21-rl-teacher-gate.md`, and leave the code unchanged. So **T3's final code is
 still `b7935c0`**. The note matches this log, and adds that the first 30 gate seeds were 30/30 (Wilson 0.89–1.00).
 
+**T3's named presets, `f8a3633`** (15:56, on `pm/rl-teacher`, asked for by the lead after the gate). This is for
+reproducibility only.
+- **What:** `scripts/rl_train.py --preset teacher_v6` and `--preset teacher_v6c2`. They are the gated teacher's logged
+  commands, word for word:
+  - `teacher_v6` is stage 1, with the cap explicitly off, as `demo_v6` trained;
+  - `teacher_v6c2` is stage 2: the std-0.3 copy (bit-identical to the file `demo_v6c2` resumed from), then the
+    resume with the caps on.
+  - A test checks both presets against `demo_v6.log` and `demo_v6c2.log`, word for word.
+- **What it touches:** I checked that `b7935c0..f8a3633` changes only `scripts/rl_train.py`, two test files and T3's
+  gate note. The env, the action, the policy adapter and the eval code are unchanged.
+- **What it changes:** nothing in the runs. Nothing was trained or evaluated with it, and the gate results and the
+  teacher (`demo_v6c2` `model_2098`) are unaffected.
+- **Tests (T3):** SANT 2607 passed; the Isaac venv's RL tests 71 passed, 1 skipped.
+- **The teacher's code is still `b7935c0`.** `pm/rl-teacher`'s tip is now `f8a3633`, which is what merges into
+  `pm/live-13` after the final test.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
