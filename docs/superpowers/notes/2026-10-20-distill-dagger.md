@@ -138,9 +138,15 @@ unchanged. Each episode also gets:
 **Mixing (`mix_cell`).**
 - **Weights:** one weight per source, as a share of the training frames. Defaults: human (SANT) 0.25, teacher 0.5,
   DAgger 0.25. Weight 0 drops a source.
-- **Repeats:** LeRobot samples frames uniformly, so a weight is realised by repeating whole episodes. The source with
-  the most frames per unit of weight is used once; the others are repeated (rounded, at most ×10).
-- **Report:** target and achieved shares go into `round.json`.
+- **Repeats:** LeRobot samples frames uniformly, so a weight is realised by repeating episodes. The source with the
+  most frames per unit of weight is used once; the others are repeated by the exact ratio (at most ×10).
+- **Fractional repeats (run-enabling fix, approved by the lead 2026-10-21).** A repeat of 1.41 means every episode
+  once plus one more copy of an evenly spaced 41% of them (deterministic). Whole-number repeats missed the weights by
+  up to 8 points: at 300 teacher rollouts, human 41% / teacher 59% against 1/3 : 2/3. The weights themselves are
+  unchanged. Round 0 has no DAgger source, so human 0.25 / teacher 0.5 become 1/3 : 2/3 of the frames (the code's
+  documented behaviour).
+- **Report:** per source, `round.json` "mix" holds episodes, frames, weight, repeat, copies, `target` (the share
+  the weights ask for) and `share` (achieved, from the copied episodes' frames).
 - **Check:** each episode's lineage must match the source it is listed under.
 
 **Rounds.** Each round is one resumable command under `C:\dev\gpu.lock` with KeepAwake. Phases:

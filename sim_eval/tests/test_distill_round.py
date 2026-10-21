@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from lerobot_tools.assemble import Cell, build_manifest
@@ -41,6 +42,38 @@ def test_mix_repeats_caps_and_drops_zero_weights():
         mix_repeats({"human": 0, "teacher": 10}, {"human": 1.0, "teacher": 1.0})  # a weighted source with no frames
 
 
+def test_mix_repeats_are_fractional_so_the_shares_are_the_weights():
+    """Round 0 has no DAgger source: human 0.25 / teacher 0.5 become 1/3 : 2/3 of the frames. Whole-number repeats
+    gave 41/59 at 300 teacher rollouts; fractional ones give the weights."""
+    reps, shares = mix_repeats({"human": 31536, "teacher": 44700}, {"human": 0.25, "teacher": 0.5, "dagger": 0.25})
+    assert reps["human"] == 1.0 and reps["teacher"] == pytest.approx(63072 / 44700)
+    assert shares == {"human": pytest.approx(1 / 3, abs=1e-4), "teacher": pytest.approx(2 / 3, abs=1e-4)}
+
+
+def test_mix_cell_realises_a_fractional_repeat_with_evenly_spaced_extra_copies(tmp_path):
+    h = [make_episode(tmp_path / "h", f"h{i}", [f"h{i}"], n_steps=10) for i in range(4)]
+    t = [make_episode(tmp_path / "t", f"teacher_r0_{4000 + i}", ["teacher-rl", f"teacher_r0_{4000 + i}"], n_steps=10)
+         for i in range(5)]
+    cell, report = mix_cell({"human": h, "teacher": t}, {"human": 0.25, "teacher": 0.5}, label="x", n_human=4)
+    dirs = [Path(d) for d in cell["episode_dirs"]]
+    assert [dirs.count(e) for e in h] == [1, 1, 1, 1]
+    assert [dirs.count(e) for e in t] == [2, 1, 2, 1, 2]  # 1.6 copies: one each + 3 of 5 again, spread out
+    assert report["teacher"] == {"episodes": 5, "frames": 50, "weight": 0.5, "repeat": 1.6, "copies": 8,
+                                 "target": pytest.approx(2 / 3, abs=1e-4), "share": pytest.approx(2 / 3, abs=1e-4)}
+    assert report["human"]["share"] == pytest.approx(1 / 3, abs=1e-4)
+
+
+def test_mix_cell_shares_land_on_the_weights_with_uneven_episode_lengths(tmp_path):
+    """The mouse cell's real shape: 110 human episodes of varying length, ~300 teacher ones of 149 frames."""
+    rng = np.random.default_rng(0)
+    h = [make_episode(tmp_path / "h", f"h{i}", [f"h{i}"], n_steps=int(rng.integers(150, 450))) for i in range(110)]
+    t = [make_episode(tmp_path / "t", f"teacher_r0_{4000 + i}", ["teacher-rl", f"teacher_r0_{4000 + i}"],
+                      n_steps=149) for i in range(287)]
+    _, report = mix_cell({"human": h, "teacher": t}, {"human": 0.25, "teacher": 0.5, "dagger": 0.25}, label="x",
+                         n_human=10)
+    assert abs(report["human"]["share"] - 1 / 3) < 0.005 and abs(report["teacher"]["share"] - 2 / 3) < 0.005
+
+
 def sources(tmp_path):
     h = [make_episode(tmp_path / "h", f"h{i}", [f"h{i}"], n_steps=10) for i in range(2)]
     t = [make_episode(tmp_path / "t", f"teacher_r0_{4000 + i}", ["teacher-rl", f"teacher_r0_{4000 + i}"], n_steps=40)
@@ -56,7 +89,8 @@ def test_mix_cell_repeats_episodes_and_reports_provenance(tmp_path):
     assert cell["condition"] == "distill" and cell["label"] == "distill_r1" and cell["n_human"] == 2
     dirs = [Path(d) for d in cell["episode_dirs"]]
     assert dirs.count(src["human"][0]) == 2 and dirs.count(src["teacher"][0]) == 1 and dirs.count(src["dagger"][1]) == 1
-    assert report["human"] == {"episodes": 2, "frames": 20, "weight": 0.25, "repeat": 2, "share": 0.25}
+    assert report["human"] == {"episodes": 2, "frames": 20, "weight": 0.25, "repeat": 2, "copies": 4, "target": 0.25,
+                               "share": 0.25}
     assert report["teacher"]["share"] == 0.5
     m = build_manifest(Cell.model_validate(cell))
     assert m["human_roots"] == ["h0", "h1"]

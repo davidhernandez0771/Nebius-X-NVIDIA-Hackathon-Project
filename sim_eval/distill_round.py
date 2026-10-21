@@ -30,6 +30,7 @@ Each round writes data/distill/<run>/r<r>/round.json: sources, mix, gate or deci
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -54,12 +55,14 @@ DEFAULT_WEIGHTS = {"human": 0.25, "teacher": 0.5, "dagger": 0.25}
 # --- mixing ------------------------------------------------------------------------------------------------------------
 
 def mix_repeats(frames: dict[str, int], weights: dict[str, float], max_repeat: int = 10
-                ) -> tuple[dict[str, int], dict[str, float]]:
-    """Integer copies per source so each source's share of the frames is close to its weight's share.
+                ) -> tuple[dict[str, float], dict[str, float]]:
+    """Copies per source (fractional) so each source's share of the frames is its weight's share among the sources
+    present (round 0 has no DAgger source: human 0.25 / teacher 0.5 -> 1/3 : 2/3).
 
     LeRobot samples frames uniformly, so a weight can only be realised by repeating episodes: the source with the
-    most frames per unit weight is used once, the others are repeated (rounded, at most max_repeat). Weight 0 drops a
-    source. Returns (repeats, achieved frame shares)."""
+    most frames per unit weight is used once, the others repeated by the exact ratio (at most max_repeat); mix_cell
+    realises the fraction with one more copy of some episodes (whole-number repeats missed the weights by up to 8
+    points, 2026-10-21). Weight 0 drops a source. Returns (repeats, the frame shares they give)."""
     if any(w < 0 for w in weights.values()):
         raise ValueError(f"weights must be >= 0, got {weights}")
     live = {s: w for s, w in weights.items() if w > 0 and s in frames}
@@ -70,7 +73,7 @@ def mix_repeats(frames: dict[str, int], weights: dict[str, float], max_repeat: i
         raise ValueError(f"sources {empty} have a weight but no frames")
     per_frame = {s: w / frames[s] for s, w in live.items()}
     base = min(per_frame.values())
-    reps = {s: (min(max_repeat, max(1, round(per_frame[s] / base))) if s in live else 0) for s in frames}
+    reps = {s: (min(float(max_repeat), max(1.0, per_frame[s] / base)) if s in live else 0.0) for s in frames}
     total = sum(frames[s] * reps[s] for s in frames)
     shares = {s: round(frames[s] * reps[s] / total, 4) for s in frames}
     return reps, shares
@@ -82,17 +85,26 @@ def _episode_info(ep: Path) -> tuple[int, str]:
     return meta.n_steps, source_of(root)
 
 
+def _copies(eps: list[Path], repeat: float) -> list[Path]:
+    """repeat copies of a source's episodes: every episode floor(repeat) times, plus one more copy of an evenly spaced
+    round(fraction x n) of them (deterministic, in the order given)."""
+    whole = int(math.floor(repeat + 1e-9))
+    extra = round((repeat - whole) * len(eps))
+    picks = [eps[int((i + 0.5) * len(eps) / extra)] for i in range(extra)] if extra else []
+    return [e for _ in range(whole) for e in eps] + picks
+
+
 def mix_cell(sources: dict[str, list[Path]], weights: dict[str, float], *, label: str, n_human: int,
              max_repeat: int = 10) -> tuple[dict, dict]:
     """One "distill" grid cell from {source: episode dirs} (human = SANT's verified human-derived episodes, teacher,
     dagger) and the per-source frame-share weights. Every episode's lineage must match the source it is listed under.
-    Returns (cell, report {source: episodes, frames, weight, repeat, share})."""
+    Returns (cell, report {source: episodes, frames, weight, repeat, copies, target share, achieved share})."""
     unknown = sorted(set(sources) - set(SOURCES))
     if unknown:
         raise ValueError(f"unknown sources {unknown}; expected some of {SOURCES}")
     if not sources.get("human") or weights.get("human", 0) <= 0:
         raise ValueError("a distill cell needs the human-derived (SANT) episodes with a positive weight")
-    frames, dirs = {}, {}
+    frames, dirs, lengths = {}, {}, {}
     for src, eps in sources.items():
         if not eps:
             continue
@@ -102,11 +114,15 @@ def mix_cell(sources: dict[str, list[Path]], weights: dict[str, float], *, label
             if actual not in (src, "recovery" if src == "human" else src):
                 raise ValueError(f"{ep} is a {actual} episode, listed under {src}")
             total += n
+            lengths[Path(ep)] = n
         frames[src], dirs[src] = total, [Path(e) for e in eps]
-    reps, shares = mix_repeats(frames, {s: weights.get(s, 0.0) for s in frames}, max_repeat)
-    episode_dirs = [str(d) for s in frames for _ in range(reps[s]) for d in dirs[s]]
-    report = {s: {"episodes": len(dirs[s]), "frames": frames[s], "weight": weights.get(s, 0.0), "repeat": reps[s],
-                  "share": shares[s]} for s in frames}
+    reps, targets = mix_repeats(frames, {s: weights.get(s, 0.0) for s in frames}, max_repeat)
+    copies = {s: _copies(dirs[s], reps[s]) for s in frames}
+    used = {s: sum(lengths[e] for e in copies[s]) for s in frames}
+    episode_dirs = [str(d) for s in frames for d in copies[s]]
+    report = {s: {"episodes": len(dirs[s]), "frames": frames[s], "weight": weights.get(s, 0.0),
+                  "repeat": round(reps[s], 4), "copies": len(copies[s]), "target": targets[s],
+                  "share": round(used[s] / sum(used.values()), 4)} for s in frames}
     return {"condition": "distill", "n_human": n_human, "label": label, "episode_dirs": episode_dirs}, report
 
 
