@@ -12,7 +12,24 @@ export const PIPELINE_STAGES = [
   { id: "export", label: "Export", blurb: "Your data: the dataset, the Robota export and the report." },
 ] as const;
 
-export type StageId = (typeof PIPELINE_STAGES)[number]["id"];
+/** The teacher recipe (pm/pipeline-api 719d278): T3's RL teacher, its gate, T6's distillation into a camera policy. */
+export const TEACHER_STAGES = [
+  { id: "teacher", label: "Teacher", blurb: "RL trains a teacher in Isaac Lab, from the human run's start states." },
+  { id: "gate", label: "Gate", blurb: "The teacher runs unseen seeds, and SANT's physics replays each: it must pass before it teaches." },
+  { id: "distill", label: "Distill", blurb: "Round 0: the teacher's rollouts become the data, a camera policy (ACT) learns it, the best checkpoint is chosen." },
+  { id: "dagger", label: "DAgger", blurb: "Round 1, when asked: the student drives and the teacher labels where it goes wrong." },
+  { id: "export", label: "Export", blurb: "Your data: the student's dataset and checkpoint, and the report." },
+] as const;
+
+export type RunKind = "demos" | "teacher";
+export type DemosStageId = (typeof PIPELINE_STAGES)[number]["id"];
+export type StageId = DemosStageId | (typeof TEACHER_STAGES)[number]["id"];
+export type StageMeta = { id: StageId; label: string; blurb: string };
+
+/** A run's stages, in order: the demos recipe's six, or the teacher recipe's five. */
+export const stagesFor = (kind: RunKind): readonly StageMeta[] => (kind === "teacher" ? TEACHER_STAGES : PIPELINE_STAGES);
+/** One stage's label and blurb, whichever recipe it belongs to. */
+export const stageMeta = (id: StageId): StageMeta => [...PIPELINE_STAGES, ...TEACHER_STAGES].find((s) => s.id === id)!;
 export type StageStatus = "pending" | "running" | "done" | "failed" | "skipped";
 export type RunStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
@@ -46,10 +63,33 @@ export type RepairRow = {
 export type VariantRow = { id: string; source: string; seed: number | null; success: boolean; reasons: string[]; frames: number };
 export type Train = { step: number; steps: number; loss: [number, number][]; checkpoints: { step: number; name: string }[]; eta_s: number | null; cell: string | null };
 export type EvalRow = { seed: number; success: boolean; reasons: string[]; cell: string | null };
+export type TeacherRound = {
+  round: number;
+  /** rollouts, grid, train, select, done; or stopped (DAgger's stop rule). */
+  phase: string;
+  rollouts: { done: number; total: number; successes: number };
+  /** The checkpoint chosen (T6's selection), once chosen. */
+  chosen_step: number | null;
+  /** DAgger's stop rule ended the round. */
+  stopped: boolean;
+};
+export type Teacher = {
+  iteration: number;
+  iterations: number;
+  human_run: string;
+  teacher_n: number;
+  dagger: boolean;
+  smoke: boolean;
+  gate: { successes: number | null; n: number | null; min: number | null; seeds: [number, number] | null; passed: boolean | null };
+  rounds: TeacherRound[];
+};
 export type Artifact = { name: string; kind: "dataset" | "robota" | "report" | "checkpoint" | "other"; bytes: number; url: string; sha256: string | null; note: string | null };
 
 export type RunState = {
   id: string;
+  kind: RunKind;
+  /** A teacher run's own state (the teacher recipe), else null. */
+  teacher: Teacher | null;
   name: string;
   created: string;
   status: RunStatus;
@@ -74,7 +114,7 @@ export type RunState = {
   plan_s: number | null;
 };
 
-export type RunSummary = { id: string; name: string; created: string; status: RunStatus; stage: string; demos: number; detail: string | null; resumable: boolean };
+export type RunSummary = { id: string; name: string; created: string; status: RunStatus; stage: string; demos: number; detail: string | null; resumable: boolean; kind: RunKind };
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -148,9 +188,43 @@ const artifact = (o: Obj): Artifact => ({
 });
 const gpuOf = (o: Obj): Gpu => ({ state: oneOf(o.state, ["idle", "queued", "running"] as const, "idle"), position: num(o.position), holder: typeof o.holder === "string" ? o.holder : null });
 
-export function emptyRun(id: string): RunState {
+const kindOf = (v: unknown): RunKind => (v === "teacher" ? "teacher" : "demos");
+
+const teacherOf = (o: Obj): Teacher => {
+  const g = obj(o.gate);
+  const seeds = arr(g.seeds);
+  return {
+    iteration: num(o.iteration, 0)!,
+    iterations: num(o.iterations, 0)!,
+    human_run: str(o.human_run),
+    teacher_n: num(o.teacher_n, 0)!,
+    dagger: o.dagger === true,
+    smoke: o.smoke === true,
+    gate: {
+      successes: num(g.successes),
+      n: num(g.n),
+      min: num(g.min),
+      seeds: seeds.length === 2 && num(seeds[0]) !== null && num(seeds[1]) !== null ? [num(seeds[0])!, num(seeds[1])!] : null,
+      passed: typeof g.passed === "boolean" ? g.passed : null,
+    },
+    rounds: arr(o.rounds).map((x) => {
+      const r = obj(x), ro = obj(r.rollouts);
+      return {
+        round: num(r.round, 0)!,
+        phase: str(r.phase),
+        rollouts: { done: num(ro.done, 0)!, total: num(ro.total, 0)!, successes: num(ro.successes, 0)! },
+        chosen_step: num(obj(r.selection).chosen_step),
+        stopped: r.phase === "stopped" || obj(r.decision).stop === true,
+      };
+    }),
+  };
+};
+
+export function emptyRun(id: string, kind: RunKind = "demos"): RunState {
   return {
     id,
+    kind,
+    teacher: null,
     name: "",
     created: "",
     status: "queued",
@@ -159,7 +233,7 @@ export function emptyRun(id: string): RunState {
     gpu: { state: "idle", position: null, holder: null },
     elapsed_s: null,
     remaining_s: null,
-    stages: PIPELINE_STAGES.map((s) => pendingStage(s.id)),
+    stages: stagesFor(kind).map((s) => pendingStage(s.id)),
     check: [],
     repair: [],
     variants: [],
@@ -175,7 +249,7 @@ export function emptyRun(id: string): RunState {
 /** A run's snapshot (GET /pipeline/runs/{id}, or the stream's first event). */
 export function parseRun(body: unknown): RunState {
   const o = obj(body);
-  const base = emptyRun(str(o.id));
+  const base = emptyRun(str(o.id), kindOf(o.kind));
   const given = new Map(arr(o.stages).map((s) => [str(obj(s).id), obj(s)] as const));
   const t = obj(o.train);
   const e = obj(o.evaluate);
@@ -186,6 +260,7 @@ export function parseRun(body: unknown): RunState {
     status: oneOf(o.status, RUN_STATUSES, "queued"),
     detail: typeof o.detail === "string" ? o.detail : null,
     resumable: o.resumable === true,
+    teacher: o.teacher && typeof o.teacher === "object" ? teacherOf(obj(o.teacher)) : null,
     gpu: gpuOf(obj(o.gpu)),
     elapsed_s: num(o.elapsed_s),
     remaining_s: num(o.remaining_s),
@@ -221,6 +296,7 @@ export function parseRuns(body: unknown): RunSummary[] {
       demos: num(o.demos, 0)!,
       detail: typeof o.detail === "string" ? o.detail : null,
       resumable: o.resumable === true,
+      kind: kindOf(o.kind),
     };
   });
 }
@@ -256,6 +332,8 @@ export function applyRunEvent(s: RunState, e: RunEvent): RunState {
       return { ...s, stages: s.stages.map((st) => (st.id === e.stage ? stagePatch(st, e) : st)) };
     case "gpu":
       return { ...s, gpu: gpuOf(e) };
+    case "teacher":
+      return { ...s, teacher: teacherOf(e) };
     case "check":
       return { ...s, check: upsert(s.check, checkRow(e), (r) => r.demo) };
     case "repair":

@@ -8,13 +8,13 @@ import { VerdictBadge } from "../data/Pane";
 import { repairText, verdictOf, whatChanged, demoName, type RepairStage, type Verification } from "../data/model";
 import { downloadUrl, fetchArtifacts, fetchRunFootage, type Fetch } from "./api";
 import {
-  PIPELINE_STAGES, evalCells, evalScore, formatDuration, lossPath, stageOf, type Metrics, type RepairRow, type RunState, type Stage, type StageId, type VariantRow,
+  evalCells, evalScore, formatDuration, lossPath, stageMeta, stageOf, type Metrics, type RepairRow, type RunState, type Stage, type StageId, type VariantRow,
 } from "./model";
 
 const nf = new Intl.NumberFormat("en-US");
 
 function StageHead({ stage, run }: { stage: Stage; run: RunState }) {
-  const meta = PIPELINE_STAGES.find((s) => s.id === stage.id)!;
+  const meta = stageMeta(stage.id);
   // Train counts its steps itself, per cell (TrainView); its items add up every cell.
   const items = stage.id === "train" ? null : stage.items;
   return (
@@ -201,29 +201,116 @@ function EvaluateView({ run }: { run: RunState }) {
           {s.k} of {s.run} seeds succeeded{s.planned ? ` (${s.planned} planned)` : ""}
         </p>
       )}
-      <ul className="pipe-seeds" aria-label="Seeds">
-        {run.evaluate.seeds.map((x) => (
-          <li
-            key={`${x.cell ?? ""}:${x.seed}`}
-            className="pipe-seed"
-            data-ok={x.success}
-            data-cell={x.cell ?? undefined}
-            title={`${cells.length > 1 ? `${cells.find((c) => c.cell === (x.cell ?? ""))?.label}, ` : ""}seed ${x.seed}: ${x.success ? "succeeded" : x.reasons.join(", ") || "failed"}`}
-          >
-            {x.seed}
-          </li>
-        ))}
+      <SeedTiles run={run} />
+    </>
+  );
+}
+
+/** One tile per seed run, green or not, its reasons in the title (with its cell's label when there are two). */
+function SeedTiles({ run }: { run: RunState }) {
+  const cells = evalCells(run);
+  return (
+    <ul className="pipe-seeds" aria-label="Seeds">
+      {run.evaluate.seeds.map((x) => (
+        <li
+          key={`${x.cell ?? ""}:${x.seed}`}
+          className="pipe-seed"
+          data-ok={x.success}
+          data-cell={x.cell ?? undefined}
+          title={`${cells.length > 1 ? `${cells.find((c) => c.cell === (x.cell ?? ""))?.label}, ` : ""}seed ${x.seed}: ${x.success ? "succeeded" : x.reasons.join(", ") || "failed"}`}
+        >
+          {x.seed}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ------------------------------------------------------------ the teacher recipe's stages
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+function TeacherView({ run }: { run: RunState }) {
+  const t = run.teacher;
+  if (!t) return <p className="data-note">No teacher yet.</p>;
+  return (
+    <>
+      <p className="data-summary">
+        {nf.format(t.iterations)} RL iterations, from the human run {t.human_run}
+        {t.smoke ? " (smoke test)" : ""}
+      </p>
+      <ul className="data-list">
+        <li>
+          {nf.format(t.iteration)} of {nf.format(t.iterations)} iterations done
+        </li>
+        <li>Then {t.teacher_n} teacher rollouts for the student</li>
+        <li>{t.dagger ? "Then a DAgger round" : "No DAgger round"}</li>
       </ul>
     </>
   );
 }
+
+function GateView({ run }: { run: RunState }) {
+  const g = run.teacher?.gate;
+  const gate = g?.min !== null && g?.min !== undefined ? `the gate is ${pct(g.min)}` : "no gate threshold (smoke test)";
+  return (
+    <>
+      <p className="data-summary">
+        {g && g.n
+          ? `${g.successes ?? 0} of ${g.n} replays verified (${pct((g.successes ?? 0) / g.n)}); ${gate}${g.passed === null ? "" : g.passed ? ": passed" : ": failed"}`
+          : `Not scored yet; ${gate}.`}
+      </p>
+      {g?.seeds && (
+        <p className="data-note">
+          Seeds {g.seeds[0]}–{g.seeds[1]}, which no demo saw. The teacher runs each, then SANT's physics replays what it did.
+        </p>
+      )}
+      <SeedTiles run={run} />
+    </>
+  );
+}
+
+const PHASE: Record<string, string> = {
+  rollouts: "collecting rollouts",
+  grid: "mixing the data",
+  train: "training the student",
+  select: "choosing the best checkpoint",
+  done: "done",
+  stopped: "stopped by DAgger's stop rule",
+};
+
+/** A distillation round (0: from the teacher's rollouts; 1: DAgger): its phase, rollouts, the student's curve, the pick. */
+function RoundView({ run, round }: { run: RunState; round: number }) {
+  const t = run.teacher;
+  if (round === 1 && t && !t.dagger) return <p className="data-note">Not asked for this run.</p>;
+  const rd = t?.rounds.find((r) => r.round === round);
+  if (!rd) return <p className="data-note">Not started.</p>;
+  return (
+    <>
+      <p className="data-summary">
+        Round {round}: {PHASE[rd.phase] ?? rd.phase}
+      </p>
+      <ul className="data-list">
+        <li>
+          {rd.rollouts.done} of {rd.rollouts.total} {round === 0 ? "teacher" : "DAgger"} rollouts ({rd.rollouts.successes} succeeded)
+        </li>
+        {rd.chosen_step !== null && <li>Chose the checkpoint at step {nf.format(rd.chosen_step)}</li>}
+      </ul>
+      {run.train.cell === `distill_r${round}` && <TrainView run={run} />}
+    </>
+  );
+}
+
+const DistillView = ({ run }: { run: RunState }) => <RoundView run={run} round={0} />;
+const DaggerView = ({ run }: { run: RunState }) => <RoundView run={run} round={1} />;
 
 const MB = (b: number) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${Math.round(b / 1e6)} MB` : `${Math.max(1, Math.round(b / 1e3))} kB`);
 const KIND: Record<string, string> = { dataset: "The dataset", robota: "The Robota export", report: "The report", checkpoint: "A checkpoint", other: "A file" };
 
 /** What a file is, from its name where T5's export names it (dataset_<cell>.zip, results.json), else its kind. */
 function kindOf(a: RunState["artifacts"][number]): string {
-  const cell = /^dataset_(.+).zip$/.exec(a.name)?.[1];
+  const cell = /^dataset_(.+)\.zip$/.exec(a.name)?.[1];
+  if (a.name === "student_checkpoint.zip") return "The student's checkpoint";
   if (cell) return `The dataset: ${/^raw_/.test(cell) ? "raw demos" : /^perfected_multiply_/.test(cell) ? "SANT (repaired + multiplied)" : cell}`;
   if (a.name === "results.json") return "The results";
   return KIND[a.kind];
@@ -261,12 +348,16 @@ const VIEWS: Record<StageId, (p: { run: RunState; fetchImpl?: Fetch }) => JSX.El
   train: TrainView,
   evaluate: EvaluateView,
   export: ExportView,
+  teacher: TeacherView,
+  gate: GateView,
+  distill: DistillView,
+  dagger: DaggerView,
 };
 
 export function StageView({ run, stage, fetchImpl }: { run: RunState; stage: StageId; fetchImpl?: Fetch }) {
   const View = VIEWS[stage];
   return (
-    <section className="pipe-stage-page" aria-label={PIPELINE_STAGES.find((s) => s.id === stage)!.label}>
+    <section className="pipe-stage-page" aria-label={stageMeta(stage).label}>
       <StageHead stage={stageOf(run, stage)} run={run} />
       {run.plan_s !== null ? <p className="data-note">A dry run plans the stages and runs none of them.</p> : <View run={run} fetchImpl={fetchImpl} />}
     </section>

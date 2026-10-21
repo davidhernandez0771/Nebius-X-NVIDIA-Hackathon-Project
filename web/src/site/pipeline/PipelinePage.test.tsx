@@ -313,6 +313,119 @@ describe("the pipeline pages", () => {
     expect(within(bar).getByRole("link", { name: /train/i }).getAttribute("href")).toBe("/pipeline/example/train?speed=120");
   });
 
+  describe("the teacher recipe (RL teacher → gate → distill)", () => {
+    const CONFIG = {
+      enabled: true,
+      presets: { standard: { label: "Standard" } },
+      recipes: {
+        teacher: {
+          presets: { smoke: { rl_iterations: 20, label: "Smoke test: smallest sizes" }, full: { rl_iterations: 1500, label: "Full: 1,500 RL iterations, the 90% gate" } },
+          teacher_n: [300, 600],
+          stages: ["teacher", "gate", "distill", "dagger", "export"],
+        },
+      },
+    };
+    const HUMAN = { runs: [{ name: "mouse10", cell: "perfected_multiply_10", start_state: "starts.json" }, { name: "human10c", cell: "raw_10", start_state: "starts.json" }] };
+    const TSNAP = {
+      type: "snapshot", id: "t1", kind: "teacher", name: "teacher on mouse10", created: "2026-10-21T13:00:00Z", status: "running", demos: 0,
+      gpu: { state: "running", position: null, holder: "t1" }, elapsed_s: 600, remaining_s: 20000,
+      stages: [
+        { id: "teacher", status: "done", progress: 1, items: { done: 1500, total: 1500, unit: "iteration" } },
+        { id: "gate", status: "done", progress: 1, detail: "46/50 (gate 90%)" },
+        { id: "distill", status: "running", progress: 0.4, eta_s: 9000, items: { done: 20000, total: 60000, unit: "step" }, detail: "ACT step 20000/60000" },
+        { id: "dagger", status: "skipped" },
+        { id: "export", status: "pending", eta_s: 120 },
+      ],
+      check: [], repair: [], variants: [],
+      train: { step: 20000, steps: 60000, cell: "distill_r0", loss: [[1000, 1.2], [20000, 0.3]], checkpoints: [{ step: 20000, name: "020000" }], eta_s: 9000 },
+      evaluate: { seeds: [{ seed: 5300, success: true, reasons: [], cell: "teacher_gate" }, { seed: 5301, success: false, reasons: ["dropped"], cell: "teacher_gate" }], planned: 50 },
+      artifacts: [],
+      teacher: {
+        iteration: 1500, iterations: 1500, human_run: "mouse10", teacher_n: 300, dagger: false, smoke: false,
+        gate: { successes: 46, n: 50, min: 0.9, seeds: [5300, 5349], passed: true },
+        rounds: [{ round: 0, phase: "train", rollouts: { done: 300, total: 300, successes: 281 }, selection: null, decision: null }],
+      },
+    };
+    const teacherBackend = (over: Record<string, () => Response> = {}) =>
+      backend({
+        "GET /pipeline/config": () => new Response(JSON.stringify(CONFIG)),
+        "GET /pipeline/human-runs": () => new Response(JSON.stringify(HUMAN)),
+        "POST /pipeline/estimate": () => new Response(JSON.stringify({ demos: 0, remaining_s: 30000 })),
+        ...over,
+      });
+
+    it("starts one: picks the human run, the teacher's rollouts, DAgger and the preset; posts only the teacher recipe", async () => {
+      const { f, calls } = teacherBackend();
+      show("/pipeline", f);
+      fireEvent.click(await screen.findByRole("radio", { name: /teacher/i }));
+      fireEvent.change(await screen.findByRole("combobox", { name: /human run/i }), { target: { value: "human10c" } });
+      fireEvent.change(screen.getByRole("combobox", { name: /teacher rollouts/i }), { target: { value: "600" } });
+      fireEvent.click(screen.getByRole("checkbox", { name: /dagger/i }));
+      expect(screen.getByRole("option", { name: /full: 1,500 RL iterations/i })).toBeTruthy();
+      expect(await screen.findByText(/about 8 h 20 min/i)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: /run sant/i }));
+      await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path === "/pipeline/runs")).toBe(true));
+      // the server forbids extra fields on a teacher recipe
+      expect(calls.find((c) => c.method === "POST" && c.path === "/pipeline/runs")!.body).toEqual({ kind: "teacher", human_run: "human10c", teacher_n: 600, dagger: true, preset: "full" });
+      expect(calls.filter((c) => c.path === "/pipeline/estimate").every((c) => (c.body as { kind?: string }).kind === "teacher")).toBe(true);
+    });
+
+    it("says so when the server has no trained human run to teach from", async () => {
+      show("/pipeline", teacherBackend({ "GET /pipeline/human-runs": () => new Response(JSON.stringify({ runs: [] })) }).f);
+      fireEvent.click(await screen.findByRole("radio", { name: /teacher/i }));
+      expect(await screen.findByText(/no trained human run on this server yet/i)).toBeTruthy();
+      expect((screen.getByRole("button", { name: /run sant/i }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("lists a teacher run as one, not as 0 demos", async () => {
+      show("/pipeline", teacherBackend({ "GET /pipeline/runs": () => new Response(JSON.stringify({ runs: [{ id: "t1", kind: "teacher", name: "teacher on mouse10", status: "running", stage: "distill", demos: 0 }] })) }).f);
+      const row = await screen.findByRole("link", { name: /teacher on mouse10/i });
+      expect(row.textContent).toMatch(/teacher · at distill/i);
+      expect(row.textContent).not.toMatch(/0 demos/);
+    });
+
+    it("its bar has the teacher's five stages, and the Teacher page says what it learns from", async () => {
+      show("/pipeline/t1/teacher", teacherBackend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(TSNAP);
+      const bar = screen.getByRole("navigation", { name: /pipeline/i });
+      expect([...bar.querySelectorAll(".pipe-stage__label")].map((x) => x.textContent)).toEqual(["Teacher", "Gate", "Distill", "DAgger", "Export"]);
+      expect(within(bar).getByRole("link", { name: /distill/i }).getAttribute("data-status")).toBe("running");
+      expect(screen.getByText(/1,500 RL iterations, from the human run mouse10/i)).toBeTruthy();
+    });
+
+    it("a teacher dry run: planned stages show their time, the DAgger round nobody asked for says skipped", async () => {
+      show("/pipeline/t1/teacher", teacherBackend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send({ ...TSNAP, status: "done", plan_s: 23000, stages: TSNAP.stages.map((s) => ({ ...s, status: "skipped", eta_s: s.id === "dagger" ? 0 : 3000 })) });
+      const bar = screen.getByRole("navigation", { name: /pipeline/i });
+      expect(within(bar).getByRole("link", { name: /dagger/i }).textContent).toMatch(/skipped/);
+      expect(within(bar).getByRole("link", { name: /gate/i }).textContent).toMatch(/~50 min/);
+    });
+
+    it("Gate: the teacher's score against the gate, seed by seed", async () => {
+      show("/pipeline/t1/gate", teacherBackend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(TSNAP);
+      expect(screen.getByText(/46 of 50 replays verified \(92%\); the gate is 90%: passed/i)).toBeTruthy();
+      expect(screen.getByText(/seeds 5300–5349/i)).toBeTruthy();
+      expect(screen.getByTitle(/seed 5301: dropped/i)).toBeTruthy();
+      live().send({ type: "teacher", ...TSNAP.teacher, gate: { ...TSNAP.teacher.gate, successes: 40, passed: false } });
+      expect(screen.getByText(/40 of 50 replays verified \(80%\); the gate is 90%: failed/i)).toBeTruthy();
+    });
+
+    it("Distill: the round's phase, the teacher's rollouts, the student's loss curve and the checkpoint chosen", async () => {
+      show("/pipeline/t1/distill", teacherBackend().f);
+      await waitFor(() => expect(FakeSource.all.length).toBe(1));
+      live().send(TSNAP);
+      expect(screen.getByText(/round 0: training the student/i)).toBeTruthy();
+      expect(screen.getByText(/300 of 300 teacher rollouts \(281 succeeded\)/i)).toBeTruthy();
+      expect(document.querySelector("svg path.pipe-loss__line")?.getAttribute("d")).toMatch(/^M/);
+      live().send({ type: "teacher", ...TSNAP.teacher, rounds: [{ ...TSNAP.teacher.rounds[0], phase: "done", selection: { chosen_step: 60000 } }] });
+      expect(screen.getByText(/chose the checkpoint at step 60,000/i)).toBeTruthy();
+    });
+  });
+
   it("Export: the downloads, with their sizes", async () => {
     show("/pipeline/r1/export", backend().f);
     await waitFor(() => expect(FakeSource.all.length).toBe(1));

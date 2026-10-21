@@ -54,7 +54,9 @@
 
 .sant .pipe-stages ol {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* one column per stage: six for a demos run, five for a teacher run */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: var(--sant-space-2);
   margin: 0;
   padding: 0;
@@ -166,7 +168,11 @@
   min-width: 0;
   height: 2.25rem;
 }
-.sant .pipe-start label.pipe-start__check input { width: auto; height: auto; }
+.sant .pipe-start label.pipe-start__check input,
+.sant .pipe-start__kind input { width: auto; height: auto; }
+.sant .pipe-start__kind { display: flex; flex-wrap: wrap; gap: var(--sant-space-2) var(--sant-space-4); margin: 0; padding: 0; border: 0; }
+.sant .pipe-start__kind legend { padding: 0; margin-bottom: var(--sant-space-1); color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+.sant .pipe-start__kind label { display: flex; gap: var(--sant-space-2); align-items: center; color: var(--sant-text); font-size: var(--sant-fs-small); }
 .sant .pipe-start label.pipe-start__check { display: flex; gap: var(--sant-space-2); align-items: center; }
 .sant .pipe-start__demos { margin: 0; font-family: var(--sant-font-data); }
 .sant .pipe-start__go { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; }
@@ -177,7 +183,7 @@
 }
 
 @media (max-width: 760px) {
-  .sant .pipe-stages ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sant .pipe-stages ol { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sant .pipe-file { grid-template-columns: minmax(0, 1fr) auto; }
   .sant .pipe-file__kind,
   .sant .pipe-file__note { grid-column: 1 / -1; }

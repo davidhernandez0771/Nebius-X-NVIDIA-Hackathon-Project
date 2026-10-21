@@ -10,7 +10,7 @@ import { useAsync } from "../data/hooks";
 import "../data/data.css";
 import { cancelRun, fetchRuns, resumeRun, type Fetch } from "./api";
 import { useRun } from "./hooks";
-import { PIPELINE_STAGES, barOf, type RunState, type StageId } from "./model";
+import { barOf, stagesFor, type RunState, type StageId } from "./model";
 import { PipelineBar } from "./PipelineBar";
 import { StageView } from "./StageViews";
 import { StartRun } from "./StartRun";
@@ -69,7 +69,7 @@ function Runs({ fetchImpl }: { fetchImpl?: Fetch }) {
                 <Link className="pipe-run" to={`/pipeline/${encodeURIComponent(r.id)}`}>
                   <span className="pipe-run__name">{r.name || r.id}</span>
                   <span className="pipe-run__meta">
-                    {r.demos} demos · {r.status === "running" && r.stage ? `at ${r.stage}` : r.status}
+                    {r.kind === "teacher" ? "teacher" : `${r.demos} demos`} · {r.status === "running" && r.stage ? `at ${r.stage}` : r.status}
                     {r.detail ? ` · ${r.detail}` : ""}
                   </span>
                 </Link>
@@ -90,8 +90,9 @@ function RunView({ id, stage, Source, fetchImpl }: { id: string; stage?: string;
   const [nonce, setNonce] = useState(0);
   const [run, conn] = useRun(id, Source, speed, nonce);
   const bar = barOf(run);
-  const known = PIPELINE_STAGES.some((s) => s.id === stage);
-  const shown: StageId = known ? (stage as StageId) : (bar.current ?? "check");
+  const stages = stagesFor(run.kind);
+  const known = stages.some((s) => s.id === stage);
+  const shown: StageId = known ? (stage as StageId) : (bar.current ?? stages[0].id);
   const example = id === EXAMPLE_RUN_ID;
   const search = example && params.get("speed") ? `?speed=${params.get("speed")}` : "";
   const ready = run.status === "done" && run.plan_s === null && shown !== "export";
