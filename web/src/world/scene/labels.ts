@@ -47,7 +47,7 @@ export interface LabelArt {
  * A workbench cartridge's label: the name large, its robot's line under it, the robot's square. A
  * draft with no name yet prints the render's blank: a plus and "name your robot".
  */
-export function draftArt(d: Draft, place = -1): LabelArt {
+export function draftArt(d: Pick<Draft, "name" | "robot">, place = -1): LabelArt {
   const r = robotFor(d.robot);
   const name = d.name.trim().toUpperCase();
   return {
@@ -63,7 +63,7 @@ export function draftArt(d: Draft, place = -1): LabelArt {
 const BLANK: LabelArt = { band: "SANT  ·  YOUR CARTRIDGE", code: "+", line: "MAKE ONE ON THE BENCH", mark: "#5E6A77", serial: "MINE-000" };
 
 /** A draft with nothing chosen yet: what the turntable holds before the bench is first opened. */
-const FRESH_DRAFT: LabelArt = draftArt({ name: "", shell: "graphite", robot: ROBOTS[0].code });
+const FRESH_DRAFT: LabelArt = draftArt({ name: "", robot: ROBOTS[0].code });
 let draftTile: LabelArt | null = null;
 
 /** What the draft tile prints from now on (null: a fresh draft). Redraw it with drawDraftTile. */

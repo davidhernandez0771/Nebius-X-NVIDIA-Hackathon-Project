@@ -22,7 +22,7 @@ import { plug } from "./plug";
 import { markLoaded } from "./power";
 import { ROBOTS, robotInSlot } from "./robots";
 import { ITEMS } from "./items";
-import { MAX_SAVED, savedCartridges, shellOf, subscribeSaved } from "./saved";
+import { MAX_SAVED, savedCartridges, subscribeSaved } from "./saved";
 import { N_INSTANCES, N_ITEMS, ROBOT_SLOTS, SAVED0, itemInSlot, itemShell, matches, setHover, spiral, stepPose } from "./spiral";
 
 /** Graphite, the default shell: glossy near-black plastic (linear RGB). */
@@ -66,7 +66,7 @@ const shells = [
 /** Retint the saved places from the saved list (each shell as the bench picked it). */
 function dressSaved(): void {
   const list = savedCartridges();
-  for (let i = 0; i < MAX_SAVED; i++) if (list[i]) shells[SAVED0 + i].set(shellOf(list[i].shell).hex);
+  for (let i = 0; i < MAX_SAVED; i++) if (list[i]) shells[SAVED0 + i].set(list[i].color);
 }
 dressSaved();
 subscribeSaved(dressSaved);

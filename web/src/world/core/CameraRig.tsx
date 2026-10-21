@@ -105,6 +105,10 @@ export function CameraRig({
       if (t < 1) moving = true;
       dest = toWorld(open.anchor, open.camera(t));
       key = open.id;
+    } else if (open?.shot) {
+      const shot = open.shot();
+      dest = toWorld(open.anchor, shot.pose);
+      key = `${open.id}:${shot.key}`;
     } else if (open) {
       dest = restPose(open);
       key = open.id;
