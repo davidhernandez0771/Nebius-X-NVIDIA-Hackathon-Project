@@ -14,6 +14,7 @@ import "./data.css";
 const LINKS = [
   { to: "/robots", label: "Robots" },
   { to: "/record", label: "Record" },
+  { to: "/pipeline", label: "Pipeline" },
   { to: "/data", label: "Data" },
   { to: "/site/results", label: "Results" },
 ];

@@ -158,7 +158,8 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const [deleted, setDeleted] = useState<string[]>([]);
   const [note, setNote] = useState<{ text: string; title: string } | null>(null); // the last delete's outcome, until the sim reports again
   useEffect(() => setNote(null), [sim?.lastResult, sim?.demoId]);
-  const saved = savedIds.filter((id) => !deleted.includes(id)).length;
+  const kept = savedIds.filter((id) => !deleted.includes(id));
+  const saved = kept.length;
   const lastDemo = sim?.demoId && !deleted.includes(sim.demoId) ? sim.demoId : null;
   const coach = useTakeReview(lastDemo); // the take review, shown in the trace's cell until the next recording
   const { reduced } = useMotion();
@@ -255,6 +256,10 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               </span>
             </span>
           ))}
+          {/* After Record: the rest of SANT, live, on the demos saved this visit (the pipeline pages). */}
+          <Link className="rg-btn rg-btn--small rg-run" to={kept.length ? `/pipeline?demos=${kept.map(encodeURIComponent).join(",")}` : "/pipeline"}>
+            {kept.length ? `Run SANT on ${kept.length} demo${kept.length === 1 ? "" : "s"} →` : "Run SANT →"}
+          </Link>
         </nav>
         <div className="rg-right">
           <div className="rg-chips" role="group" aria-label="Status">
