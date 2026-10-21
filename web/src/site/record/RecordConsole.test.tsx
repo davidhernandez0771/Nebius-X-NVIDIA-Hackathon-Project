@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MotionProvider } from "../../sant/motion/MotionProvider";
+import { resetHandoff } from "../holo/handoff";
 import type { HandFrame, TrackedHand } from "../../hand/contracts";
 import type { SimStatus } from "../../record/recordLink";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../record/teleop/controlRegion";
@@ -274,6 +275,10 @@ describe("/record", () => {
     act(() => link.emitSim(sim({ steps: 200, demoId: "human_b", lastResult: "saved human_b" })));
     expect(run().getAttribute("href")).toBe("/pipeline?demos=human_a,human_b");
     expect(run().textContent).toMatch(/2 demos/);
+    // The hand-off to the pipeline (site/holo/handoff.ts): the veil comes up with its name.
+    fireEvent.click(run());
+    expect(document.querySelector(".holo-handoff")?.textContent).toBe("Pipeline");
+    resetHandoff();
   });
 
   it("Stop & discard shows only while recording and sends record_discard; Record still stops and saves", async () => {
