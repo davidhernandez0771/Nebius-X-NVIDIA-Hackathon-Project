@@ -2,9 +2,10 @@
 // rig asks for frames while the camera moves, the scroll asks for one per scroll event, and an idle
 // world draws nothing. Each station's Scene sits in its own group, Suspense and error boundary, so
 // one module loading or failing never blanks the others.
-import { Component, Suspense, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Component, Suspense, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { Group } from "three";
+import { setIdleFps } from "./activity";
 import { CameraRig } from "./CameraRig";
 import { WORLD_BG } from "./layout";
 import { AutoTune, HudProbe, Pause, Resolution, WarmUp } from "./Perf";
@@ -83,6 +84,8 @@ export default function WorldCanvas({
   const first = store.rails[0];
   // The pixel ratio lives here, so a re-render of the canvas keeps the live value (r3f re-applies it).
   const [dpr, setDpr] = useState(() => targetDpr(quality, window.innerWidth, window.innerHeight, window.devicePixelRatio || 1));
+  // Idle loops (activity.ts): 60 fps on high and ultra, 30 on low.
+  useEffect(() => setIdleFps(quality.name === "low" ? 30 : 60), [quality.name]);
   return (
     <Canvas
       className="world-canvas"
