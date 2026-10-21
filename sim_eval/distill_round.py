@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -294,6 +295,22 @@ def _round_episodes(c: RoundConfig, r: int) -> list[Path]:
     return sorted(p for p in root.iterdir() if (p / "episode.json").exists()) if root.is_dir() else []
 
 
+def code_version(repo: Path) -> dict:
+    """The commit this round runs from (T7's preregistration: each round.json names it), and whether tracked files
+    differ from it. {"commit": None, ...} outside a git checkout."""
+    def git(*args: str) -> str | None:
+        try:
+            out = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return out.stdout.strip() if out.returncode == 0 else None
+
+    commit = git("rev-parse", "HEAD")
+    status = git("status", "--porcelain", "--untracked-files=no") if commit else None
+    return {"commit": commit, "branch": git("rev-parse", "--abbrev-ref", "HEAD") if commit else None,
+            "dirty": bool(status) if status is not None else None}
+
+
 def _episode_seed(ep: Path) -> int:
     """teacher_r0_<seed> / dagger_r<k>_<seed>_<i> (sim_eval.distill.write_rollout's names)."""
     return int(Path(ep).name.split("_")[2])
@@ -372,7 +389,8 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         c.round_file.write_text(json.dumps({
             "run_id": c.run_id, "round": r, "teacher": c.teacher, "teacher_checkpoint": str(c.teacher_checkpoint),
             "student_checkpoint": str(student()), "rollouts": {"successes": d["successes"], "n": d["attempted"]},
-            "dagger_seeds": d["seeds"], "beta": c.beta, "decision": dec}, indent=1), encoding="utf-8")
+            "dagger_seeds": d["seeds"], "beta": c.beta, "decision": dec, "code": code_version(c.repo)}, indent=1),
+            encoding="utf-8")
         c.decision_file.write_text(json.dumps(dec, indent=1), encoding="utf-8")  # last: marks the phase done
         log(f"[distill]   round {r}: student {dec['student_rate']:.0%} on its rollouts; "
             f"{'STOP: ' if dec['stop'] else ''}{dec['reason']}")
@@ -398,7 +416,8 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         info = _read(c.round_file) if r >= 1 else {"run_id": c.run_id, "round": r, "teacher": c.teacher,
                                                    "teacher_checkpoint": str(c.teacher_checkpoint)}
         info.update(human={"grid": str(c.human_grid), "cell": c.human_cell, "n_human": n_human}, teacher_gate=gate,
-                    teacher_seeds=[t0, t1], mix=report, grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)))
+                    teacher_seeds=[t0, t1], mix=report, grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)),
+                    code=code_version(c.repo), rollouts_code=_read(c.done_file()).get("code"))
         c.round_file.write_text(json.dumps(info, indent=1), encoding="utf-8")
         log(f"[distill]   cell {c.label}: " + ", ".join(f"{s} {v['frames']} frames x{v['repeat']} ({v['share']:.0%})"
                                                      for s, v in report.items()))
@@ -431,7 +450,7 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         sel = {"counts": {str(k): list(v) for k, v in counts.items()}, "chosen_step": chosen,
                "checkpoint": str(checkpoint_of(run, c.label, chosen)), "train_run": str(run),
                "seeds": [c.select_seed0, c.select_seed0 + c.select_n - 1], "inference_args": list(c.inference_args),
-               "grid": str(c.grid_file), "teacher_seeds": list(teacher_seeds())}
+               "grid": str(c.grid_file), "teacher_seeds": list(teacher_seeds()), "code": code_version(c.repo)}
         c.selection_file.write_text(json.dumps(sel, indent=1), encoding="utf-8")
         if c.selection_file != c.selection_path(r):  # round 0: the latest selection is the one the next round uses
             c.selection_path(r).write_text(json.dumps(sel, indent=1), encoding="utf-8")

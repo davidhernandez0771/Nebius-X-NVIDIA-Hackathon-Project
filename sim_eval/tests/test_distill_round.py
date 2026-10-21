@@ -354,3 +354,30 @@ def test_the_wrapper_dry_run_writes_nothing(tmp_path, capsys):
     assert [ln.split()[0] for ln in out.splitlines() if not ln.startswith("[imports]")] == [
         "preflight", "rollouts", "decide"]
     assert not (mod.REPO / "data" / "distill" / "dryrun_test_never_written").exists()
+
+
+def test_code_version_names_the_commit_and_whether_it_is_clean(tmp_path):
+    import subprocess
+
+    from sim_eval.distill_round import code_version
+
+    assert code_version(tmp_path) == {"commit": None, "branch": None, "dirty": None}  # not a checkout
+    repo = tmp_path / "r"
+    repo.mkdir()
+    run_git = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)  # noqa: E731
+    run_git("init", "-q", "-b", "trial")
+    (repo / "f.txt").write_text("a", encoding="utf-8")
+    run_git("add", "f.txt")
+    run_git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "x")
+    v = code_version(repo)
+    assert len(v["commit"]) == 40 and v["branch"] == "trial" and v["dirty"] is False
+    (repo / "f.txt").write_text("b", encoding="utf-8")
+    assert code_version(repo)["dirty"] is True
+
+
+def test_round_records_name_the_code(tmp_path):
+    c = cfg(tmp_path)
+    run(c, FakeRunner(c.data))
+    rnd0 = json.loads(c.round_file.read_text(encoding="utf-8"))
+    sel = json.loads(c.selection_file.read_text(encoding="utf-8"))
+    assert set(rnd0["code"]) == {"commit", "branch", "dirty"} and set(sel["code"]) == {"commit", "branch", "dirty"}

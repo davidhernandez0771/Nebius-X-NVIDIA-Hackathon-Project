@@ -70,6 +70,7 @@ from sim_eval.distill import (  # noqa: E402
     RolloutConfig, append_row, done_summary, read_rows, rollout, rollout_row, rollout_scenes, set_aside_stale,
     write_rollout,
 )
+from sim_eval.distill_round import code_version  # noqa: E402
 from sim_eval.report import gpu_pids, isaac_gate, python_processes, resolve_start  # noqa: E402
 from sim_eval.retry import RetryingPolicy  # noqa: E402
 from sim_eval.teacher import load_teacher  # noqa: E402
@@ -152,7 +153,7 @@ def main() -> None:
 def finish(out: Path, rows: dict, t0: float, teacher_name: str) -> None:
     a = args_cli
     summary = done_summary(rows, kind=a.kind, round_id=a.round, seed0=a.seed0, n=a.n, teacher=teacher_name,
-                           teacher_spec=a.teacher, teacher_checkpoint=str(a.teacher_checkpoint),
+                           teacher_spec=a.teacher, teacher_checkpoint=str(a.teacher_checkpoint), code=code_version(REPO),
                            student_checkpoint=str(a.checkpoint) if a.checkpoint else None, beta=a.beta,
                            inference=inference.record(), wall_s=round(time.time() - t0, 1),
                            finished=datetime.now(timezone.utc).isoformat(timespec="seconds"))
