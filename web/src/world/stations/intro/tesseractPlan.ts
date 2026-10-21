@@ -104,6 +104,9 @@ export const HYPER_RADIUS: number = (() => {
   return r * 1.02;
 })();
 
+/** How far its corners reach in the still pose (logo units). */
+export const STILL_RADIUS: number = Math.max(...VERTICES.map((v) => Math.hypot(...project(place4(v, STILL)))));
+
 /** How far toward the open corner its edges reach (of their length, in 4D). */
 export const OPEN_REACH = 0.62;
 

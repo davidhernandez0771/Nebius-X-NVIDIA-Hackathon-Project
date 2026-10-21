@@ -92,6 +92,31 @@
   left: var(--edge);
 }
 
+/* The hero beat: the tesseract is the hero (Scene.tsx floats it in the space this leaves). The kicker, the
+   headline and the column stack on the left, the right half is the tesseract's. */
+.intro-beat--hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 30px;
+  padding-left: var(--edge);
+}
+
+.intro-beat--hero .intro-beat__main,
+.intro-beat--hero .intro-beat__col {
+  position: static;
+  transform: none;
+}
+
+.intro-beat--hero .intro-beat__head {
+  font-size: clamp(40px, 5.4vw, 104px);
+}
+
+.intro-beat--hero .intro-beat__col {
+  width: min(360px, 32vw);
+}
+
 .intro-beat__kicker {
   margin: 0 0 18px;
   color: var(--w-teal);
@@ -219,6 +244,21 @@
   .intro-story .world-hint,
   .intro-down {
     bottom: 3vh;
+  }
+
+  /* The hero on phones: the tesseract on top, the copy under it. */
+  .intro-beat--hero {
+    justify-content: flex-end;
+    gap: 16px;
+    padding: 0 20px 9vh;
+  }
+
+  .intro-beat--hero .intro-beat__head {
+    font-size: clamp(32px, 9.5vw, 52px);
+  }
+
+  .intro-beat--hero .intro-beat__col {
+    width: auto;
   }
 }
 
