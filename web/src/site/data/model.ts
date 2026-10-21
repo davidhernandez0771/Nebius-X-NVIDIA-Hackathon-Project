@@ -201,6 +201,8 @@ export function repairText(r: Repair): string {
       return `Released the cube above the bin at ${span(r)}, off the rim`;
     case "recenter_grasp":
       return `Re-centred the grasp on the cube at ${span(r)}`;
+    case "retime_grasp":
+      return `Slowed the grasp at ${span(r)}: hover, slow last 4 cm, stop, close, hold, lift straight`;
     default:
       return span(r) ? `${r.op.replace(/_/g, " ")} at ${span(r)}` : r.op.replace(/_/g, " ");
   }

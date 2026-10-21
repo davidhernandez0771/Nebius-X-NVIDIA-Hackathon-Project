@@ -9,6 +9,10 @@ home-start variants, so the variants start at home too and never at home moved w
 
 Variant seeds: source i, variant k -> 3100 + 100 i + k (k < 100), all below the eval scenes (5000+).
 
+The 2026-10-20 data fixes (research note), each off unless asked for: wrap_yaw (the multiplier turns the hand only to
+the cube's nearest face) and approach (offset, yaw): the centered approach at the retimed grasp's hover
+(homeset.center_from_hover); a variant whose source has no hover (its grasp was not retimed) is left as it was.
+
 The statistics: headline() counts only the pre-registered eval seeds (an episode that ended in sim_error or
 policy_error says nothing about the policy and is reported as missing); compare() is the two-sided Fisher exact
 test and Wilson 95% CIs from demo_pipeline.stats.
@@ -25,7 +29,7 @@ from demo_pipeline.multiply import transform_trajectory
 from demo_pipeline.schemas import INPUT_MODES, Demo, Scene, Trajectory
 from demo_pipeline.stats import fisher_exact, wilson_ci
 from demo_pipeline.store import DemoStore
-from sim_worker.homeset import EVAL_SEED_MIN, rehome
+from sim_worker.homeset import EVAL_SEED_MIN, center_from_hover, rehome
 
 VARIANT_SEED0 = 3100
 VARIANTS_MAX = 100  # variants per source: one block of 100 seeds each
@@ -89,8 +93,15 @@ def align_home(traj: Trajectory) -> tuple[Trajectory, int]:
     return aligned, len(aligned.t) - len(traj.t)
 
 
-def variant_trajectory(aligned: Trajectory, k: int, src: Scene, dst: Scene) -> Trajectory:
-    return rehome(transform_trajectory(aligned, src, dst), k)
+def variant_trajectory(aligned: Trajectory, k: int, src: Scene, dst: Scene, *, wrap_yaw: bool = False,
+                       approach: tuple | None = None) -> Trajectory:
+    """The variant in dst; with the data fixes asked for (see the module docstring)."""
+    variant = rehome(transform_trajectory(aligned, src, dst, wrap_yaw=wrap_yaw), k)
+    if approach is not None:
+        centred = center_from_hover(variant, *approach)
+        if centred is not None:
+            variant = centred
+    return variant
 
 
 def variant_seed(i: int, k: int) -> int:

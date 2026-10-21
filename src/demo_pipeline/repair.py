@@ -351,6 +351,11 @@ def apply_repairs(traj: Trajectory, repairs: list[RepairOp], scene: Scene, bin_r
             cur, step_map = _recenter_grasp(cur, float(tmap(op.t)), scene.cube_pose.pos)
         elif op.op == "release_above_bin":
             cur, step_map = _release_above_bin(cur, float(tmap(op.t)), scene)
+        elif op.op == "retime_grasp":
+            from .grasp_retime import retime_grasp  # it builds on this module's helpers
+
+            done = retime_grasp(cur, float(tmap(op.t)))
+            cur, step_map = done.trajectory, done.tmap
         else:
             t0, t1 = (float(v) for v in np.clip(tmap([op.t0, op.t1]), 0.0, cur.t[-1]))
             if t1 - t0 < DT / 2:  # the span vanished, e.g. it lay inside a removed pause

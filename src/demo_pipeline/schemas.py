@@ -208,6 +208,7 @@ SegmentName = Literal["approach", "grasp", "lift", "carry", "release", "retreat"
 IssueType = Literal[
     "pause", "jitter", "slow", "grasp_off_center", "wrong_object",
     "rim_contact", "bad_release", "drop", "idle_start_end", "other",
+    "swoop_grasp",  # rules only (rules.detect_rules(retime_grasp=True)); never in Nemotron's prompts
 ]
 
 
@@ -279,19 +280,29 @@ class ReleaseAboveBin(_Model):
     t: float = Field(ge=0)
 
 
+class RetimeGrasp(_Model):
+    """Rewrite a swoop grasp in the scripted expert's style: hover, slow last 4 cm, stop, close, hold, lift straight
+    (demo_pipeline.grasp_retime). t is the grasp (the close). Rules only."""
+
+    op: Literal["retime_grasp"]
+    t: float = Field(ge=0)
+
+
 class Discard(_Model):
     op: Literal["discard"]
 
 
 RepairOp = Annotated[
-    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, ReleaseAboveBin, Discard],
+    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, ReleaseAboveBin, RetimeGrasp, Discard],
     Field(discriminator="op"),
 ]
 
 # Spec 8.4: repairs always run in this order, whatever order they were listed in. release_above_bin rewrites
-# everything from the place onwards, so it runs last, on the timeline the other ops left.
+# everything from the place onwards, so it runs last, on the timeline the other ops left. retime_grasp rewrites the
+# grasp around the (recentred) close, after the timing ops have settled the path into it.
 REPAIR_ORDER: tuple[str, ...] = (
-    "trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime", "release_above_bin",
+    "trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime", "retime_grasp",
+    "release_above_bin",
 )
 
 

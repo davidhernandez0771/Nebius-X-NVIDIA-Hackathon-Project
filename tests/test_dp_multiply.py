@@ -484,3 +484,57 @@ def test_s1_degraded_variants_now_carry_within_the_experts_reach(k):
         carry = (t >= t_close) & (t <= t_open)
         # the human's tremor (up to 2.9 mm std) and fading grasp offset stay; measured <= 20.4 mm
         assert _dist_to_path(out[carry], expert).max() < 0.025, seed
+
+
+# --- yaw wrap (2026-10-20 research note, finding 5): the cube looks the same every 90 degrees -------------------
+
+from demo_pipeline.multiply import nearest_face_yaw  # noqa: E402
+
+
+def _wrist_yaw(q) -> float:
+    """The gripper's turn about the vertical (pointing down: (0, cos a/2, sin a/2, 0) is a turn of a)."""
+    w, x, y, z = q
+    return math.atan2(2 * (x * y + w * z), 1 - 2 * (y * y + z * z))
+
+
+@pytest.mark.parametrize("deg, wrapped", [(0, 0), (30, 30), (-44, -44), (60, -30), (-60, 30), (89, -1), (-89, 1),
+                                          (90, 0), (135, -45), (180, 0)])
+def test_nearest_face_yaw_turns_at_most_45_degrees(deg, wrapped):
+    """As the scripted expert wraps the cube's yaw (sim_worker.scripted: yaw - 90 round(yaw / 90))."""
+    assert math.degrees(nearest_face_yaw(math.radians(deg))) == pytest.approx(wrapped, abs=1e-9)
+
+
+@pytest.mark.parametrize("cube_yaw", [0.0, 0.3, -0.5, math.radians(44.9)])
+def test_yaw_wrap_changes_nothing_within_45_degrees(cube_yaw):
+    """The regression: yaw-0 scenes (and any turn of 45 degrees or less) give exactly the old output."""
+    tr = _demo()
+    dst = _scene(cube=(0.55, -0.1, 0.025), bin_=(0.45, 0.25, 0.0), cube_yaw=cube_yaw)
+    old = transform_trajectory(tr, _scene(), dst)
+    new = transform_trajectory(tr, _scene(), dst, wrap_yaw=True)
+    assert new == old
+
+
+def test_yaw_wrap_grasps_the_nearest_face():
+    """A cube turned 80 degrees is grasped like one turned -10: the same grasp, so the same labels."""
+    tr = _demo()
+    turned = transform_trajectory(tr, _scene(), _scene(cube_yaw=math.radians(80)), wrap_yaw=True)
+    same = transform_trajectory(tr, _scene(), _scene(cube_yaw=math.radians(-10)))
+    np.testing.assert_allclose(turned.ee_pos, same.ee_pos, atol=1e-12)
+    np.testing.assert_allclose(turned.ee_quat, same.ee_quat, atol=1e-12)
+    i_close = _at(tr, gripper_events(tr)[0])
+    assert math.degrees(_wrist_yaw(turned.ee_quat[i_close])) == pytest.approx(-10, abs=1e-6)
+
+
+def test_yaw_wrap_gives_look_alike_cubes_one_wrist_label():
+    """Of many sampled scenes, cubes that look the same (yaw mod 90) get wrist turns at the close that agree, and
+    no turn is over 45 degrees; without the wrap the same pairs disagree by up to 90 (research note: 46%)."""
+    tr = _demo()
+    i_close = _at(tr, gripper_events(tr)[0])
+    rng = np.random.default_rng(7)
+    for _ in range(40):
+        dst = sample_scene(rng, "franka", 0)
+        out = transform_trajectory(tr, _scene(), dst, wrap_yaw=True)
+        cube_yaw = _yaw(dst.cube_pose.quat_wxyz)
+        wrist = _wrist_yaw(out.ee_quat[i_close])
+        assert abs(math.degrees(wrist)) <= 45 + 1e-6
+        assert math.degrees(wrist) == pytest.approx(math.degrees(nearest_face_yaw(cube_yaw)), abs=1e-6)

@@ -10,6 +10,7 @@ import pytest
 
 from app.ai.diagnose import (
     CLEAN_MOVING_SPEED,
+    RULES_ONLY_ISSUES,
     RULES_ONLY_OPS,
     SLOW_SPEED,
     DiagnosisError,
@@ -168,6 +169,9 @@ def test_prompt_lists_every_repair_op_and_issue_type():
         for field in model.model_fields:
             assert field in prompt, f"{op_name}.{field} missing from prompt"
     for issue_type in get_args(IssueType):
+        if issue_type in RULES_ONLY_ISSUES:  # likewise (rules.detect_rules(retime_grasp=True)): never in the prompt
+            assert issue_type not in prompt
+            continue
         assert issue_type in prompt
     for segment in get_args(SegmentName):
         assert segment in prompt

@@ -50,6 +50,18 @@ describe("buildIssueRows", () => {
     ]);
   });
 
+  it("pairs a swoop grasp with its retime", () => {
+    const rows = buildIssueRows({
+      ...stored,
+      diagnosis: {
+        ...diagnosis,
+        issues: [{ type: "swoop_grasp", t: 1.6, evidence: "closes at 0.25 m/s after 5 frames within 3 cm" }],
+        repairs: [{ op: "retime_grasp", t: 1.6 }],
+      },
+    });
+    expect(rows.map((r) => [r.kind, r.type, r.fixes.map((f) => f.op)])).toEqual([["issue", "swoop_grasp", ["retime_grasp"]]]);
+  });
+
   it("gives each pause its own remove_pause, by time", () => {
     const [, , first, second] = buildIssueRows(stored);
     expect(first.fixes[0].t0).toBe(4.5);
@@ -75,6 +87,7 @@ describe("detectionTag", () => {
     expect(detectionTag({ type: "idle_start_end", t0: 0, t1: 0.82 })).toBe("IDLE 0.82 s");
     expect(detectionTag({ type: "jitter", t0: 0, t1: 13.76 })).toBe("JITTER");
     expect(detectionTag({ type: "grasp_off_center", t: 2.1 })).toBe("GRIP OFF-CENTER");
+    expect(detectionTag({ type: "swoop_grasp", t: 1.6 })).toBe("SWOOP GRASP");
     expect(detectionTag({ type: "something_new" })).toBe("SOMETHING NEW");
   });
 });

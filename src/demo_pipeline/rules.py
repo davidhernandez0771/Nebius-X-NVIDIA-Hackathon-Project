@@ -9,14 +9,24 @@ failures webcam teleop demos had in live test #10, from measurements, never from
 - grasp_off_center -> recenter_grasp: the verdict has "dropped", or "not_in_bin" with the cube never lifted, and a close came more
   than the IK tracking error off the cube's centre while the cube still sat where the scene put it.
 Without them (the Nemotron ablation's rules baseline) the output is exactly as before.
+
+With retime_grasp=True (off by default, so earlier runs keep their rules), a "swoop" grasp (grasp_retime.is_swoop:
+closing faster than 5 cm/s, or fewer than 10 frames within 3 cm of the grasp point) -> swoop_grasp -> retime_grasp,
+when grasp_retime can rewrite it within the repair budget and the jitter rule; otherwise only the issue, saying why.
+That check runs on the demo as the ops before retime_grasp in REPAIR_ORDER will leave it (trim, remove_pause,
+recenter_grasp, smooth), so an emitted retime_grasp applies: a failed op would discard the whole demo.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from .grasp_retime import GraspRetimeError, grasp_stats, is_swoop
+from .grasp_retime import retime_grasp as _retime_grasp
 from .measure import gripper_events, position_noise, smoothed_speed, speed_profile
+from .repair import apply_repairs
 from .schemas import (
+    REPAIR_ORDER,
     Diagnosis,
     Discard,
     Issue,
@@ -24,6 +34,7 @@ from .schemas import (
     RecenterGrasp,
     ReleaseAboveBin,
     RemovePause,
+    RetimeGrasp,
     Scene,
     Segment,
     SimSignals,
@@ -162,9 +173,28 @@ def _replay_findings(traj: Trajectory, reasons: list[str], signals: SimSignals |
     return issues, repairs
 
 
+def _swoop_findings(traj: Trajectory, t_close: float, earlier: list, scene: Scene | None) -> tuple[list[Issue], list]:
+    """A swoop grasp at the first close, and its retime when it fits on the demo the `earlier` repairs leave (see
+    the module docstring)."""
+    s = grasp_stats(traj, t_close)
+    if s is None or not is_swoop(s):
+        return [], []
+    lift = "never lifts" if s.frames_to_lift is None else f"lifts {s.frames_to_lift} frames later"
+    evidence = (f"closes at {s.close_speed:.2f} m/s after {s.frames_near} frames within 3 cm of the grasp point; "
+                f"{lift}")
+    before = [r for r in earlier if REPAIR_ORDER.index(r.op) < REPAIR_ORDER.index("retime_grasp")]
+    try:
+        # bin_rim_z only matters to replan_transit, which the rules never emit
+        prepared = apply_repairs(traj, before, scene, bin_rim_z=0.0) if before else traj
+        _retime_grasp(prepared, grasp_stats(prepared).close_t)
+    except GraspRetimeError as e:
+        return [Issue(type="swoop_grasp", t=s.close_t, evidence=f"{evidence}; not retimed: {e}")], []
+    return [Issue(type="swoop_grasp", t=s.close_t, evidence=evidence)], [RetimeGrasp(op="retime_grasp", t=s.close_t)]
+
+
 def detect_rules(traj: Trajectory, windows: list[MetricsWindow], task_text: str = TASK_TEXT, *,
                  reasons: list[str] | None = None, signals: SimSignals | None = None,
-                 scene: Scene | None = None) -> Diagnosis:
+                 scene: Scene | None = None, retime_grasp: bool = False) -> Diagnosis:
     t = np.asarray(traj.t)
     g = np.asarray(traj.gripper)
     start, end = float(t[0]), float(t[-1])
@@ -214,6 +244,10 @@ def detect_rules(traj: Trajectory, windows: list[MetricsWindow], task_text: str 
     found, fixes = _replay_findings(traj, list(reasons or []), signals, scene)
     issues += found
     repairs += fixes
+    if retime_grasp:
+        found, fixes = _swoop_findings(traj, t_close, repairs, scene)
+        issues += found
+        repairs += fixes
 
     issues.sort(key=lambda i: i.t0 if i.t0 is not None else i.t)
     return Diagnosis(

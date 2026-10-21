@@ -261,9 +261,11 @@ def test_diagnose_hybrid_keeps_the_rules_when_the_model_finds_nothing():
 def test_hybrid_issue_types_cover_everything_the_rules_or_model_may_say():
     from typing import get_args
 
+    from app.ai.diagnose import RULES_ONLY_ISSUES
     from demo_pipeline.schemas import IssueType
 
-    assert set(RULES_TYPES) | set(MODEL_TYPES) | {"slow", "other"} == set(get_args(IssueType))
+    # swoop_grasp: only rules.detect_rules(retime_grasp=True) says it; the hybrid's rules run without it
+    assert set(RULES_TYPES) | set(MODEL_TYPES) | {"slow", "other"} | set(RULES_ONLY_ISSUES) == set(get_args(IssueType))
     assert Issue  # imported for the type list
 
 

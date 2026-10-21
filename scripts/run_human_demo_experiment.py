@@ -86,6 +86,7 @@ from demo_pipeline.store import DemoStore, write_atomic  # noqa: E402
 from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, _arm, achieved_demo, align_home, cells,  # noqa: E402
                                   compare, config_diff, demo_sha256, headline, select_ids, variant_seed,
                                   variant_trajectory)
+from sim_worker.homeset import approach_misalignment, find_hover  # noqa: E402
 
 ISAAC_PY = Path(r"C:\isaac\env_isaaclab\Scripts\python.exe")
 LEROBOT_PY = Path(r"C:\venvs\lerobot\Scripts\python.exe")
@@ -317,9 +318,11 @@ class Experiment:
             if self.config.get("repair", "rules") == EDITS_REPAIRER:
                 summary = perfect_stored_demo_edits(self.store, client, id, raw=raw, record_cameras=True)
             elif self.config.get("repair") == HYBRID_REPAIRER:
-                summary = perfect_stored_demo_hybrid(self.store, client, id, raw=raw, record_cameras=True)
+                summary = perfect_stored_demo_hybrid(self.store, client, id, raw=raw, record_cameras=True,
+                                                     retime_grasp=bool(self.config.get("grasp_retime")))
             else:
-                summary = perfect_stored_demo(self.store, client, id, "rules", raw=raw, record_cameras=True)
+                summary = perfect_stored_demo(self.store, client, id, "rules", raw=raw, record_cameras=True,
+                                              retime_grasp=bool(self.config.get("grasp_retime")))
             _write_json(self.marker("repair", id), summary)
             self.log(f"repair {id}: {summary['status']} ({len(summary['repairs'])} repairs, "
                      f"{summary['attempts']} verification(s))")
@@ -392,8 +395,11 @@ class Experiment:
                     continue
                 dst = sample_scene(np.random.default_rng(seed), ROBOT, seed)
                 vid = f"{src_id}_m{seed:04d}"
+                offset = self.config.get("approach_offset_m")
                 try:
-                    vt = variant_trajectory(src.trajectory, k, src.scene, dst)
+                    vt = variant_trajectory(src.trajectory, k, src.scene, dst,
+                                            wrap_yaw=bool(self.config.get("yaw_wrap")),
+                                            approach=approach_misalignment(seed, offset) if offset else None)
                 except ValueError as e:
                     mark["error"] = str(e)
                     break
@@ -401,6 +407,8 @@ class Experiment:
                     v = self._replay_into_store(client, vid, src_id, vt, dst, source="variant", variant_seed=seed)
                     row = {"seed": seed, "id": vid if v.success else None, "success": v.success,
                            "reasons": v.reasons}
+                    if offset:  # whether the centered approach applied (a source with no hover keeps its own)
+                        row["centred"] = find_hover(src.trajectory) is not None
                 except SimWorkerError as e:
                     if is_infrastructure(e):
                         _write_json(path, mark)
@@ -727,7 +735,7 @@ trained on the same {n} demos as recorded?
   - start-aligned;
   - plus {config['variants']} variants in new scenes, each kept only if it verifies.
 
-  A demo whose repair does not verify contributes nothing to this arm.
+  A demo whose repair does not verify contributes nothing to this arm.{data_fixes_text(config)}
 - **Start alignment** (both arms): a min-jerk move from the home pose to the demo's first pose is put in front
   of every training episode.
 
@@ -765,6 +773,27 @@ def assist_text(config: dict) -> str:
             f"selected demo either way, and the per-demo record is in config.json.")
 
 
+def data_fixes_text(config: dict) -> str:
+    """The 2026-10-20 data fixes this run uses (--yaw-wrap, --grasp-retime, --approach-offset); nothing when none."""
+    fixes = []
+    if config.get("grasp_retime"):
+        fixes.append("**grasp retime** (repair): the rules also rewrite a swoop grasp (closing faster than 5 cm/s, or "
+                     "fewer than 10 frames within 3 cm of the grasp point) into hover, a slow last 4 cm (at most 5 cm/s), "
+                     "stop, close, 0.4 s closed and still, a straight lift; within the 5 cm repair budget "
+                     "(demo_pipeline.grasp_retime)")
+    if config.get("yaw_wrap"):
+        fixes.append("**yaw wrap** (variants): the hand turns with the cube only to its nearest face, at most 45 degrees, "
+                     "as the scripted expert does")
+    if config.get("approach_offset_m"):
+        fixes.append(f"**centered approach** (variants): at a retimed grasp's hover, each variant arrives off by up to "
+                     f"{config['approach_offset_m'] * 100:g} cm and turned up to 35 degrees (seeded per variant), then "
+                     "centers and aligns before the descent; a variant whose source was not retimed has no hover and "
+                     "keeps its own approach")
+    if not fixes:
+        return ""
+    return "\n\n**Data fixes** (2026-10-20 research note; the same for every seed):\n" + "\n".join(f"- {f};" for f in fixes)
+
+
 def preregistration_one_arm(config: dict, ids: str) -> str:
     """--multiplied-only: an absolute test of the perfected+multiplied cell, with no comparison arm."""
     n, s0, ne = config["n_human"], config["eval_seed0"], config["eval_n"]
@@ -785,7 +814,7 @@ two-arm design; hashes in config.json.
 
 **The arm.** `perfected_multiply_{n}`: ACT, {config['steps']} steps, batch {config['batch_size']}. Each demo rules-repaired and
 verified in Isaac, start-aligned, plus {config['variants']} variants in new scenes, each kept only if it verifies.
-A demo whose repair does not verify contributes nothing.
+A demo whose repair does not verify contributes nothing.{data_fixes_text(config)}
 
 **Primary endpoint.** Successes out of {ne}, as the eval's physics check decides, on the unseen scenes with seeds
 **{s0}–{s0 + ne - 1}**.
@@ -980,6 +1009,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--repairer", choices=REPAIRERS, default="rules",
                    help="the repair step: the rules (hand-written ops), Nemotron's trajectory edits, or hybrid "
                         "(the rules, then the edits for a demo the rules discard)")
+    p.add_argument("--yaw-wrap", action="store_true",
+                   help="multiply: turn the hand only to the cube's nearest face (+-45 deg), as the scripted expert")
+    p.add_argument("--grasp-retime", action="store_true",
+                   help="repair: the rules also retime a swoop grasp (hover, slow last 4 cm, stop, close, hold, lift)")
+    p.add_argument("--approach-offset", type=float, default=None, metavar="M",
+                   help="multiply: the centered approach at the retimed grasp's hover, offsets up to M m (0.04)")
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)
@@ -996,6 +1031,15 @@ def main(argv: list[str] | None = None) -> int:
         settings["multiplied_only"] = True
     if args.min_demos is not None:  # likewise
         settings["min_demos"] = args.min_demos
+    # The 2026-10-20 data fixes (research note), likewise only when set
+    if args.yaw_wrap:
+        settings["yaw_wrap"] = True
+    if args.grasp_retime:
+        settings["grasp_retime"] = True
+    if args.approach_offset is not None:
+        if not 0 < args.approach_offset <= 0.05:
+            p.error("--approach-offset is a radius in m, 0 < r <= 0.05 (the note suggests 0.04)")
+        settings["approach_offset_m"] = args.approach_offset
     if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
         p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")

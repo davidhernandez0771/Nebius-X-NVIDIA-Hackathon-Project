@@ -244,3 +244,34 @@ def test_select_skips_discarded_demos(tmp_path):
     assert select_ids(store, tag="standin_*") == ["standin_00"]
     with pytest.raises(ValueError, match="not found"):
         select_ids(store, ids=["standin_01"])
+
+
+# --- the 2026-10-20 data fixes on the variants: yaw wrap and the centered approach at the hover ----------------
+
+def test_variant_options_default_to_the_old_variant_and_apply_when_asked():
+    import math
+
+    from demo_pipeline.grasp_retime import retime_grasp
+    from demo_pipeline.measure import gripper_events
+    from demo_pipeline.multiply import transform_trajectory
+    from demo_pipeline.schemas import Pose, Scene
+    from sim_worker.homeset import center_from_hover, rehome
+    from sim_worker.human_exp import align_home, variant_trajectory
+    from tests.test_dp_grasp_retime import _swoop
+
+    src_scene = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1, 0, 0, 0)),
+                      bin_pose=Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=(1, 0, 0, 0)), robot="franka", seed=0)
+    dst = Scene(cube_pose=Pose(pos=(0.45, -0.1, 0.025), quat_wxyz=(math.cos(0.7), 0, 0, math.sin(0.7))),
+                bin_pose=Pose(pos=(0.55, 0.25, 0.0), quat_wxyz=(1, 0, 0, 0)), robot="franka", seed=1)
+    swoop = _swoop()
+    aligned, k = align_home(retime_grasp(swoop, gripper_events(swoop)[0]).trajectory)
+    assert variant_trajectory(aligned, k, src_scene, dst) == rehome(transform_trajectory(aligned, src_scene, dst), k)
+    wrapped = rehome(transform_trajectory(aligned, src_scene, dst, wrap_yaw=True), k)
+    assert variant_trajectory(aligned, k, src_scene, dst, wrap_yaw=True) == wrapped
+    off, yaw = (0.02, 0.01), 0.3
+    assert variant_trajectory(aligned, k, src_scene, dst, wrap_yaw=True, approach=(off, yaw)) == \
+        center_from_hover(wrapped, off, yaw)
+    # no hover in the source (not retimed): the approach option leaves the variant as it was
+    plain, kp = align_home(swoop)
+    assert variant_trajectory(plain, kp, src_scene, dst, approach=(off, yaw)) == variant_trajectory(plain, kp, src_scene,
+                                                                                                    dst)
