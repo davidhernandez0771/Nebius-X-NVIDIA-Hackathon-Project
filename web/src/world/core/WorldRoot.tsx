@@ -23,6 +23,13 @@ import "./world.css";
 import "../ui/ui.css";
 import { Logo } from "../../sant/components/Logo";
 import { Contact } from "../ui/Contact";
+import { Wait } from "../ui/Wait";
+import { assets } from "./assets";
+import { isStanding } from "./standing";
+import { prefetchOrder, waitFor } from "./waiting";
+import { Loader } from "../stations/intro/Loader";
+import { load } from "../stations/intro/progress";
+import { INTRO_VH } from "../stations/intro/storyPlan";
 
 const WorldCanvas = lazy(() => import("./WorldCanvas"));
 
@@ -141,6 +148,23 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
   }, [store]);
   const coarse = useSyncExternalStore(store.subscribe, store.getCoarse);
   const veil = useRef<HTMLDivElement>(null);
+
+  // The heavier stations stream in the background once the 3D engine is up (it and the fonts come first),
+  // in the journey's order, with the station the visitor is at first (a return lands in the workshop).
+  useEffect(() => {
+    if (!run3D) return;
+    let started = false;
+    const start = () => {
+      if (started || (!load.done() && load.status().step === "engine")) return;
+      started = true;
+      assets.want(prefetchOrder(quality.name));
+      const c = store.getCoarse();
+      const here = waitFor(c.branch ?? c.current, store.frames.intro.t * INTRO_VH, quality.name, reduced);
+      if (here) assets.prioritize(here.files);
+    };
+    start();
+    return load.subscribe(start);
+  }, [run3D, quality.name, store, reduced]);
 
   useEffect(() => {
     if (import.meta.env.DEV) checkStations(stations).forEach((p) => console.warn(`world: ${p}`));
@@ -346,7 +370,13 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
 
   return (
     <WorldContext.Provider value={api}>
-      <div className="sant world" data-mode="volt" data-branch={coarse.branch ?? undefined} data-motion-world={reduced ? "reduced" : "full"}>
+      <div
+        className="sant world"
+        data-mode="volt"
+        data-branch={coarse.branch ?? undefined}
+        data-motion-world={reduced ? "reduced" : "full"}
+        data-loading={run3D && !coarse.ready}
+      >
         <a className="world-skip world-u" href="#world-workshop" onClick={skipIntro}>
           Skip the intro
         </a>
@@ -377,6 +407,9 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
           <span className="world-brand__line world-u">perfect, then multiply</span>
         </p>
         <Contact />
+        {run3D ? <Wait store={store} assets={assets} tier={quality.name} reduced={reduced} stands={isStanding} /> : null}
+        {/* Over everything, wherever the page opens (a return lands in the workshop, not at the hero). */}
+        {run3D ? <Loader /> : null}
         <JourneyRail stations={stations} at={at} goTo={jump} />
         {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />

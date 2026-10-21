@@ -13,6 +13,9 @@ import { PostFX } from "./PostFX";
 import type { QualityTier, TierName } from "./quality";
 import { targetDpr } from "./resolution";
 import type { WorldStore } from "./store";
+import { RoomBuild } from "./RoomBuild";
+import { rooms } from "./rooms";
+import { markStanding } from "./standing";
 import type { StationFrame, StationModule } from "./types";
 
 class StationBoundary extends Component<{ id: string; children: ReactNode }, { failed: boolean }> {
@@ -28,6 +31,12 @@ class StationBoundary extends Component<{ id: string; children: ReactNode }, { f
   }
 }
 
+/** Rendered past the station's Suspense: its scene stands (ui/Wait.tsx lifts on it). */
+function Standing({ id }: { id: string }) {
+  useEffect(() => markStanding(id), [id]);
+  return null;
+}
+
 function StationGroup({ station, frame, quality, reduced }: { station: StationModule; frame: StationFrame; quality: QualityTier; reduced: boolean }) {
   const ref = useRef<Group>(null);
   useFrame(() => {
@@ -39,6 +48,7 @@ function StationGroup({ station, frame, quality, reduced }: { station: StationMo
       <StationBoundary id={station.id}>
         <Suspense fallback={null}>
           <Scene frame={frame} quality={quality} reduced={reduced} />
+          <Standing id={station.id} />
         </Suspense>
       </StationBoundary>
     </group>
@@ -46,16 +56,18 @@ function StationGroup({ station, frame, quality, reduced }: { station: StationMo
 }
 
 /**
- * The stations' Scenes. Until the loader is done only the first rail station (the intro) is mounted,
- * so its shaders compile under the loader and the workshop's files stream in after the first frame.
+ * The stations' Scenes. The first rail station (the intro) mounts at once, so its shaders compile under
+ * the loader. The others mount when the room builder allows them (core/rooms.ts, RoomBuild.tsx): one at a
+ * time, once their files have streamed in (core/assets.ts), so their loaders find them in three's cache
+ * with no second download. Under the loader if they are in by then, else in idle time after the reveal.
  */
 function Stations({ store, stations, quality, reduced }: { store: WorldStore; stations: readonly StationModule[]; quality: QualityTier; reduced: boolean }) {
-  const ready = useSyncExternalStore(store.subscribe, () => store.getCoarse().ready);
   const first = store.rails[0].id;
+  const allowed = useSyncExternalStore(rooms.subscribe, () => rooms.list().join(","));
   return (
     <>
       {stations
-        .filter((s) => s.Scene && (ready || s.id === first))
+        .filter((s) => s.Scene && (s.id === first || allowed.split(",").includes(s.id)))
         .map((s) => (
           <StationGroup key={s.id} station={s} frame={store.frames[s.id]} quality={quality} reduced={reduced} />
         ))}
@@ -108,6 +120,7 @@ export default function WorldCanvas({
       {/* No lights here: the room's light is baked, and the workshop's live lights follow its lamps. */}
       <CameraRig store={store} stations={stations} reduced={reduced} onCut={onCut} />
       <Stations store={store} stations={stations} quality={quality} reduced={reduced} />
+      <RoomBuild store={store} stations={stations} tier={quality.name} reduced={reduced} />
       {quality.post ? <PostFX store={store} quality={quality} reduced={reduced} /> : null}
       <Resolution quality={quality} onDpr={setDpr} />
       <HudProbe />

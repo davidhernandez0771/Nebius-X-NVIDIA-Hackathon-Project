@@ -9,7 +9,10 @@
 //   MODE=parts  GPU time with each part hidden (PARTS=..., BIG=WxH also renders at that CSS size);
 //   MODE=shot   SHOTS="name:vh,..." screenshots (REDUCED=1, CLICK="x,y" CLICK_AT=name for a click);
 //   MODE=load   frames of the load sequence on a throttled network (KBPS, STEP ms, N frames);
-//   MODE=hold   frame and GPU time holding scroll positions (AT="name:vh,...", default the hero; SECONDS).
+//   MODE=hold   frame and GPU time holding scroll positions (AT="name:vh,...", default the hero; SECONDS);
+//   MODE=reveal the opening, RUNS fresh loads per tier: the loader's timeline, then for HOLD s after it lets go
+//               (holding the hero) the worst frame, frames over 16.7 ms, the stall (the sum over 16.7 ms) and the
+//               main thread's long tasks.
 // W, H, DPR: the viewport (default 1280 x 800 at 1.5); HEADFUL=1: a visible window instead of headless.
 import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -242,6 +245,65 @@ async function measured(expr) {
   r.mainThreadBusyPct = +((busy / (r.seconds * 1000)) * 100).toFixed(1);
   r.jsHeapMB = +(b.JSHeapUsedSize / 1048576).toFixed(1);
   return r;
+}
+
+if (process.env.MODE === "reveal") {
+  // Recorded from the document's start: every frame interval, every long task, the loader's status, its reveal.
+  await send("Page.addScriptToEvaluateOnNewDocument", {
+    source: String.raw`(() => {
+      const L = (window.__reveal = { status: [], long: [], frames: [], reveal: null });
+      try { new PerformanceObserver((l) => l.getEntries().forEach((e) => L.long.push([e.startTime, e.duration]))).observe({ type: "longtask", buffered: true }); } catch {}
+      let last = 0;
+      const tick = (t) => { if (last) L.frames.push([t, t - last]); last = t; requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      new MutationObserver(() => {
+        const bar = document.querySelector(".world-loader [role=progressbar]") || document.querySelector(".world-loader[role=progressbar]");
+        const loader = document.querySelector(".world-loader");
+        const txt = bar ? (bar.getAttribute("aria-valuetext") || "") + " " + bar.getAttribute("aria-valuenow") : null;
+        const s = L.status[L.status.length - 1];
+        if (txt && (!s || s[1] !== txt)) L.status.push([Math.round(performance.now()), txt]);
+        if (L.reveal === null && L.status.length && (!loader || loader.dataset.done === "true")) L.reveal = performance.now();
+      }).observe(document, { subtree: true, attributes: true, childList: true });
+    })();`,
+  });
+  const HOLD = Number(process.env.HOLD ?? 6);
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  for (const tier of (process.env.TIERS ?? "high,ultra").split(",")) {
+    results.runs[tier] = [];
+    for (let run = 0; run < Number(process.env.RUNS ?? 3); run++) {
+      await send("Network.clearBrowserCache").catch(() => {});
+      // Through a blank page, so the first check below can't read the last run's page.
+      await send("Page.navigate", { url: "about:blank" });
+      await sleep(300);
+      await send("Page.navigate", { url: `${BASE}/world?quality=${tier}` });
+      await sleep(300);
+      for (let i = 0; i < 240; i++) {
+        await sleep(250);
+        if (await evaluate("!!(window.__reveal && window.__reveal.reveal !== null)").catch(() => false)) break;
+      }
+      await sleep(HOLD * 1000);
+      const L = await evaluate("window.__reveal");
+      const inHold = (a) => a.filter(([t]) => t >= L.reveal && t <= L.reveal + HOLD * 1000);
+      const frames = inHold(L.frames).map(([, d]) => d);
+      const long = inHold(L.long).map(([, d]) => d);
+      const r = {
+        revealMs: Math.round(L.reveal),
+        timeline: L.status,
+        frames: frames.length,
+        worstFrameMs: +Math.max(0, ...frames).toFixed(1),
+        over16: frames.filter((d) => d > 16.7).length,
+        stallMs: Math.round(sum(frames.map((d) => Math.max(0, d - 16.7)))),
+        longTasks: long.length,
+        longestTaskMs: Math.round(Math.max(0, ...long)),
+        longTotalMs: Math.round(sum(long)),
+      };
+      results.runs[tier].push(r);
+      console.log(tier, run, JSON.stringify({ reveal: r.revealMs, worst: r.worstFrameMs, over16: r.over16, stall: r.stallMs, long: r.longTasks, longest: r.longestTaskMs }));
+    }
+  }
+  writeFileSync(OUT, JSON.stringify(results, null, 2));
+  chrome.kill();
+  process.exit(0);
 }
 
 if (process.env.MODE === "hold") {
