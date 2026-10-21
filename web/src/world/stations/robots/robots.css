@@ -73,14 +73,55 @@
   border-top: 1px solid var(--w-line);
 }
 
-.world-robots__list {
+.world-robots__also {
+  padding-top: 10px;
+  border-top: 1px solid var(--w-line);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--w-dim);
+}
+.world-robots__subtitle {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--w-ink);
+}
+.world-robots__also p {
+  margin: 0 0 6px;
+}
+.world-robots__also ul {
+  margin: 0;
+  padding-left: 16px;
+}
+.world-robots__also b {
+  color: var(--w-ink);
+  font-weight: 600;
+}
+
+/* The list, the arms on the other wall and the note scroll together; the head and the lede stay. */
+.world-robots__scroll {
   flex: 1;
   min-height: 0;
-  margin: 0;
   padding: 0 4px 0 0;
-  list-style: none;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
+  display: grid;
+  /* minmax(0, …): a long repo path wraps instead of widening the column. */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+}
+.world-robots__facts dd,
+.world-robots__also li {
+  overflow-wrap: anywhere;
+}
+.world-robots__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: grid;
   align-content: start;
   gap: 10px;

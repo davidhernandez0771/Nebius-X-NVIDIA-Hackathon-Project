@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG, STATUS_LABEL, robotById, specLine } from "./catalog";
+import { CATALOG, STATUS_LABEL, WALL_ONLY, robotById, specLine } from "./catalog";
 
 describe("the robots catalog", () => {
   it("lists the five robots SANT tests with, the Isaac-tested ones first", () => {
@@ -58,6 +58,24 @@ describe("the robots catalog", () => {
   it("writes a short spec line from the fields it has", () => {
     expect(specLine(robotById("franka"))).toBe("DoF 7 · reach 0.86 m");
     expect(specLine(robotById("so101"))).toBe("DoF 5 + jaw · reach 0.31 m");
+  });
+
+  it("says what stands on the wall for each robot: its maker's meshes with their repo and licence, or a stand-in", () => {
+    expect(robotById("franka").model).toBe("Its maker's published meshes: frankarobotics/franka_description@7aeeddc, Apache-2.0.");
+    expect(robotById("so101").model).toContain("TheRobotStudio/SO-ARM100@a758567, Apache-2.0");
+    expect(robotById("openarm").model).toContain("enactic/openarm_description@206eb8a, Apache-2.0");
+    // SOURCES.md: the repo's LICENSE is MIT, its package.xml says BSD.
+    expect(robotById("piper").model).toContain("agilexrobotics/piper_ros@ac41fcb, MIT (its package.xml says BSD)");
+    expect(robotById("flexiv").model).toMatch(/^A simple stand-in/);
+  });
+
+  it("lists the arms on the wall that SANT hasn't run, from their URDFs, without a status", () => {
+    expect(WALL_ONLY.map((r) => r.id)).toEqual(["fr3", "ur5e", "xarm6"]);
+    const ur = WALL_ONLY.find((r) => r.id === "ur5e")!;
+    expect(ur.name).toBe("Universal Robots UR5e");
+    expect(ur.spec).toBe("DoF 6 · reach 0.97 m");
+    expect(ur.model).toContain("UniversalRobots/Universal_Robots_ROS2_Description@d4042c1, BSD-3-Clause");
+    for (const r of WALL_ONLY) expect(CATALOG.map((x) => x.id)).not.toContain(r.id);
   });
 
   it("throws on an unknown robot", () => {

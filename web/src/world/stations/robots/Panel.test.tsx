@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { WorldContext, type WorldApi } from "../../core/WorldContext";
+import { TIERS } from "../../core/quality";
 import { robotsView } from "./hot";
 import { Panel } from "./Panel";
 
-function at(current = true) {
-  const api = { back: vi.fn() } as unknown as WorldApi;
+function at(current = true, tier: "low" | "high" = "high") {
+  const api = { back: vi.fn(), quality: TIERS[tier] } as unknown as WorldApi;
   render(
     <WorldContext.Provider value={api}>
       <Panel current={current} reduced={false} />
@@ -45,9 +46,23 @@ describe("the robots catalog panel", () => {
     expect(screen.queryByText("Payload")).toBeNull();
   });
 
-  it("says which wall models are real meshes and which are stand-ins", () => {
+  it("says the wall's robots are their makers' published meshes, with each one's licence, and the Flexiv a stand-in", () => {
     at();
-    expect(screen.getByText(/stand-ins/)).toBeTruthy();
+    expect(screen.getByText(/makers' published CAD meshes/)).toBeTruthy();
+    const has = (s: string) => (text: string) => text.includes(s);
+    expect(within(entry("Franka Panda")).getByText(has("franka_description@7aeeddc, Apache-2.0"))).toBeTruthy();
+    expect(within(entry("PiPER")).getByText(has("MIT (its package.xml says BSD)"))).toBeTruthy();
+    expect(within(entry("Flexiv Rizon 4s")).getByText(/^A simple stand-in/)).toBeTruthy();
+  });
+
+  it("lists the arms on the right wall that SANT hasn't run, except on the low tier, which leaves them off the wall", () => {
+    at();
+    const also = screen.getByRole("region", { name: "Also on the wall" });
+    expect(within(also).getAllByRole("listitem").map((li) => li.querySelector("b")?.textContent)).toEqual(["Franka Research 3", "Universal Robots UR5e", "UFACTORY xArm 6 + xArm gripper"]);
+    expect(within(also).getByText(/SANT hasn't run them/)).toBeTruthy();
+    cleanup();
+    at(true, "low");
+    expect(screen.queryByRole("region", { name: "Also on the wall" })).toBeNull();
   });
 
   it("highlights a robot on the wall while its entry is hovered or focused", () => {

@@ -1,19 +1,19 @@
-// The robot wall's meshes (wallPlan.ts says what stands where). Every piece is a primitive or one of
-// the Franka's collision meshes (the STLs the twin already loads), coloured per vertex and merged into
-// ONE geometry for the whole wall, so both walls cost a single draw call (the library they replace
-// cost two). Each vertex carries `aSpot`: the picture light over its item (xyz, under the board above)
-// and the item's number in w (1–5 for the catalog robots, 0 for parts), which RobotWall's shader uses
-// for the museum light pools and the highlight. A second, additive geometry is the glow each light
-// throws on the wall behind its item.
+// The robot wall's meshes (wallPlan.ts says what stands where). The robots are their makers' published
+// meshes (robotModels.ts), all at one scale so their real sizes show against each other; the parts are
+// pieces of the same meshes, enlarged as specimens on a foot and a rod; the Flexiv, which has no open
+// meshes, is a simple stand-in. Everything is coloured per vertex and merged into ONE geometry for the
+// whole wall, so both walls cost a single draw call (the library they replaced cost two). Each vertex
+// carries `aSpot`: the picture light over its item (xyz, under the board above) and the item's number in
+// w (1–5 for the catalog robots, 0 for the rest), which RobotWall's shader uses for the museum light and
+// the highlight. A second, additive geometry is the glow each light throws on the wall behind its item.
 //
 // Local frame of an item: origin on the board at the item's centre, +y up, +x out into the room, z
-// along the wall. Each builder is fitted into its kind's footprint (ITEM_SIZE).
+// along the wall. Each builder stays inside its kind's footprint (ITEM_SIZE).
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { URDFRobot } from "urdf-loader";
-import { FRANKA } from "../../twin/model";
 import { CATALOG } from "../stations/robots/catalog";
-import { FRANKA_LINKS, ITEM_SIZE, itemBase, type ItemKind, type WallItem } from "./wallPlan";
+import { MODEL_IDS, modelPieces } from "./robotModels";
+import { ITEM_SIZE, itemBase, type ItemKind, type WallItem } from "./wallPlan";
 
 const C = {
   paint: new THREE.Color("#d9d5cc"),
@@ -21,7 +21,6 @@ const C = {
   graphite: new THREE.Color("#2b3034"),
   metal: new THREE.Color("#8d9399"),
   teal: new THREE.Color("#19f5c2"),
-  amber: new THREE.Color("#e8a33d"),
   plinth: new THREE.Color("#0e1113"),
   card: new THREE.Color("#cfcabd"),
 };
@@ -30,6 +29,20 @@ const PLINTH_H = 0.16;
 /** The picture light hangs under the board above, this far up from the item's board and out from its centre. */
 const SPOT_UP = 2.95;
 const SPOT_OUT = 1.3;
+
+/**
+ * Every robot's model is scaled by this (the room is built large: its shelves are 3.2 m apart), so the
+ * UR5e (0.81 m) stands about 2.07 m and the SO-101 (0.21 m) about 0.53 m: their real sizes, side by side.
+ * The largest that fits every model in the robot footprint at YAW (tested).
+ */
+export const ROBOT_SCALE = 2.55;
+/** The arm reaches along the wall, turned 20° out toward the room (a turn of 70° about y from +x). */
+const YAW = (70 * Math.PI) / 180;
+/** The parts are enlarged specimens: this much bigger than the robots, or as big as their footprint allows. */
+const PART_SCALE = ROBOT_SCALE * 1.8;
+/** A piece heavier than this stays off the shelves (the xArm's fused base is 8,800 triangles); the low tier's limit is lower. */
+export const PART_MAX_TRIS = 3000;
+export const PART_MAX_TRIS_LOW = 1000;
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -41,7 +54,7 @@ class Kit {
   private geos: THREE.BufferGeometry[] = [];
   constructor(private seg = 14) {}
 
-  /** Adds a piece in one colour (null: a piece that already has its colours, from another Kit). */
+  /** Adds a piece in one colour (null: a piece that already has its colours). */
   add(geo: THREE.BufferGeometry, color: THREE.Color | null, at: [number, number, number] = [0, 0, 0], rot: [number, number, number] = [0, 0, 0], quat?: THREE.Quaternion): this {
     const g = geo.index ? geo : mergeVertices(geo);
     const keep = color === null ? g.getAttribute("color") : null;
@@ -83,6 +96,15 @@ class Kit {
   }
 }
 
+/** Moves a geometry to stand on y = 0, centred in x and z. */
+function centre(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  g.computeBoundingBox();
+  const b = g.boundingBox!;
+  g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+  g.computeBoundingBox();
+  return g;
+}
+
 /** Scales and moves a geometry into a footprint: standing on y = 0, centred in x and z. */
 function fit(g: THREE.BufferGeometry, kind: ItemKind, margin = 1): THREE.BufferGeometry {
   g.computeBoundingBox();
@@ -93,6 +115,32 @@ function fit(g: THREE.BufferGeometry, kind: ItemKind, margin = 1): THREE.BufferG
   g.scale(k, k, k);
   g.computeBoundingBox();
   return g;
+}
+
+/** A robot's model on the wall: turned to reach along it (out toward the room), at ROBOT_SCALE, centred. */
+export function robotGeometry(model: THREE.BufferGeometry): THREE.BufferGeometry {
+  const g = model.clone();
+  g.rotateY(YAW);
+  g.scale(ROBOT_SCALE, ROBOT_SCALE, ROBOT_SCALE);
+  return centre(g);
+}
+
+/** One real piece on display: on a dark foot and a thin rod, enlarged as far as its footprint allows. */
+export function partGeometry(piece: THREE.BufferGeometry, kind: Exclude<ItemKind, "robot">): THREE.BufferGeometry {
+  const s = ITEM_SIZE[kind];
+  const foot = 0.04;
+  const rod = kind === "part-lg" ? 0.42 : 0.3;
+  const g = piece.clone();
+  g.computeBoundingBox();
+  const size = g.boundingBox!.getSize(new THREE.Vector3());
+  const k = Math.min(PART_SCALE, (0.94 * (s.height - foot - rod)) / size.y, (0.92 * s.depth) / size.x, (0.92 * s.width) / size.z);
+  g.scale(k, k, k);
+  centre(g).translate(0, foot + rod, 0);
+  const kit = new Kit(12);
+  kit.cyl(Math.min(0.26, s.depth * 0.3), foot, C.dark, [0, foot / 2, 0]);
+  kit.cyl(0.025, rod, C.metal, [0, foot + rod / 2, 0]);
+  kit.add(g, null);
+  return kit.geometry();
 }
 
 /** A gripper pointing down from (0, 0, 0) in the profile plane: style 0 parallel jaws, 1 adaptive (Grav-like), 2 a single jaw. */
@@ -120,93 +168,9 @@ function gripperOn(kit: Kit, style: number, s: number, at: [number, number], til
   kit.add(g, null);
 }
 
-function gripper(variant: number): THREE.BufferGeometry {
-  const kit = new Kit();
-  kit.cyl(0.3, 0.1, C.dark, [0, 0.05, 0]);
-  kit.cyl(0.31, 0.02, C.teal, [0, 0.11, 0]);
-  const style = variant % 3;
-  const parts = new Kit();
-  // Upside down (fingers up), as a gripper stands on display.
-  if (style === 0) {
-    parts.box(0.55, 0.4, 0.34, C.paint, [0, 0.32, 0]);
-    parts.box(0.6, 0.06, 0.2, C.dark, [0, 0.55, 0]);
-    for (const k of [-1, 1]) {
-      parts.box(0.09, 0.55, 0.16, C.dark, [0, 0.85, k * 0.18]);
-      parts.box(0.1, 0.16, 0.17, C.metal, [0, 1.08, k * 0.18]);
-    }
-  } else if (style === 1) {
-    parts.cyl(0.25, 0.3, C.paint, [0, 0.27, 0]);
-    for (const k of [-1, 1]) {
-      parts.box(0.08, 0.5, 0.16, C.metal, [0, 0.65, k * 0.16], [k * 0.35, 0, 0]);
-      parts.box(0.07, 0.42, 0.15, C.dark, [0, 1.05, k * 0.22], [-k * 0.25, 0, 0]);
-    }
-  } else {
-    parts.box(0.4, 0.36, 0.3, C.dark, [0, 0.3, 0]);
-    parts.box(0.08, 0.6, 0.14, C.paint, [0, 0.78, -0.1]);
-    parts.box(0.08, 0.5, 0.14, C.paint, [0, 0.72, 0.13], [-0.3, 0, 0]);
-  }
-  kit.add(parts.geometry(), null);
-  return fit(kit.geometry(), "gripper", 0.82 + 0.05 * (variant % 2));
-}
-
-function wrist(variant: number): THREE.BufferGeometry {
-  const kit = new Kit();
-  kit.cyl(0.32, 0.1, C.dark, [0, 0.05, 0]);
-  kit.cyl(0.26, 0.5, variant % 2 ? C.graphite : C.paint, [0, 0.35, 0]);
-  kit.cyl(0.27, 0.025, C.teal, [0, 0.6, 0]);
-  kit.cyl(0.22, 0.62, variant % 2 ? C.graphite : C.paint, [0, 0.78, 0], [Math.PI / 2, 0, 0]);
-  for (const k of [-1, 1]) kit.cyl(0.23, 0.05, C.dark, [0, 0.78, k * 0.33], [Math.PI / 2, 0, 0]);
-  kit.cyl(0.16, 0.12, C.metal, [0, 1.06, 0]);
-  return fit(kit.geometry(), "wrist", 0.85 + 0.04 * (variant % 3));
-}
-
-function link(variant: number): THREE.BufferGeometry {
-  const kit = new Kit();
-  const len = 1.15 + 0.12 * variant;
-  const tilt = 0.18 + 0.06 * (variant % 2);
-  kit.cyl(0.32, 0.06, C.dark, [0, 0.03, 0]);
-  kit.cyl(0.03, 0.42, C.metal, [0, 0.27, 0]);
-  const a: [number, number] = [-Math.sin(tilt) * len * 0.5, 0.5];
-  const b: [number, number] = [Math.sin(tilt) * len * 0.5, 0.5 + Math.cos(tilt) * len];
-  kit.bar(a, b, 0.15, variant % 2 ? C.paint : C.graphite, C.dark, 0.21);
-  kit.cyl(0.21, 0.34, C.dark, [0, b[1], b[0]], [0, 0, Math.PI / 2]);
-  return fit(kit.geometry(), "link", 0.9);
-}
-
-function motor(variant: number): THREE.BufferGeometry {
-  const kit = new Kit();
-  kit.box(0.5, 0.06, 0.5, C.dark, [0, 0.03, 0]);
-  kit.cyl(0.3, 0.55, C.metal, [0, 0.34, 0]);
-  for (let i = 0; i < 5; i++) kit.cyl(0.315, 0.03, C.graphite, [0, 0.14 + i * 0.1, 0]);
-  kit.cyl(0.05, 0.22, C.metal, [0, 0.72, 0]);
-  kit.box(0.2, 0.15, 0.16, variant % 2 ? C.amber : C.dark, [0.3, 0.3, 0]);
-  return fit(kit.geometry(), "motor", 0.88);
-}
-
-function base(variant: number): THREE.BufferGeometry {
-  const kit = new Kit();
-  kit.cyl(0.5, 0.18, C.dark, [0, 0.09, 0]);
-  kit.cyl(0.42, 0.06, C.paint, [0, 0.21, 0]);
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    kit.cyl(0.03, 0.05, C.metal, [Math.cos(a) * 0.34, 0.26, Math.sin(a) * 0.34]);
-  }
-  kit.cyl(0.26, 0.35, variant % 2 ? C.graphite : C.paint, [0, 0.42, 0]);
-  kit.cyl(0.265, 0.025, C.teal, [0, 0.58, 0]);
-  return fit(kit.geometry(), "base", 0.86);
-}
-
-export function partGeometry(kind: Exclude<ItemKind, "robot" | "franka-link">, variant: number): THREE.BufferGeometry {
-  if (kind === "gripper") return gripper(variant);
-  if (kind === "wrist") return wrist(variant);
-  if (kind === "link") return link(variant);
-  if (kind === "motor") return motor(variant);
-  return base(variant);
-}
-
 /**
- * The arms with no mesh on the site, as simple stand-ins in profile (z along the wall, y up): their
- * joint chain, link radius, colours and gripper. Shapes only suggest each arm; they aren't its real
+ * The catalog robot with no open meshes, as a simple stand-in in profile (z along the wall, y up): its
+ * joint chain, link radius, colours and gripper. The shape only suggests the arm; it isn't its real
  * geometry or size (the catalog panel says so).
  */
 interface StandIn {
@@ -220,9 +184,6 @@ interface StandIn {
 
 export const STAND_INS: Record<string, StandIn> = {
   flexiv: { base: { r: 0.09, h: 0.1 }, points: [[0, 0.1], [0, 0.36], [0.2, 0.62], [0.43, 0.5], [0.5, 0.36]], r: 0.04, link: C.paint, joint: C.graphite, gripper: 1 },
-  openarm: { base: { r: 0.08, h: 0.14, block: true }, points: [[0, 0.14], [0, 0.3], [0.1, 0.52], [0.33, 0.48], [0.4, 0.34]], r: 0.038, link: C.dark, joint: C.metal, gripper: 0 },
-  so101: { base: { r: 0.05, h: 0.05, block: true }, points: [[0, 0.05], [0, 0.11], [0.06, 0.25], [0.18, 0.24], [0.22, 0.16]], r: 0.018, link: C.paint, joint: C.dark, gripper: 2 },
-  piper: { base: { r: 0.07, h: 0.08 }, points: [[0, 0.08], [0, 0.16], [0.14, 0.33], [0.33, 0.31], [0.37, 0.2]], r: 0.032, link: C.metal, joint: C.dark, gripper: 0 },
 };
 
 export function standIn(id: string): THREE.BufferGeometry {
@@ -239,62 +200,38 @@ export function standIn(id: string): THREE.BufferGeometry {
   // The gripper follows the last link's direction (pointing down and out).
   const tilt = Math.atan2(end[0] - prev[0], -(end[1] - prev[1]));
   gripperOn(kit, s.gripper, s.r * 3.2, end, -tilt);
-  return fit(kit.geometry(), "robot");
+  return fit(kit.geometry(), "robot", 0.8);
 }
 
-type MeshLike = THREE.Mesh & { geometry: THREE.BufferGeometry };
-
-/** The meshes of one URDF link, without its child links', in the link's own frame. */
-function linkMeshes(link: THREE.Object3D): THREE.BufferGeometry[] {
-  const inv = new THREE.Matrix4().copy(link.matrixWorld).invert();
-  const out: THREE.BufferGeometry[] = [];
-  const walk = (o: THREE.Object3D) => {
-    for (const c of o.children) {
-      const u = c as THREE.Object3D & { isURDFLink?: boolean; isURDFJoint?: boolean };
-      if (u.isURDFLink || u.isURDFJoint) continue;
-      if ((c as MeshLike).isMesh) out.push((c as MeshLike).geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld)));
-      walk(c);
-    }
-  };
-  walk(link);
-  return out;
+/** The loaded models, ready for the wall: each robot as it stands, and the parts' pieces, mixed across robots. */
+export interface WallModels {
+  robots: Partial<Record<string, THREE.BufferGeometry>>;
+  pieces: THREE.BufferGeometry[];
+  /** Which robot each piece comes from. */
+  sources: string[];
 }
 
-export interface FrankaPieces {
-  /** The whole arm in Isaac Lab's start pose, in profile. */
-  arm: THREE.BufferGeometry;
-  /** Single links as specimens. */
-  links: Record<(typeof FRANKA_LINKS)[number], THREE.BufferGeometry>;
-}
+const triCount = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.getAttribute("position").count) / 3;
 
-/** The Franka from its URDF's collision meshes (urdf-loader, as the twin loads it). */
-export function frankaPieces(robot: URDFRobot): FrankaPieces {
-  for (const [name, v] of Object.entries(FRANKA.rest)) robot.joints[name]?.setJointValue(v);
-  robot.updateMatrixWorld(true);
-  const colorOf = (name: string) => (/finger/.test(name) ? C.dark : /link0/.test(name) ? C.graphite : C.paint);
-  // URDF is z-up; the wall is y-up. The arm reaches along +x: turn it a quarter so it reaches along the wall.
-  const zUp = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
-  const side = new THREE.Matrix4().makeRotationY(Math.PI / 2);
-  const rootInv = new THREE.Matrix4().copy(robot.matrixWorld).invert();
-  const arm = new Kit();
-  for (const [name, l] of Object.entries(robot.links)) {
-    const toRoot = new THREE.Matrix4().multiplyMatrices(rootInv, l.matrixWorld);
-    for (const g of linkMeshes(l)) arm.add(g.applyMatrix4(toRoot).applyMatrix4(zUp).applyMatrix4(side), colorOf(name));
+export function wallModels(models: Partial<Record<string, THREE.BufferGeometry>>, maxTris = PART_MAX_TRIS): WallModels {
+  const robots: WallModels["robots"] = {};
+  const lists: [string, THREE.BufferGeometry[]][] = [];
+  for (const id of MODEL_IDS) {
+    const m = models[id];
+    if (!m) continue;
+    robots[id] = robotGeometry(m);
+    lists.push([id, modelPieces(m).filter((p) => triCount(p) <= maxTris)]);
   }
-  const links = {} as FrankaPieces["links"];
-  for (const name of FRANKA_LINKS) {
-    const l = robot.links[`panda_${name}`];
-    if (!l) throw new Error(`world: the Franka URDF has no panda_${name}`);
-    // On display: the link on a thin rod over a small foot.
-    const mesh = new Kit();
-    for (const g of linkMeshes(l)) mesh.add(g.applyMatrix4(zUp), C.paint);
-    const kit = new Kit();
-    kit.add(fit(mesh.geometry(), "franka-link", 0.62).translate(0, 0.5, 0), null);
-    kit.cyl(0.24, 0.05, C.dark, [0, 0.025, 0]);
-    kit.cyl(0.03, 0.5, C.metal, [0, 0.27, 0]);
-    links[name] = fit(kit.geometry(), "franka-link", 0.95);
-  }
-  return { arm: fit(arm.geometry(), "robot"), links };
+  // Rank by rank, so neighbours on a shelf come from different robots.
+  const pieces: THREE.BufferGeometry[] = [];
+  const sources: string[] = [];
+  for (let rank = 0; lists.some(([, l]) => rank < l.length); rank++)
+    for (const [id, l] of lists)
+      if (rank < l.length) {
+        pieces.push(l[rank]);
+        sources.push(id);
+      }
+  return { robots, pieces, sources };
 }
 
 /** The picture light over an item: under the board above it, out toward the room. */
@@ -303,11 +240,15 @@ function spotFor(it: WallItem): THREE.Vector3 {
   return new THREE.Vector3(x - it.side * SPOT_OUT, y + SPOT_UP, z);
 }
 
-/** An item's local geometry (null: the Franka's meshes aren't in yet). */
-function itemGeometry(it: WallItem, franka: FrankaPieces | null): THREE.BufferGeometry | null {
-  if (it.kind === "robot") return it.robot === "franka" ? franka?.arm.clone() ?? null : standIn(it.robot!);
-  if (it.kind === "franka-link") return franka ? franka.links[it.mesh!].clone() : null;
-  return partGeometry(it.kind, it.variant);
+/** An item's local geometry (null: its model isn't in, or didn't load). */
+function itemGeometry(it: WallItem, models: WallModels | null): THREE.BufferGeometry | null {
+  if (it.kind === "robot") {
+    const m = models?.robots[it.robot!];
+    if (m) return m.clone();
+    return STAND_INS[it.robot!] ? standIn(it.robot!) : null;
+  }
+  if (!models?.pieces.length) return null;
+  return partGeometry(models.pieces[it.variant % models.pieces.length], it.kind);
 }
 
 /** Gives every vertex its item's picture light and number (aSpot). */
@@ -321,7 +262,7 @@ function withSpot(g: THREE.BufferGeometry, it: WallItem, n: number): THREE.Buffe
 }
 
 /** The whole wall, in world coordinates, as one geometry: position, normal, color and aSpot. */
-export function buildWall(plan: readonly WallItem[], franka: FrankaPieces | null): THREE.BufferGeometry {
+export function buildWall(plan: readonly WallItem[], models: WallModels | null): THREE.BufferGeometry {
   const ids = CATALOG.map((r) => r.id);
   const all: THREE.BufferGeometry[] = [];
   for (const it of plan) {
@@ -331,9 +272,10 @@ export function buildWall(plan: readonly WallItem[], franka: FrankaPieces | null
     // The museum card on the board's front edge, tilted up to the room.
     kit.box(Math.min(0.55, size.width * 0.4), 0.03, 0.22, C.card, [0.72, 0.06, size.width * 0.18], [0, 0, -0.5]);
     const stand = kit.geometry();
-    const g = itemGeometry(it, franka)?.translate(0, PLINTH_H, 0) ?? null;
-    // The plinth and the card keep number 0: only the robot itself lights up.
-    const item = g ? mergeGeometries([withSpot(stand, it, 0), withSpot(g, it, it.robot ? ids.indexOf(it.robot) + 1 : 0)])! : withSpot(stand, it, 0);
+    const g = itemGeometry(it, models)?.translate(0, PLINTH_H, 0) ?? null;
+    // The plinth and the card keep number 0, and so do the extras: only a catalog robot lights up.
+    const n = it.robot && !it.extra ? ids.indexOf(it.robot) + 1 : 0;
+    const item = g ? mergeGeometries([withSpot(stand, it, 0), withSpot(g, it, n)])! : withSpot(stand, it, 0);
     // Face the room: the left wall's room is +x (as built), the right wall's is -x.
     if (it.side === 1) item.rotateY(Math.PI);
     const [x, y, z] = itemBase(it);
@@ -362,4 +304,3 @@ export function buildPools(plan: readonly WallItem[]): THREE.BufferGeometry {
   if (!g) throw new Error("world: the pools don't merge");
   return g;
 }
-

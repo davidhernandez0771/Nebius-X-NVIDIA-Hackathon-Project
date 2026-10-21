@@ -1,6 +1,8 @@
 // The robot wall: the side walls' shelves, holding robots and robot parts instead of the old library of
-// cartridge spines (wallPlan.ts places them, wallParts.ts builds them). One merged mesh for both walls
-// and one additive mesh for the light pools behind the items: two draw calls, as the library had.
+// cartridge spines (wallPlan.ts places them, wallParts.ts builds them). The robots are their makers'
+// published meshes (robotModels.ts), loaded after the room; until they are in, the shelves show their
+// plinths. One merged mesh for both walls and one additive mesh for the light pools behind the items:
+// two draw calls, as the library had. The low tier leaves the three extra robots out and uses lighter parts.
 //
 // Lit like a museum wall: each item has a picture light under the board above it, a cone of warm light
 // computed in the shader from the vertex's `aSpot` (it follows the lamps), plus the room's live lights.
@@ -17,9 +19,10 @@ import { useWorld } from "../core/WorldContext";
 import { CATALOG } from "../stations/robots/catalog";
 import { hotNumber, robotsView } from "../stations/robots/hot";
 import { ROBOT_WALL } from "./assets";
-import { addGlow, markLoaded, power } from "./power";
-import { buildPools, buildWall, frankaPieces, type FrankaPieces } from "./wallParts";
-import { BOARDS, ITEM_SIZE, WALL, robotSpot, wallPlan } from "./wallPlan";
+import { addGlow, loadProgress, markLoaded, power } from "./power";
+import { MODEL_IDS, loadRobotModel } from "./robotModels";
+import { PART_MAX_TRIS, PART_MAX_TRIS_LOW, buildPools, buildWall, wallModels, type WallModels } from "./wallParts";
+import { BOARDS, EXTRA_ROBOTS, ITEM_SIZE, WALL, robotSpot, wallPlan } from "./wallPlan";
 
 /** The picture lights at full power (added to the diffuse colour under each cone). */
 const SPOT = 1.6;
@@ -100,26 +103,51 @@ const SPOTS = CATALOG.map((r) => ({ id: r.id, name: r.name, ...robotSpot(r.id) }
 export function RobotWall({ quality, reduced }: { quality: QualityTier; reduced: boolean }) {
   const { store, goTo } = useWorld();
   const invalidate = useThree((s) => s.invalidate);
-  const plan = useMemo(() => wallPlan(), []);
-  const [franka, setFranka] = useState<FrankaPieces | null>(null);
+  const low = quality.name === "low";
+  const plan = useMemo(() => wallPlan({ extras: !low }), [low]);
+  const [models, setModels] = useState<WallModels | null>(null);
 
-  // The Franka's collision meshes (140 KB, the twin's): until they are in, its place shows its plinth.
-  // urdf-loader loads only here, after the room (firstLoad.test.ts).
+  // The robots' models (0.25–0.76 MB each; the low tier skips the extras'): fetched once the room's own
+  // models are in (or after 15 s), so they never hold up the first view. A model that fails leaves its
+  // plinth empty; the others still stand.
   useEffect(() => {
     let live = true;
-    import("../../twin/loadTwinRobot")
-      .then((m) => m.loadTwinRobot())
-      .then((t) => {
-        // Half a robot would be worse than none: only a complete load stands on the wall.
-        if (live && !t.stick) setFranka(frankaPieces(t.robot));
-      })
-      .catch((e) => console.warn("world: the Franka's meshes didn't load for the robot wall", e));
+    const ids = MODEL_IDS.filter((id) => !low || !(EXTRA_ROBOTS as readonly string[]).includes(id));
+    const started = performance.now();
+    let timer = 0;
+    const load = () => {
+      Promise.allSettled(ids.map((id) => loadRobotModel(id))).then((res) => {
+        const got: Record<string, THREE.BufferGeometry> = {};
+        res.forEach((r, i) => {
+          if (r.status === "fulfilled") got[ids[i]] = r.value;
+          else console.warn(`world: the ${ids[i]} model didn't load for the robot wall`, r.reason);
+        });
+        const built = live ? wallModels(got, low ? PART_MAX_TRIS_LOW : PART_MAX_TRIS) : null;
+        Object.values(got).forEach((g) => g.dispose());
+        if (built) setModels(built);
+      });
+    };
+    const wait = () => {
+      if (!live) return;
+      if (loadProgress() >= 1 || performance.now() - started > 15000) load();
+      else timer = window.setTimeout(wait, 250);
+    };
+    wait();
     return () => {
       live = false;
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [low]);
+  useEffect(
+    () => () => {
+      if (!models) return;
+      Object.values(models.robots).forEach((g) => g?.dispose());
+      models.pieces.forEach((g) => g.dispose());
+    },
+    [models],
+  );
 
-  const geometry = useMemo(() => buildWall(plan, franka), [plan, franka]);
+  const geometry = useMemo(() => buildWall(plan, models), [plan, models]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const pools = useMemo(() => buildPools(plan), [plan]);
   useEffect(() => () => pools.dispose(), [pools]);
