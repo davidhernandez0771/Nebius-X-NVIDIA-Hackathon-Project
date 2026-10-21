@@ -244,10 +244,30 @@ This one is an amendment, not a run-enabling fix, because it changes the teacher
 
 The reward's *scale* changes. What counts as success does not, and the gate and the test measure success only.
 
-**Where it is in the code:** at `6008c41`, the tip of `pm/rl-teacher` and T3's worktree (clean), the deadband is
-committed. The ×50 scale and `entropy_coef` 0.001 are not: `rl_ppo_cfg.py` still has `entropy_coef=0.006`, and there
-is no reward-scale setting. They are presumably set on `demo_v4`'s command line. The run's `params/env.yaml` and
-`params/agent.yaml` are the record of the values it used. If they are committed later, that commit is added here.
+**Where it is in the code:** `demo_v4` runs the code at `6008c41`. The code's defaults are unchanged, and every value
+above is a Hydra override on the trainer's command line. T3 recorded that command, the run's own `env.yaml` and
+`agent.yaml`, and a table of code default vs `demo_v4` in `ce5762c` on `pm/rl-teacher`, at
+`docs/superpowers/notes/2026-10-20-rl-teacher/demo_v4/`. The command
+(`train.py --rl_library rsl_rl --task SANT-PickPlace-Franka-RL-v0 --num_envs 4096 --max_iterations 1500 --run_name demo_v4`)
+sets:
+
+| Override | Code default | `demo_v4` |
+|---|---|---|
+| `env.rewards.progress.weight` | 1.0 | 50 |
+| `env.rewards.penalty.weight` | −1.0 | −50 |
+| `env.rewards.success.weight` | 1.0 | 50 |
+| `agent.algorithm.entropy_coef` | 0.006 | 0.001 |
+| `env.actions.gripper_action.deadband` | off | 0.5 |
+| `env.events.reset_scene.params.held_grace_steps` | off | 10 (from `demo_v3`) |
+| `env.events.reset_scene.params.curriculum_steps` | 24000 | 48000 (from `demo_v3`) |
+| `agent.actor.distribution_cfg.init_std` | 1.0 | 0.6 (from `demo_v3`) |
+
+I checked the reward weights against `sim_worker/rl_env_cfg.py`: the defaults are 1, −1 and 1, so the change is a scale
+only. `action_rate` (−1e-3) and `joint_vel` (−1e-4) are not overridden.
+
+`ce5762c` also fixes T6's adapter so it can read Isaac Lab's `env.yaml`: `yaml.safe_load` failed on `!!python/tuple`,
+which matters for reading the deadband. That is a run-enabling fix. T3 will make these values a named preset in code
+after the gate, if `demo_v4` is the teacher.
 
 The gate and everything after it apply to the teacher from `demo_v4`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
