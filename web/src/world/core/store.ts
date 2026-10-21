@@ -4,7 +4,7 @@
 // - per-frame state (the damped scroll, each station's StationFrame) is mutated in place and pushed
 //   to frame listeners, never through React.
 import { fillFrames, layoutRail, locate, type Place, type Rail } from "./rail";
-import { RAIL_ORDER, type CameraPose, type Cartridge, type StationFrame, type StationId, type StationModule } from "./types";
+import { RAIL_ORDER, type Cartridge, type HeldShot, type StationFrame, type StationId, type StationModule } from "./types";
 
 export interface Coarse {
   current: StationId;
@@ -21,7 +21,7 @@ export interface Coarse {
    * A shot the camera holds instead of the rail (the detail view, the tour), or null. The rail's
    * stations stay current under it; the page scroll is held while it is set.
    */
-  override: CameraPose | null;
+  override: HeldShot | null;
 }
 
 type FrameListener = () => void;
@@ -57,7 +57,7 @@ export interface WorldStore {
   setBranchT(t: number): void;
   setCartridge(c: Cartridge | null): void;
   setReady(): void;
-  setOverride(pose: CameraPose | null): void;
+  setOverride(pose: HeldShot | null): void;
 }
 
 const blankFrame = (): StationFrame => ({ t: 0, arrive: 0, current: false, near: false });

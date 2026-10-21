@@ -13,6 +13,21 @@ export interface CameraPose {
   fov: number;
 }
 
+/**
+ * A held shot on a path (the shelf: the spiral's steps). The rig glides `at` along `pose` toward the
+ * newest value instead of flying straight to each new shot, so it passes everything in between.
+ */
+export interface ShotTrack {
+  id: string;
+  at: number;
+  pose: (at: number) => CameraPose;
+}
+
+/** A shot the camera holds instead of the rail, optionally on a track. */
+export interface HeldShot extends CameraPose {
+  track?: ShotTrack;
+}
+
 export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench" | "robots";
 
 /**

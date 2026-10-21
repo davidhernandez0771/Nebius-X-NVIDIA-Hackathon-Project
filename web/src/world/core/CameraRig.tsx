@@ -5,23 +5,18 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { PerspectiveCamera } from "three";
 import { fitFov } from "./fov";
-import { mixPose, poseAt, reducedPoseAt, restPose, smoother, toWorld } from "./rail";
+import { poseAt, reducedPoseAt, restPose, toWorld } from "./rail";
+import { heldShot, mixShot, newShot, retarget, type ShotState } from "./shot";
 import { onPointer, pointer } from "../ui/pointer";
 import type { WorldStore } from "./store";
 import type { CameraPose, StationModule } from "./types";
 
 const DAMP = 7;
 const SETTLE_PX = 0.5;
-const TWEEN_S = 1.1;
-/** Half the veil: the cut happens while it is fully up. Matches .world-veil.is-cut in world.css. */
-export const CUT_S = 0.16;
+export { CUT_S } from "./shot";
 
-interface RigState {
+interface RigState extends ShotState {
   shown: number;
-  key: string | null;
-  pose: CameraPose | null;
-  tween: { from: CameraPose; start: number } | null;
-  cutAt: number | null;
   jumps: number;
   /** The playing branch: which one, and the clock time its t was 0. */
   play: { id: string; start: number } | null;
@@ -63,7 +58,7 @@ export function CameraRig({
 }) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const invalidate = useThree((s) => s.invalidate);
-  const st = useRef<RigState>({ shown: store.targetY, key: null, pose: null, tween: null, cutAt: null, jumps: store.jumps, play: null, look: { x: 0, y: 0 } });
+  const st = useRef<RigState>({ ...newShot(), shown: store.targetY, jumps: store.jumps, play: null, look: { x: 0, y: 0 } });
 
   useEffect(() => store.onTarget(() => invalidate()), [store, invalidate]);
   // The room view follows the pointer: a frame when it moves there.
@@ -86,6 +81,7 @@ export function CameraRig({
       s.pose = null;
       s.tween = null;
       s.cutAt = null;
+      s.glide = null;
     }
     if (reduced) s.shown = target;
     else {
@@ -99,6 +95,8 @@ export function CameraRig({
     const open = branch ? stations.find((m) => m.id === branch) : undefined;
     let dest: CameraPose;
     let key: string;
+    let arc = false;
+    if (open || !override) s.glide = null;
     if (open?.duration) {
       // A playing branch: its t runs on the clock from where it was opened (Back opens it played).
       if (s.play?.id !== open.id) s.play = { id: open.id, start: now - store.branchT0 * open.duration };
@@ -111,9 +109,10 @@ export function CameraRig({
       dest = restPose(open);
       key = open.id;
     } else if (override) {
-      dest = override;
-      // A new shot (the tour's next stop) tweens again.
-      key = `override:${override.position.join(",")}`;
+      // A held shot; on a track (the shelf) the camera glides along it, round the spiral.
+      const held = heldShot(s, override, dt, reduced);
+      ({ dest, key, arc } = held);
+      if (held.moving) moving = true;
     } else if (reduced) {
       const r = reducedPoseAt(store.rails, store.rail, s.shown);
       dest = r.pose;
@@ -123,20 +122,7 @@ export function CameraRig({
       key = "rail";
     }
 
-    if (s.pose === null) {
-      s.pose = dest;
-      s.key = key;
-    } else if (key !== s.key) {
-      s.key = key;
-      if (reduced) {
-        s.cutAt = now + CUT_S;
-        s.tween = null;
-        onCut();
-      } else {
-        s.tween = { from: s.pose, start: now };
-        s.cutAt = null;
-      }
-    }
+    if (retarget(s, dest, key, now, reduced, arc)) onCut();
 
     if (!open) s.play = null;
     // The room view looks round a little with the mouse (not with reduced motion).
@@ -158,20 +144,9 @@ export function CameraRig({
       dest = { ...dest, position: [px + rx * s.look.x * LOOK_X, py + s.look.y * LOOK_Y, pz + rz * s.look.x * LOOK_X] };
     }
 
-    let pose = dest;
-    if (s.cutAt !== null) {
-      if (now < s.cutAt) {
-        pose = s.pose;
-        moving = true;
-      } else s.cutAt = null;
-    } else if (s.tween) {
-      const u = (now - s.tween.start) / TWEEN_S;
-      if (u < 1) {
-        pose = mixPose(s.tween.from, dest, smoother(u));
-        moving = true;
-      } else s.tween = null;
-    }
-    s.pose = pose;
+    const shot = mixShot(s, dest, now);
+    if (shot.moving) moving = true;
+    const pose = shot.pose;
     applyPose(camera, pose);
     if (moving) invalidate();
   }, -1);
