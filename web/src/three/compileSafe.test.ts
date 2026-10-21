@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Camera, Material, Object3D } from "three";
-import { compileSafe } from "./compileSafe";
+import { compileSafe, setCompileTarget } from "./compileSafe";
 
 const scene = {} as Object3D;
 const camera = {} as Camera;
@@ -57,5 +57,27 @@ describe("compileSafe", () => {
   it("rejects when compile itself throws", async () => {
     const gl = { ...fakeGl(new Map()), compile: () => { throw new Error("no context"); } };
     await expect(compileSafe(gl, scene, camera)).rejects.toThrow("no context");
+  });
+
+  it("compiles for the post chain's render target when one is set (the programs the frames will use), then puts the renderer's own target back", async () => {
+    const calls: unknown[] = [];
+    let current: unknown = "screen";
+    const gl = {
+      ...fakeGl(new Map([[mat("a"), { isReady: () => true }]])),
+      getRenderTarget: () => current,
+      setRenderTarget: (t: unknown) => (current = t),
+    };
+    gl.compile.mockImplementation(() => {
+      calls.push(current);
+      return new Set([mat("a")]);
+    });
+    const post = { isRenderTarget: true };
+    setCompileTarget(post as never);
+    await compileSafe(gl as never, scene, camera);
+    expect(calls).toEqual([post]);
+    expect(current).toBe("screen");
+    setCompileTarget(null);
+    await compileSafe(gl as never, scene, camera);
+    expect(calls).toEqual([post, "screen"]);
   });
 });
