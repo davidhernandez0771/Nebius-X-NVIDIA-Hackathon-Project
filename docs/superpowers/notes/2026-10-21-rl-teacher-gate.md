@@ -84,3 +84,29 @@ Commanded tool speed (m/s):
 - In-env and replay agree on 50/50.
 - Replay durations are 2.5–3.2 s.
 - The speed cap closed the gate-1 gap: the replay went from 3/50 to 50/50.
+
+## Re-making the teacher: `--preset`
+
+`scripts/rl_train.py` has two named presets (`PRESETS`) that hold the gated teacher's commands word for word. A test checks them against the logged commands.
+
+```
+uv run --no-sync python scripts/rl_train.py --preset teacher_v6
+uv run --no-sync python scripts/rl_train.py --preset teacher_v6c2 --checkpoint <stage-1 run>\model_1499.pt
+```
+
+**teacher_v6 (stage 1):**
+- lift reward, 4096 envs, 1500 iterations;
+- demo_v6's overrides;
+- the speed cap turned **off** (`env.actions.arm_action.v_max=0.0`, `yaw_rate_max=0.0`). demo_v6 trained before the cap existed, and the cap is now on by default.
+
+**teacher_v6c2 (stage 2):**
+1. First runs `scripts/rl_checkpoint_std.py --std 0.3`. It writes a copy into `data/rl/resume/<run-name>/`. On demo_v6's model_1499 this copy is identical to `data/rl/resume/v6_std03/model_1499.pt`, the file demo_v6c2 resumed from.
+2. Then resumes from the copy with demo_v6c2's overrides: std_range [0.1, 0.5], curricula held, action_rate and joint_vel at -0.1.
+3. The speed cap is at its defaults (0.5 m/s, 2.5 rad/s), for 600 iterations.
+
+**Overrides and checks:**
+- `--override` adds to a preset. On the same key it replaces the preset's value.
+- `--smoke`, `--num-envs` and `--max-iterations` still apply.
+- A test in the Isaac venv checks that every preset key is a real setting.
+
+**Not tested:** a single from-scratch run with the cap on.

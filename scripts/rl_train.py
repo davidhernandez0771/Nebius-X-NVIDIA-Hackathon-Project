@@ -7,6 +7,12 @@
     ... --checkpoint <run dir or model_<i>.pt>      # resume
     ... --override env.events.reset_scene.params.demo_prob=0.8   # Hydra overrides, repeatable (env.* / agent.*)
 
+The gated teacher (demo_v6c2 model_2098, replay 50/50 on 5350-5399) as two named presets:
+    uv run --no-sync python scripts/rl_train.py --preset teacher_v6                 # stage 1: 1500 iterations
+    uv run --no-sync python scripts/rl_train.py --preset teacher_v6c2 --checkpoint <stage 1 run>/model_1499.pt
+Stage 2 first copies the checkpoint with the motion std reset to 0.3 (scripts/rl_checkpoint_std.py, CPU) into
+data/rl/resume/<run-name>/, then resumes from the copy with the speed cap for 600 iterations.
+
 Logs and checkpoints land in data/rl/logs/rsl_rl/<experiment>/<timestamp>_<run-name>/ (model_<i>.pt every 50
 iterations, TensorBoard events; data/ is gitignored); the trainer's console goes to data/rl/<run-name>.log too.
 Metrics/check_success there is the unchanged check_success on every 8th environment's episodes.
@@ -32,6 +38,42 @@ TASKS = {True: "SANT-PickPlace-Franka-RL-v0", False: "SANT-PickPlace-Franka-RL-N
 LIFT_TASK = "SANT-PickPlace-Franka-RL-Lift-v0"  # --reward lift: the stock-lift reward preset (with demo starts)
 SMOKE = {"num_envs": 64, "max_iterations": 20}
 FULL = {"num_envs": 4096, "max_iterations": 1500}
+
+# The gated RL teacher (2026-10-21, docs/superpowers/notes/2026-10-21-rl-teacher-gate.md): the commands demo_v6 and
+# demo_v6c2 ran, word for word. Stage 1 trained before the speed cap existed, so it turns the (now default) cap off;
+# stage 2 resumes stage 1's last checkpoint with its motion std reset to resume_std and the cap at its defaults
+# (0.5 m/s, 2.5 rad/s). A from-scratch run with the cap on is untested.
+PRESETS = {
+    "teacher_v6": {
+        "reward": "lift", "max_iterations": 1500, "resume_std": None,
+        "overrides": ["env.events.reset_scene.params.held_grace_steps=10",
+                      "env.events.reset_scene.params.curriculum_steps=24000",
+                      "env.events.reset_scene.params.uniform_share=0.5", "agent.actor.distribution_cfg.init_std=0.6",
+                      "agent.actor.distribution_cfg.std_range=[0.3,1.0]", "agent.algorithm.entropy_coef=0.005",
+                      "env.actions.gripper_action.deadband=0.25",
+                      "env.actions.arm_action.v_max=0.0", "env.actions.arm_action.yaw_rate_max=0.0"],
+    },
+    "teacher_v6c2": {
+        "reward": "lift", "max_iterations": 600, "resume_std": 0.3,
+        "overrides": ["env.events.reset_scene.params.held_grace_steps=10",
+                      "env.events.reset_scene.params.curriculum_start=0.0",  # both curricula held at their end
+                      "env.events.reset_scene.params.uniform_share=0.5", "env.rewards.action_rate.weight=-0.1",
+                      "env.rewards.joint_vel.weight=-0.1", "agent.actor.distribution_cfg.std_range=[0.1,0.5]",
+                      "agent.algorithm.entropy_coef=0.005", "env.actions.gripper_action.deadband=0.25"],
+    },
+}
+
+
+def merge_overrides(base: list[str], extra: list[str]) -> list[str]:
+    """base with extra on top: an extra override replaces base's on the same key (Hydra refuses a key twice)."""
+    keys = {o.split("=", 1)[0] for o in extra}
+    return [o for o in base if o.split("=", 1)[0] not in keys] + list(extra)
+
+
+def std_command(checkpoint: Path, std: float, out: Path) -> list[str]:
+    """scripts/rl_checkpoint_std.py: a copy of checkpoint with the motion std set (a resume loads the checkpoint's)."""
+    return [str(ISAAC_PY), str(REPO / "scripts" / "rl_checkpoint_std.py"), "--checkpoint", str(checkpoint),
+            "--std", str(std), "--out", str(out)]
 
 
 def train_command(*, demos: bool, num_envs: int, max_iterations: int, run_name: str, checkpoint: str | None = None,
@@ -86,6 +128,8 @@ def _gpu_stage(log):
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--smoke", action="store_true", help="64 envs x 20 iterations: does it run, how fast")
+    p.add_argument("--preset", choices=sorted(PRESETS), default=None,
+                   help="a named recipe (PRESETS): its reward, iterations and overrides; --override adds to them")
     p.add_argument("--run-name", default=None)
     p.add_argument("--no-demos", action="store_true", help="home starts only: the RL-without-demos control arm")
     p.add_argument("--stock-task", default=None,
@@ -104,21 +148,37 @@ def main(argv=None) -> int:
     p.add_argument("--dry-run", action="store_true", help="print the command and exit")
     args = p.parse_args(argv)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # it echoes the trainer's Unicode, maybe into a file
+    preset = PRESETS[args.preset] if args.preset else None
+    if preset and (args.stock_task or args.no_demos):
+        p.error("--preset is a SANT lift recipe with demo starts: not with --stock-task or --no-demos")
     size = {**(SMOKE if args.smoke else FULL)}
+    if preset and not args.smoke:
+        size["max_iterations"] = preset["max_iterations"]
     if args.num_envs:
         size["num_envs"] = args.num_envs
     if args.max_iterations:
         size["max_iterations"] = args.max_iterations
-    run = args.run_name or ("smoke" if args.smoke else "run")
+    run = args.run_name or ("smoke" if args.smoke else args.preset or "run")
+    overrides, reward, checkpoint, std_cmd = args.override, args.reward, args.checkpoint, None
+    if preset:
+        overrides, reward = merge_overrides(preset["overrides"], args.override), preset["reward"]
+        if preset["resume_std"] is not None:
+            if not (args.checkpoint and Path(args.checkpoint).is_file()):
+                p.error(f"--preset {args.preset} resumes stage 1: give --checkpoint <stage 1 run>/model_<i>.pt")
+            checkpoint = WORKDIR / "resume" / run / Path(args.checkpoint).name
+            std_cmd = std_command(Path(args.checkpoint).resolve(), preset["resume_std"], checkpoint)
+            print(" ".join(std_cmd))
     if args.stock_task:
-        cmd = stock_command(args.stock_task, run_name=run, overrides=args.override, viz=args.viz, **size)
+        cmd = stock_command(args.stock_task, run_name=run, overrides=overrides, viz=args.viz, **size)
     else:
-        cmd = train_command(demos=not args.no_demos, run_name=run, checkpoint=args.checkpoint,
-                            overrides=args.override, viz=args.viz, reward=args.reward,
+        cmd = train_command(demos=not args.no_demos, run_name=run, checkpoint=checkpoint and str(checkpoint),
+                            overrides=overrides, viz=args.viz, reward=reward,
                             fresh_optimizer=args.fresh_optimizer, **size)
     print(" ".join(cmd))
     if args.dry_run:
         return 0
+    if std_cmd:
+        subprocess.run(std_cmd, cwd=REPO, env=child_env(), check=True)  # CPU only: before the GPU lock
     if not args.stock_task and not args.no_demos and not BANK.is_file():
         p.error(f"no demo-start bank at {BANK}: run scripts/rl_demo_bank.py first (see the note)")
     WORKDIR.mkdir(parents=True, exist_ok=True)

@@ -463,3 +463,28 @@ def test_the_tcp_target_terms_own_buffers_dont_shadow_the_tracking_ik_bases():
     mine = set(re.findall(r"self\.(_\w+)\s*=", cls))
     theirs = set(re.findall(r"self\.(_\w+)\s*=", base))
     assert not (mine & theirs), sorted(mine & theirs)
+
+
+def test_every_teacher_preset_override_names_a_real_setting():
+    """scripts/rl_train.py's PRESETS (the gated teacher's commands): a renamed setting must fail here, not at 4096 envs."""
+    import importlib.util
+    import inspect
+
+    spec = importlib.util.spec_from_file_location("rl_train", Path(__file__).parents[1] / "scripts" / "rl_train.py")
+    rl_train = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rl_train)
+    env_name, ppo_name = rl_register.TASKS[rl_train.LIFT_TASK]
+    roots = {"env": getattr(rc, env_name)(), "agent": getattr(rl_ppo_cfg, ppo_name)()}
+    for name, preset in rl_train.PRESETS.items():
+        for o in preset["overrides"]:
+            root, *path = o.split("=", 1)[0].split(".")
+            node, parent = roots[root], None
+            for part in path:
+                if isinstance(node, dict):
+                    # a term's params: Isaac Lab's Hydra also takes the term function's other keyword arguments
+                    known = set(node) | set(inspect.signature(parent.func).parameters if parent else ())
+                    assert part in known, (name, o, part)
+                    node, parent = node.get(part), None
+                else:
+                    assert hasattr(node, part), (name, o, part)
+                    node, parent = getattr(node, part), node
