@@ -73,6 +73,26 @@ describe("the page frame", () => {
   });
 });
 
+describe("a page off the path (the test track)", () => {
+  it("is in the More nav, marked there; nothing on the path is current", () => {
+    render(
+      <MotionProvider>
+        <MemoryRouter initialEntries={["/test-track"]}>
+          <HoloPage title="The test track" here="test-track">
+            x
+          </HoloPage>
+        </MemoryRouter>
+      </MotionProvider>,
+    );
+    const path = screen.getByRole("navigation", { name: "Pages" });
+    expect(within(path).getAllByRole("link").map((l) => l.getAttribute("aria-current"))).toEqual([null, null, null]);
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getAllByRole("link").map((l) => l.textContent)).toEqual(["Robots", "Results", "Test track"]);
+    expect(within(more).getByRole("link", { name: "Test track" }).getAttribute("href")).toBe("/test-track");
+    expect(within(more).getByRole("link", { name: "Test track" }).getAttribute("aria-current")).toBe("page");
+  });
+});
+
 describe("the primitives", () => {
   it("a panel is any element with the class, its state as data, nothing else imposed", () => {
     render(

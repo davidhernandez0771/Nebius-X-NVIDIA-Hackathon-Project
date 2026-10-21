@@ -168,7 +168,8 @@
   color: var(--holo-ink);
 }
 
-.sant .holo-path a[aria-current="page"] {
+.sant .holo-path a[aria-current="page"],
+.sant .holo-more a[aria-current="page"] {
   color: var(--holo-teal);
   box-shadow: inset 0 -1px 0 var(--holo-teal);
 }
@@ -211,12 +212,19 @@
 }
 
 @media (max-width: 520px) {
+  /* A phone: three rows (the title, the path, the actions and More), nothing hidden. */
   .holo-top {
+    grid-template-columns: minmax(0, 1fr);
     padding: 8px 12px;
   }
 
-  .holo-more {
-    display: none;
+  .holo-path {
+    grid-row: auto;
+  }
+
+  .holo-top__right {
+    flex-wrap: wrap;
+    justify-content: space-between;
   }
 
   .sant .holo-top__title {
