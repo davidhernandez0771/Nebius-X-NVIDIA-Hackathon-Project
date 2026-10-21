@@ -18,6 +18,12 @@ import {
   mouseDelta,
   sanitizeDriveSettings,
   wheelDelta,
+  yawAxis,
+  yawWheelDelta,
+  MOVE_CODES,
+  YAW_MAX,
+  YAW_NOTCH,
+  YAW_SPEED,
   DEFAULT_DRIVE,
   type Vec3,
 } from "./drive";
@@ -207,5 +213,67 @@ describe("drive settings", () => {
     expect(s.input).toBe(DEFAULT_DRIVE.input);
     expect(s.speed).toBeLessThanOrEqual(0.3);
     expect(s.mouseSens).toBe(DEFAULT_DRIVE.mouseSens);
+  });
+});
+
+describe("the wrist (yaw): Q / E, and Shift+wheel for the mouse (the lead's addition)", () => {
+  const spin = (d: Drive, axis: number, seconds: number, fine = false) => {
+    let out = d.yaw;
+    for (let t = 0; t < seconds; t += TICK_S) {
+      d.step(TICK_S, [0, 0, 0], { speed: 0.1, fine }, axis);
+      out = d.yaw;
+    }
+    return out;
+  };
+
+  it("Q turns the wrist one way (counter-clockwise from above), E the other, and Q/E are keys the drive uses", () => {
+    expect(yawAxis(new Set(["KeyQ"]))).toBe(1);
+    expect(yawAxis(new Set(["KeyE"]))).toBe(-1);
+    expect(yawAxis(new Set(["KeyQ", "KeyE"]))).toBe(0);
+    expect(MOVE_CODES).toEqual(expect.arrayContaining(["KeyQ", "KeyE"]));
+    expect(spin(new Drive(), 1, 0.5)).toBeGreaterThan(0.2);
+    expect(spin(new Drive(), -1, 0.5)).toBeLessThan(-0.2);
+  });
+
+  it("ramps up and down like the other axes, never a step", () => {
+    const d = new Drive();
+    const yaws: number[] = [];
+    for (let i = 0; i < 30; i++) {
+      d.step(TICK_S, [0, 0, 0], { speed: 0.1, fine: false }, i < 15 ? 1 : 0);
+      yaws.push(d.yaw);
+    }
+    const steps = yaws.slice(1).map((y, i) => y - yaws[i]);
+    expect(steps[0]).toBeLessThan(steps[10]); // still speeding up at first
+    expect(Math.max(...steps)).toBeLessThanOrEqual(YAW_SPEED * TICK_S + 1e-9);
+    expect(steps[steps.length - 1]).toBeCloseTo(0, 6); // and it stops after the key goes up
+  });
+
+  it("is clamped to +-90 degrees", () => {
+    expect(spin(new Drive(), 1, 5)).toBeCloseTo(YAW_MAX, 9);
+    expect(spin(new Drive(), -1, 5)).toBeCloseTo(-YAW_MAX, 9);
+    expect(YAW_MAX).toBeCloseTo(Math.PI / 2, 9);
+  });
+
+  it("Shift is the fine mode for the wrist too", () => {
+    expect(spin(new Drive(), 1, 0.4, true)).toBeLessThan(spin(new Drive(), 1, 0.4) * 0.5);
+  });
+
+  it("Shift+wheel nudges the wrist and it follows smoothly", () => {
+    const d = new Drive();
+    d.nudgeYaw(yawWheelDelta(-100)); // one notch up
+    const first = (d.step(TICK_S, [0, 0, 0], { speed: 0.1, fine: false }), d.yaw);
+    for (let i = 0; i < 40; i++) d.step(TICK_S, [0, 0, 0], { speed: 0.1, fine: false });
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(YAW_NOTCH);
+    expect(d.yaw).toBeCloseTo(YAW_NOTCH, 3);
+  });
+
+  it("goes out as yaw_rad, and reset turns it back", () => {
+    const d = new Drive();
+    spin(d, 1, 0.5);
+    expect(driveMessage(d.pos, 0, 0, d.yaw).yaw_rad).toBeCloseTo(d.yaw, 12);
+    expect(driveMessage(d.pos, 0, 0).yaw_rad).toBe(0);
+    d.reset();
+    expect(d.yaw).toBe(0);
   });
 });

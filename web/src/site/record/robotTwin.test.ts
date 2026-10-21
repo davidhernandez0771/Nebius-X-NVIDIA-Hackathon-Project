@@ -14,6 +14,7 @@ const sim = (over: Partial<LiveTwin> = {}): LiveTwin => ({
   robot: null,
   contact: null,
   floor: null,
+  objects: null,
   ...over,
 });
 
@@ -36,7 +37,7 @@ describe("chooseTwin", () => {
     const t = chooseTwin(sim({ status: "live", joints: { panda_joint1: 0.2 }, gripper: 1, bin: pose }), replay({ status: "ready" }));
     expect(t.mode).toBe("live");
     expect(t.caption).toBe("live from the sim");
-    expect(t.view).toEqual({ joints: { panda_joint1: 0.2 }, gripper: 1, cube: null, bin: pose, base: null, contact: null });
+    expect(t.view).toEqual({ joints: { panda_joint1: 0.2 }, gripper: 1, cube: null, bin: pose, base: null, contact: null, objects: null });
   });
 
   it("replays the demo episode otherwise, named in the caption", () => {

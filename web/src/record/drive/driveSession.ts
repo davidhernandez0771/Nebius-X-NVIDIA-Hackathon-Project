@@ -7,11 +7,12 @@
 // arrows to a focused slider) instead while you type there; every key used here has its default prevented, so a
 // focused button isn't pressed as well. The window losing focus forgets held keys, so the arm can't run away.
 // The mouse drives only while its pane holds Pointer Lock (requestMouse; Esc releases it): movement in the
-// horizontal plane, the wheel up/down, a left click the gripper. A refused lock says why (Chrome refuses for about a
+// horizontal plane, the wheel up/down (Shift+wheel turns the wrist; Q / E do on the keys), a left click the gripper. A
+// refused lock says why (Chrome refuses for about a
 // second after Esc), so the page can show it and ask again on the next click.
 
 import type { HandPoseMsg } from "../teleop/handPoseMessage";
-import { Drive, MOVE_CODES, TICK_S, driveMessage, keyAxes, mouseDelta, wheelDelta, type DriveSettings } from "./drive";
+import { Drive, MOVE_CODES, TICK_S, driveMessage, keyAxes, mouseDelta, wheelDelta, yawAxis, yawWheelDelta, type DriveSettings } from "./drive";
 
 export interface DriveUi {
   msg: HandPoseMsg;
@@ -134,8 +135,8 @@ export class DriveSession {
     const now = performance.now();
     const dt = Math.min(0.1, Math.max(0, (now - this.lastTick) / 1000));
     this.lastTick = now;
-    const pos = this.drive.step(dt, keyAxes(this.held), { speed: this.hooks.settings().speed, fine: this.fine });
-    const msg = driveMessage(pos, this.drive.gripper, now);
+    const pos = this.drive.step(dt, keyAxes(this.held), { speed: this.hooks.settings().speed, fine: this.fine }, yawAxis(this.held));
+    const msg = driveMessage(pos, this.drive.gripper, now, this.drive.yaw);
     this.hooks.send(msg, this.drive.gripper);
     this.report(msg, now);
   };
@@ -178,7 +179,8 @@ export class DriveSession {
     if (!this.locked) return;
     e.preventDefault();
     const notch = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 100 : e.deltaY; // lines, pages -> px
-    this.drive.nudge(wheelDelta(notch, this.fine));
+    if (this.fine) this.drive.nudgeYaw(yawWheelDelta(notch)); // Shift+wheel turns the wrist
+    else this.drive.nudge(wheelDelta(notch, false));
   };
 
   private readonly onMouseDown = (e: MouseEvent) => {
@@ -189,6 +191,6 @@ export class DriveSession {
     if (!this.locked && this.shown?.locked) this.releasedAt = performance.now();
     if (!this.locked) this.lockEl = document.pointerLockElement ? this.lockEl : null;
     const pos = this.drive.pos;
-    this.report(driveMessage(pos, this.drive.gripper, performance.now()), performance.now(), true);
+    this.report(driveMessage(pos, this.drive.gripper, performance.now(), this.drive.yaw), performance.now(), true);
   };
 }

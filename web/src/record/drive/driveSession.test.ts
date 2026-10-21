@@ -237,3 +237,38 @@ describe("DriveSession: a refused Pointer Lock says why", () => {
     await expect(session.requestMouse(pane)).resolves.toBeNull();
   });
 });
+
+describe("DriveSession: the wrist (Q / E, Shift+wheel with the mouse)", () => {
+  const lastYaw = () => sent[sent.length - 1].msg.yaw_rad;
+
+  it("holding Q turns the wrist in the messages, E turns it back", () => {
+    key("keydown", "KeyQ");
+    ticks(0.5);
+    expect(lastYaw()).toBeGreaterThan(0.2);
+    key("keyup", "KeyQ");
+    key("keydown", "KeyE");
+    ticks(2);
+    expect(lastYaw()).toBeLessThan(-0.2);
+  });
+
+  it("with the mouse locked, Shift+wheel turns the wrist and a plain wheel moves up/down", () => {
+    const pane = document.body.appendChild(document.createElement("div"));
+    pane.requestPointerLock = (() => {
+      Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => pane });
+      document.dispatchEvent(new Event("pointerlockchange"));
+    }) as unknown as typeof pane.requestPointerLock;
+    void session.requestMouse(pane);
+    ticks(0.1);
+    const z0 = lastTarget()[2];
+    key("keydown", "ShiftLeft");
+    document.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true }));
+    ticks(1);
+    expect(lastYaw()).toBeCloseTo((10 * Math.PI) / 180, 2);
+    expect(lastTarget()[2]).toBeCloseTo(z0, 6);
+    key("keyup", "ShiftLeft");
+    document.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true }));
+    ticks(1);
+    expect(lastTarget()[2]).toBeLessThan(z0);
+    Object.defineProperty(document, "pointerLockElement", { configurable: true, get: () => null });
+  });
+});

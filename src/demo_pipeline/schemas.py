@@ -95,6 +95,15 @@ InputMode = Literal["camera", "keyboard", "mouse"]  # how a human demo was drive
 INPUT_MODES: tuple[str, ...] = ("camera", "keyboard", "mouse")
 
 
+class ScenePlanRef(_Model):
+    """The scene a teleop demo was recorded in (demo_pipeline.scene_library): its entry id and name, and the hash of
+    its plan (plan_hash), so the exact plan can be checked later. The plan itself is in the episode's plan.json."""
+
+    id: str
+    hash: str = Field(pattern=r"^[0-9a-f]{16}$")
+    name: str = ""
+
+
 class Assist(_Model):
     """Help the sim gave while a human demo was recorded (demo_pipeline.soft_floor), so assisted demos stay labelled."""
 
@@ -130,6 +139,7 @@ class Demo(_Model):
     human_seconds: float = Field(ge=0)  # wall-clock human time; 0 for derived demos
     input: InputMode | None = None  # how it was driven (the Record page's input switch); None: not recorded (older)
     assist: Assist | None = None  # record-time help (the soft floor); None: none recorded (older, or not teleop)
+    scene_plan: ScenePlanRef | None = None  # the Record page's scene (None: today's, before the picker)
 
     @model_validator(mode="after")
     def _lineage(self) -> "Demo":
@@ -143,12 +153,12 @@ class Demo(_Model):
 
     @model_serializer(mode="wrap")
     def _omit_absent_fields(self, handler):
-        """Leave "commanded", "input" and "assist" out while they are None, so a demo without them serializes byte for byte as
+        """Leave "commanded", "input", "assist" and "scene_plan" out while they are None, so a demo without them serializes byte for byte as
         before the fields existed (frozen sets and experiments hash demo.json). One serializer: pydantic keeps only the
         last one a class defines."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("commanded", "input", "assist"):
+            for key in ("commanded", "input", "assist", "scene_plan"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

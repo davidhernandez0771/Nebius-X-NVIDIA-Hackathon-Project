@@ -4,14 +4,14 @@
 // Live, it also carries the arm's push on the bin or table (the contact glow and force bar) and whether the soft
 // floor is holding the target up; a replay has neither.
 
-import { useLiveTwin, useReplayTwin, type LiveTwin, type ReplayTwin, type TwinContact, type TwinPose, type TwinState } from "../../twin";
+import { useLiveTwin, useReplayTwin, type LiveTwin, type ReplayTwin, type TwinContact, type TwinObject, type TwinPose, type TwinState } from "../../twin";
 
 export const DEMO_EPISODE_URL = `${(import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "/")}world/demo-episode.json`;
 
 export type RecordTwin = {
   mode: "live" | "replay";
   /** What RobotTwin draws. */
-  view: TwinState & { base: TwinPose | null; contact: TwinContact | null };
+  view: TwinState & { base: TwinPose | null; contact: TwinContact | null; objects: TwinObject[] | null };
   /** The line under the view. */
   caption: string;
   /** Live only: the soft floor is holding the target up now (null: unknown). */
@@ -21,10 +21,10 @@ export type RecordTwin = {
 /** Live wins whenever the sim streams poses; the replay is the stand-in, never mixed with live data. */
 export function chooseTwin(sim: LiveTwin, replay: ReplayTwin): RecordTwin {
   if (sim.status === "live") {
-    const { joints, gripper, cube, bin, base, contact, floor } = sim;
-    return { mode: "live", view: { joints, gripper, cube, bin, base, contact }, caption: "live from the sim", floor };
+    const { joints, gripper, cube, bin, base, contact, floor, objects } = sim;
+    return { mode: "live", view: { joints, gripper, cube, bin, base, contact, objects }, caption: "live from the sim", floor };
   }
-  const view = { ...replay.twin, base: replay.base, contact: null };
+  const view = { ...replay.twin, base: replay.base, contact: null, objects: null };
   if (replay.status === "ready" && replay.episode) return { mode: "replay", view, caption: `replay · verified copy ${replay.episode.demoId}`, floor: null };
   if (replay.status === "error") return { mode: "replay", view, caption: "no replay: the demo episode didn't load", floor: null };
   return { mode: "replay", view, caption: "loading the replay…", floor: null };

@@ -52,6 +52,16 @@ parser.add_argument("--render", choices=["fast", "legacy", "fastest"], default=R
                          "recording cameras; recording renders as legacy (frames unchanged). legacy: render "
                          "after every physics step. fastest: fast, and once per control step while recording too "
                          "(recorded frames change slightly)")
+parser.add_argument("--scene", default=None,
+                    help="start in this scene of the library (DATA_DIR/scenes; s1..s8, standard, or a saved one); "
+                         "default: today's scene, exactly as before")
+parser.add_argument("--scene-list", default=None,
+                    help="a recording session's scenes, comma-separated (e.g. s1,s2,s3): after each saved take the "
+                         "sink moves to the next; scenes with other bodies restart the sim (run it with "
+                         "teleop_sink_loop.py)")
+parser.add_argument("--takes-per-scene", type=int, default=1, help="with --scene-list: saved takes per scene")
+parser.add_argument("--resume-playlist", action="store_true",
+                    help="carry on the saved scene list (teleop_sink_loop.py passes it after a restart)")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.num_envs != 1:
@@ -64,10 +74,13 @@ from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
 
 put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
-from demo_pipeline.schemas import Pose, Scene  # noqa: E402
+from demo_pipeline.schemas import Scene  # noqa: E402
 from demo_pipeline.store import DemoStore  # noqa: E402
-from sim_worker.replay import bin_pose_for, make_sim_cfg, replay  # noqa: E402
+from sim_worker.replay import make_sim_cfg, replay  # noqa: E402
 from sim_worker.scene_cfg import BIN_INNER  # noqa: E402
+from demo_pipeline.scene_library import STANDARD_SCENE, SceneLibrary  # noqa: E402
+from sim_worker.teleop_scenes import (RESTART_EXIT, SceneSwitcher, prepare_scene, request_restart,  # noqa: E402
+                                      scene_for_plan, scene_ref, should_settle)
 from sim_worker.scripted import scripted_expert  # noqa: E402
 from sim_worker.teleop_isaac import IsaacTeleopDriver  # noqa: E402
 from sim_worker.teleop_session import (KIT_CAMERA_EYE, KIT_CAMERA_TARGET, TELEOP_DT, TeleopSession,  # noqa: E402
@@ -77,8 +90,8 @@ from sim_worker.teleop_trace import LatencyTrace, now_ms  # noqa: E402
 
 
 def base_scene() -> Scene:
-    return Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1.0, 0.0, 0.0, 0.0)),
-                 bin_pose=bin_pose_for(0.5, 0.3), robot=args_cli.robot, seed=0)
+    """Today's scene: the cube and bin where every recorded demo had them (scene_library.STANDARD_SCENE)."""
+    return STANDARD_SCENE.model_copy(update={"robot": args_cli.robot})
 
 
 def _smoke_step(session: TeleopSession, msg, trace: LatencyTrace | None) -> None:
@@ -139,7 +152,15 @@ def fake_hand_smoke(session: TeleopSession, store: DemoStore, scene: Scene, trac
 def main() -> int:
     check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     store = DemoStore(args_cli.data_dir)
-    scene = base_scene()
+    # The Record page's scene picker (sim_worker.teleop_scenes): with no --scene / --scene-list this is today's scene,
+    # exactly as before. The protocol's 8 plans are written to DATA_DIR/scenes if missing (never overwritten).
+    library = SceneLibrary(store.root)
+    library.seed_protocol()
+    scene_list = [s.strip() for s in args_cli.scene_list.split(",") if s.strip()] if args_cli.scene_list else None
+    entry, playlist = prepare_scene(library, scene=args_cli.scene, scene_list=scene_list,
+                                    takes_per_scene=args_cli.takes_per_scene, resume=args_cli.resume_playlist)
+    plan = entry.plan if entry is not None else None
+    scene = scene_for_plan(plan) if plan is not None else base_scene()
     qos = high_qos() if args_cli.high_qos else False
     with launch_simulation(make_sim_cfg(args_cli.device), args_cli):
         trace = None
@@ -147,10 +168,30 @@ def main() -> int:
             trace = LatencyTrace(path=args_cli.latency_log, log=lambda line: print(line, flush=True))
         driver = IsaacTeleopDriver(record_cameras=not args_cli.no_cameras, robot=args_cli.robot,
                                    render=args_cli.render,
-                                   sections=trace.sections if trace is not None else None)
+                                   sections=trace.sections if trace is not None else None, plan=plan)
         # store.new_id: never the name of a demo folder already there (live or under _discarded)
         session = TeleopSession(driver, scene, make_store_saver(store, bin_inner=BIN_INNER),
-                                new_id=lambda: store.new_id("human"))
+                                new_id=lambda: store.new_id("human"), plan=plan,
+                                scene_ref=scene_ref(entry) if entry is not None else None)
+        restart: dict = {"entry": None, "at": 0.0}
+
+        def ask_restart(e) -> None:
+            request_restart(library, e)
+            restart.update(entry=e, at=time.time())
+
+        session.scene_switcher = SceneSwitcher(library, session, current_key=driver.body_key, restart=ask_restart,
+                                               playlist=playlist)
+        if entry is not None:
+            print(f"[teleop] scene: {entry.name} ({entry.id}, plan {entry.hash})"
+                  + (f"; scene list {playlist.status()}" if playlist is not None else ""), flush=True)
+            if should_settle(entry):  # new bodies: Isaac's settle check before anyone records in them
+                errors = driver.settle_check(plan)
+                library.record_settle(entry.id, ok=not errors, errors=errors)
+                session.settle = {"ok": not errors, "errors": errors}
+                print(f"[teleop] settle check: {'ok' if not errors else '; '.join(errors)}", flush=True)
+                session.on_control("reset_scene")  # place it again after the settle run
+            elif entry.settle is not None:
+                session.settle = {"ok": entry.settle.ok, "errors": list(entry.settle.errors)}
         if args_cli.kit_camera == "behind":
             try:
                 driver.s.sim.set_camera_view(KIT_CAMERA_EYE, KIT_CAMERA_TARGET)
@@ -162,9 +203,15 @@ def main() -> int:
         print(f"[teleop] store: {store.root}; relay: {args_cli.relay}; render {args_cli.render}; "
               f"high QoS {'on' if qos else 'off'}; latency trace {'on' if trace else 'off'}; Ctrl+C to stop", flush=True)
         try:
-            relay_loop(session, args_cli.relay, trace=trace)
+            # A scene with other bodies needs a new sim: stop half a second after the request (so the page sees
+            # "switching"), exit with RESTART_EXIT, and teleop_sink_loop.py starts the sink again in that scene.
+            relay_loop(session, args_cli.relay, trace=trace,
+                       should_stop=lambda: restart["entry"] is not None and time.time() - restart["at"] > 0.5)
         except KeyboardInterrupt:
             pass
+        if restart["entry"] is not None:
+            print(f"[teleop] restarting the sim for scene {restart['entry'].id}", flush=True)
+            return RESTART_EXIT
         return 0
 
 

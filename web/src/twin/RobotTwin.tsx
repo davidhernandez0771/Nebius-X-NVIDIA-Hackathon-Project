@@ -29,11 +29,17 @@ import { alignState, toolInEnv, viewLayout } from "./aids";
 import { contactGlow, GLOW, type TwinContact } from "./contact";
 import { loadTwinRobot, type LoadedTwin } from "./loadTwinRobot";
 import { applyJoints, binParts, boneSegments, CUBE_SIZE, FRANKA, gripperLinkSet, matLines, quat, TABLE } from "./model";
+import type { TwinObject } from "./messages";
 import type { TwinPose, TwinState } from "./types";
 import "./twin.css";
 
 // The hologram's colours (web/src/site/record/record-hologram.css, the .rg tokens).
 const C = { void: "#040607", live: "#19F5C2", needle: "#FF5A1F", hold: "#FFB000", cube: "#D9D8D2", ink3: "#53625F" };
+// A plan's cube colours (demo_pipeline.scene_plan COLORS), a little muted for the hologram.
+const PLAN_COLORS: Record<string, string> = {
+  red: "#C9302C", blue: "#2F5BC8", green: "#2E9E44", yellow: "#E5C840", orange: "#E07A1F", purple: "#7E3FA8", white: "#E8E8E4", black: "#2A2A2A",
+};
+const samePlace = (a: TwinPose, b: TwinPose | null) => !!b && a.pos.every((v, i) => Math.abs(v - b.pos[i]) < 1e-6);
 
 const matte = new MeshStandardMaterial({ color: "#1B2427", roughness: 0.82, metalness: 0.12 });
 const matteHot = new MeshStandardMaterial({ color: "#2A1A14", roughness: 0.7, metalness: 0.1, emissive: C.needle, emissiveIntensity: 0.18 });
@@ -166,14 +172,17 @@ function Table() {
   );
 }
 
-function Bin({ pose, glow }: { pose: TwinPose; glow: boolean }) {
+/** inner: a plan's bin (the scene picker); today's BIN_INNER without one. */
+function Bin({ pose, glow, inner }: { pose: TwinPose; glow: boolean; inner?: [number, number, number] }) {
+  const key = inner?.join(",");
   const parts = useMemo(
     () =>
-      binParts().map((p) => {
+      binParts(inner).map((p) => {
         const g = new BoxGeometry(...p.size);
         return { ...p, g, e: new EdgesGeometry(g) };
       }),
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
   );
   return (
     <group position={pose.pos} quaternion={quat(pose.quat)}>
@@ -191,14 +200,15 @@ function Bin({ pose, glow }: { pose: TwinPose; glow: boolean }) {
   );
 }
 
-/** glow: lined up (the aids), its edges go from white to the live colour. */
-function Cube({ pose, glow }: { pose: TwinPose; glow: boolean }) {
-  const box = useMemo(() => new BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE), []);
+/** glow: lined up (the aids), its edges go from white to the live colour. A plan's cube (the scene picker) has its
+ *  own size and colour; today's is CUBE_SIZE in the hologram's light grey. */
+function Cube({ pose, glow, size = CUBE_SIZE, color }: { pose: TwinPose; glow: boolean; size?: number; color?: string }) {
+  const box = useMemo(() => new BoxGeometry(size, size, size), [size]);
   const edges = useMemo(() => new EdgesGeometry(box), [box]);
   return (
     <group position={pose.pos} quaternion={quat(pose.quat)}>
       <mesh geometry={box}>
-        <meshStandardMaterial color={C.cube} roughness={0.75} />
+        <meshStandardMaterial color={color ? (PLAN_COLORS[color] ?? C.cube) : C.cube} roughness={0.75} />
       </mesh>
       <lineSegments geometry={edges}>
         <lineBasicMaterial color={glow ? C.live : "#FFFFFF"} transparent opacity={glow ? 0.95 : 0.5} />
@@ -230,7 +240,7 @@ function View({ interactive, aspect: fixed, dom, facing = false }: { interactive
 
 type Aiding = { aspect: number; dom: HTMLElement | null; cube: boolean; bin: boolean; facing: boolean };
 
-function Scene({ loaded, state, base, interactive, aids, contact }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null; contact: TwinContact | null }) {
+function Scene({ loaded, state, base, interactive, aids, contact, objects }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null; contact: TwinContact | null; objects: TwinObject[] | null }) {
   return (
     <>
       <color attach="background" args={[C.void]} />
@@ -242,8 +252,21 @@ function Scene({ loaded, state, base, interactive, aids, contact }: { loaded: Lo
       <group rotation={[-Math.PI / 2, 0, 0]}>
         <Table />
         <Mat />
-        {state.bin && <Bin pose={state.bin} glow={aids?.bin ?? false} />}
-        {state.cube && <Cube pose={state.cube} glow={aids?.cube ?? false} />}
+        {objects ? (
+          // a plan's scene: every bin and cube; the goal's pair (state.bin / state.cube) still glows with the aids
+          objects.map((o) =>
+            o.kind === "bin" ? (
+              <Bin key={o.id} pose={o.pose} inner={o.inner} glow={samePlace(o.pose, state.bin) && (aids?.bin ?? false)} />
+            ) : (
+              <Cube key={o.id} pose={o.pose} size={o.size} color={o.color} glow={samePlace(o.pose, state.cube) && (aids?.cube ?? false)} />
+            ),
+          )
+        ) : (
+          <>
+            {state.bin && <Bin pose={state.bin} glow={aids?.bin ?? false} />}
+            {state.cube && <Cube pose={state.cube} glow={aids?.cube ?? false} />}
+          </>
+        )}
         <group position={base?.pos ?? [0, 0, 0]} quaternion={base ? quat(base.quat) : undefined}>
           <Robot loaded={loaded} joints={state.joints} gripper={state.gripper} contact={contact} />
         </group>
@@ -269,10 +292,12 @@ export type RobotTwinProps = TwinState & {
   facing?: boolean;
   /** The arm's push on the bin or table (live only): its link glows amber from a touch, red over 5 N (./contact.ts). */
   contact?: TwinContact | null;
+  /** A plan's every cube and bin (the scene picker): drawn instead of the one cube and bin; the aids still use cube/bin. */
+  objects?: TwinObject[] | null;
   className?: string;
 };
 
-export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false, contact = null }: RobotTwinProps) {
+export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false, contact = null, objects = null }: RobotTwinProps) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [box, size] = useBox<HTMLDivElement>();
   const [frontEl, setFrontEl] = useState<HTMLDivElement | null>(null);
@@ -320,7 +345,7 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
     <div className={["twin3d", className].filter(Boolean).join(" ")} ref={box}>
       {load.status === "ready" ? (
         <Canvas className="twin3d__canvas" frameloop="demand" dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "low-power" }}>
-          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} contact={contact} />
+          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} contact={contact} objects={objects} />
         </Canvas>
       ) : (
         <p className="twin3d__wait" role={load.status === "error" ? "alert" : undefined}>

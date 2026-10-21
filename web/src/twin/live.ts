@@ -2,7 +2,7 @@
 // useLiveTwin is a thin WebSocket wrapper around it.
 import { apiUrl } from "../api/client";
 import type { TwinContact } from "./contact";
-import { namedJoints, type TwinFrame, type TwinMessage, type TwinScene } from "./messages";
+import { namedJoints, type TwinFrame, type TwinMessage, type TwinObject, type TwinScene } from "./messages";
 import type { TwinPose, TwinState } from "./types";
 
 /** connecting: never reached the backend yet. offline: the socket closed (retrying). no_sim: the backend is up but
@@ -43,7 +43,9 @@ export function liveStatus(s: LiveState): LiveStatus {
 
 /** contact: the arm's push now (./contact.ts); floor: the soft floor is holding the target up. Both null without a
  *  frame, or from a sim that doesn't send them. */
-export type LiveTwin = TwinState & { status: LiveStatus; base: TwinPose | null; robot: string | null; contact: TwinContact | null; floor: boolean | null };
+export type LiveTwin = TwinState & { status: LiveStatus; base: TwinPose | null; robot: string | null; contact: TwinContact | null; floor: boolean | null;
+  /** A plan's every cube and bin (the scene picker), cubes where the latest frame has them; null in today's scene. */
+  objects: TwinObject[] | null };
 
 export function liveTwin(s: LiveState): LiveTwin {
   const { scene, frame } = s;
@@ -57,5 +59,6 @@ export function liveTwin(s: LiveState): LiveTwin {
     cube: frame?.cube ?? null,
     contact: frame?.contact ?? null,
     floor: frame?.floor ?? null,
+    objects: scene?.objects ? scene.objects.map((o) => (o.kind === "cube" && frame?.cubes?.[o.id] ? { ...o, pose: frame.cubes[o.id] } : o)) : null,
   };
 }

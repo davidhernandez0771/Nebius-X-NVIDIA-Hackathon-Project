@@ -1,7 +1,8 @@
 // Keyboard and mouse driving for /record: record clean demos without the camera. Everything is in the robot's own
 // frame, as if standing behind it: x forward (away from the base), y to the robot's left, z up, meters.
 //
-// Keys: W/S (or arrows up/down) forward/back, A/D (arrows left/right) the robot's left/right, R/F up/down. They set a
+// Keys: W/S (or arrows up/down) forward/back, A/D (arrows left/right) the robot's left/right, R/F up/down, Q/E turn
+// the wrist (+-90 degrees; Shift+wheel with the mouse). They set a
 // velocity that ramps to the speed over RAMP_S and back to 0 after release, so the target moves smoothly, never in
 // steps. Shift is the fine mode (FINE of the speed). The mouse (Pointer Lock) moves a goal by its deltas (mouse up =
 // forward, right = the robot's right, wheel = up/down), and the target follows the goal with a critically damped
@@ -30,6 +31,9 @@ export const SPEED_MAX = 0.3;
 export const MOUSE_SENS_MIN = 0.0001; // m per pixel of mouse motion
 export const MOUSE_SENS_MAX = 0.002;
 export const WHEEL_M = 0.01; // up/down per wheel notch (deltaY 100)
+export const YAW_MAX = Math.PI / 2; // the wrist turns at most this far either way (to_ee_target's yaw_limit)
+export const YAW_SPEED = 1.2; // rad/s with Q / E held (about 70 degrees a second)
+export const YAW_NOTCH = (10 * Math.PI) / 180; // Shift+wheel: this much per notch
 const MOUSE_TAU_S = 0.08; // the pursuit's time constant
 const MOUSE_V_MAX = 0.4; // m/s
 const MOUSE_A_MAX = 2; // m/s^2
@@ -61,8 +65,23 @@ const KEYS: Record<string, [number, number]> = {
   KeyF: [2, -1],
 };
 
+/** Q / E turn the wrist: +1 counter-clockwise seen from above (the sim's yaw), -1 the other way. */
+const YAW_KEYS: Record<string, number> = { KeyQ: +1, KeyE: -1 };
+
 /** The KeyboardEvent.code values that move the arm. */
-export const MOVE_CODES = Object.keys(KEYS);
+export const MOVE_CODES = [...Object.keys(KEYS), ...Object.keys(YAW_KEYS)];
+
+/** The held keys -> the wrist's direction: +1 (Q), -1 (E), 0 (neither, or both). */
+export function yawAxis(down: ReadonlySet<string>): number {
+  let a = 0;
+  for (const code of down) a += YAW_KEYS[code] ?? 0;
+  return a + 0;
+}
+
+/** A Shift+wheel event's deltaY (100 per notch, down positive) -> a wrist turn: wheel up = counter-clockwise. */
+export function yawWheelDelta(deltaY: number): number {
+  return (-deltaY / 100) * YAW_NOTCH + 0;
+}
 
 /** The held keys (KeyboardEvent.code) -> a direction in the robot's frame; a diagonal has length 1. */
 export function keyAxes(down: ReadonlySet<string>): Vec3 {
@@ -97,9 +116,17 @@ export class Drive {
   gripper: 0 | 1 = 0;
   private goal: Vec3 = [...HOME]; // where the mouse wants the target
   private mouseVel: Vec3 = [0, 0, 0];
+  /** The wrist's turn, rad (HandPoseMsg.yaw_rad): Q / E ramp it like the keys move the target, Shift+wheel moves its
+   *  goal and it follows with the mouse's pursuit; clamped to +-YAW_MAX. */
+  yaw = 0;
+  private yawVel = 0;
+  private yawGoal = 0;
+  private yawPursuit = 0;
 
-  /** One tick: the keys' ramped velocity, the mouse pursuit, the clamp. Returns the new target. */
-  step(dt: number, axes: Vec3, { speed, fine }: { speed: number; fine: boolean }): Vec3 {
+  /** One tick: the keys' ramped velocity, the mouse pursuit, the clamp, and the wrist (yawAxis: Q / E). Returns the
+   *  new target. */
+  step(dt: number, axes: Vec3, { speed, fine }: { speed: number; fine: boolean }, yawAxis = 0): Vec3 {
+    this.stepYaw(dt, yawAxis, fine);
     const top = speed * (fine ? FINE : 1);
     const accel = speed / RAMP_S;
     const w = 1 / MOUSE_TAU_S;
@@ -133,6 +160,28 @@ export class Drive {
     return [...this.pos];
   }
 
+  private stepYaw(dt: number, axis: number, fine: boolean) {
+    const top = YAW_SPEED * (fine ? FINE : 1);
+    const accel = YAW_SPEED / RAMP_S;
+    const room = axis > 0 ? YAW_MAX - this.yaw : this.yaw + YAW_MAX;
+    const want = Math.sign(axis) * Math.min(Math.abs(axis) * top, Math.sqrt(2 * accel * Math.max(0, room)));
+    this.yawVel += clamp(want - this.yawVel, -accel * dt, accel * dt);
+    if (Math.abs(this.yawVel) < 1e-12) this.yawVel = 0;
+    const w = 1 / MOUSE_TAU_S;
+    this.yawPursuit += (w * w * (this.yawGoal - this.yaw) - 2 * w * this.yawPursuit) * dt;
+    this.yaw = clamp(this.yaw + (this.yawVel + this.yawPursuit) * dt, -YAW_MAX, YAW_MAX);
+    this.yawGoal = clamp(this.yawGoal + this.yawVel * dt, -YAW_MAX, YAW_MAX);
+    if (Math.abs(this.yaw) >= YAW_MAX) {
+      if (Math.sign(this.yawVel) === Math.sign(this.yaw)) this.yawVel = 0;
+      if (Math.sign(this.yawPursuit) === Math.sign(this.yaw)) this.yawPursuit = 0;
+    }
+  }
+
+  /** Turn the wrist's goal (Shift+wheel); the wrist follows it on the next ticks. */
+  nudgeYaw(d: number) {
+    this.yawGoal = clamp(this.yawGoal + d, -YAW_MAX, YAW_MAX);
+  }
+
   /** Move the goal (a mouse or wheel delta); the target follows it on the next ticks. */
   nudge(d: Vec3) {
     for (let k = 0; k < 3; k++) this.goal[k] = clamp(this.goal[k] + d[k], RANGES[k][0], RANGES[k][1]);
@@ -149,6 +198,7 @@ export class Drive {
     this.vel = [0, 0, 0];
     this.mouseVel = [0, 0, 0];
     this.gripper = 0;
+    this.yaw = this.yawVel = this.yawGoal = this.yawPursuit = 0;
   }
 }
 
@@ -159,14 +209,14 @@ export function controlOf([x, y, z]: Vec3): [number, number, number] {
 }
 
 /** The camera path's message for a target: the backend validates it as HandPoseMsg, the sim maps `control`. */
-export function driveMessage(target: Vec3, grip: 0 | 1, tMs: number): HandPoseMsg {
+export function driveMessage(target: Vec3, grip: 0 | 1, tMs: number, yaw = 0): HandPoseMsg {
   return {
     t_ms: tMs,
     tracking_ok: true,
     wrist_uv: [0.5, 0.5],
     palm_width: 0.1,
     pinch_ratio: grip ? 0.2 : 0.8, // what a pinch would read; the sim follows grip
-    yaw_rad: 0,
+    yaw_rad: yaw + 0, // the wrist (Q / E, Shift+wheel); the sim clamps it to +-90 degrees too
     frame_w: 640,
     frame_h: 480,
     control: controlOf(target),

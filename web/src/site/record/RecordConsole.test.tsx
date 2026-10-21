@@ -12,7 +12,7 @@ import type { SimStatus } from "../../record/recordLink";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../record/teleop/controlRegion";
 import { VICTORY_FLEX, VICTORY_THUMB, makeHandPose, pinchThumbTip, type HandPoseOptions } from "../../record/teleop/__fixtures__/handPoses";
 import { EFFECTS_KEY } from "../../sant/motion/effects";
-import type { TakeReview as TakeReviewT } from "../../pm/types";
+import type { SceneEntry as SceneEntryT, ScenePlanJson as ScenePlanJsonT, TakeReview as TakeReviewT } from "../../pm/types";
 import { RecordConsole } from "./RecordConsole";
 
 const tracker = vi.hoisted(() => ({
@@ -31,6 +31,7 @@ interface FakeLink {
   controls: unknown[];
   inputs: string[];
   assists: boolean[];
+  scenes: string[];
   msgs: unknown[];
   closed: boolean;
   emitStatus(s: TeleopStatus): void;
@@ -48,9 +49,19 @@ vi.mock("../../record/teleop/handLock", async (importOriginal) => ({
 }));
 // The take review: never settles unless a test says otherwise (the page's other fetches stay on the stubbed fetch).
 const takeReview = vi.hoisted(() => ({ fn: vi.fn() }));
+const sceneApi = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), save: vi.fn() }));
 vi.mock("../../pm/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../pm/api")>();
-  return { ...actual, pmApi: { ...actual.pmApi, takeReview: (...a: unknown[]) => takeReview.fn(...a) } };
+  return {
+    ...actual,
+    pmApi: {
+      ...actual.pmApi,
+      takeReview: (...a: unknown[]) => takeReview.fn(...a),
+      listScenes: (...a: unknown[]) => sceneApi.list(...a),
+      createScene: (...a: unknown[]) => sceneApi.create(...a),
+      saveScene: (...a: unknown[]) => sceneApi.save(...a),
+    },
+  };
 });
 vi.mock("../../record/handArt", () => ({ LazyHandArtOverlay: () => <div data-testid="hand-art-overlay" /> }));
 // The 3D twin's two sources, faked: three.js never loads, no socket opens, nothing is fetched.
@@ -97,6 +108,11 @@ vi.mock("../../record/recordLink", () => ({
       this.controls.push(s);
     }
     assists: boolean[] = [];
+    scenes: string[] = [];
+    sendScene(id: string) {
+      this.scenes.push(id);
+      return true;
+    }
     sendAssist(on: boolean) {
       this.assists.push(on);
       return true;
@@ -219,7 +235,7 @@ describe("/record", () => {
   it("shows the sink command while no sim is connected, and keeps Record and Reset scene disabled", async () => {
     const link = await startCamera();
     act(() => link.emitStatus(noSim));
-    expect(screen.getByText(/teleop_sink\.py --viz kit/)).toBeTruthy();
+    expect(screen.getByText(/teleop_sink_loop.py --viz kit/)).toBeTruthy();
     expect(screen.getByText("sim").closest(".rg-chip")?.getAttribute("data-state")).toBe("wait");
     expect(recordButton().disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Reset scene" }) as HTMLButtonElement).disabled).toBe(true);
@@ -965,5 +981,104 @@ describe("/record: the take review after each save (pm/take-review)", () => {
     act(() => link.emitSim(sim({ steps: 50, demoId: null, lastResult: "discarded: 50 step(s) not saved" })));
     expect(takeReview.fn).not.toHaveBeenCalled();
     expect(screen.queryByRole("region", { name: "take review" })).toBeNull();
+  });
+});
+
+describe("/record: the scene picker (pm/record-scenes)", () => {
+  const cube = (id: string, color: string, x: number, y: number, size = 0.05) =>
+    ({ id, kind: "cube" as const, color, size, pose: { x, y, yaw_deg: 0 }, on: null });
+  const bin = (x: number, y: number, yaw = 0, h = 0.08) =>
+    ({ id: "bin", kind: "bin" as const, color: "blue", inner: [0.2, 0.2, h] as [number, number, number], pose: { x, y, yaw_deg: yaw } });
+  const plan = (objects: ScenePlanJsonT["objects"]): ScenePlanJsonT =>
+    ({ version: 1, robot: "franka", objects, goals: [{ object: "cube", bin: "bin" }], reach: { x: [0.4, 0.65], y: [-0.3, 0.3], z_max: 0.25 } });
+  const entry = (id: string, name: string, p: ScenePlanJsonT, needs = false): SceneEntryT => ({
+    id, name, description: `${name}, described`, source: id === "standard" ? "standard" : "protocol", plan: p,
+    hash: "0123456789abcdef", needs_settle: needs, settle: null, created_at: "2026-10-20T00:00:00+00:00",
+  });
+  const SCENES = [
+    entry("standard", "Standard", plan([cube("cube", "red", 0.5, 0), bin(0.5, 0.3)])),
+    entry("s3", "S3 Bin turned, other side", plan([cube("cube", "red", 0.5, 0), bin(0.55, -0.2, 90)])),
+    entry("s7", "S7 Yellow distractor", plan([cube("cube", "red", 0.5, 0), cube("distractor", "yellow", 0.5, -0.085), bin(0.5, 0.3)]), true),
+  ];
+
+  beforeEach(() => {
+    localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "keyboard" }));
+    sceneApi.list.mockResolvedValue(SCENES);
+  });
+
+  async function openPicker() {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Start keyboard" }));
+    const link = links.list[0];
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim({ ...sim(), scene: { id: "standard", name: "Standard", hash: "0123456789abcdef", settle: null, switching: null, playlist: null } }));
+    fireEvent.click(screen.getByRole("button", { name: /^Scene/ }));
+    await screen.findByRole("button", { name: /S3 Bin turned/ });
+    return link;
+  }
+  const drawer = () => screen.getByRole("dialog", { name: "Scenes" });
+
+  it("lists the scenes, marks the live one, and previews the one you pick", async () => {
+    await openPicker();
+    expect(screen.getByRole("button", { name: /^Scene · Standard/ })).toBeTruthy();
+    const list = within(drawer()).getByRole("list", { name: "Scenes" });
+    expect(within(list).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      expect.stringContaining("Standard"), expect.stringContaining("S3 Bin turned"), expect.stringContaining("S7 Yellow distractor"),
+    ]);
+    fireEvent.click(within(list).getByRole("button", { name: /S7 Yellow distractor/ }));
+    const preview = within(drawer()).getByRole("img", { name: /Scene preview: 2 cubes, 1 bin/ });
+    expect(preview.querySelectorAll("[data-object]").length).toBe(3);
+    expect(within(drawer()).getByText(/new bodies: the sim restarts and checks it in Isaac/)).toBeTruthy();
+  });
+
+  it("Use this scene asks the sim for it; not while recording, not for the live one", async () => {
+    const link = await openPicker();
+    const use = () => within(drawer()).getByRole("button", { name: "Use this scene" }) as HTMLButtonElement;
+    fireEvent.click(within(drawer()).getByRole("button", { name: /^Standard/ }));
+    expect(use().disabled).toBe(true); // already live
+    fireEvent.click(within(drawer()).getByRole("button", { name: /S3 Bin turned/ }));
+    fireEvent.click(use());
+    expect(link.scenes).toEqual(["s3"]);
+    act(() => link.emitSim({ ...sim({ recording: true, steps: 3 }), scene: { id: "standard", name: "Standard", hash: "0123456789abcdef", settle: null, switching: null, playlist: null } }));
+    expect(use().disabled).toBe(true);
+  });
+
+  it("says when the sim is restarting into a scene, and when a settle check failed", async () => {
+    const link = await openPicker();
+    act(() => link.emitSim({ ...sim(), scene: { id: "standard", name: "Standard", hash: "0123456789abcdef", settle: null, switching: "s7", playlist: null } }));
+    expect(within(drawer()).getByRole("status").textContent).toMatch(/switching to s7: the sim restarts/);
+    act(() => link.emitSim({ ...sim(), scene: { id: "s8", name: "S8 Taller bin", hash: "0123456789abcdef", settle: { ok: false, errors: ["cube moved 2 cm"] }, switching: null, playlist: { index: 7, of: 12, take: 1, takesPerScene: 2 } } }));
+    expect(screen.getByRole("button", { name: /^Scene · S8 Taller bin/ })).toBeTruthy();
+    expect(within(drawer()).getByRole("alert").textContent).toMatch(/settle check failed: cube moved 2 cm/);
+    expect(within(drawer()).getByText("scene list 8 of 12 · take 2 of 2")).toBeTruthy();
+  });
+
+  it("describe a scene: Nemotron's plan is previewed, then saved and used", async () => {
+    const link = await openPicker();
+    const draft = plan([cube("cube", "red", 0.5, 0), cube("distractor", "green", 0.5, -0.1), bin(0.5, 0.3)]);
+    sceneApi.create.mockResolvedValue({ ok: true, plan: draft, errors: [], needs_settle: true, calls: 1, model: "nemotron" });
+    sceneApi.save.mockResolvedValue(entry("green_one_ab12cd", "a green cube beside it", draft, true));
+    fireEvent.change(within(drawer()).getByRole("textbox", { name: "Describe a scene" }), { target: { value: "a green cube beside it" } });
+    await act(async () => {
+      fireEvent.click(within(drawer()).getByRole("button", { name: "Create with Nemotron" }));
+    });
+    expect(sceneApi.create).toHaveBeenCalledWith("a green cube beside it");
+    expect(within(drawer()).getByRole("img", { name: /Scene preview: 2 cubes, 1 bin/ })).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(within(drawer()).getByRole("button", { name: "Save & use" }));
+    });
+    expect(sceneApi.save).toHaveBeenCalledWith("a green cube beside it", draft, "a green cube beside it");
+    expect(link.scenes).toEqual(["green_one_ab12cd"]);
+  });
+
+  it("a description Nemotron can't make valid shows why and offers nothing to save", async () => {
+    await openPicker();
+    sceneApi.create.mockResolvedValue({ ok: false, plan: null, errors: ["bin is out of reach"], needs_settle: null, calls: 4, model: "nemotron" });
+    fireEvent.change(within(drawer()).getByRole("textbox", { name: "Describe a scene" }), { target: { value: "a bin on the moon" } });
+    await act(async () => {
+      fireEvent.click(within(drawer()).getByRole("button", { name: "Create with Nemotron" }));
+    });
+    expect(within(drawer()).getByText(/bin is out of reach/)).toBeTruthy();
+    expect(within(drawer()).queryByRole("button", { name: "Save & use" })).toBeNull();
   });
 });

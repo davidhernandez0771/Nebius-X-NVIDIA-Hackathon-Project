@@ -152,7 +152,7 @@ describe("Record page", () => {
     const link = await startCamera();
     act(() => link.emitStatus(noSim));
     expect(screen.getByText(/sim isn't connected/i)).toBeTruthy();
-    expect(screen.getByText(/teleop_sink\.py --viz kit/)).toBeTruthy();
+    expect(screen.getByText(/teleop_sink_loop.py --viz kit/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "Start recording" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Reset scene" }) as HTMLButtonElement).disabled).toBe(true);
   });

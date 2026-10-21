@@ -335,3 +335,38 @@ def test_an_older_sims_status_is_forwarded_without_the_new_fields(client):
         sim.send_json(_sim_status())
         got = browser.receive_json()
         assert "soft_floor" not in got and "contact_peak_n" not in got
+
+
+# --- the scene picker (pm/record-scenes) -------------------------------------------------------
+
+def test_set_scene_is_forwarded_with_its_scene_id(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json({"type": "control", "action": "set_scene", "scene": "s7"})
+        assert sim.receive_json() == {"type": "control", "action": "set_scene", "scene": "s7"}
+
+
+def test_set_scene_needs_a_safe_id_and_only_set_scene_takes_one(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        for bad in ({"type": "control", "action": "set_scene"},
+                    {"type": "control", "action": "set_scene", "scene": "../etc"},
+                    {"type": "control", "action": "set_scene", "scene": 7},
+                    {"type": "control", "action": "record_start", "scene": "s1"}):
+            browser.send_json(bad)
+            assert browser.receive_json()["type"] == "error"
+        browser.send_json(_control("record_stop"))
+        assert sim.receive_json() == _control("record_stop")
+
+
+def test_sim_status_carries_the_scene(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        scene = {"id": "s8", "name": "S8 Taller bin", "hash": "0123456789abcdef",
+                 "settle": {"ok": False, "errors": ["cube moved 2 cm"]}, "switching": None,
+                 "playlist": {"index": 2, "of": 12, "take": 1, "takes_per_scene": 2}}
+        status = _sim_status(scene=scene)
+        sim.send_json(status)
+        assert browser.receive_json() == {**status, "paused": False}
+        sim.send_json(_sim_status())
+        assert "scene" not in browser.receive_json()  # an older sim: as before

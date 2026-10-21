@@ -146,3 +146,38 @@ export interface TakeReview {
     input: string | null;
   };
 }
+
+/** demo_pipeline.scene_plan.ScenePlan as JSON (the scene picker's plans). */
+export interface ScenePlanJson {
+  version: 1;
+  robot: string;
+  objects: (
+    | { id: string; kind: "cube"; color: string; size: number; pose: { x: number; y: number; yaw_deg: number } | null; on: string | null }
+    | { id: string; kind: "bin"; color: string; inner: [number, number, number]; pose: { x: number; y: number; yaw_deg: number } }
+  )[];
+  goals: { object: string; bin: string }[];
+  reach: { x: [number, number]; y: [number, number]; z_max: number } | null;
+}
+
+/** GET /scenes entries (demo_pipeline.scene_library.SceneEntry). */
+export interface SceneEntry {
+  id: string;
+  name: string;
+  description: string;
+  source: "standard" | "protocol" | "nemotron" | "saved";
+  plan: ScenePlanJson;
+  hash: string;
+  needs_settle: boolean;
+  settle: { ok: boolean; errors: string[]; hash: string; at: string } | null;
+  created_at: string;
+}
+
+/** POST /scenes/create: Nemotron's plan for a sentence, or why it couldn't make a valid one. */
+export interface SceneDraft {
+  ok: boolean;
+  plan: ScenePlanJson | null;
+  errors: string[];
+  needs_settle: boolean | null;
+  calls: number;
+  model: string | null;
+}

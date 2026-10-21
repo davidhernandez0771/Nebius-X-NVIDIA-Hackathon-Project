@@ -31,14 +31,17 @@ import { formatClock } from "../record-hud";
 import { GripDial, HeightGauge, SideGauge, Trace } from "./instruments";
 import { GAIN_MAX, GAIN_MIN } from "../../record/teleop/controlRegion";
 import { ContactBar } from "./ContactBar";
+import { WristDial } from "./WristDial";
 import { DrivePanel, InputSwitch } from "./DrivePanel";
 import { TakeCoach, useTakeReview } from "./TakeCoach";
 import { RecordSettings } from "./RecordSettings";
+import { ScenePicker } from "./ScenePicker";
 import { useRecordTwin } from "./robotTwin";
 import { LIVE_ROBOT, initialLive, stepLive, type LiveState } from "./twin";
 import "./record-hologram.css";
 
 const DRAWER_ID = "rg-settings";
+const SCENES_ID = "rg-scenes";
 const BOOT_MS = 1600; // the plug-in: panes draw in and one scanline sweeps, then it's gone
 const CONFIRM_MS = 4000; // "Delete last demo" waits this long for the confirming click, then backs off
 const STEPS = ["S · show", "A · check", "N · neaten", "T · train"];
@@ -160,6 +163,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const { reduced } = useMotion();
   const [boot, setBoot] = useState(!reduced);
   const [drawer, setDrawer] = useState(false);
+  const [scenesOpen, setScenesOpen] = useState(false);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const root = useCallback((el: HTMLDivElement | null) => {
     if (el) onPalette(stagePalette(el));
@@ -232,6 +236,11 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
             <span>{LIVE_ROBOT.name}</span>
           </span>
           <h1 className="rg-title">Record</h1>
+          <button type="button" className="rg-btn rg-btn--small rg-scene-btn" aria-controls={SCENES_ID} aria-expanded={scenesOpen}
+            onClick={() => setScenesOpen((o) => !o)} title="The scene you record in: Standard, the protocol's S1-S8, or one you describe">
+            {`Scene · ${sim?.scene?.name ?? "Standard"}`}
+            {sim?.scene?.switching && <span className="rg-scene-btn__busy"> · switching</span>}
+          </button>
         </div>
         <nav className="rg-steps" aria-label="SANT steps">
           {STEPS.map((step, i) => (
@@ -402,6 +411,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
             <div className="rg-hd">
               <span>workspace · robot twin</span>
               <span className="rg-hd__tools">
+                <WristDial yaw={pose?.msg.tracking_ok ? pose.msg.yaw_rad : null} />
                 <label
                   className="rg-floor"
                   title="Soft floor: while you drive, the sim won't take the gripper more than ~1 cm under the bin's rim, or below the table. Each demo records whether it was on."
@@ -508,6 +518,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
       </footer>
 
       <RecordSettings id={DRAWER_ID} open={drawer} onClose={closeDrawer} session={session} />
+      <ScenePicker id={SCENES_ID} open={scenesOpen} onClose={() => setScenesOpen(false)} session={session} />
     </div>
   );
 }
