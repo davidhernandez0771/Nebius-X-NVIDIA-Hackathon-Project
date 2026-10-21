@@ -365,7 +365,12 @@ change.
 - **What stays the same:** training and the reward; `check_success` and its thresholds; the gate's ≥ 90%.
 - **What changes for the gate:** only where an eval episode stops.
 
-T3 sends the commit, and it is added here.
+**It is `2333c96`** (T3, 11:55, on `pm/rl-teacher`; it changes `sim_worker/rl_env_cfg.py` and its tests only).
+- `done_success(extra_s)` defaults to 0, for training and the Lift task.
+- The Play env sets `PLAY_SUCCESS_EXTRA_S` = 0.2 s (10 extra steps). `rl_eval_teacher` uses it, so the gate gets it.
+- In the test fixture, the bonus fires at step 391, the Play episode ends at 401, and `check_success` passes on the
+  402-step record.
+- T6's round-0 rollouts don't depend on it: they score `check_success` on their own env every 25 steps.
 
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
