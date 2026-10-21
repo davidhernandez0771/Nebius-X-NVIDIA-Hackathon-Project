@@ -389,5 +389,26 @@ change.
 **`demo_v6` continues to 1500 iterations** (the lead's decision): Isaac Lab's stock Franka lift config trains for 1500,
 so judging it at 300 was too early. Its command already set `--max-iterations 1500`.
 
+**`56a3156`** (T3, 12:13, on `pm/rl-teacher`): a BC-initialised teacher, built and not yet run on Isaac. It changes
+only how the teacher is initialised: the reward, the success definition, the gate, the seeds, the selection rule and
+the test are unchanged.
+- **The data** (`src/demo_pipeline/rl_bc.py`): 31,536 (observation, action) pairs from the 110 SANT-verified
+  `mouse20261020` training episodes, in the replay convention. These are the same episodes as the arm's demo-start
+  bank.
+- **The pre-training** (`scripts/rl_bc_pretrain.py`):
+  - it fits the PPO actor's mean by MSE;
+  - the held-out validation MSE is 1e-4 to 3e-4, against 0.015 to 0.09 for a zero action;
+  - the gripper's sign is right on 99.2% of steps.
+- **The obs-match check** (`scripts/rl_bc_check.py`): it checks that the BC observations match what the env produces.
+- **`rl_train.py --fresh-optimizer`:** PPO starts from the BC weights with a new optimizer.
+- **The planned `bc_v1` settings, if it is run:**
+  - initial std about 0.12;
+  - `std_range` [0.05, 1.0];
+  - the `lift` reward (Amendment 2).
+
+  Its exact command and start time are added here if it runs.
+- **A finding, recorded:** a demo's steps are 2–4 mm, while the exploration noise is 6–17 mm per step. So noise at the
+  earlier std swamped demo-like motion, which is why the planned initial std is low.
+
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
