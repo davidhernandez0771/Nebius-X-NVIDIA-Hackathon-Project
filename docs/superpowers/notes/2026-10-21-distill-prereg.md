@@ -424,6 +424,11 @@ the test are unchanged.
 
 **The pick is `model_1499`:** it has more home-start successes and no collisions. These numbers are not the gate.
 
+**A deviation from the wording above, logged openly.** Gate step 2 said the checkpoint "may be chosen … on those
+practice seeds only". It was chosen on other scenes (`rng(7)`), and the practice seeds 5300–5349 were not used. That
+is stricter than written: the gate's 50 seeds are fresh for the picked checkpoint, so the gate is not biased by the
+choice. Seeds 5020–5059 were not used for the teacher.
+
 **The gate runs once on `model_1499`.** T3's part, check (a) above, is `rl_eval_teacher` on practice seeds 5300–5349 plus
 `rl_verify_teacher`, and it passes at ≥ 45/50. Both checks must pass, so T6's 50-scene in-env gate on seeds
 4000–4049 (≥ 45/50) still applies before round 0. The results are added here. So noise at the
