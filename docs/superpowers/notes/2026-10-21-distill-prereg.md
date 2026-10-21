@@ -514,6 +514,16 @@ for T6's rollouts. `make()` reads the cap from the run's `params/env.yaml`, as i
 - then the start-type breakdown, plus a replay check on non-gate episodes, to pick a checkpoint before the gate;
 - then gate attempt 2 on 5350–5399.
 
+**`demo_v6c` was a failed launch.** It died before iteration 1 with NaN observations.
+- **The cause:** the cap's `_prev_valid` buffer shadowed the tracking IK's own feed-forward flag, which gave NaN
+  joints on step 0.
+- **The fix:** **`b7935c0`** (T3, 13:38, on `pm/rl-teacher`) renames the buffers and adds a test against shadowing.
+  It is a bug fix to `f5b6646` that changes no setting.
+- **`demo_v6c`'s logs are kept** as a failed launch. No checkpoint came from it.
+
+**`demo_v6c2` is the speed-capped run.** It started at 13:39:01 with the identical command, on code with `b7935c0`.
+The plan above applies to it.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
