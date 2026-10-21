@@ -92,3 +92,17 @@ def test_the_stock_sanity_run_is_isaac_labs_task_unchanged():
     assert cmd[cmd.index("--max_iterations") + 1] == "400"
     assert rl_train.main(["--stock-task", "IsaacContrib-Lift-Cube-Franka", "--run-name", "stock_lift",
                           "--max-iterations", "400", "--dry-run"]) == 0
+
+
+def test_ppo_from_a_bc_checkpoint_loads_it_with_a_fresh_optimizer(tmp_path):
+    spec = importlib.util.spec_from_file_location("rl_train", SCRIPT.parent / "rl_train.py")
+    rl_train = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rl_train)
+    ck = tmp_path / "model_0.pt"
+    ck.write_bytes(b"")
+    cmd = rl_train.train_command(demos=True, num_envs=64, max_iterations=20, run_name="bc", checkpoint=str(ck),
+                                 fresh_optimizer=True)
+    i = cmd.index("--checkpoint")
+    assert cmd[i + 1] == str(ck.resolve()) and cmd[i + 2] == "--no-resume_optimizer_state"
+    assert "--no-resume_optimizer_state" not in rl_train.train_command(
+        demos=True, num_envs=64, max_iterations=20, run_name="r", checkpoint=str(ck))

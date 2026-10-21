@@ -381,3 +381,55 @@ def test_the_start_breakdown_groups_first_episodes_by_start_type():
     assert (s["demo_free"]["episodes"], s["demo_free"]["grasped"], s["demo_free"]["reasons"]) == (1, 1, {"not_in_bin": 1})
     assert (s["demo_held"]["episodes"], s["demo_held"]["check_success"]) == (1, 1)
     assert "home" in bd.table(s)
+
+
+# --- BC-initialised RL: the pretraining and the obs check (scripts/rl_bc_pretrain.py, rl_bc_check.py) ------------
+
+
+def _script(name):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).parents[1] / "scripts" / f"{name}.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_bc_fits_the_actor_ppo_builds_and_saves_a_checkpoint_it_loads_strictly(tmp_path):
+    from demo_pipeline import rl_bc
+
+    bc = _script("rl_bc_pretrain")
+    d = EPISODES / "verified"
+    s, g = dict(np.load(d / "steps.npz")), dict(np.load(d / "signals.npz"))
+    scene = json.loads((d / "scene.json").read_text())
+    obs, act = rl_bc.episode_pairs(s, g, scene, s["ee_pos"], s["ee_quat"], s["gripper"])
+    episode = np.repeat(np.arange(4), len(obs) // 4 + 1)[:len(obs)]
+    train, val = bc.split_episodes(episode, 0.25, groups=["a", "a", "b", "c"])
+    assert not (train & val).any() and (train | val).all()
+    assert len({episode[i] for i in np.flatnonzero(val)} & {0, 1}) in (0, 2)  # a take's variants stay together
+    actor, critic, cfg = bc.build_models(rt.OBS_DIM, init_std=0.3)
+    rep = bc.fit(actor, obs, act, train, val | train, epochs=20, lr=1e-3, batch=128)
+    assert sum(rep["val_mse"]) < 0.5 * sum(rep["zero_action_mse"])
+    assert actor.distribution.std_param.detach().tolist() == pytest.approx([0.3] * rt.ACTION_DIM)  # BC leaves it
+    path = tmp_path / "model_0.pt"
+    torch.save({"actor_state_dict": actor.state_dict(), "critic_state_dict": critic.state_dict(), "iter": 0,
+                "infos": None}, path)
+    fresh_actor, fresh_critic, _ = bc.build_models(rt.OBS_DIM, init_std=1.0)
+    ck = torch.load(path, weights_only=False)
+    fresh_actor.load_state_dict(ck["actor_state_dict"], strict=True)  # what Isaac Lab's trainer does on --checkpoint
+    fresh_critic.load_state_dict(ck["critic_state_dict"], strict=True)
+    assert bc.root_of("human_x_00ab_rules_home_m3100") == bc.root_of("human_x_00ab_rules_home") == "human_x_00ab"
+
+
+def test_the_obs_check_compares_terms_and_quaternions_up_to_sign():
+    chk = _script("rl_bc_check")
+    a = np.zeros((3, rt.OBS_DIM))
+    b = a.copy()
+    lo, hi = chk._offset("tcp_quat")
+    a[:, lo:hi] = [0.0, 1.0, 0.0, 0.0]
+    b[:, lo:hi] = [0.0, -1.0, 0.0, 0.0]  # the same rotation
+    b[0, slice(*chk._offset("cube_pos"))] = [0.01, 0.0, 0.0]
+    e = chk.term_errors(a, b)
+    assert e["tcp_quat"].max() == 0 and e["tcp_quat_sign_flips"] == 3
+    assert e["cube_pos"].tolist() == pytest.approx([0.01, 0.0, 0.0])
+    assert chk.summarize(e)["cube_pos"]["n"] == 3

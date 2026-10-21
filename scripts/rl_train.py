@@ -35,7 +35,8 @@ FULL = {"num_envs": 4096, "max_iterations": 1500}
 
 
 def train_command(*, demos: bool, num_envs: int, max_iterations: int, run_name: str, checkpoint: str | None = None,
-                  overrides: list[str] = (), viz: bool = False, reward: str = "potential") -> list[str]:
+                  overrides: list[str] = (), viz: bool = False, reward: str = "potential",
+                  fresh_optimizer: bool = False) -> list[str]:
     """The trainer's command line. reward: "potential" (the default) or "lift" (the stock-lift preset, demo starts)."""
     if reward == "lift" and not demos:
         raise ValueError("the lift preset is registered with demo starts only")
@@ -44,7 +45,10 @@ def train_command(*, demos: bool, num_envs: int, max_iterations: int, run_name: 
            "--task", task, "--external_callback", "sim_worker.rl_register.register",
            "--num_envs", str(num_envs), "--max_iterations", str(max_iterations), "--run_name", run_name]
     if checkpoint:
-        cmd += ["--checkpoint", str(checkpoint)]
+        # the trainer runs in data/rl: a path that exists from here goes absolute (selectors pass as given)
+        cmd += ["--checkpoint", str(Path(checkpoint).resolve()) if Path(checkpoint).exists() else str(checkpoint)]
+        if fresh_optimizer:
+            cmd += ["--no-resume_optimizer_state"]
     if viz:
         cmd += ["--viz", "kit"]
     return cmd + list(overrides)
@@ -92,6 +96,9 @@ def main(argv=None) -> int:
     p.add_argument("--num-envs", type=int, default=None)
     p.add_argument("--max-iterations", type=int, default=None)
     p.add_argument("--checkpoint", default=None, help="resume from this run dir or model_<i>.pt")
+    p.add_argument("--fresh-optimizer", action="store_true",
+                   help="load the checkpoint's models but a new optimizer (Isaac Lab's --no-resume_optimizer_state): "
+                        "for a BC checkpoint (scripts/rl_bc_pretrain.py), which has none")
     p.add_argument("--override", action="append", default=[], help="a Hydra override, e.g. agent.algorithm.gamma=0.995")
     p.add_argument("--viz", action="store_true", help="open Kit's window (slower; Isaac runs headless by default)")
     p.add_argument("--dry-run", action="store_true", help="print the command and exit")
@@ -107,7 +114,8 @@ def main(argv=None) -> int:
         cmd = stock_command(args.stock_task, run_name=run, overrides=args.override, viz=args.viz, **size)
     else:
         cmd = train_command(demos=not args.no_demos, run_name=run, checkpoint=args.checkpoint,
-                            overrides=args.override, viz=args.viz, reward=args.reward, **size)
+                            overrides=args.override, viz=args.viz, reward=args.reward,
+                            fresh_optimizer=args.fresh_optimizer, **size)
     print(" ".join(cmd))
     if args.dry_run:
         return 0
