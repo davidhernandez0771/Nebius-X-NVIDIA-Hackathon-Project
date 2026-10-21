@@ -41,6 +41,17 @@ describe("the crack's slot", () => {
     expect(c.source()).toBe("procedural");
   });
 
+  it("keeps the procedural crack without fetching the model where the tier asks it to (low: phones)", async () => {
+    let fetched = 0;
+    const c = makeCrack(u(), { value: 0 }, (async () => {
+      fetched++;
+      return new Response(tinyGlb());
+    }) as unknown as typeof fetch, false);
+    await settle();
+    expect(fetched).toBe(0);
+    expect(c.source()).toBe("procedural");
+  });
+
   it("puts a real crack.glb in the slot's frame, in place of the fissure", async () => {
     const c = makeCrack(u(), { value: 0 }, respond(tinyGlb()));
     await settle();

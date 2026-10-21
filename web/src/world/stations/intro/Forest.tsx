@@ -1,22 +1,26 @@
 // The forest floor at night (forestPlan.ts lays it out, forestGeometry.ts builds it): dark trunks in three depths
 // (near ones flaring into buttress roots, far ones silhouettes in the mist), roots spreading over the floor,
 // fallen logs, ferns and moss mounds at the trunks' feet, three drifting bands of mist, shafts of moonlight
-// through the canopy with pools under them, dust and glowing spores. Lying in the moss: whole robots
-// (forestRobots.ts spots, the stand-in Franka from its URDF until each robot's GLB arrives), faintly lit. In the
+// through the canopy with pools under them, dust and glowing spores. Lying in the moss: the real robots
+// (forestRobots.ts spots, their GLBs, two levels of detail by distance), mossy and faintly lit. In the
 // floor is the crack (Crack.tsx: a Blender model can replace it). All of it fades with the forest's light
 // (storyPlan.ts); nothing is drawn while that is 0.
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { QualityTier } from "../../core/quality";
 import { makeCrack } from "./Crack";
 import { buildForest, FOREST_TIERS, MOON, type ForestPiece } from "./forestGeometry";
 import { MIST_BANDS } from "./forestPlan";
+import { ROBOT_TIERS, robotUrl } from "./forestRobots";
+import type { Wrecks } from "./robotWrecks";
 import { bandK } from "./mistBands";
 import { FOREST } from "./layout";
 import { seeded } from "./particles";
 import { OUT, placeUniforms, surfaceFrag, surfaceMaterial, type PlaceUniforms } from "./placeShaders";
 
 const F = FOREST.floor;
+const BASE = (import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "/");
 const TEAL = new THREE.Color("#19f5c2");
 const MAX_SHAFTS = 12;
 
@@ -137,26 +141,48 @@ void main(){
   ${OUT}
 }`;
 
+// The robots (robotWrecks.ts): the surface varyings, plus each part's paint and the dissolve between the two
+// levels of detail, from the robot's distance to the camera (robotLod.ts: inside uNear, over its last uBand).
+const robotVert = /* glsl */ `
+attribute vec3 color; attribute vec3 aSpot; uniform float uNear, uBand;
+varying vec3 vW; varying vec3 vN; varying vec2 vUv; varying vec3 vCol; varying float vFade;
+void main(){
+  vec4 w = modelMatrix * vec4(position, 1.);
+  vW = w.xyz;
+  vN = normalize(mat3(modelMatrix) * normal);
+  vUv = uv;
+  vCol = color;
+  vFade = uNear > 0. ? 1. - smoothstep(uNear - uBand, uNear, distance(cameraPosition, aSpot)) : 0.;
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+
 const partFrag = /* glsl */ `
 uniform vec3 uMoon, uTeal; uniform float uFloor;
+varying vec3 vCol; varying float vFade;
 void main(){
-  vec3 n = normalize(vN);
+  // The two levels dissolve into each other: the detailed one (uv.y 1) takes the pixels the coarse one gives up.
+  float d = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
+  if (vUv.y > .5 ? d >= vFade : d < vFade) discard;
+  vec3 n = normalize(vN) * (gl_FrontFacing ? 1. : -1.);
   vec3 v = normalize(cameraPosition - vW);
   float grime = fbm3(vW * 2.2);
-  // The robot's white shell, dirty, lit only by the moon: pale shapes in the dark.
-  vec3 shell = vec3(.42, .43, .41) * (.55 + .6 * grime);
-  vec3 c = shell * (.025 + .2 * max(0., dot(n, uMoon)));
+  // The robot's own paint (white shells, dark joints), dulled and darkened by the years in the forest, dirty, lit
+  // only by the moon: pale shapes in the dark.
+  // Black parts stay a dark grey, so a black robot still reads as a shape.
+  vec3 paint = mix(vec3(dot(vCol, vec3(.2126, .7152, .0722))), vCol, .55);
+  vec3 shell = max(paint, vec3(.3)) * vec3(.4, .42, .39) * (.55 + .6 * grime);
+  vec3 c = shell * (.04 + .3 * max(0., dot(n, uMoon)));
   vec3 h = normalize(uMoon + v);
   c += vec3(.16, .19, .21) * pow(max(0., dot(n, h)), 30.);
   float rim = pow(1. - max(0., dot(n, v)), 3.);
-  c += mix(vec3(.02, .028, .032), uTeal * .05, .4) * rim;
+  c += mix(vec3(.035, .045, .05), uTeal * .08, .4) * rim;
   // Panel seams round the joint axis, one of them still faintly powered.
   float f = abs(fract(vUv.x * 9.) - .5);
   c *= 1. - .6 * smoothstep(.44, .49, f);
-  c += uTeal * .05 * smoothstep(.46, .5, abs(fract(vUv.x * 3. + .25) - .5));
-  // Moss creeping up from where it's buried, and over the top where it has lain.
-  float mossy = 1. - smoothstep(uFloor - .05, uFloor + .45, vW.y);
-  mossy = max(mossy, smoothstep(.55, .95, n.y) * smoothstep(.55, .75, fbm2(vW.xz * 4.)) * .8);
+  c += uTeal * .09 * smoothstep(.46, .5, abs(fract(vUv.x * 3. + .25) - .5));
+  // Moss creeping up from where it's buried (higher in patches), and over the top where it has lain.
+  float mossy = 1. - smoothstep(uFloor - .05, uFloor + .3 + .45 * fbm2(vW.xz * 3.), vW.y);
+  mossy = max(mossy, smoothstep(.55, .95, n.y) * smoothstep(.5, .72, fbm2(vW.xz * 4.)) * .85);
   c = mix(c, vec3(.005, .009, .007) * (.6 + .7 * grime), mossy);
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
@@ -336,7 +362,8 @@ export function useForest(quality: QualityTier): ForestHandle {
       if ((object as THREE.InstancedMesh).isInstancedMesh) disposables.push(object as THREE.InstancedMesh);
     }
 
-    const crack = makeCrack(u, glow);
+    // The low tier keeps the procedural crack (Crack.tsx: the model is ~27k triangles).
+    const crack = makeCrack(u, glow, fetch, tier !== "low");
     group.add(crack.group);
 
     // Dust drifting everywhere along the walk; spores, fewer and brighter, rising slowly.
@@ -350,16 +377,32 @@ export function useForest(quality: QualityTier): ForestHandle {
     const sporesPts = add(motes(layout.spores, u, pr, { size: 2.6, rise: 0.03, color: "#7ff0d4" }), "forest:spores");
     disposables.push(dust.geometry, dust.material as THREE.Material, sporesPts.geometry, sporesPts.material as THREE.Material);
 
-    // The robots: empty until the stand-in Franka's URDF has loaded (urdf-loader loads with it, after the loader).
-    const partMat = surfaceMaterial(u, { uMoon: { value: MOON }, uTeal: { value: TEAL }, uFloor: { value: F } }, partFrag);
+    // The robots: empty until their GLBs have loaded (after the loader; the low tier fetches four). Each frame the
+    // index list holds every robot's coarse level and, near the camera, its detailed one (robotWrecks.ts).
+    const robotTier = ROBOT_TIERS[tier];
+    const partMat = new THREE.ShaderMaterial({
+      vertexShader: robotVert,
+      fragmentShader: surfaceFrag(partFrag),
+      uniforms: { ...u, uMoon: { value: MOON }, uTeal: { value: TEAL }, uFloor: { value: F }, uNear: { value: robotTier.near }, uBand: { value: robotTier.band } },
+      side: THREE.DoubleSide,
+    });
     const wrecks = add(new THREE.Mesh<THREE.BufferGeometry>(new THREE.BoxGeometry(0.01, 0.01, 0.01).translate(0, F - 1, 0), partMat), "forest:robots");
+    const eye = new THREE.Vector3();
+    let robots: Wrecks | null = null;
+    wrecks.onBeforeRender = (_r, _s, camera) => robots?.update(eye.setFromMatrixPosition(camera.matrixWorld));
     let live = true;
-    Promise.all([import("../../../twin/loadTwinRobot"), import("./robotWrecks")])
-      .then(([twin, w]) => twin.loadTwinRobot().then((t) => ({ t, w })))
-      .then(({ t, w }) => {
-        if (!live || t.stick) return;
+    import("./robotWrecks")
+      .then(async (w) => {
+        const loader = new GLTFLoader();
+        const loaded = await Promise.all(robotTier.ids.map((id) =>
+          loader.loadAsync(BASE + robotUrl(id)).then((g) => [id, w.modelFromScene(g.scene)] as const, (e) => {
+            console.warn(`world: the forest's ${id} didn't load`, e);
+            return null;
+          })));
+        if (!live) return;
+        robots = w.buildWrecks(Object.fromEntries(loaded.filter((x) => x !== null)), layout.robots, robotTier, F);
         wrecks.geometry.dispose();
-        wrecks.geometry = w.wreckGeometry(t.robot, layout.robots, F);
+        wrecks.geometry = robots.geometry;
       })
       .catch((e) => console.warn("world: the forest's robots didn't load", e));
     disposables.push(partMat);

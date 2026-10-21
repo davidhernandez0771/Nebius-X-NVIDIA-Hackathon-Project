@@ -64,8 +64,9 @@ export interface CrackHandle {
   dispose(): void;
 }
 
-/** The crack, procedural at once, swapped for CRACK_SLOT.url's model if one is served. */
-export function makeCrack(u: PlaceUniforms, glow: THREE.IUniform<number>, fetchImpl: typeof fetch = fetch): CrackHandle {
+/** The crack, procedural at once, swapped for CRACK_SLOT.url's model if one is served and `model` allows it (the low
+ *  tier keeps the procedural one: the model is ~27k triangles and 1.3 MB). */
+export function makeCrack(u: PlaceUniforms, glow: THREE.IUniform<number>, fetchImpl: typeof fetch = fetch, model = true): CrackHandle {
   const group = new THREE.Group();
   group.name = "forest:crack";
   const mat = surfaceMaterial(u, { uTop: { value: F }, uBottom: { value: ROCK.bottom }, uGlow: glow, uTeal: { value: TEAL } }, fissureFrag, { side: THREE.DoubleSide });
@@ -76,26 +77,26 @@ export function makeCrack(u: PlaceUniforms, glow: THREE.IUniform<number>, fetchI
   group.add(fissure);
   let source: "procedural" | "glb" = "procedural";
   let live = true;
-  let model: THREE.Object3D | null = null;
+  let glb: THREE.Object3D | null = null;
 
-  fetchImpl(BASE + CRACK_SLOT.url)
+  if (model) fetchImpl(BASE + CRACK_SLOT.url)
     .then((r) => (r.ok ? r.arrayBuffer() : null))
     .then((buf) => {
       if (!live || !buf || !isGlb(buf)) return;
       new GLTFLoader().parse(buf, BASE, (gltf) => {
         if (!live) return;
-        model = gltf.scene;
-        model.traverse((o) => {
+        glb = gltf.scene;
+        glb.traverse((o) => {
           const m = o as THREE.Mesh;
           if (m.isMesh) {
             m.material = mat;
             m.raycast = () => {};
           }
         });
-        model.position.set(...crackToWorld([0, 0, 0]));
-        model.rotation.y = CRACK_YAW;
+        glb.position.set(...crackToWorld([0, 0, 0]));
+        glb.rotation.y = CRACK_YAW;
         group.remove(fissure);
-        group.add(model);
+        group.add(glb);
         source = "glb";
       }, (e) => console.warn("world: crack.glb didn't parse; keeping the procedural crack", e));
     })
@@ -108,7 +109,7 @@ export function makeCrack(u: PlaceUniforms, glow: THREE.IUniform<number>, fetchI
       live = false;
       geo.dispose();
       mat.dispose();
-      model?.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+      glb?.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     },
   };
 }
