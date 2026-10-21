@@ -465,6 +465,7 @@ required.
 **What changes:**
 - **A speed cap in the teacher's action space**, in training, eval and `make()`. Each target must be:
   - within 0.5 m/s × 0.02 s (1 cm) of the previous target;
+  - within 2.5 rad/s × 0.02 s in yaw of the previous target (T3's addition, approved by the lead);
   - and within one step of the tool's position.
 
   `make()` is what T6's distillation calls. So the labels come from the same capped teacher that is gated.
