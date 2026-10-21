@@ -65,7 +65,12 @@ Commanded tool speed (m/s):
 | demo_free | 31/31 [0.89–1.00] | 31/31 [0.89–1.00] |
 | demo_held | 30/30 [0.89–1.00] | 30/30 [0.89–1.00] |
 
-- The two checkpoints match on every start type. model_2098 was picked (the last one). model_2000's breakdown was re-run afterwards as a check only.
+- The two checkpoints match on every start type, but only model_2098 was tested before gate 2.
+  - The lead ran model_2098's breakdown at 14:31:35 (`data/rl/breakdown_v6c2_2098.lead.log`) and picked it.
+  - Gate 2 started at 14:35.
+- Both 15:26–15:29 runs came AFTER the gate. They were T3's own job, queued at 14:31 and waiting for the lock.
+  - model_2098, 15:26:38: a repeat with identical numbers. It overwrote `breakdown/v6c2_2098/breakdown.json` with the same table.
+  - model_2000, 15:28:00: the first and only look at that checkpoint. It is a post-hoc check only and did not affect the pick.
 - Replayability check on non-gate seeds 7000–7031: in-env 32/32, replay 32/32, the verdicts agree 32/32.
 
 **Gate 2** was run once, on fresh seeds 5350–5399 (Amendment 3), into `data\rl\eval\v6c2_gate2`.
