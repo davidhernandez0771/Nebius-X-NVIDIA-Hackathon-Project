@@ -311,6 +311,39 @@ set PY=C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\distill_round.p
      --start-state data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset --trace
    ```
 
+### Results, 2026-10-21
+
+**Teacher:** T3's demo_v6c2 model_2098 (`C:\dev\pm-t3\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-21_13-39-10_demo_v6c2\exported\policy.pt`;
+env.yaml: v_max 0.5, yaw_rate_max 2.5, deadband 0.25). T3's gate part (a) on 5350–5399: in-env 50/50, replay 50/50.
+Code: 2168db0 (T3's final b7935c0 merged), clean.
+
+**1. ik_label smoke (`distill_smoke`): PASSED.** 28.5 min wall (14:39:14 → 15:07:45).
+- **Rollouts:** 4/4 passed check_success. 15.9 s per rollout, plus ~14 s of Isaac and teacher startup.
+- **Isaac checks on all 4 episodes:**
+  - no NaN;
+  - teacher target steps ≤ 1.00 cm (the speed cap binds);
+  - tool vs target after each step: median 7 mm, max 2.6 cm;
+  - label_last vs label_first ≤ 0.007 rad;
+  - action == label_last;
+  - obs_step − label_step = 1;
+  - 149 front + wrist frames each.
+- **The "train" phase, 18.6 min:**
+  - startup 13 s;
+  - export 17 min 27 s for 37,496 frames (repeats are exported as copies), i.e. 27.9 s per 1,000 frames;
+  - LeRobot startup + 200 steps + 2 checkpoints, 53 s.
+- **Selection:** 4.3 min per candidate on 2 failing seeds. 0/2 for both candidates, as expected at 200 steps.
+
+**2. Gate part (b), seeds 4000–4049 (`distill_mouse`, `--teacher-n 50 --stop-after rollouts`): PASSED.**
+- **Score:** 49/50 passed check_success (≥ 45 needed), Wilson 95% 0.90–1.00.
+- **Episodes:** 49 episodes, 6,676 frames.
+- **The one failure:** seed 4022 hit the time limit (30 s; 126 s of wall time).
+- **Timing:** 14.1 min wall (15:08:04 → 15:22:12), 12–15 s per passing rollout.
+
+**Export speed (a scratch test, not in the code).** On 12 episodes (3,773 frames), serial took 83.2 s (22 s per
+1,000 frames). With LeRobot's `image_writer_threads=8` it took 74.1 s (−11%). Videos and parquet were byte-identical,
+but `meta/stats.json` differed. Not worth the change, so the export stays serial. Overlapping the export with the
+rollouts would need the mix before the rollouts end, so it is not possible as built.
+
 ### Time estimates on the RTX 5080
 
 These are measured where noted and are otherwise judgement.
