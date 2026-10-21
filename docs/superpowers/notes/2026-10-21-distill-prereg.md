@@ -606,19 +606,28 @@ on seeds 4000–4299, with the cameras on. The revised estimate is 2.7–3.9 h. 
 timings are `da19c2a` (15:27).
 
 **A deviation, logged openly (T3): round 0's start was delayed by about 5 minutes.**
-- **What happened:** after the gate, T3 re-ran a start-type breakdown as a check only. It held `gpu.lock` 15:26–15:29,
-  so round 0 waited for the lock.
+- **What happened:** after the gate, a job of T3's ran start-type breakdowns as a check only. It held `gpu.lock`
+  15:26–15:29, so round 0 waited for the lock.
 - **Round 0's log** (`distill_round.log`, in `C:\dev\pm-t6`) shows:
   - 15:27:53, the lock held by `rl-breakdown:v6c2_2098` (taken 15:26:38);
   - then `rl-breakdown:v6c2_2000` (taken 15:28:00), whose process had exited by the 5-minute re-check;
   - the lock taken at 15:33:01.
 - **The result, per T3:** `model_2000`'s breakdown is identical to `model_2098`'s (66/67, 31/31, 30/30).
+- **The timeline, per T3** (T3's note first said `model_2000` was "re-run"; T3 corrected that in `1b94bce`):
+  - 14:31:35: the lead ran `model_2098`'s breakdown. Its log, `data\rl\breakdown_v6c2_2098.lead.log` (in
+    `C:\dev\pm-t3`), took the lock at 14:31:35. **This was the only checkpoint tested before gate 2.**
+  - 14:31: T3's own job queued breakdowns of `model_2098` and then `model_2000`, and waited for the lock.
+  - 14:35: gate 2.
+  - 15:26:38: T3's job ran `model_2098` again. Its table is identical to the lead's run, and it overwrote
+    `breakdown\v6c2_2098\breakdown.json` with the same numbers.
+  - 15:28:00: T3's job ran `model_2000`. That was the first and only look at it: after the gate, on `rng(7)` scenes
+    only.
 - **What it changes:** nothing in the pick or the gate. Both were done before it, and the teacher stays `demo_v6c2`
   `model_2098`. It used `rng(7)` scenes only, no gate, selection or test seeds.
 
-**T3's gate-2 record is `1697c32`** (15:33, on `pm/rl-teacher`). It is docs only: it adds one note,
-`2026-10-21-rl-teacher-gate.md`, and leaves the code unchanged. So **T3's final code is still `b7935c0`**. The note
-matches this log, and adds that the first 30 gate seeds were 30/30 (Wilson 0.89–1.00).
+**T3's gate-2 record is `1697c32`** (15:33, on `pm/rl-teacher`), corrected in **`1b94bce`**. Both are docs only:
+together they add one note, `2026-10-21-rl-teacher-gate.md`, and leave the code unchanged. So **T3's final code is
+still `b7935c0`**. The note matches this log, and adds that the first 30 gate seeds were 30/30 (Wilson 0.89–1.00).
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
