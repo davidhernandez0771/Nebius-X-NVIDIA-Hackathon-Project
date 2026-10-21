@@ -13,6 +13,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { setCompileTarget } from "../../three/compileSafe";
 import type { QualityTier } from "./quality";
 import type { WorldStore } from "./store";
 
@@ -53,6 +54,8 @@ export function PostFX({ store, quality, reduced }: { store: WorldStore; quality
       t.texture.colorSpace = THREE.LinearSRGBColorSpace;
     }
     composer.addPass(new RenderPass(scene, camera));
+    // Warm-ups compile the programs this target needs, not the screen's (compileSafe.ts).
+    setCompileTarget(composer.renderTarget1);
     const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.5, 0.8);
     // Glows that skip tone mapping (the hologram, the strips) add up past 1 where they overlap; the
     // screen would clip them, so the bloom sees them clipped too instead of blowing them out.
@@ -75,6 +78,7 @@ export function PostFX({ store, quality, reduced }: { store: WorldStore; quality
 
   useEffect(
     () => () => {
+      setCompileTarget(null);
       fx.composer.renderTarget1.dispose();
       fx.composer.renderTarget2.dispose();
       fx.composer.dispose();

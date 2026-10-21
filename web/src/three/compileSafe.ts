@@ -4,22 +4,38 @@
 // (reading 'isReady')" inside a timer: an uncaught error, and a promise that never settles. This polls
 // the same way, drops a material that lost its program (nothing left to wait for), and gives up after
 // `capMs` (a lost context never reports a program ready).
-import type { Camera, Material, Object3D, WebGLRenderer } from "three";
+//
+// Programs depend on the render target they draw into (its colour space): with the post chain on, every frame
+// draws into the composer's linear target, so a compile for the screen made programs no frame used, and each
+// object compiled again on its first frame. PostFX registers its target (setCompileTarget) and compiles go there.
+import type { Camera, Material, Object3D, WebGLRenderer, WebGLRenderTarget } from "three";
 
 type Program = { isReady(): boolean | null };
-type Renderer = Pick<WebGLRenderer, "compile"> & {
+type Renderer = Pick<WebGLRenderer, "compile"> & Partial<Pick<WebGLRenderer, "getRenderTarget" | "setRenderTarget">> & {
   properties: { get(m: Material): unknown };
   extensions: { has(name: string): boolean };
 };
 
 const POLL_MS = 10;
 
+let compileTarget: WebGLRenderTarget | null = null;
+
+/** The render target frames draw into (the post chain's), or null for the screen. */
+export function setCompileTarget(t: WebGLRenderTarget | null): void {
+  compileTarget = t;
+}
+
 export function compileSafe(gl: Renderer, scene: Object3D, camera: Camera, capMs = 10000): Promise<void> {
   let materials: Set<Material>;
+  const swap = compileTarget && gl.getRenderTarget && gl.setRenderTarget;
+  const prev = swap ? gl.getRenderTarget!() : null;
   try {
+    if (swap) gl.setRenderTarget!(compileTarget);
     materials = gl.compile(scene, camera) as Set<Material>;
   } catch (e) {
     return Promise.reject(e);
+  } finally {
+    if (swap) gl.setRenderTarget!(prev);
   }
   // The cap counts the poll's own waits, not the clock.
   let waited = 0;
