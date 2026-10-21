@@ -10,9 +10,9 @@ export const PLUG_S = 3.6;
 /** Phase boundaries on u. */
 export const PHASE = { pull: [0, 0.14], fly: [0.14, 0.58], insert: [0.58, 0.74], click: [0.74, 0.8], project: [0.8, 1] } as const;
 
-/** machine.glb's port and slot, in the machine's frame (its children already carry the 28° turn). */
-const PORT_LOCAL = new THREE.Vector3(-3.267, 0, 1.737);
-const SLOT_TOP_LOCAL = 4.91;
+/** The dock's slot (machine_v2.glb, machineV2.ts), in the machine's frame (the 28° turn baked in): its centre and its top. */
+export const PORT_LOCAL = new THREE.Vector3(-3.265, 0, 1.741);
+export const SLOT_TOP_LOCAL = 4.95;
 /** How much of the 2.5 m cartridge sinks into the port. */
 const DEPTH = 0.83;
 const HALF_H = 1.25;

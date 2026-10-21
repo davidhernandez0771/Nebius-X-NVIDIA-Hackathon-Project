@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { SOFT_LINE_GLSL, softLine } from "./materials";
+import * as THREE from "three";
+import { TIERS } from "../core/quality";
+import { SOFT_LINE_GLSL, softLine, vertexPbrMaterial } from "./materials";
 
 /** What a row of pixels (centres at 0.5, 1.5, …) shows of a line `half` px wide either side of `at`. */
 function row(at: number, half: number, f = softLine): number[] {
@@ -37,5 +39,31 @@ describe("softLine, the coverage of a thin glowing line", () => {
     expect(SOFT_LINE_GLSL).toContain("float softLine(float d, float px, float halfW)");
     expect(SOFT_LINE_GLSL).toContain("max(halfW, 0.5 * px)");
     expect(SOFT_LINE_GLSL).toContain("clamp((h - abs(d)) / px + 0.5, 0.0, 1.0) * (halfW / h)");
+  });
+});
+
+describe("vertexPbrMaterial, metalness and roughness per vertex (the machine's merged body)", () => {
+  it("is Lambert on low, standard elsewhere, both coloured per vertex", () => {
+    expect(vertexPbrMaterial(TIERS.low)).toBeInstanceOf(THREE.MeshLambertMaterial);
+    const m = vertexPbrMaterial(TIERS.high) as THREE.MeshStandardMaterial;
+    expect(m).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(m.vertexColors).toBe(true);
+    expect([m.metalness, m.roughness]).toEqual([1, 1]);
+  });
+
+  it("reads aMR (metalness, roughness) in place of the material's own", () => {
+    const m = vertexPbrMaterial(TIERS.high);
+    const sh = {
+      uniforms: {},
+      vertexShader: "#include <common>\nvoid main() {\n#include <begin_vertex>\n}",
+      fragmentShader: "#include <common>\nvoid main() {\n#include <metalnessmap_fragment>\n#include <roughnessmap_fragment>\n}",
+    };
+    m.onBeforeCompile(sh as never, undefined as never);
+    expect(sh.vertexShader).toContain("attribute vec2 aMR;");
+    expect(sh.vertexShader).toContain("vMR = aMR;");
+    expect(sh.fragmentShader).toContain("float metalnessFactor = metalness * vMR.x;");
+    expect(sh.fragmentShader).toContain("float roughnessFactor = roughness * vMR.y;");
+    expect(sh.fragmentShader).not.toContain("#include <metalnessmap_fragment>");
+    expect(m.customProgramCacheKey()).toContain("vertex-pbr");
   });
 });
