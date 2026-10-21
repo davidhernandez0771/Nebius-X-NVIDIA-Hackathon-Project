@@ -347,11 +347,14 @@ def perfect_stored_demo(
     sleep: Callable[[float], None] = time.sleep,
     diagnose: Callable[..., tuple[Diagnosis, list[str]]] | None = None,
     before_model_call: Callable[[], None] | None = None,
+    retime_grasp: bool = False,
 ) -> dict:
     """Perfect one stored human demo; returns a JSON-able summary. `diagnose` replaces diagnose_gated (same
     arguments). `before_model_call` runs before each model call (nemotron or hybrid), e.g. a budget check; a
-    PipelineAbort from either fails the job. Raises SimWorkerError when the worker cannot do the job (see the
-    module docstring), ValueError for a demo that is not human."""
+    PipelineAbort from either fails the job. retime_grasp: the rules also retime a swoop grasp
+    (rules.detect_rules(retime_grasp=True); off by default, so earlier runs keep their rules). Raises
+    SimWorkerError when the worker cannot do the job (see the module docstring), ValueError for a demo that is not
+    human."""
     diagnose = diagnose or diagnose_gated
     demo = store.get_demo(demo_id)
     if demo.source != "human":
@@ -415,7 +418,8 @@ def perfect_stored_demo(
             # perfect_demo's first round has no reasons yet; the rules take the raw replay's verdict, which
             # state["signals"] come from (the model's first round stays as it always was)
             seen = reasons if rounds else list(raw.verification.reasons)
-            diag = detect_rules(d.trajectory, windows, reasons=seen, signals=state["signals"], scene=d.scene)
+            diag = detect_rules(d.trajectory, windows, reasons=seen, signals=state["signals"], scene=d.scene,
+                                retime_grasp=retime_grasp)
         refined = refine_diagnosis(diag, d.trajectory)
         record.update(decision=refined.decision, repairs=list(refined.repairs))
         rounds.append(record)
@@ -613,15 +617,17 @@ def perfect_stored_demo_hybrid(
     sleep: Callable[[float], None] = time.sleep,
     repair: Callable[..., RepairResult] | None = None,
     before_model_call: Callable[[], None] | None = None,
+    retime_grasp: bool = False,
 ) -> dict:
-    """The product candidate: perfect_stored_demo(..., "rules") first; only if the rules discard the demo,
+    """The product candidate: perfect_stored_demo(..., "rules") first (retime_grasp: as there); only if the rules discard the demo,
     perfect_stored_demo_edits on the same raw replay. The edits stay blind: their prompt comes from the raw replay
     alone, never from the rules' diagnosis or attempts (so never from release_above_bin). The output is the
     winning stage's demo ("<id>_rules" or "<id>_edits"); the summary keeps both stages'."""
     retry = {"busy_retries": busy_retries, "busy_wait_s": busy_wait_s, "sleep": sleep}
     if raw is None:
         raw = record_raw(store, client, store.get_demo(demo_id), record_cameras=record_cameras, **retry)
-    rules = perfect_stored_demo(store, client, demo_id, "rules", raw=raw, record_cameras=record_cameras, **retry)
+    rules = perfect_stored_demo(store, client, demo_id, "rules", raw=raw, record_cameras=record_cameras,
+                                retime_grasp=retime_grasp, **retry)
     edits = None
     if rules["status"] not in PASSED:
         edits = perfect_stored_demo_edits(store, client, demo_id, raw=raw, record_cameras=record_cameras,

@@ -496,3 +496,49 @@ def test_no_assist_key_for_demos_recorded_before_it(hx, tmp_path):
     exp.select(ids=None, tag="standin_*", settings=SMOKE)
     config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
     assert "assist" not in config and "min_demos" not in config
+
+
+def test_the_data_fixes_are_frozen_only_when_set_and_reach_the_repair_and_the_variants(hx, tmp_path):
+    from sim_worker.homeset import find_hover
+
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    assert not {"yaw_wrap", "grasp_retime", "approach_offset_m"} & set(config)  # older configs resume unchanged
+
+    exp, _, _ = _exp(hx, tmp_path, name="fixes")
+    fixes = {"yaw_wrap": True, "grasp_retime": True, "approach_offset_m": 0.04}
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, **fixes})
+    exp.run(until="grid")
+    root = tmp_path / "human_exp" / "fixes"
+    config = json.loads((root / "config.json").read_text())
+    assert {k: config[k] for k in fixes} == fixes
+    retimed = []
+    for id in IDS:
+        rep = json.loads((root / "stages" / "repair" / f"{id}.json").read_text())
+        retimed.append("retime_grasp" in [r["op"] for r in rep["repairs"]])
+        # the repaired demo has the retimed grasp's hover exactly when the rules retimed it
+        assert (find_hover(exp.store.get_demo(rep["output_demo_id"]).trajectory) is not None) == retimed[-1], id
+        mult = json.loads((root / "stages" / "multiply" / f"{id}.json").read_text())
+        assert mult["attempts"] and all(a["centred"] == retimed[-1] for a in mult["attempts"])
+    assert any(retimed)  # the stand-ins swoop: the retime really ran
+
+
+@pytest.mark.parametrize("bad", ["0", "-0.01", "0.2"])
+def test_the_approach_offset_must_be_a_small_radius(hx, bad):
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--approach-offset", bad])
+
+
+def test_the_preregistration_states_the_data_fixes_only_when_used(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text()))
+    assert "Data fixes" not in plain and hx.data_fixes_text({}) == ""
+    exp, _, _ = _exp(hx, tmp_path, name="fixes")
+    exp.select(ids=IDS[:2], tag=None, settings={**SMOKE, "yaw_wrap": True, "grasp_retime": True,
+                                                "approach_offset_m": 0.04})
+    config = json.loads((tmp_path / "human_exp" / "fixes" / "config.json").read_text())
+    text = hx.preregistration(config)
+    assert "**Data fixes**" in text and "grasp retime" in text and "yaw wrap" in text and "up to 4 cm" in text
+    assert "**Data fixes**" in hx.preregistration({**config, "multiplied_only": True})

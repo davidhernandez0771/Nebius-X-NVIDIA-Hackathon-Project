@@ -93,6 +93,7 @@ describe("the showcase's data", () => {
     expect(repairText({ t0: 2, t1: 3, op: "nudge" })).toBe("nudge at 2.00–3.00 s");
     expect(repairText({ t: 5.24, op: "release_above_bin" })).toBe("Released the cube above the bin at 5.24 s, off the rim");
     expect(repairText({ t: 2.12, op: "recenter_grasp" })).toBe("Re-centred the grasp on the cube at 2.12 s");
+    expect(repairText({ t: 1.6, op: "retime_grasp" })).toBe("Slowed the grasp at 1.60 s: hover, slow last 4 cm, stop, close, hold, lift straight");
     expect(repairText({ op: "nudge" })).toBe("nudge");
   });
 

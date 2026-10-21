@@ -60,7 +60,8 @@ SLOW_SPEED = 5 * STILL_SPEED  # m/s
 
 # The rules emit these from the replay's contacts and cube track; the model's menu (and so its prompt) leaves them
 # out, so earlier Nemotron runs and their pre-registrations keep the prompt they were run with.
-RULES_ONLY_OPS = ("release_above_bin",)
+RULES_ONLY_OPS = ("release_above_bin", "retime_grasp")
+RULES_ONLY_ISSUES = ("swoop_grasp",)
 
 # What each repair op does; its fields come from the schema model itself.
 _OP_HELP = {
@@ -145,7 +146,7 @@ def build_diagnosis_prompt(
     if has_wrist_frame:
         captions.append(f"Image {len(frame_times) + 1}: wrist camera at the first gripper close")
 
-    issue_lines = [f"- {name}: {_ISSUE_HELP[name]}" for name in get_args(IssueType)]
+    issue_lines = [f"- {name}: {_ISSUE_HELP[name]}" for name in get_args(IssueType) if name not in RULES_ONLY_ISSUES]
     segment_names = ", ".join(get_args(SegmentName))
 
     parts = [

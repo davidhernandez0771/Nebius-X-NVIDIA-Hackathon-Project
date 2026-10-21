@@ -25,6 +25,7 @@ const FIX_FOR: Record<string, string[]> = {
   slow: ["retime"],
   grasp_off_center: ["recenter_grasp"],
   rim_contact: ["replan_transit"],
+  swoop_grasp: ["retime_grasp"],
 };
 
 function overlap(a: When, b: When): number {
@@ -69,6 +70,7 @@ const TAGS: Record<string, string> = {
   bad_release: "BAD RELEASE",
   wrong_object: "WRONG OBJECT",
   drop: "DROP",
+  swoop_grasp: "SWOOP GRASP",
 };
 const TIMED = new Set(["pause", "idle_start_end"]);
 
