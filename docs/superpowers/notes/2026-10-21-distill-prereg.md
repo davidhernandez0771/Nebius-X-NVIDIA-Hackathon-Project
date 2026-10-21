@@ -372,5 +372,22 @@ change.
   402-step record.
 - T6's round-0 rollouts don't depend on it: they score `check_success` on their own env every 25 steps.
 
+**`e85b97f`** (T3, 12:02, on `pm/rl-teacher`): a run-enabling fix to the gate's eval, plus diagnostics.
+- **The bug:** the monitor's `log()` empties its results every step, so `rl_eval_teacher`'s in-env verdicts held only
+  the last step's episodes. The gate would have scored only those.
+- **The fix:** the monitor keeps a history (`keep_history`), and the eval reads it.
+- **The deadband:** `rl_eval_teacher` now applies the run's gripper deadband (0.25 for `demo_v6`, read from its
+  `env.yaml`) in the Play env, whose default is none. T6's adapter already did, so the gate and the distillation
+  run the teacher the same way.
+- **Diagnostics only:**
+  - `scripts/rl_start_breakdown.py`: success, bonus, ever-grasped and ever-lifted for each start type;
+  - `rl_train.py --stock-task`: an unchanged Isaac Lab lift task, as a sanity run;
+  - the monitor records each episode's start row and whether it ever grasped or lifted.
+
+  None of these changes the reward or the training env.
+
+**`demo_v6` continues to 1500 iterations** (the lead's decision): Isaac Lab's stock Franka lift config trains for 1500,
+so judging it at 300 was too early. Its command already set `--max-iterations 1500`.
+
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
