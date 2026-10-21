@@ -134,6 +134,16 @@ class EpisodeMonitor:
     def update(self, s: rt.StepState, arm_bin: torch.Tensor, arm_table: torch.Tensor,
                remaining: torch.Tensor | None = None) -> None:
         """remaining: steps left in each environment's episode (the lift preset's bonus pays for them)."""
+        # the cube's speed as check_success measures it: the change in position since the last step, and an
+        # episode's first step counts as moving (check_success's settle time starts there). The body's velocity read
+        # from physics drops below 0.01 m/s a step before the position change does, so the bonus came one step early
+        # and check_success on the episode the env cut there failed not_settled (0.48 s; v5's 0.85 agreement)
+        if self.prev is None:
+            speed = torch.full_like(s.cube_speed, float("inf"))
+        else:
+            speed = torch.linalg.norm(s.cube - self.prev.cube, dim=-1) / rt.STEP_S
+            speed = torch.where(self.fresh, torch.full_like(speed, float("inf")), speed)
+        s = s._replace(cube_speed=speed)
         terms = rt.reward_terms(s, self.prev)
         keep = (~self.fresh).float()
         for k in ("dropped", "high_release"):  # nothing to compare with on an episode's first step

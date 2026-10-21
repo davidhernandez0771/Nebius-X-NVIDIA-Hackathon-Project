@@ -289,3 +289,25 @@ def test_the_monitor_pays_the_lift_preset_like_the_pure_return(name):
     pure = rt.episode_return_lift(states, max_steps=max_steps)
     assert ended == pure["success_bonus_at"]
     assert total == pytest.approx(pure["return"], rel=1e-5, abs=1e-2)
+
+
+def test_the_bonus_waits_for_check_successs_settle_time_whatever_physics_says_the_speed_is():
+    """v5's bonus_agrees_with_check_success was 0.85: the body's velocity fell below 0.01 m/s a step before the
+    position change did, so the bonus came at 0.48 s of check_success's settle time and the cut episode failed."""
+    states, g, scene, _ = _episode("verified")
+    mon = rc.EpisodeMonitor(1, "cpu", max_steps=len(states) + 5, track_every=1)
+    # physics reporting the cube at rest throughout: the monitor must use the positions, as check_success does
+    to_t = lambda s: rt.StepState(*(torch.as_tensor(np.asarray(v)) for v in s))._replace(  # noqa: E731
+        cube_speed=torch.zeros(1, dtype=torch.float64))
+    ended = None
+    for k, s in enumerate(states):
+        arm_bin, arm_table = (torch.as_tensor(g[f][k:k + 1]) for f in ("contact_arm_bin", "contact_arm_table"))
+        mon.update(to_t(s), arm_bin, arm_table)
+        if bool(mon.success[0]):
+            ended = k
+            break
+    assert ended == rt.episode_return(states)["success_bonus_at"]
+    w, x, y, z = scene["bin_pose"]["quat_wxyz"]
+    mon.finish(torch.tensor([0]), torch.tensor([scene["bin_pose"]["pos"]]), torch.tensor([[x, y, z, w]]))
+    (res,) = mon.results
+    assert res["bonus"] and res["success"], res["reasons"]
