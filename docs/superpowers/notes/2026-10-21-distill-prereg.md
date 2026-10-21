@@ -196,7 +196,25 @@ one commit.
 |---|---|---|
 | `f0beb24` | UTF-8 for the trainer and the wrapper's echo (cp1252 crashed both in the smoke). The IK controller names the robot spec's joint-limit gain explicitly (Franka 0: unchanged). | The smoke run crashed. No behaviour change. |
 | `827a5fb` | **A deviation from the action as written in T3's note, logged openly:** the teacher's action is now a bounded step from the current tool pose (≤ 2 cm and 0.1 rad per step), made absolute, as Isaac Lab's IK-Rel lift task. It was an absolute tool target in the workspace box. Eval step 1 also takes `gpu.lock` + KeepAwake. | **`demo_v1` failed and is discarded:** with absolute actions, the untrained policy threw the arm across the workspace on every first step, so the demo starts were lost and nothing was learned in 300 iterations. `make()` still hands T6 an absolute tool target, so the distillation interface is unchanged. |
+| `8e85acb` | Commits the RL episode fixtures' `.npz` files (the `*.npz` ignore rule had kept them out). | Tests only: T6's trial merge failed 10 tests without them. No behaviour change. |
+| `c7ee8ca` | The held-start probe (`scripts/rl_probe_demo_starts.py`) and `held_grace_steps`, off by default: after a held demo start, the gripper stays closed and the fingers are commanded closed for N steps. Also a `bank_phase` filter and start rows, for diagnostics. | The probe found why `demo_v2` failed (below). The grace is what `demo_v3` turns on. |
+| `751d9bf` | The RL scripts import the env class only after Isaac Sim starts (an early import loaded the pip USD build, whose `omni.usd` has no `get_context`). All writing happens inside the app's context, because closing the app ends the process; exceptions go to `error.txt` first. | The scripts crashed or lost their outputs. No behaviour change. |
 
-**Recorded as a failed attempt:** `demo_v1`, T3's first teacher training run with absolute actions. It did not learn,
-was never gated, and no rollout or student used it. The gate and everything after it apply to the teacher trained
-after `827a5fb`. T3's final commit is added here after the gate, as the lead will send it.
+**Recorded as failed attempts** (none was gated, and no rollout or student used either):
+- **`demo_v1`:** T3's first teacher training run, with absolute actions. It did not learn (see `827a5fb`).
+- **`demo_v2`:** relative actions, no grace. Started 09:48 and stopped by the lead, with the user's permission: lift was
+  still 0 by iteration 300. The cause, from T3's probe (`c7ee8ca`): the untrained policy's gripper exploration opened the
+  gripper on about 50% of steps, so held demo starts dropped the cube. The restore itself was exact: with the gripper
+  forced closed, 64/64 held starts kept the cube.
+
+**`demo_v3`** (started 10:47, after `751d9bf`) changes RL training settings only:
+- `held_grace_steps` = 10 (it was off);
+- the curriculum: 24k → 48k steps;
+- the initial action std: 1.0 → 0.6.
+
+The reward, the success definition and everything in the list at the top of this section are unchanged. The lead logs
+these as run-enabling. They are training settings for the teacher, and the teacher is held to the same gate (≥ 90%,
+both checks) before any distillation, so they do not touch what the test measures.
+
+The gate and everything after it apply to the teacher from `demo_v3`, or from a later run logged here. T3's final
+commit is added here after the gate, as the lead will send it.
