@@ -240,14 +240,14 @@ function View({ interactive, aspect: fixed, dom, facing = false }: { interactive
 
 type Aiding = { aspect: number; dom: HTMLElement | null; cube: boolean; bin: boolean; facing: boolean };
 
-function Scene({ loaded, state, base, interactive, aids, contact, objects }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null; contact: TwinContact | null; objects: TwinObject[] | null }) {
+function Scene({ loaded, state, base, interactive, aids, contact, objects, viewKey }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null; contact: TwinContact | null; objects: TwinObject[] | null; viewKey: number }) {
   return (
     <>
       <color attach="background" args={[C.void]} />
       <hemisphereLight args={["#B8D6D0", C.void, 0.65]} />
       <directionalLight position={[-1.5, 3, 1.5]} intensity={1.25} />
       <directionalLight position={[2.5, 1.2, -2]} intensity={0.5} color="#8FEFDC" />
-      <View interactive={interactive} aspect={aids?.aspect} dom={aids?.dom} facing={aids?.facing} />
+      <View key={viewKey} interactive={interactive} aspect={aids?.aspect} dom={aids?.dom} facing={aids?.facing} />
       {aids && <ThreeViews facing={aids.facing} />}
       <group rotation={[-Math.PI / 2, 0, 0]}>
         <Table />
@@ -294,10 +294,12 @@ export type RobotTwinProps = TwinState & {
   contact?: TwinContact | null;
   /** A plan's every cube and bin (the scene picker): drawn instead of the one cube and bin; the aids still use cube/bin. */
   objects?: TwinObject[] | null;
+  /** Change it to put the camera back where it started (the test track's R). */
+  viewKey?: number;
   className?: string;
 };
 
-export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false, contact = null, objects = null }: RobotTwinProps) {
+export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false, contact = null, objects = null, viewKey = 0 }: RobotTwinProps) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [box, size] = useBox<HTMLDivElement>();
   const [frontEl, setFrontEl] = useState<HTMLDivElement | null>(null);
@@ -345,7 +347,7 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
     <div className={["twin3d", className].filter(Boolean).join(" ")} ref={box}>
       {load.status === "ready" ? (
         <Canvas className="twin3d__canvas" frameloop="demand" dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "low-power" }}>
-          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} contact={contact} objects={objects} />
+          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} contact={contact} objects={objects} viewKey={viewKey} />
         </Canvas>
       ) : (
         <p className="twin3d__wait" role={load.status === "error" ? "alert" : undefined}>

@@ -44,6 +44,7 @@ const SiteResultsPage = lazy(() => import("./site/results/ResultsPage").then((m)
 const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
 // The data showcase: real demos through SANT, in the twin and the sim's camera, and SANT working live.
 const DataPage = lazy(() => import("./site/data/DataPage"));
+const TestTrackPage = lazy(() => import("./site/testtrack/TestTrackPage"));
 
 const lazyPage = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
@@ -77,6 +78,7 @@ export default function App() {
           <Route path="/site/results" element={lazyPage(<SiteResultsPage />)} />
           <Route path="/robots" element={lazyPage(<RobotsPage />)} />
           <Route path="/data" element={lazyPage(<DataPage />)} />
+          <Route path="/test-track" element={lazyPage(<TestTrackPage />)} />
           <Route path="/pipeline" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run/:stage" element={lazyPage(<PipelinePage />)} />
