@@ -51,6 +51,9 @@ def test_the_action_is_an_absolute_tool_target_and_a_binary_gripper(cfg):
     assert arm.class_type == "sim_worker.rl_action:SantTcpTargetAction"
     assert arm.controller.command_type == "pose" and arm.controller.use_relative_mode is False
     assert arm.vel_ff  # SANT's replay tracking
+    from sim_worker.robots import robot_spec
+
+    assert arm.controller.joint_limit_avoidance_gain == robot_spec("franka").ik_limit_gain  # replay's IK settings
     assert grip.close_command_expr == {"panda_finger_.*": 0.0}
 
 

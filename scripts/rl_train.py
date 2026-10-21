@@ -49,7 +49,9 @@ def train_command(*, demos: bool, num_envs: int, max_iterations: int, run_name: 
 def child_env() -> dict:
     """This checkout's code first (the Isaac venv's editable install points at another worktree)."""
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
-    env.update(PYTHONPATH=f"{REPO};{REPO / 'src'}", PYTHONUNBUFFERED="1")
+    # utf-8: Isaac Lab's loading screen prints box-drawing characters, and a piped stdout is cp1252 on Windows
+    # (the first smoke run, 2026-10-21, died there)
+    env.update(PYTHONPATH=f"{REPO};{REPO / 'src'}", PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
     return env
 
 
@@ -74,6 +76,7 @@ def main(argv=None) -> int:
     p.add_argument("--viz", action="store_true", help="open Kit's window (slower; Isaac runs headless by default)")
     p.add_argument("--dry-run", action="store_true", help="print the command and exit")
     args = p.parse_args(argv)
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # it echoes the trainer's Unicode, maybe into a file
     size = {**(SMOKE if args.smoke else FULL)}
     if args.num_envs:
         size["num_envs"] = args.num_envs

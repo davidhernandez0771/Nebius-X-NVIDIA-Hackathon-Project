@@ -54,6 +54,7 @@ from demo_pipeline.schemas import Pose, SimSignals, Trajectory
 from demo_pipeline.success import check_success
 
 from .mimic_env_cfg import SantTrackingIKActionCfg, bin_frame, sant_contact_forces, tcp_pos, tcp_quat
+from .robots import robot_spec
 from .scene_cfg import make_scene_cfg
 
 REPO = Path(__file__).resolve().parents[1]
@@ -342,7 +343,9 @@ class ActionsCfg:
         asset_name="robot",
         joint_names=["panda_joint.*"],
         body_name=HAND,
-        controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+        # replay's IK (sim_worker.replay): dls, default damping, the robot spec's joint-limit avoidance (Franka: 0)
+        controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls",
+                                               joint_limit_avoidance_gain=robot_spec("franka").ik_limit_gain),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=mimic.TCP_OFFSET),
     )
     gripper_action = BinaryJointPositionActionCfg(
