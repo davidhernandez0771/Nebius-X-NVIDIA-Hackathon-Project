@@ -256,3 +256,36 @@ def test_held_starts_get_a_grace_and_closed_fingers_and_the_start_rows_are_kept(
 def test_the_gripper_deadband_is_off_by_default(cfg):
     grip = cfg.actions.gripper_action
     assert grip.class_type == "sim_worker.rl_action:SantGraceGripperAction" and grip.deadband == 0.0
+
+
+# --- the "lift" reward preset (demo_v6) ---------------------------------------------------------------------
+
+
+def test_the_lift_preset_has_the_stock_lift_penalties_and_curriculum():
+    lift = rc.SantPickPlaceRLLiftEnvCfg()
+    assert {k: v.weight for k, v in vars(lift.rewards).items() if hasattr(v, "weight")} == {
+        "level": 1.0, "penalty": -1.0, "success": 1.0, "action_rate": -1e-4, "joint_vel": -1e-4}
+    for term in ("action_rate", "joint_vel"):  # stock lift_env_cfg.py lines 180-186
+        c = getattr(lift.curriculum, term)
+        assert c.params == {"term_name": term, "weight": -1e-1, "num_steps": 10000}
+    assert lift.events.reset_scene.params == rc.SantPickPlaceRLEnvCfg().events.reset_scene.params  # demo starts
+    assert vars(rc.SantPickPlaceRLEnvCfg().rewards).keys() >= {"progress"}  # the default is unchanged
+
+
+@pytest.mark.parametrize("name", ["verified", "collision", "dropped"])
+def test_the_monitor_pays_the_lift_preset_like_the_pure_return(name):
+    states, g, _, _ = _episode(name)
+    max_steps = 600
+    mon = rc.EpisodeMonitor(1, "cpu", max_steps=max_steps + 5, track_every=1)
+    to_t = lambda s: rt.StepState(*(torch.as_tensor(np.asarray(v)) for v in s))  # noqa: E731
+    total, ended = 0.0, None
+    for k, s in enumerate(states[:max_steps]):
+        arm_bin, arm_table = (torch.as_tensor(g[f][k:k + 1]) for f in ("contact_arm_bin", "contact_arm_table"))
+        mon.update(to_t(s), arm_bin, arm_table, remaining=torch.tensor([max_steps - (k + 1)]))
+        total += float(mon.lift_level[0] - mon.lift_penalty[0] + mon.lift_bonus[0])
+        if bool(mon.success[0]):
+            ended = k
+            break
+    pure = rt.episode_return_lift(states, max_steps=max_steps)
+    assert ended == pure["success_bonus_at"]
+    assert total == pytest.approx(pure["return"], rel=1e-5, abs=1e-2)

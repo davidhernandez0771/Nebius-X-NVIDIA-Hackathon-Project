@@ -163,3 +163,46 @@ def test_the_gripper_deadband_switches_only_past_the_margin():
     assert held.tolist() == [True, True, True, False, True, True]
     free = rt.gripper_closed(grip, np.zeros(6, bool), 0.5)  # open now: only a clear "close" (< -0.5) closes it
     assert free.tolist() == [False, False, True, False, False, False]
+
+
+# --- the "lift" preset (demo_v6): Isaac Lab's stock lift level rewards + our placed term, fouls and bonus -------
+
+
+def test_the_lift_preset_starts_from_the_stock_lift_weights():
+    # isaaclab_tasks/contrib/lift/lift_env_cfg.py lines 138-152
+    assert {k: rt.LIFT_WEIGHTS[k] for k in ("reach", "lifted", "goal", "goal_fine")} == {
+        "reach": 1.0, "lifted": 15.0, "goal": 16.0, "goal_fine": 5.0}
+    assert (rt.REACH_STD, rt.LIFT_HEIGHT, rt.GOAL_STD, rt.GOAL_FINE_STD) == (0.1, 0.04, 0.3, 0.05)
+    held = rt.LIFT_WEIGHTS["lifted"] + rt.LIFT_WEIGHTS["goal"] + rt.LIFT_WEIGHTS["goal_fine"]
+    assert rt.LIFT_WEIGHTS["placed"] > held  # in the bin pays more than holding at the goal
+
+
+@pytest.mark.parametrize("name", ["verified", "collision", "dropped"])
+def test_the_lift_bonus_is_paid_exactly_when_check_success_passes(name):
+    _, _, _, verdict = _load(name)
+    assert (rt.episode_return_lift(_states(name))["success_bonus_at"] is not None) == verdict["success"]
+
+
+def test_with_the_lift_preset_placing_beats_hovering_and_failures():
+    states = _states("verified")
+    good = rt.episode_return_lift(states)
+    assert good["success_bonus_at"] is not None and not good["fouled"]
+    for bad in ("collision", "dropped"):
+        assert rt.episode_return_lift(_states(bad))["return"] < good["return"]
+    # hover at the best level state short of placed for 500 steps: never worth more than placing
+    level = [float(rt.lift_level(rt.lift_level_terms(s))[0]) if not rt.lift_level_terms(s)["placed"][0] else -1.0
+             for s in states]
+    k = int(np.argmax(level))
+    hover = rt.episode_return_lift(states[: k + 1] + [states[k]] * 500)
+    assert hover["success_bonus_at"] is None and hover["return"] < good["return"]
+    # and in general: the bonus beats any level reward over the steps it ends
+    for left in (0, 1, 100, 599):
+        assert float(rt.lift_bonus(left)) > rt.LIFT_LEVEL_MAX * left
+
+
+def test_the_lift_terms_run_on_torch():
+    torch = pytest.importorskip("torch")
+    s = _states("verified")[0]
+    t = rt.StepState(*(torch.as_tensor(np.asarray(v)) for v in s))
+    a, b = rt.lift_level(rt.lift_level_terms(s)), rt.lift_level(rt.lift_level_terms(t))
+    assert float(b[0]) == pytest.approx(float(a[0]), abs=1e-5)

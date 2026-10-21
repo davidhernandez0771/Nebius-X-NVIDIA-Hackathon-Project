@@ -15,6 +15,8 @@ TASKS = {
     "SANT-PickPlace-Franka-RL-v0": ("SantPickPlaceRLEnvCfg", "SantRLTeacherPPOCfg"),
     # the control arm: home starts only, no human demo
     "SANT-PickPlace-Franka-RL-NoDemo-v0": ("SantPickPlaceRLNoDemoEnvCfg", "SantRLTeacherNoDemoPPOCfg"),
+    # the "lift" reward preset: Isaac Lab's stock lift level rewards + our placed term, fouls and success bonus
+    "SANT-PickPlace-Franka-RL-Lift-v0": ("SantPickPlaceRLLiftEnvCfg", "SantRLTeacherPPOCfg"),
     # playing a checkpoint: 40 envs, home starts
     "SANT-PickPlace-Franka-RL-Play-v0": ("SantPickPlaceRLPlayEnvCfg", "SantRLTeacherPPOCfg"),
 }

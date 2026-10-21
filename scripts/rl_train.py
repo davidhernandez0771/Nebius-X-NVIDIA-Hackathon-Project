@@ -29,15 +29,19 @@ ISAAC_PY = Path(os.environ.get("ISAAC_PY", r"C:\isaac\env_isaaclab\Scripts\pytho
 WORKDIR = REPO / "data" / "rl"
 BANK = WORKDIR / "bank_mouse20261020.npz"
 TASKS = {True: "SANT-PickPlace-Franka-RL-v0", False: "SANT-PickPlace-Franka-RL-NoDemo-v0"}
+LIFT_TASK = "SANT-PickPlace-Franka-RL-Lift-v0"  # --reward lift: the stock-lift reward preset (with demo starts)
 SMOKE = {"num_envs": 64, "max_iterations": 20}
 FULL = {"num_envs": 4096, "max_iterations": 1500}
 
 
 def train_command(*, demos: bool, num_envs: int, max_iterations: int, run_name: str, checkpoint: str | None = None,
-                  overrides: list[str] = (), viz: bool = False) -> list[str]:
-    """The trainer's command line."""
+                  overrides: list[str] = (), viz: bool = False, reward: str = "potential") -> list[str]:
+    """The trainer's command line. reward: "potential" (the default) or "lift" (the stock-lift preset, demo starts)."""
+    if reward == "lift" and not demos:
+        raise ValueError("the lift preset is registered with demo starts only")
+    task = LIFT_TASK if reward == "lift" else TASKS[demos]
     cmd = [str(ISAAC_PY), str(ISAACLAB / "scripts" / "reinforcement_learning" / "train.py"), "--rl_library", "rsl_rl",
-           "--task", TASKS[demos], "--external_callback", "sim_worker.rl_register.register",
+           "--task", task, "--external_callback", "sim_worker.rl_register.register",
            "--num_envs", str(num_envs), "--max_iterations", str(max_iterations), "--run_name", run_name]
     if checkpoint:
         cmd += ["--checkpoint", str(checkpoint)]
@@ -69,6 +73,8 @@ def main(argv=None) -> int:
     p.add_argument("--smoke", action="store_true", help="64 envs x 20 iterations: does it run, how fast")
     p.add_argument("--run-name", default=None)
     p.add_argument("--no-demos", action="store_true", help="home starts only: the RL-without-demos control arm")
+    p.add_argument("--reward", choices=("potential", "lift"), default="potential",
+                   help="the reward preset: potential (default) or lift (Isaac Lab's stock lift + our parts)")
     p.add_argument("--num-envs", type=int, default=None)
     p.add_argument("--max-iterations", type=int, default=None)
     p.add_argument("--checkpoint", default=None, help="resume from this run dir or model_<i>.pt")
@@ -84,7 +90,7 @@ def main(argv=None) -> int:
         size["max_iterations"] = args.max_iterations
     run = args.run_name or ("smoke" if args.smoke else "run")
     cmd = train_command(demos=not args.no_demos, run_name=run, checkpoint=args.checkpoint, overrides=args.override,
-                        viz=args.viz, **size)
+                        viz=args.viz, reward=args.reward, **size)
     print(" ".join(cmd))
     if args.dry_run:
         return 0

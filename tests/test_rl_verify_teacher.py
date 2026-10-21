@@ -67,3 +67,16 @@ def test_the_train_command_is_isaac_labs_trainer_on_our_registered_task():
     env = rl_train.child_env()
     assert env["PYTHONPATH"].split(";")[:2] == [str(rl_train.REPO), str(rl_train.REPO / "src")]
     assert rl_train.main(["--smoke", "--dry-run"]) == 0  # no lock, no Isaac
+
+
+def test_the_lift_reward_preset_is_its_own_task_and_off_by_default():
+    spec = importlib.util.spec_from_file_location("rl_train", SCRIPT.parent / "rl_train.py")
+    rl_train = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rl_train)
+    default = rl_train.train_command(demos=True, num_envs=64, max_iterations=20, run_name="smoke")
+    assert default[default.index("--task") + 1] == "SANT-PickPlace-Franka-RL-v0"
+    lift = rl_train.train_command(demos=True, num_envs=64, max_iterations=20, run_name="v6", reward="lift")
+    assert lift[lift.index("--task") + 1] == rl_train.LIFT_TASK == "SANT-PickPlace-Franka-RL-Lift-v0"
+    with pytest.raises(ValueError):
+        rl_train.train_command(demos=False, num_envs=64, max_iterations=20, run_name="x", reward="lift")
+    assert rl_train.main(["--smoke", "--reward", "lift", "--dry-run"]) == 0

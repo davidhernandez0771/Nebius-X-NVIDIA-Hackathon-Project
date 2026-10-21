@@ -308,3 +308,50 @@ If demo_v4 becomes the teacher, these become a named preset in code after the ga
      today.
 4. **Effort:** about 2–3 h of code and tests, then one GPU run. The human demos then seed the policy, not only its
    starts, which is still "learned from the reward with SANT-verified demos" and no hand-written logic.
+
+### demo_v6: the "lift" reward preset (built, not run)
+
+The user's call (via the lead, 2026-10-21): a reward modelled on Isaac Lab's stock Lift-Cube-Franka, built in
+parallel with v5, launched only if v5 isn't clearly grasping at its 300 check-in.
+
+**Off by default.** `rl_train.py --reward lift` picks the task `SANT-PickPlace-Franka-RL-Lift-v0`
+(`SantPickPlaceRLLiftEnvCfg`: the same env, demo starts and success, other rewards). `--reward potential` (the
+default) is unchanged.
+
+**Level rewards, copied from the stock config** (`isaaclab_tasks/contrib/lift/lift_env_cfg.py`):
+
+| Term | Stock line | Ours |
+|---|---|---|
+| reaching_object, tanh std 0.1, w 1 | 138 | `reach`, the same |
+| lifting_object, height 0.04, w 15 | 140 | `lifted`: also needs the cube held (closed + finger contact) |
+| object_goal_tracking, std 0.3, w 16 | 142-146 | `goal`: the goal is over the bin's centre, the cube's bottom 2.5 cm over the rim |
+| fine-grained, std 0.05, w 5 | 148-152 | `goal_fine`, the same goal |
+| action_rate -1e-4, joint_vel -1e-4 | 155, 157-160 | the same |
+| curriculum: both to -0.1 over 10,000 steps | 180, 184 | the same |
+
+**Our parts on top:**
+- `placed` (w 38): the cube in the bin, released. It pays more than holding at the goal (36).
+- **Fouls:** 5 N arm contact (5), a drop (50) and a high release (50). Each forfeits the bonus.
+- **The success bonus,** paid once, exactly when check_success's conditions hold (placed for 0.5 s with no foul;
+  the episode ends there): 400 + 42.9 × the steps left.
+  - 42.9 is 1.1 × the most any step can pay (39).
+  - So from any state, placing now beats hovering for the rest of the episode.
+- **No ×50.** The level rewards are already the stock lift's magnitudes (at most 0.78 per step after dt), which
+  stock trains at entropy 0.006.
+
+**Calibration on the 196 recorded episodes** (rescored without Isaac):
+- The bonus agrees with check_success on 196/196.
+- Verified episodes score min 11,516 (median 18,381). Failed ones score max 7,412 (median 40).
+- Hovering at the best held state for the whole 600 steps scores less than the episode's own success in 170/170
+  (smallest margin 1,558).
+
+**Risk:** the bonus is one large step (up to ~480 after dt). The value function has to learn it; watch the value
+loss.
+
+**Launch command** (v5's exploration settings and mixed starts, no ×50):
+
+    uv run --no-sync python scripts\rl_train.py --run-name demo_v6 --reward lift --max-iterations 1500 --override env.events.reset_scene.params.held_grace_steps=10 --override env.events.reset_scene.params.curriculum_steps=24000 --override env.events.reset_scene.params.uniform_share=0.5 --override agent.actor.distribution_cfg.init_std=0.6 --override "agent.actor.distribution_cfg.std_range=[0.3,1.0]" --override agent.algorithm.entropy_coef=0.005 --override env.actions.gripper_action.deadband=0.25
+
+**Tests:**
+- SANT venv: full suite, 2594 passed, 35 skipped.
+- Isaac venv, CPU, no app: 86 passed, 1 skipped.

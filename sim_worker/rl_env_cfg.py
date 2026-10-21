@@ -40,6 +40,7 @@ import isaaclab.utils.math as PoseUtils
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.actions.actions_cfg import BinaryJointPositionActionCfg, DifferentialInverseKinematicsActionCfg
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -114,6 +115,8 @@ class EpisodeMonitor:
         self.prev: rt.StepState | None = None
         self.fresh = torch.ones(num_envs, dtype=torch.bool, device=device)
         self.phi_prev, self.progress, self.penalty, self.bonus = z(), z(), z(), z()
+        # the lift preset's parts (rl_teacher.lift_*): its level reward, its foul penalty, its bonus
+        self.lift_level, self.lift_penalty, self.lift_bonus = z(), z(), z()
         self.placed_steps = z(torch.int32)
         self.length = z(torch.int32)
         self.fouled, self.success = z(torch.bool), z(torch.bool)
@@ -128,7 +131,9 @@ class EpisodeMonitor:
                     "force": torch.zeros(n, m, device=device)}
         self.results: list[dict] = []  # check_success verdicts of finished tracked episodes, until logged
 
-    def update(self, s: rt.StepState, arm_bin: torch.Tensor, arm_table: torch.Tensor) -> None:
+    def update(self, s: rt.StepState, arm_bin: torch.Tensor, arm_table: torch.Tensor,
+               remaining: torch.Tensor | None = None) -> None:
+        """remaining: steps left in each environment's episode (the lift preset's bonus pays for them)."""
         terms = rt.reward_terms(s, self.prev)
         keep = (~self.fresh).float()
         for k in ("dropped", "high_release"):  # nothing to compare with on an episode's first step
@@ -140,6 +145,10 @@ class EpisodeMonitor:
         self.placed_steps = torch.where(terms["placed"] > 0, self.placed_steps + 1, torch.zeros_like(self.placed_steps))
         done = (self.placed_steps.float() * rt.STEP_S >= rt.SETTLE_S - 1e-6) & ~self.fouled & ~self.success
         self.bonus = done.float() * rt.SUCCESS_BONUS
+        self.lift_level = rt.lift_level(rt.lift_level_terms(s))
+        self.lift_penalty = rt.penalty(terms, rt.LIFT_PENALTY)
+        left = torch.zeros_like(self.bonus) if remaining is None else remaining.float()
+        self.lift_bonus = done.float() * rt.lift_bonus(left)
         self.success |= done
         self.terms = terms
         # the tracked environments' record for check_success
@@ -182,7 +191,8 @@ class EpisodeMonitor:
 
     def reset(self, env_ids: torch.Tensor) -> None:
         self.fresh[env_ids] = True
-        for buf in (self.phi_prev, self.progress, self.penalty, self.bonus):
+        for buf in (self.phi_prev, self.progress, self.penalty, self.bonus, self.lift_level, self.lift_penalty,
+                    self.lift_bonus):
             buf[env_ids] = 0.0
         self.placed_steps[env_ids] = 0
         self.length[env_ids] = 0
@@ -211,7 +221,8 @@ def monitor(env) -> EpisodeMonitor:
     if m.step != env.common_step_counter:
         m.step = env.common_step_counter
         forces = sant_contact_forces(env)
-        m.update(step_state(env), forces[:, 1] > rt.CONTACT_N, forces[:, 2] > rt.CONTACT_N)
+        m.update(step_state(env), forces[:, 1] > rt.CONTACT_N, forces[:, 2] > rt.CONTACT_N,
+                 remaining=env.max_episode_length - env.episode_length_buf)
         log = env.extras.setdefault("log", {})
         log.update(m.log())
         if m.step % 10 == 0:  # how often each stage is reached, now and then (each mean is a GPU sync)
@@ -237,6 +248,18 @@ def reward_progress(env) -> torch.Tensor:
 
 def reward_penalty(env) -> torch.Tensor:
     return monitor(env).penalty
+
+
+def reward_lift_level(env) -> torch.Tensor:
+    return monitor(env).lift_level
+
+
+def reward_lift_penalty(env) -> torch.Tensor:
+    return monitor(env).lift_penalty
+
+
+def reward_lift_success(env) -> torch.Tensor:
+    return monitor(env).lift_bonus
 
 
 def reward_success(env) -> torch.Tensor:
@@ -431,6 +454,28 @@ class RewardsCfg:
 
 
 @configclass
+class LiftRewardsCfg:
+    """The "lift" preset (rl_teacher, the lift section): Isaac Lab's stock lift level rewards and penalties
+    (isaaclab_tasks/contrib/lift/lift_env_cfg.py lines 138-160) with our placed term, fouls and success bonus."""
+
+    level = RewTerm(func=reward_lift_level, weight=1.0)
+    penalty = RewTerm(func=reward_lift_penalty, weight=-1.0)
+    success = RewTerm(func=reward_lift_success, weight=1.0)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)  # stock line 155
+    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-1e-4)  # stock lines 157-160
+
+
+@configclass
+class LiftCurriculumCfg:
+    """Stock (lift_env_cfg.py lines 180 and 184): the two penalties raised to -0.1 after 10,000 steps."""
+
+    action_rate = CurrTerm(func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1,
+                                                                    "num_steps": 10000})
+    joint_vel = CurrTerm(func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-1,
+                                                                  "num_steps": 10000})
+
+
+@configclass
 class TerminationsCfg:
     success = DoneTerm(func=done_success)  # first: it brings the monitor up to this step
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -454,6 +499,14 @@ class SantPickPlaceRLEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = DECIMATION
         self.scene.num_envs = NUM_ENVS
         self.scene.env_spacing = ENV_SPACING
+
+
+@configclass
+class SantPickPlaceRLLiftEnvCfg(SantPickPlaceRLEnvCfg):
+    """The task with the "lift" reward preset (rl_train.py --reward lift)."""
+
+    rewards: LiftRewardsCfg = LiftRewardsCfg()
+    curriculum: LiftCurriculumCfg = LiftCurriculumCfg()
 
 
 @configclass

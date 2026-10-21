@@ -378,3 +378,79 @@ def policy_observation(state, last_action) -> np.ndarray:
         if parts[name].shape != (n,):
             raise ValueError(f"teacher state's {name} has shape {parts[name].shape}, expected ({n},)")
     return np.concatenate([parts[name] for name, _ in OBS_SPEC])
+
+
+# --- the "lift" reward preset (2026-10-21, the user's directive): Isaac Lab's stock lift, plus our parts ------------
+#
+# Level rewards as IsaacContrib-Lift-Cube-Franka pays them (isaaclab_tasks/contrib/lift/lift_env_cfg.py: reaching_object
+# line 138 std 0.1 weight 1; lifting_object line 140 minimal_height 0.04 weight 15; object_goal_tracking lines 142-146
+# std 0.3 weight 16; object_goal_tracking_fine_grained lines 148-152 std 0.05 weight 5; action_rate line 155 and
+# joint_vel lines 157-160 -1e-4, raised to -0.1 over 10,000 steps by its curriculum, lines 180 and 184), with the goal a
+# point above the bin (over its centre, the held cube's bottom 2.5 cm clear of the rim and under check_success's
+# 0.18 m release height). Ours on top: a placed level term; the foul penalties, which forfeit the bonus; and the success
+# bonus, once, exactly when check_success's end state holds for SETTLE_S with nothing fouled, worth LIFT_BONUS_BASE plus
+# LIFT_BONUS_RATE (more than the most any step can pay) for every step left in the episode, so finishing always beats
+# hovering at the goal until the time limit. One deviation: "lifted" also needs the cube held (closed, a finger on it),
+# so a cube knocked onto the bin's wall top never counts as lifted at the goal.
+LIFT_HEIGHT = 0.04  # m, the cube's centre above the table (stock minimal_height, line 140)
+GOAL_STD, GOAL_FINE_STD = 0.3, 0.05  # stock lines 144 and 150
+GOAL_ABOVE_BIN = BIN_RIM_HEIGHT + 0.05  # m above the bin's origin: the held cube's centre (its bottom 2.5 cm over the rim)
+LIFT_WEIGHTS = {"reach": 1.0, "lifted": 15.0, "goal": 16.0, "goal_fine": 5.0, "placed": 38.0}  # placed: ours
+LIFT_LEVEL_MAX = max(LIFT_WEIGHTS["reach"] + LIFT_WEIGHTS["lifted"] + LIFT_WEIGHTS["goal"] + LIFT_WEIGHTS["goal_fine"],
+                     LIFT_WEIGHTS["placed"] + LIFT_WEIGHTS["reach"])  # the most any one step can pay
+LIFT_BONUS_BASE = 400.0
+LIFT_BONUS_RATE = 1.1 * LIFT_LEVEL_MAX  # per step left in the episode
+LIFT_PENALTY = {"collision": 5.0, "dropped": 50.0, "high_release": 50.0}  # each also forfeits the bonus
+
+
+def lift_level_terms(s: StepState) -> dict:
+    """The lift preset's level terms per environment (unweighted)."""
+    held = s.closed & s.finger_contact
+    lifted = held & (s.cube[..., 2] > LIFT_HEIGHT)
+    d_goal = _norm(s.cube_in_bin - _goal_in_bin(s.cube_in_bin))
+    return {
+        "reach": 1 - _tanh(_norm(s.tcp - s.cube) / REACH_STD),
+        "lifted": _f(lifted),
+        "goal": _f(lifted) * (1 - _tanh(d_goal / GOAL_STD)),
+        "goal_fine": _f(lifted) * (1 - _tanh(d_goal / GOAL_FINE_STD)),
+        "placed": _f(placed(s)),
+    }
+
+
+def _goal_in_bin(cube_in_bin):
+    """The goal, in the bin's frame, shaped like cube_in_bin: over the bin's centre, GOAL_ABOVE_BIN up."""
+    g = cube_in_bin * 0.0
+    if _is_np(g):
+        g[..., 2] = GOAL_ABOVE_BIN
+        return g
+    return g + g.new_tensor([0.0, 0.0, GOAL_ABOVE_BIN])
+
+
+def lift_level(terms: dict):
+    total = terms["reach"] * 0.0
+    for k, w in LIFT_WEIGHTS.items():
+        total = total + w * terms[k]
+    return total
+
+
+def lift_bonus(remaining_steps):
+    """The success bonus with remaining_steps left in the episode (see LIFT_BONUS_RATE)."""
+    return LIFT_BONUS_BASE + LIFT_BONUS_RATE * remaining_steps
+
+
+def episode_return_lift(states: list[StepState], max_steps: int = 600) -> dict:
+    """What an RL episode through these states would score under the lift preset (before Isaac's dt): the level
+    reward each step, minus the foul penalties, plus the success bonus (for the steps left of max_steps) when the cube
+    has been placed for SETTLE_S with no foul before; the env ends the episode there."""
+    total, prev, still, foul, bonus_at = 0.0, None, 0, False, None
+    for k, s in enumerate(states[:max_steps]):
+        terms = reward_terms(s, prev)
+        total += float(lift_level(lift_level_terms(s))[0]) - float(penalty(terms, LIFT_PENALTY)[0])
+        foul = foul or bool(fouled(terms)[0])
+        still = still + 1 if bool(terms["placed"][0]) else 0
+        prev = s
+        if still * STEP_S >= SETTLE_S - 1e-9 and not foul:
+            bonus_at = k
+            total += float(lift_bonus(max_steps - (k + 1)))
+            break
+    return {"return": total, "success_bonus_at": bonus_at, "fouled": foul}
