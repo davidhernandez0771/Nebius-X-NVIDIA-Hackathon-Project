@@ -442,8 +442,8 @@ On practice seeds 5300–5349 (T3's note `df9dce6` on `pm/rl-teacher`):
     for more than one reason.
 - **In the env, `check_success`: 43/50.** The in-env and replay verdicts agree on only 10 of the 50 seeds.
 
-T6's part (b) was not run, because part (a) failed. No rollout, distillation, training or selection ran. Seeds
-5300–5349 are now spent for the gate.
+Whether T6's part (b) ran on this checkpoint is to be confirmed (TODO). No distillation may start before both parts
+pass. Seeds 5300–5349 are now spent for the gate.
 
 **The cause (T3):** the teacher moves far faster than the human demos.
 - **The teacher's tool targets** move at a median 1.73 m/s (p99 3.17, max 3.49).
