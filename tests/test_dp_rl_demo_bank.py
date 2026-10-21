@@ -142,3 +142,14 @@ def test_resets_mix_demo_states_and_home_starts_in_sant_scenes(tmp_path):
     # "RL without demos": no bank, or demo_prob 0 -> every start from home
     for b, p in ((None, 0.5), (bank, 0.0)):
         assert not bank_mod.plan_resets(rng, 50, b, demo_prob=p, floor=0.0, home_joints=home)["demo"].any()
+
+
+def test_a_share_of_demo_starts_can_ignore_the_curriculum(tmp_path):
+    bank, _ = bank_mod.build_bank(_store(tmp_path), stride=5)
+    home = np.zeros(9, dtype=np.float32)
+    late = bank_mod.plan_resets(np.random.default_rng(2), 600, bank, 1.0, 0.8, home)  # the default: all by the floor
+    assert np.all(bank["progress"][late["row"]] >= 0.8)
+    mixed = bank_mod.plan_resets(np.random.default_rng(2), 600, bank, 1.0, 0.8, home, uniform_share=0.5)
+    early = bank["progress"][mixed["row"]] < 0.8
+    assert 0.25 < early.mean() < 0.5  # half sample the whole episode, and most of the episode is before 0.8
+    assert bank["progress"][mixed["row"]].min() < 0.1  # grasp-phase and earlier starts from the first iteration

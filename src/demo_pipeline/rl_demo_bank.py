@@ -160,11 +160,13 @@ def sample_states(rng: np.random.Generator, progress: np.ndarray, n: int, floor:
 
 
 def plan_resets(rng: np.random.Generator, n: int, bank: dict | None, demo_prob: float, floor: float,
-                home_joints: np.ndarray, robot: str = "franka") -> dict:
+                home_joints: np.ndarray, robot: str = "franka", uniform_share: float = 0.0) -> dict:
     """What n resetting environments start from (numpy; the env writes it): with probability demo_prob (and a
     bank) a demo state sampled by the curriculum floor, else home (home_joints, the gripper open) in a random scene
-    as SANT samples them (multiply.sample_scene, training-side). Returns arrays: demo [n] bool, row [n] (-1 for
-    home), joint_pos [n, J], cube_pos [n, 3], cube_quat_wxyz [n, 4], bin_pos [n, 3], bin_quat_wxyz [n, 4]."""
+    as SANT samples them (multiply.sample_scene, training-side). uniform_share: that share of the demo starts ignores
+    the floor and samples the whole episode (grasp-phase starts from the first iteration); 0 = all by the curriculum.
+    Returns arrays: demo [n] bool, row [n] (-1 for home), joint_pos [n, J], cube_pos [n, 3], cube_quat_wxyz [n, 4],
+    bin_pos [n, 3], bin_quat_wxyz [n, 4]."""
     from .multiply import sample_scene
 
     home_joints = np.asarray(home_joints, dtype=np.float32)
@@ -173,7 +175,13 @@ def plan_resets(rng: np.random.Generator, n: int, bank: dict | None, demo_prob: 
            "joint_pos": np.tile(home_joints, (n, 1)).astype(np.float32),
            "cube_pos": np.zeros((n, 3), np.float32), "cube_quat_wxyz": np.zeros((n, 4), np.float32),
            "bin_pos": np.zeros((n, 3), np.float32), "bin_quat_wxyz": np.zeros((n, 4), np.float32)}
-    rows = sample_states(rng, bank["progress"], int(demo.sum()), floor) if demo.any() else np.zeros(0, dtype=np.int64)
+    rows = np.zeros(0, dtype=np.int64)
+    if demo.any():
+        k = int(demo.sum())
+        uniform = rng.random(k) < uniform_share if uniform_share > 0 else np.zeros(k, dtype=bool)
+        rows = np.empty(k, dtype=np.int64)
+        rows[~uniform] = sample_states(rng, bank["progress"], int((~uniform).sum()), floor)
+        rows[uniform] = sample_states(rng, bank["progress"], int(uniform.sum()), 0.0)
     out["row"][demo] = rows
     for key in ("joint_pos", "cube_pos", "cube_quat_wxyz", "bin_pos", "bin_quat_wxyz"):
         if demo.any():

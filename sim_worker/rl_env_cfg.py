@@ -281,7 +281,7 @@ def _wxyz_to_xyzw(q: np.ndarray) -> np.ndarray:
 
 def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, curriculum_start: float = 0.75,
                    curriculum_end: float = 0.0, curriculum_steps: int = 24_000, seed: int = 0, bank_phase: str = "",
-                   held_grace_steps: int = 0) -> None:
+                   held_grace_steps: int = 0, uniform_share: float = 0.0) -> None:
     """Event (reset). check_success for the tracked episodes that end, then each resetting environment starts
     from rl_demo_bank.plan_resets: a demo state (the curriculum's floor at this step) or home in a random scene.
     Batched per object: the robot's joints (and their targets, so the arm holds the restored pose), the cube, and
@@ -292,7 +292,8 @@ def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, cu
     bank_phase ("free" / "held", for diagnostics) keeps only those bank states. held_grace_steps: a start that holds
     the cube keeps the gripper closed for that many steps whatever the policy says (SantGraceGripperAction), and its
     fingers are commanded closed at once, so a new policy's random gripper doesn't drop what the demo held; 0 = off.
-    env._sant_rl_start_row keeps each env's bank row (-1: home), for diagnostics."""
+    env._sant_rl_start_row keeps each env's bank row (-1: home), for diagnostics. uniform_share: that share of the demo
+    starts samples the whole episode, the rest follows the curriculum (rl_demo_bank.plan_resets; 0 = all curriculum)."""
     ids = torch.arange(env.num_envs, device=env.device) if env_ids is None or isinstance(env_ids, slice) else env_ids
     ids = torch.as_tensor(ids, device=env.device, dtype=torch.long)
     if len(ids) == 0:
@@ -313,7 +314,8 @@ def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, cu
     floor = bank_mod.min_progress(env.common_step_counter, start=curriculum_start, end=curriculum_end,
                                   steps=curriculum_steps)
     robot = env.scene["robot"]
-    plan = bank_mod.plan_resets(rng, len(ids), bank, demo_prob, floor, np.asarray(rt.HOME_JOINTS))
+    plan = bank_mod.plan_resets(rng, len(ids), bank, demo_prob, floor, np.asarray(rt.HOME_JOINTS),
+                                uniform_share=uniform_share)
     dev = env.device
     joints = torch.as_tensor(plan["joint_pos"], device=dev)
     rows = torch.as_tensor(plan["row"], device=dev)
