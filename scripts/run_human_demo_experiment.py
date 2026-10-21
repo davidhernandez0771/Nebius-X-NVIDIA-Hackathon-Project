@@ -49,6 +49,8 @@ sample data: a smoke run proves the stages work, it measures nothing.
 
 GPU lock (C:\\dev\\gpu.lock): before the sim, train and eval stages; a live PID in it is re-checked every 5 min,
 and it is deleted when the stage ends, also on failure. Every GPU stage also holds sim_worker.keepawake.KeepAwake.
+Stop: a file <exp>/STOP (the site's pipeline API writes it to cancel) stops the run before the next stage, or the
+sim's next step (exit 2, what finished is kept); delete it and re-run to resume.
 Exit: 0 done (or stopped at --until), 1 refused, 2 stopped (a worker or child process failed; re-run to resume).
 """
 from __future__ import annotations
@@ -102,6 +104,7 @@ REPAIRERS = ("rules", EDITS_REPAIRER, HYBRID_REPAIRER)
 REPAIR_TEXT = {EDITS_REPAIRER: "repaired with Nemotron's trajectory edits",
                HYBRID_REPAIRER: "repaired: rules first; Nemotron's trajectory edits for a demo the rules discard"}
 SMOKE = {"steps": 2000, "save_freq": 2000, "eval_n": 5}
+STOP_FILE = "STOP"  # <exp>/STOP: stop before the next stage (app/pipeline cancels a run with it)
 LABEL_FRAMES, JUDGE_FRAMES, MODEL_SIZE = 8, 4, 256  # as T3's pre-registered test (scripts/intent_eval.py)
 
 
@@ -162,6 +165,12 @@ class Experiment:
         self.root.mkdir(parents=True, exist_ok=True)
         with (self.root / "run.log").open("a", encoding="utf-8") as f:
             f.write(line + "\n")
+
+    def check_stop(self, next_step: str) -> None:
+        """A clean stop at a stage boundary: <exp>/STOP stops the run before `next_step`; what finished is kept."""
+        if (self.root / STOP_FILE).is_file():
+            self.log(f"stop requested: stopping before {next_step}")
+            raise Stop(f"stop requested before {next_step}; delete {self.root / STOP_FILE} and re-run to resume")
 
     def marker(self, *parts: str) -> Path:
         return self.stages.joinpath(*parts[:-1], parts[-1] + ".json")
@@ -290,6 +299,7 @@ class Experiment:
             if not (health.ok and health.cameras and ROBOT in health.robots):
                 raise Stop(f"the sim worker can't record {ROBOT} camera episodes: {health}")
             for step in steps[: SIM_STEPS.index(until) + 1]:
+                self.check_stop(step.__name__)
                 try:
                     step(client)
                 except SimWorkerError as e:
@@ -696,6 +706,7 @@ class Experiment:
         steps = {"grid": self.grid, "nemotron": self.nemotron, "train": self.train,
                  "eval": self.eval, "results": lambda: self.results(publish)}
         for stage in STAGES[1: STAGES.index(until) + 1]:
+            self.check_stop(stage)
             if stage == "sim":
                 if not self.sim(sim_until):
                     return

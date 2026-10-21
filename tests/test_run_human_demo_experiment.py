@@ -610,3 +610,37 @@ def test_the_preregistration_states_the_recipe_only_when_used(hx, tmp_path):
     assert "shift augmentation" in text and "dilation" in text
     assert "1000, 2000" in text and "5300-5304" in text
     assert "binarized gripper" in text and "every 20 steps" in text
+
+
+def test_a_stop_file_stops_the_run_before_the_next_stage_and_a_resume_carries_on(hx, tmp_path):
+    # The site's pipeline API cancels a run by writing <exp>/STOP: the runner stops cleanly at the next stage
+    # boundary (between the sim's steps too), keeps what finished, and a later run resumes from the markers.
+    exp, sim, stages = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    stop = tmp_path / "human_exp" / "smoke1" / hx.STOP_FILE
+    stop.write_text("cancelled from the site", encoding="utf-8")
+    with pytest.raises(hx.Stop, match="stop requested before sim"):
+        exp.run()
+    assert sim.requests == [] and stages == []
+
+    stop.unlink()
+    orig = sim.replay
+
+    def replay_then_stop(req):  # the stop arrives while physics is running
+        out = orig(req)
+        stop.write_text("cancelled from the site", encoding="utf-8")
+        return out
+
+    sim.replay = replay_then_stop
+    with pytest.raises(hx.Stop, match="stop requested before repair"):
+        exp.run()
+    root = tmp_path / "human_exp" / "smoke1"
+    assert len(list((root / "stages" / "physics").glob("*.json"))) == 3  # physics finished its demos
+    assert not (root / "stages" / "repair").exists()
+
+    stop.unlink()
+    exp2, again, _ = _exp(hx, tmp_path)
+    exp2.select(ids=None, tag=None, settings=SMOKE)
+    exp2.run(until="grid")
+    assert not any(r.out_name.endswith("_raw") for r in again.requests)  # physics wasn't redone
+    assert (root / "grid.json").is_file()
