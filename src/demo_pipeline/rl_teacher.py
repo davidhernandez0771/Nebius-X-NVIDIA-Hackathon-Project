@@ -236,6 +236,15 @@ def action_to_target(a, tcp_pos, tcp_yaw):
     return pos, _down_turned(yaw), a[..., 4] < 0
 
 
+def gripper_closed(grip, prev_closed, deadband: float = 0.0):
+    """The gripper's state after the policy's gripper output [N]: with no deadband, closed when < 0 (Isaac Lab's
+    binary gripper). With one, it switches only when the output crosses it: closed below -deadband, open above
+    +deadband, else as it was (prev_closed [N] bool), so exploration noise can't flick it open mid-carry."""
+    if deadband <= 0:
+        return grip < 0
+    return (grip < -deadband) | (prev_closed & (grip <= deadband))
+
+
 def grace_gripper(grip, grace):
     """The gripper action [N] with a held start's grace applied: closed (-1) while grace [N] > 0, else as given. The
     env counts grace down once per step (sim_worker/rl_action.py SantGraceGripperAction)."""

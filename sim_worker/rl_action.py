@@ -73,12 +73,26 @@ class SantTcpTargetAction(SantTrackingIKAction):
 class SantGraceGripperAction(BinaryJointPositionAction):
     """Isaac Lab's binary gripper, closed whatever the policy says while the env's held-start grace runs
     (env._sant_rl_grace, set by rl_env_cfg.reset_rl_scene for starts that hold the cube; counted down here, once per
-    control step). With no grace it is Isaac Lab's term unchanged."""
+    control step), and with an optional deadband (cfg.deadband, rl_teacher.gripper_closed): the gripper switches only
+    when the policy's output crosses +-deadband. With neither it is Isaac Lab's term unchanged."""
+
+    def __init__(self, cfg, env):
+        super().__init__(cfg, env)
+        self._closed_state = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
     def process_actions(self, actions: torch.Tensor):
+        actions = actions.clone()
         grace = getattr(self._env, "_sant_rl_grace", None)
         if grace is not None:
-            actions = actions.clone()
             actions[:, 0] = rt.grace_gripper(actions[:, 0], grace)
             grace.sub_(1).clamp_(min=0)
+        deadband = float(getattr(self.cfg, "deadband", 0.0) or 0.0)
+        if deadband > 0:
+            closed = rt.gripper_closed(actions[:, 0], self._closed_state, deadband)
+            actions[:, 0] = torch.where(closed, -1.0, 1.0)
+        self._closed_state = actions[:, 0] < 0
         super().process_actions(actions)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        super().reset(env_ids)
+        self._closed_state[slice(None) if env_ids is None else env_ids] = False

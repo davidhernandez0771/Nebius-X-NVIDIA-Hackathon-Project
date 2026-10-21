@@ -16,7 +16,8 @@ started; it needs torch only to load the policy.
 - **The action** is the training env's mapping (rl_teacher.action_to_target: a bounded step from the state's tool
   pose, made an absolute target) with the soft floor
   (rl_teacher.clamp_to_soft_floor), exactly as the env's action term applies them; clipped to [-1, 1] as the
-  trainer clips. Its gripper is 1 for a command < 0, as the env's binary gripper.
+  trainer clips. Its gripper follows the env's rule (rl_teacher.gripper_closed): < 0 closes, or, if the run trained
+  with a deadband (its params/env.yaml), it switches only past +-deadband from the state's last gripper command.
 No scripted or recovery logic anywhere: everything the teacher does comes from the trained policy.
 """
 
@@ -58,9 +59,10 @@ class RLTeacher:
     """sim_eval.teacher.Teacher around a policy: a function from the observation (rl_teacher.OBS_DIM floats) to the
     action (rl_teacher.ACTION_DIM floats)."""
 
-    def __init__(self, policy: Callable[[np.ndarray], np.ndarray], name: str):
+    def __init__(self, policy: Callable[[np.ndarray], np.ndarray], name: str, gripper_deadband: float = 0.0):
         self.policy = policy
         self.name = name
+        self.gripper_deadband = gripper_deadband  # the training env's (rl_teacher.gripper_closed)
         self._last = np.zeros(rt.ACTION_DIM)
         self._action = _action_type()
 
@@ -76,6 +78,7 @@ class RLTeacher:
                                                 rt.tool_yaw(tcp_q))
         bin_pos = np.asarray(state.bin_pos, dtype=np.float64)[None]
         pos = rt.clamp_to_soft_floor(pos, bin_pos, np.array([rt.yaw_of_wxyz(state.bin_quat_wxyz)]))
+        closed = rt.gripper_closed(a[4:5], np.array([int(state.gripper) == 1]), self.gripper_deadband)  # as the env
         return self._action(ee_pos=pos[0].astype(np.float64), ee_quat_wxyz=quat[0].astype(np.float64),
                             gripper=int(bool(closed[0])))
 
@@ -89,6 +92,18 @@ def resolve_checkpoint(checkpoint) -> Path:
         raise FileNotFoundError(f"no teacher policy at {path}: export it with scripts/rl_eval_teacher.py (or Isaac "
                                 f"Lab's play script), which write <run>/exported/policy.pt")
     return path
+
+
+def run_gripper_deadband(path: Path) -> float:
+    """The gripper deadband the run trained with (its params/env.yaml, written by Isaac Lab's trainer); 0 if none."""
+    run = path.parent.parent if path.parent.name == "exported" else path.parent
+    env_yaml = run / "params" / "env.yaml"
+    if not env_yaml.is_file():
+        return 0.0
+    import yaml
+
+    cfg = yaml.safe_load(env_yaml.read_text(encoding="utf-8")) or {}
+    return float(((cfg.get("actions") or {}).get("gripper_action") or {}).get("deadband") or 0.0)
 
 
 def make(checkpoint, device: str = "cuda:0", **_) -> RLTeacher:
@@ -109,4 +124,4 @@ def make(checkpoint, device: str = "cuda:0", **_) -> RLTeacher:
             return model(x)[0].float().cpu().numpy()
 
     run = path.parent.parent.name if path.parent.name == "exported" else path.stem
-    return RLTeacher(policy, name=f"rl-{run}")
+    return RLTeacher(policy, name=f"rl-{run}", gripper_deadband=run_gripper_deadband(path))

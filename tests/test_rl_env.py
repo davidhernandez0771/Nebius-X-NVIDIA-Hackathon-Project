@@ -251,3 +251,8 @@ def test_held_starts_get_a_grace_and_closed_fingers_and_the_start_rows_are_kept(
     calls = dict(env.scene["robot"].calls)
     assert torch.equal(calls["set_joint_position_target_index"]["target"], calls["write_joint_position_to_sim_index"]["position"])
     assert env._sant_rl_grace.tolist() == [0] * n
+
+
+def test_the_gripper_deadband_is_off_by_default(cfg):
+    grip = cfg.actions.gripper_action
+    assert grip.class_type == "sim_worker.rl_action:SantGraceGripperAction" and grip.deadband == 0.0

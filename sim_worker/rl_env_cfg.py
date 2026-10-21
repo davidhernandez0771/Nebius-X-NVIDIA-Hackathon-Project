@@ -365,6 +365,8 @@ class SantGraceGripperActionCfg(BinaryJointPositionActionCfg):
     """Isaac Lab's binary gripper with the held-start grace (sim_worker/rl_action.py, named by string: it imports USD)."""
 
     class_type: type | str = "sim_worker.rl_action:SantGraceGripperAction"
+    deadband: float = 0.0
+    """The gripper switches only when the policy's output crosses +-deadband (0: Isaac Lab's < 0 closes)."""
 
 
 @configclass

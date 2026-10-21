@@ -154,3 +154,12 @@ def test_a_held_starts_grace_keeps_the_gripper_closed():
     grip = np.array([0.7, -0.3, 0.2, 1.0])
     out = rt.grace_gripper(grip, np.array([3, 0, 1, 0]))
     np.testing.assert_allclose(out, [-1.0, -0.3, -1.0, 1.0])  # closed while grace > 0, the policy's choice after
+
+
+def test_the_gripper_deadband_switches_only_past_the_margin():
+    grip = np.array([-0.3, 0.3, -0.7, 0.7, 0.0, -0.0])
+    np.testing.assert_array_equal(rt.gripper_closed(grip, np.ones(6, bool)), grip < 0)  # no deadband: < 0 closes
+    held = rt.gripper_closed(grip, np.ones(6, bool), 0.5)  # closed now: only a clear "open" (> 0.5) opens it
+    assert held.tolist() == [True, True, True, False, True, True]
+    free = rt.gripper_closed(grip, np.zeros(6, bool), 0.5)  # open now: only a clear "close" (< -0.5) closes it
+    assert free.tolist() == [False, False, True, False, False, False]

@@ -156,3 +156,17 @@ def test_t6s_teacher_protocol_when_its_module_is_here():
     t = rl_policy.RLTeacher(lambda obs: np.zeros(rt.ACTION_DIM), name="rl-test")
     assert isinstance(t, teacher_mod.Teacher)
     teacher_mod.check_action(t.act(_state()))
+
+
+def test_the_adapter_applies_the_runs_gripper_deadband(tmp_path):
+    st = _state()
+    holding = TeacherState(**{**st.__dict__, "gripper": 1})
+    t = rl_policy.RLTeacher(lambda obs: np.array([0.0, 0.0, 0.0, 0.0, 0.3]), name="rl-test", gripper_deadband=0.5)
+    assert t.act(holding).gripper == 1  # +0.3 is inside the band: it stays closed
+    assert t.act(st).gripper == 0  # and stays open when it was open
+    assert rl_policy.RLTeacher(lambda obs: np.array([0, 0, 0, 0, 0.3]), name="rl-test").act(holding).gripper == 0
+    run = tmp_path / "2026-10-21_demo_v4"
+    (run / "params").mkdir(parents=True)
+    (run / "params" / "env.yaml").write_text("actions:\n  gripper_action:\n    deadband: 0.5\n", encoding="utf-8")
+    assert rl_policy.run_gripper_deadband(run / "exported" / "policy.pt") == 0.5
+    assert rl_policy.run_gripper_deadband(tmp_path / "other" / "exported" / "policy.pt") == 0.0
