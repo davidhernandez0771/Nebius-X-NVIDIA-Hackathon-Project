@@ -280,13 +280,19 @@ def _wxyz_to_xyzw(q: np.ndarray) -> np.ndarray:
 
 
 def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, curriculum_start: float = 0.75,
-                   curriculum_end: float = 0.0, curriculum_steps: int = 24_000, seed: int = 0) -> None:
+                   curriculum_end: float = 0.0, curriculum_steps: int = 24_000, seed: int = 0, bank_phase: str = "",
+                   held_grace_steps: int = 0) -> None:
     """Event (reset). check_success for the tracked episodes that end, then each resetting environment starts
     from rl_demo_bank.plan_resets: a demo state (the curriculum's floor at this step) or home in a random scene.
     Batched per object: the robot's joints (and their targets, so the arm holds the restored pose), the cube, and
     the five bin boxes placed round the bin's pose (as sim_worker.placement does). Velocities zero. The curriculum
     counts the env's own steps (common_step_counter: 24 per PPO iteration at 24 steps per env), so the floor falls
-    from curriculum_start to curriculum_end over curriculum_steps whatever the number of envs."""
+    from curriculum_start to curriculum_end over curriculum_steps whatever the number of envs.
+
+    bank_phase ("free" / "held", for diagnostics) keeps only those bank states. held_grace_steps: a start that holds
+    the cube keeps the gripper closed for that many steps whatever the policy says (SantGraceGripperAction), and its
+    fingers are commanded closed at once, so a new policy's random gripper doesn't drop what the demo held; 0 = off.
+    env._sant_rl_start_row keeps each env's bank row (-1: home), for diagnostics."""
     ids = torch.arange(env.num_envs, device=env.device) if env_ids is None or isinstance(env_ids, slice) else env_ids
     ids = torch.as_tensor(ids, device=env.device, dtype=torch.long)
     if len(ids) == 0:
@@ -298,6 +304,11 @@ def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, cu
     if getattr(env, "_sant_rl_rng", None) is None:
         env._sant_rl_rng = np.random.default_rng(seed)
         env._sant_rl_bank = bank_mod.load_bank(Path(bank_path)) if (bank_path and demo_prob > 0) else None
+        if env._sant_rl_bank is not None and bank_phase:
+            keep = env._sant_rl_bank["phase"] == {"free": bank_mod.FREE, "held": bank_mod.HELD}[bank_phase]
+            env._sant_rl_bank = {k: v[keep] for k, v in env._sant_rl_bank.items()}
+        env._sant_rl_start_row = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
+        env._sant_rl_grace = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
     rng, bank = env._sant_rl_rng, env._sant_rl_bank
     floor = bank_mod.min_progress(env.common_step_counter, start=curriculum_start, end=curriculum_end,
                                   steps=curriculum_steps)
@@ -305,9 +316,20 @@ def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, cu
     plan = bank_mod.plan_resets(rng, len(ids), bank, demo_prob, floor, np.asarray(rt.HOME_JOINTS))
     dev = env.device
     joints = torch.as_tensor(plan["joint_pos"], device=dev)
+    rows = torch.as_tensor(plan["row"], device=dev)
+    held = torch.zeros(len(ids), dtype=torch.bool, device=dev)
+    if bank is not None and plan["demo"].any():
+        held_np = np.zeros(len(ids), dtype=bool)
+        held_np[plan["demo"]] = bank["phase"][plan["row"][plan["demo"]]] == bank_mod.HELD
+        held = torch.as_tensor(held_np, device=dev)
+    env._sant_rl_start_row[ids] = rows
+    env._sant_rl_grace[ids] = torch.where(held, held_grace_steps, 0)
+    targets = joints.clone()
+    if held_grace_steps > 0:
+        targets[held, 7:] = 0.0  # the fingers commanded closed at once on a held start
     robot.write_joint_position_to_sim_index(position=joints, env_ids=ids)
     robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(joints), env_ids=ids)
-    robot.set_joint_position_target_index(target=joints, env_ids=ids)
+    robot.set_joint_position_target_index(target=targets, env_ids=ids)
     origins = env.scene.env_origins[ids].cpu().numpy()
     poses: dict[str, list] = {}
     for i in range(len(ids)):
@@ -325,6 +347,7 @@ def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, cu
     log = env.extras.setdefault("log", {})
     log["Curriculum/demo_min_progress"] = floor
     log["Curriculum/demo_start_share"] = float(plan["demo"].mean())
+    log["Curriculum/held_start_share"] = float(held.float().mean())
 
 
 # --- the config --------------------------------------------------------------------------------------------
@@ -338,6 +361,13 @@ class SantTcpTargetActionCfg(SantTrackingIKActionCfg):
 
 
 @configclass
+class SantGraceGripperActionCfg(BinaryJointPositionActionCfg):
+    """Isaac Lab's binary gripper with the held-start grace (sim_worker/rl_action.py, named by string: it imports USD)."""
+
+    class_type: type | str = "sim_worker.rl_action:SantGraceGripperAction"
+
+
+@configclass
 class ActionsCfg:
     arm_action = SantTcpTargetActionCfg(
         asset_name="robot",
@@ -348,7 +378,7 @@ class ActionsCfg:
                                                joint_limit_avoidance_gain=robot_spec("franka").ik_limit_gain),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=mimic.TCP_OFFSET),
     )
-    gripper_action = BinaryJointPositionActionCfg(
+    gripper_action = SantGraceGripperActionCfg(
         asset_name="robot",
         joint_names=["panda_finger.*"],
         open_command_expr={"panda_finger_.*": 0.04},

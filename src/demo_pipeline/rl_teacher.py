@@ -236,6 +236,13 @@ def action_to_target(a, tcp_pos, tcp_yaw):
     return pos, _down_turned(yaw), a[..., 4] < 0
 
 
+def grace_gripper(grip, grace):
+    """The gripper action [N] with a held start's grace applied: closed (-1) while grace [N] > 0, else as given. The
+    env counts grace down once per step (sim_worker/rl_action.py SantGraceGripperAction)."""
+    closed = grip * 0.0 - 1.0
+    return closed * (grace > 0) + grip * (grace <= 0)
+
+
 def target_to_action(target_pos, target_yaw, closed, tcp_pos, tcp_yaw):
     """The inverse (numpy): the action that steps from the tool's pose now to a target (clipped to one step)."""
     d = (np.asarray(target_pos, dtype=np.float64) - np.asarray(tcp_pos, dtype=np.float64)) / DELTA_M

@@ -219,3 +219,35 @@ def test_the_reset_writes_every_object_in_one_batch_from_the_plan(tmp_path):
     rc.reset_rl_scene(env2, None, bank_path="", demo_prob=0.0)
     q2 = dict(env2.scene["robot"].calls)["write_joint_position_to_sim_index"]["position"]
     assert q2.shape == (n, 9) and torch.allclose(q2[0], torch.tensor(rt.HOME_JOINTS))  # SANT's home, not Isaac's default
+
+
+def test_held_starts_get_a_grace_and_closed_fingers_and_the_start_rows_are_kept(tmp_path):
+    from tests.test_dp_rl_demo_bank import _store
+
+    bank, meta = bank_mod.build_bank(_store(tmp_path), stride=5)
+    path = tmp_path / "bank.npz"
+    bank_mod.save_bank(path, bank, meta)
+    n = 6
+
+    def env_with():
+        objs = _Scene({k: _Obj(n, joints=9 if k == "robot" else 0) for k in ["robot", "cube", *rc.mimic.BIN_PART_CENTERS]})
+        objs.env_origins = torch.zeros(n, 3)
+        return NS(num_envs=n, device="cpu", common_step_counter=0, extras={}, scene=objs)
+
+    env = env_with()
+    rc.reset_rl_scene(env, None, bank_path=str(path), demo_prob=1.0, curriculum_start=0.0, bank_phase="held",
+                      held_grace_steps=10)
+    rows, used = env._sant_rl_start_row.numpy(), env._sant_rl_bank  # rows index the env's (filtered) bank
+    assert np.all(rows >= 0) and np.all(used["phase"] == bank_mod.HELD) and len(used["phase"]) < len(bank["phase"])
+    assert env._sant_rl_grace.tolist() == [10] * n
+    calls = dict(env.scene["robot"].calls)
+    q, target = calls["write_joint_position_to_sim_index"]["position"], calls["set_joint_position_target_index"]["target"]
+    np.testing.assert_allclose(q.numpy(), used["joint_pos"][rows], atol=1e-6)  # restored as recorded
+    assert torch.all(target[:, 7:] == 0.0) and torch.equal(target[:, :7], q[:, :7])  # fingers commanded closed
+    assert env.extras["log"]["Curriculum/held_start_share"] == 1.0
+    # without the grace (the default), nothing changes: the targets are the restored joints
+    env = env_with()
+    rc.reset_rl_scene(env, None, bank_path=str(path), demo_prob=1.0, curriculum_start=0.0, bank_phase="held")
+    calls = dict(env.scene["robot"].calls)
+    assert torch.equal(calls["set_joint_position_target_index"]["target"], calls["write_joint_position_to_sim_index"]["position"])
+    assert env._sant_rl_grace.tolist() == [0] * n

@@ -20,6 +20,8 @@ import torch
 
 from demo_pipeline import rl_teacher as rt
 
+from isaaclab.envs.mdp.actions.binary_joint_actions import BinaryJointPositionAction
+
 from .mimic_env_cfg import bin_frame, tcp_pos, tcp_quat
 from .mimic_tracking import SantTrackingIKAction
 
@@ -66,3 +68,17 @@ class SantTcpTargetAction(SantTrackingIKAction):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         super().reset(env_ids)
         self._policy_raw[slice(None) if env_ids is None else env_ids] = 0.0
+
+
+class SantGraceGripperAction(BinaryJointPositionAction):
+    """Isaac Lab's binary gripper, closed whatever the policy says while the env's held-start grace runs
+    (env._sant_rl_grace, set by rl_env_cfg.reset_rl_scene for starts that hold the cube; counted down here, once per
+    control step). With no grace it is Isaac Lab's term unchanged."""
+
+    def process_actions(self, actions: torch.Tensor):
+        grace = getattr(self._env, "_sant_rl_grace", None)
+        if grace is not None:
+            actions = actions.clone()
+            actions[:, 0] = rt.grace_gripper(actions[:, 0], grace)
+            grace.sub_(1).clamp_(min=0)
+        super().process_actions(actions)

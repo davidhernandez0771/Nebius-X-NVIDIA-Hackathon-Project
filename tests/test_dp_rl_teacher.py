@@ -148,3 +148,9 @@ def test_the_same_functions_run_on_torch():
     np.testing.assert_allclose(p_t.numpy(), p_np, atol=1e-6)
     np.testing.assert_allclose(q_t.numpy(), q_np, atol=1e-6)
     assert c_t.tolist() == c_np.tolist()
+
+
+def test_a_held_starts_grace_keeps_the_gripper_closed():
+    grip = np.array([0.7, -0.3, 0.2, 1.0])
+    out = rt.grace_gripper(grip, np.array([3, 0, 1, 0]))
+    np.testing.assert_allclose(out, [-1.0, -0.3, -1.0, 1.0])  # closed while grace > 0, the policy's choice after
