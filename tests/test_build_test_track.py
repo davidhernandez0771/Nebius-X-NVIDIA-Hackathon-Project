@@ -92,6 +92,7 @@ def test_the_gate_replays_carry_the_recorded_cube_and_contact_in_the_twins_shape
     ep = json.loads((out / run["file"]).read_text())
     assert ep["cube_source"] == "recorded" and ep["cube_pos"][0] == [0.5, -0.1, 0.025]
     assert ep["contact_n"][5] == 3.21 and len(ep["joint_pos"]) == N and len(ep["joint_names"]) == 9
+    assert len(ep["hand_pos"]) == N and ep["hand_pos"][0] == [0.5, -0.1, 0.04]
     assert ep["bin"] == [0.5, 0.3, 0.0, 1.0, 0.0, 0.0, 0.0] and ep["facts"]["success"] is True
     assert json.loads((out / "index.json").read_text())["sources"][0]["id"] == "teacher-gate"
 

@@ -16,7 +16,8 @@ export function RobotTwin(props: RobotTwinProps) {
   );
 }
 
-export type { RobotTwinProps } from "./RobotTwin";
+export type { RobotTwinProps, TwinTrail } from "./RobotTwin";
+export type { TwinLook } from "./looks";
 export { useLiveTwin } from "./useLiveTwin";
 export { useReplayTwin, useVerifiedCopies, type ReplayTwin } from "./useReplayTwin";
 export { twinSocketUrl, type LiveStatus, type LiveTwin } from "./live";

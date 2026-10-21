@@ -5,6 +5,9 @@
 // ratio of at most 1.5. With `aids` (the Record page): front, side and top views from the one renderer, and the
 // top-down alignment grid (./AidViews.tsx). Lazy: three.js and urdf-loader load with this file, not with the page
 // (see ./index.ts).
+// look="studio" (the test track, ./looks.ts): the Franka's own white and dark paint under a key light and a rim, the
+// sim's red cube and blue bin; framePoints: a wide camera that keeps them all in view; trails: paths drawn faintly
+// in full and brightly up to now (a dashed one is an estimate).
 import { OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -14,7 +17,9 @@ import {
   CapsuleGeometry,
   EdgesGeometry,
   Float32BufferAttribute,
+  Line,
   LineBasicMaterial,
+  LineDashedMaterial,
   LineSegments,
   Mesh,
   MeshStandardMaterial,
@@ -28,9 +33,10 @@ import { AlignGrid, ThreeViews, useBox, ViewCells } from "./AidViews";
 import { alignState, toolInEnv, viewLayout } from "./aids";
 import { contactGlow, GLOW, type TwinContact } from "./contact";
 import { loadTwinRobot, type LoadedTwin } from "./loadTwinRobot";
+import { frameScene, studioTone, toThree, type TwinLook } from "./looks";
 import { applyJoints, binParts, boneSegments, CUBE_SIZE, FRANKA, gripperLinkSet, matLines, quat, TABLE } from "./model";
 import type { TwinObject } from "./messages";
-import type { TwinPose, TwinState } from "./types";
+import type { TwinPose, TwinState, Vec3 } from "./types";
 import "./twin.css";
 
 // The hologram's colours (web/src/site/record/record-hologram.css, the .rg tokens).
@@ -48,7 +54,16 @@ const edgeHot = new LineBasicMaterial({ color: C.needle, transparent: true, opac
 // The contact glow (./contact.ts): the link that pushes on the bin or table, amber from a touch, red over 5 N.
 const glowMatte = new MeshStandardMaterial({ color: "#2A1D0A", roughness: 0.6, metalness: 0.1, emissive: GLOW.touch, emissiveIntensity: 0.5 });
 const glowEdge = new LineBasicMaterial({ color: GLOW.touch, transparent: true, opacity: 1 });
-const SHARED: Material[] = [matte, matteHot, edge, edgeHot, glowMatte, glowEdge];
+// The studio look: the Franka's white links and dark wrist and fingers; the edges only a whisper of teal.
+const studioWhite = new MeshStandardMaterial({ color: "#E2E6E4", roughness: 0.42, metalness: 0.04 });
+const studioDark = new MeshStandardMaterial({ color: "#2A3033", roughness: 0.5, metalness: 0.25 });
+const studioHot = new MeshStandardMaterial({ color: "#3A2A24", roughness: 0.5, metalness: 0.2, emissive: C.needle, emissiveIntensity: 0.35 });
+const studioEdge = new LineBasicMaterial({ color: C.live, transparent: true, opacity: 0.1 });
+const SHARED: Material[] = [matte, matteHot, edge, edgeHot, glowMatte, glowEdge, studioWhite, studioDark, studioHot, studioEdge];
+// Each mesh keeps its resting materials (userData.base, .hot, .edge), so the gripper and the glow put them back.
+const baseOf = (o: { userData: Record<string, unknown> }) => (o.userData.base as Material | undefined) ?? matte;
+const hotOf = (o: { userData: Record<string, unknown> }) => (o.userData.hot as Material | undefined) ?? matteHot;
+const edgeOf = (o: { userData: Record<string, unknown> }) => (o.userData.edge as Material | undefined) ?? edge;
 
 const ownerLink = (o: { parent: unknown }): URDFLink | null => {
   for (let p = o as { parent: unknown; isURDFLink?: boolean } | null; p; p = p.parent as typeof p)
@@ -56,8 +71,9 @@ const ownerLink = (o: { parent: unknown }): URDFLink | null => {
   return null;
 };
 
-/** Matte meshes with thin edges; the stick figure when the meshes didn't load. Done once per loaded robot. */
-function dress({ robot, stick }: LoadedTwin): void {
+/** Matte meshes with thin edges (studio: the Franka's paint); the stick figure when the meshes didn't load. Done
+ *  once per loaded robot. */
+function dress({ robot, stick }: LoadedTwin, look: TwinLook = "hologram"): void {
   if (stick) {
     robot.traverse((o) => {
       if ((o as { isURDFCollider?: boolean }).isURDFCollider) o.visible = false;
@@ -80,11 +96,15 @@ function dress({ robot, stick }: LoadedTwin): void {
   robot.traverse((o) => {
     if ((o as Mesh).isMesh && o.visible !== false) meshes.push(o as Mesh);
   });
+  const studio = look === "studio";
   for (const m of meshes) {
-    m.material = matte;
+    const base = studio ? (studioTone(ownerLink(m)?.name) === "dark" ? studioDark : studioWhite) : matte;
+    m.material = base;
+    m.userData.base = base;
+    m.userData.hot = studio ? studioHot : matteHot;
     if (stick) continue; // capsules read as shapes; edges on them are noise
-    const lines = new LineSegments(new EdgesGeometry(m.geometry as BufferGeometry, 28), edge);
-    lines.userData.edge = true;
+    const lines = new LineSegments(new EdgesGeometry(m.geometry as BufferGeometry, 28), studio ? studioEdge : edge);
+    lines.userData.edge = studio ? studioEdge : edge;
     lines.raycast = () => {};
     m.add(lines);
   }
@@ -123,12 +143,12 @@ function Robot({ loaded, joints, gripper, contact }: { loaded: LoadedTwin; joint
       if (!link) return;
       const lit = link === glowLink;
       if (!lit && !hot.has(link)) {
-        if ((o as Mesh).isMesh && (o as Mesh).material === glowMatte) (o as Mesh).material = matte; // the glow moved on
-        else if (o.userData.edge && (o as LineSegments).material === glowEdge) (o as LineSegments).material = edge;
+        if ((o as Mesh).isMesh && (o as Mesh).material === glowMatte) (o as Mesh).material = baseOf(o); // the glow moved on
+        else if (o.userData.edge && (o as LineSegments).material === glowEdge) (o as LineSegments).material = edgeOf(o);
         return;
       }
-      if ((o as Mesh).isMesh) (o as Mesh).material = lit ? glowMatte : closed ? matteHot : matte;
-      else if (o.userData.edge) (o as LineSegments).material = lit ? glowEdge : closed ? edgeHot : edge;
+      if ((o as Mesh).isMesh) (o as Mesh).material = lit ? glowMatte : closed ? hotOf(o) : baseOf(o);
+      else if (o.userData.edge) (o as LineSegments).material = lit ? glowEdge : closed ? edgeHot : edgeOf(o);
     });
     invalidate();
   }, [robot, hot, gripper, glowLink, glow.color, glow.intensity, invalidate]);
@@ -157,13 +177,13 @@ function Mat() {
   );
 }
 
-function Table() {
+function Table({ studio = false }: { studio?: boolean }) {
   const box = useMemo(() => new BoxGeometry(...TABLE.size), []);
   const edges = useMemo(() => new EdgesGeometry(box), [box]);
   return (
     <group position={TABLE.center}>
       <mesh geometry={box}>
-        <meshStandardMaterial color="#0A1012" roughness={0.95} metalness={0} />
+        <meshStandardMaterial color={studio ? "#1A2427" : "#0A1012"} roughness={studio ? 0.8 : 0.95} metalness={0} />
       </mesh>
       <lineSegments geometry={edges}>
         <lineBasicMaterial color={C.live} transparent opacity={0.28} />
@@ -173,7 +193,7 @@ function Table() {
 }
 
 /** inner: a plan's bin (the scene picker); today's BIN_INNER without one. */
-function Bin({ pose, glow, inner }: { pose: TwinPose; glow: boolean; inner?: [number, number, number] }) {
+function Bin({ pose, glow, inner, studio = false }: { pose: TwinPose; glow: boolean; inner?: [number, number, number]; studio?: boolean }) {
   const key = inner?.join(",");
   const parts = useMemo(
     () =>
@@ -189,10 +209,11 @@ function Bin({ pose, glow, inner }: { pose: TwinPose; glow: boolean; inner?: [nu
       {parts.map((p) => (
         <group key={p.name} position={p.center}>
           <mesh geometry={p.g}>
-            <meshStandardMaterial color="#17130A" roughness={0.9} transparent opacity={0.85} />
+            {/* studio: the sim's blue bin */}
+            <meshStandardMaterial color={studio ? "#22407F" : "#17130A"} roughness={studio ? 0.6 : 0.9} transparent opacity={studio ? 0.92 : 0.85} />
           </mesh>
           <lineSegments geometry={p.e}>
-            <lineBasicMaterial color={C.hold} transparent opacity={glow ? 1 : 0.75} />
+            <lineBasicMaterial color={studio ? "#8FB0FF" : C.hold} transparent opacity={glow ? 1 : studio ? 0.6 : 0.75} />
           </lineSegments>
         </group>
       ))}
@@ -217,41 +238,109 @@ function Cube({ pose, glow, size = CUBE_SIZE, color }: { pose: TwinPose; glow: b
   );
 }
 
+export type TwinTrail = {
+  /** The path, in the sim's frame. */
+  points: Vec3[];
+  /** Drawn brightly up to this point (inclusive); the rest faintly. */
+  upto: number;
+  color: string;
+  /** An estimate, not a recording: dashed. */
+  dashed?: boolean;
+};
+
+/** A path: faint in full, bright up to now. Two lines; only the bright one's draw range changes per step. */
+function Trail({ points, upto, color, dashed = false }: TwinTrail) {
+  const invalidate = useThree((s) => s.invalidate);
+  const lines = useMemo(() => {
+    const g = new BufferGeometry();
+    g.setAttribute("position", new Float32BufferAttribute(points.flat(), 3));
+    const mat = (opacity: number) =>
+      dashed
+        ? new LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.012, gapSize: 0.01, depthWrite: false })
+        : new LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+    const all = new Line(g, mat(0.18));
+    const done = new Line(g.clone(), mat(0.85));
+    if (dashed) {
+      all.computeLineDistances();
+      done.computeLineDistances();
+    }
+    return { all, done };
+  }, [points, color, dashed]);
+  useEffect(
+    () => () => {
+      for (const l of [lines.all, lines.done]) {
+        l.geometry.dispose();
+        (l.material as Material).dispose();
+      }
+    },
+    [lines],
+  );
+  useEffect(() => {
+    lines.done.geometry.setDrawRange(0, Math.max(0, Math.min(points.length, upto + 1)));
+    invalidate();
+  }, [lines, upto, points.length, invalidate]);
+  return (
+    <>
+      <primitive object={lines.all} />
+      <primitive object={lines.done} />
+    </>
+  );
+}
+
 /** The operator's view: behind the robot, high and a little to its right, looking down the table (the robot's left
  *  on the left, as in the mirrored camera). Straight behind, the arm hid the cube and bin. A narrow pane steps back
  *  so the table still fits. Drag to turn, scroll to zoom. */
-function View({ interactive, aspect: fixed, dom, facing = false }: { interactive: boolean; aspect?: number; dom?: HTMLElement | null; facing?: boolean }) {
+function View({ interactive, aspect: fixed, dom, facing = false, frame }: { interactive: boolean; aspect?: number; dom?: HTMLElement | null; facing?: boolean; frame?: Vec3[] | null }) {
   const whole = useThree((s) => s.size.width / Math.max(1, s.size.height));
   const aspect = fixed ?? whole;
+  // framePoints (./looks.ts frameScene): a wide view that fits them all
+  const wide = useMemo(() => (frame && frame.length ? frameScene(frame, aspect) : null), [frame, aspect]);
   // three.js is y up; the sim is z up: (x, y, z)_sim -> (x, z, -y)_three
-  const target = useMemo(() => new Vector3(0.42, 0.08, 0), []);
+  const target = useMemo(() => (wide ? new Vector3(...toThree(wide.target)) : new Vector3(0.42, 0.08, 0)), [wide]);
   const position = useMemo(() => {
+    if (wide) return new Vector3(...toThree(wide.position));
     const back = Math.max(1, 1.25 / aspect);
     // facing (the mirror mapping): the same view from the front, over the robot's left, so your right is still on the right
     return target.clone().add(new Vector3(facing ? 0.8 : -0.8, 1.25, facing ? -0.5 : 0.5).multiplyScalar(back));
-  }, [aspect, target, facing]);
+  }, [aspect, target, facing, wide]);
   return (
     <>
       <PerspectiveCamera makeDefault manual={fixed !== undefined} position={position} fov={38} near={0.02} far={20} />
-      <OrbitControls makeDefault domElement={dom ?? undefined} target={target} enabled={interactive} enableDamping={false} enablePan={false} minDistance={0.5} maxDistance={4} maxPolarAngle={Math.PI * 0.49} />
+      <OrbitControls makeDefault domElement={dom ?? undefined} target={target} enabled={interactive} enableDamping={false} enablePan={false} minDistance={0.5} maxDistance={wide ? 6 : 4} maxPolarAngle={Math.PI * 0.49} />
     </>
   );
 }
 
 type Aiding = { aspect: number; dom: HTMLElement | null; cube: boolean; bin: boolean; facing: boolean };
 
-function Scene({ loaded, state, base, interactive, aids, contact, objects, viewKey }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null; contact: TwinContact | null; objects: TwinObject[] | null; viewKey: number }) {
+type Look = { look: TwinLook; frame: Vec3[] | null; trails: TwinTrail[] | null; cubeColor?: string };
+
+function Scene({ loaded, state, base, interactive, aids, contact, objects, viewKey, look }: { loaded: LoadedTwin; state: TwinState; base: TwinPose | null; interactive: boolean; aids: Aiding | null; contact: TwinContact | null; objects: TwinObject[] | null; viewKey: number; look: Look }) {
+  const studio = look.look === "studio";
   return (
     <>
       <color attach="background" args={[C.void]} />
-      <hemisphereLight args={["#B8D6D0", C.void, 0.65]} />
-      <directionalLight position={[-1.5, 3, 1.5]} intensity={1.25} />
-      <directionalLight position={[2.5, 1.2, -2]} intensity={0.5} color="#8FEFDC" />
-      <View key={viewKey} interactive={interactive} aspect={aids?.aspect} dom={aids?.dom} facing={aids?.facing} />
+      {studio ? (
+        // a key from above the camera's shoulder, a cool fill from the other side, a teal rim from behind the arm
+        <>
+          <hemisphereLight args={["#DCE6E4", "#0A0F10", 0.85]} />
+          <directionalLight position={[2.6, 3.4, -1.2]} intensity={2.1} color="#FFF3E6" />
+          <directionalLight position={[1.2, 1.2, 2.4]} intensity={0.45} color="#BFD4FF" />
+          <directionalLight position={[-2.6, 2.2, 0.8]} intensity={1.6} color="#8FEFDC" />
+        </>
+      ) : (
+        <>
+          <hemisphereLight args={["#B8D6D0", C.void, 0.65]} />
+          <directionalLight position={[-1.5, 3, 1.5]} intensity={1.25} />
+          <directionalLight position={[2.5, 1.2, -2]} intensity={0.5} color="#8FEFDC" />
+        </>
+      )}
+      <View key={viewKey} interactive={interactive} aspect={aids?.aspect} dom={aids?.dom} facing={aids?.facing} frame={look.frame} />
       {aids && <ThreeViews facing={aids.facing} />}
       <group rotation={[-Math.PI / 2, 0, 0]}>
-        <Table />
+        <Table studio={studio} />
         <Mat />
+        {look.trails?.map((t, i) => <Trail key={i} {...t} />)}
         {objects ? (
           // a plan's scene: every bin and cube; the goal's pair (state.bin / state.cube) still glows with the aids
           objects.map((o) =>
@@ -263,8 +352,8 @@ function Scene({ loaded, state, base, interactive, aids, contact, objects, viewK
           )
         ) : (
           <>
-            {state.bin && <Bin pose={state.bin} glow={aids?.bin ?? false} />}
-            {state.cube && <Cube pose={state.cube} glow={aids?.cube ?? false} />}
+            {state.bin && <Bin pose={state.bin} glow={aids?.bin ?? false} studio={studio} />}
+            {state.cube && <Cube pose={state.cube} glow={aids?.cube ?? false} color={look.cubeColor} />}
           </>
         )}
         <group position={base?.pos ?? [0, 0, 0]} quaternion={base ? quat(base.quat) : undefined}>
@@ -296,10 +385,18 @@ export type RobotTwinProps = TwinState & {
   objects?: TwinObject[] | null;
   /** Change it to put the camera back where it started (the test track's R). */
   viewKey?: number;
+  /** "studio": the Franka's own paint under a key light and a rim (./looks.ts); default the hologram. Read once. */
+  look?: TwinLook;
+  /** Points (sim frame) a wide camera keeps in view, instead of the operator's view from behind the arm. */
+  framePoints?: Vec3[] | null;
+  /** Paths drawn in the scene (sim frame), faint in full and bright up to now. */
+  trails?: TwinTrail[] | null;
+  /** The one cube's colour (a plan colour name, e.g. "red"); default the hologram's grey. */
+  cubeColor?: string;
   className?: string;
 };
 
-export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false, contact = null, objects = null, viewKey = 0 }: RobotTwinProps) {
+export default function RobotTwin({ joints, gripper, cube, bin, base = null, interactive = true, caption, className, aids = false, facing = false, contact = null, objects = null, viewKey = 0, look = "hologram", framePoints = null, trails = null, cubeColor }: RobotTwinProps) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [box, size] = useBox<HTMLDivElement>();
   const [frontEl, setFrontEl] = useState<HTMLDivElement | null>(null);
@@ -309,7 +406,7 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
     loadTwinRobot().then(
       (loaded) => {
         if (!live) return dispose(loaded.robot);
-        dress(loaded);
+        dress(loaded, look);
         setLoad({ status: "ready", loaded });
       },
       (e: Error) => live && setLoad({ status: "error", message: e.message }),
@@ -317,11 +414,14 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
     return () => {
       live = false;
     };
+    // the look is read once: dress paints the robot when it loads
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => () => void (load.status === "ready" && dispose(load.loaded.robot)), [load]);
 
   const state = useMemo(() => ({ joints, gripper, cube, bin }), [joints, gripper, cube, bin]);
+  const looks = useMemo<Look>(() => ({ look, frame: framePoints, trails, cubeColor }), [look, framePoints, trails, cubeColor]);
   const robot = aids && load.status === "ready" ? load.loaded.robot : null;
   const tool = useMemo(() => (robot ? toolInEnv(robot, joints, base) : null), [robot, joints, base]);
   const align = useMemo(() => alignState(tool, cube, bin, gripper), [tool, cube, bin, gripper]);
@@ -347,7 +447,7 @@ export default function RobotTwin({ joints, gripper, cube, bin, base = null, int
     <div className={["twin3d", className].filter(Boolean).join(" ")} ref={box}>
       {load.status === "ready" ? (
         <Canvas className="twin3d__canvas" frameloop="demand" dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: "low-power" }}>
-          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} contact={contact} objects={objects} viewKey={viewKey} />
+          <Scene loaded={load.loaded} state={state} base={base} interactive={interactive} aids={aiding} contact={contact} objects={objects} viewKey={viewKey} look={looks} />
         </Canvas>
       ) : (
         <p className="twin3d__wait" role={load.status === "error" ? "alert" : undefined}>

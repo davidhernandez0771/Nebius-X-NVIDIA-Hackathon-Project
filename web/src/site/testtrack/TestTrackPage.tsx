@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMotion } from "../../sant/motion/MotionProvider";
-import { RobotTwin } from "../../twin";
+import { RobotTwin, type TwinTrail } from "../../twin";
+import type { Vec3 } from "../../twin/types";
 import { stateAt } from "../../twin/replay";
 import { useAsync, type Async } from "../data/hooks";
 import { HoloPage, HoloPanel, HoloRule, HoloTag } from "../holo/Holo";
@@ -35,6 +36,14 @@ import "./testtrack.css";
 
 /** Sources still to come, shown so the picker says what's missing rather than hiding it. */
 const LATER = [{ id: "student", title: "Camera robot · eval", why: "Its final test hasn't run yet." }];
+
+// The paths' colours: the hand in the live teal, the cube in its own red (dashed where it is an estimate).
+const TRAIL = { hand: "#19F5C2", cube: "#FF8A5C" };
+
+/** What the wide camera keeps in view: the robot (its base and its height), the cube's and the hand's paths, the bin. */
+function framing(run: TrackRun): Vec3[] {
+  return [[0, 0, 0], [0, 0, 0.85], run.bin.pos, ...(run.cubePos ?? []), ...(run.handPos ?? [])];
+}
 
 /** A looping clock at `speed`, ticking at most 30 times a second while playing. */
 function useTrackClock(duration: number, playing: boolean, speed: number): [number, (t: number) => void] {
@@ -185,7 +194,7 @@ function Tags({ row, run, step, source }: { row: RunRow; run: TrackRun | null; s
           )}
         </HoloPanel>
       )}
-      {run?.cubeSource === "estimated" && source.cubeEstimate && <p className="tt-estimate">{estimateText(source.cubeEstimate)}</p>}
+      {(run?.cubeSource ?? row.cubeSource) === "estimated" && source.cubeEstimate && <p className="tt-estimate">{estimateText(source.cubeEstimate)}</p>}
     </div>
   );
 }
@@ -234,10 +243,20 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
   const [speed, setSpeed] = useState(1);
   const [viewKey, setViewKey] = useState(0);
   const [help, setHelp] = useState(false);
+  const [showTrails, setShowTrails] = useState(true);
   const duration = ready ? runDuration(ready) : 0;
   const [t, seek] = useTrackClock(duration, playing, speed);
   const step = ready ? stepAt(t, ready) : 0;
   const twin = useMemo(() => (ready ? stateAt(ready, step) : null), [ready, step]);
+  // One frame per run (a new array every step would put the camera back each time).
+  const frame = useMemo(() => (ready ? framing(ready) : null), [ready]);
+  const trails = useMemo<TwinTrail[] | null>(() => {
+    if (!ready || !showTrails) return null;
+    const out: TwinTrail[] = [];
+    if (ready.handPos) out.push({ points: ready.handPos, upto: step, color: TRAIL.hand });
+    if (ready.cubePos) out.push({ points: ready.cubePos, upto: step, color: TRAIL.cube, dashed: ready.cubeSource === "estimated" });
+    return out;
+  }, [ready, step, showTrails]);
   useEffect(() => seek(0), [row?.id, source?.id, seek]);
 
   const go = useCallback(
@@ -263,6 +282,7 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
       if (a.type === "close") return setHelp(false);
       if (a.type === "help") return setHelp((h) => !h);
       if (a.type === "resetView") return setViewKey((k) => k + 1);
+      if (a.type === "trails") return setShowTrails((v) => !v);
       if (a.type === "speed") return setSpeed((s) => nextSpeed(s, a.dir));
       if (a.type === "source") {
         if (sources[a.index]) go({ source: sources[a.index].id, run: null });
@@ -316,7 +336,7 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
             <section className="tt-stage" aria-label={`Seed ${row.seed}`}>
               <div className="tt-arena">
                 {ready && twin ? (
-                  <RobotTwin {...twin} base={ready.base} interactive viewKey={viewKey} caption={`Isaac Sim replay · seed ${row.seed} · step ${step + 1} of ${ready.nSteps}`} />
+                  <RobotTwin {...twin} base={ready.base} interactive viewKey={viewKey} look="studio" cubeColor="red" framePoints={frame} trails={trails} caption={`Isaac Sim replay · seed ${row.seed} · step ${step + 1} of ${ready.nSteps}`} />
                 ) : (
                   <div className="tt-arena__empty">
                     {!row.recorded ? (
@@ -361,6 +381,9 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
                   </button>
                   <button type="button" className="tt-btn tt-btn--quiet" onClick={() => setViewKey((k) => k + 1)} aria-keyshortcuts="R">
                     Reset view
+                  </button>
+                  <button type="button" className="tt-btn tt-btn--quiet" onClick={() => setShowTrails((v) => !v)} aria-pressed={showTrails} aria-keyshortcuts="T">
+                    Paths
                   </button>
                 </span>
               </HoloPanel>

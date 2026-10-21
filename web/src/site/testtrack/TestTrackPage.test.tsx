@@ -7,8 +7,14 @@ import { INDEX, RUN } from "./fixtures";
 import TestTrackPage from "./TestTrackPage";
 
 vi.mock("../../twin", () => ({
-  RobotTwin: (p: { caption?: string; viewKey?: number }) => (
-    <div data-testid="twin" data-view={p.viewKey}>
+  RobotTwin: (p: { caption?: string; viewKey?: number; look?: string; trails?: { dashed?: boolean; upto: number }[] | null; framePoints?: unknown[] | null }) => (
+    <div
+      data-testid="twin"
+      data-view={p.viewKey}
+      data-look={p.look}
+      data-trails={(p.trails ?? []).map((t) => `${t.dashed ? "dashed" : "solid"}@${t.upto}`).join(",")}
+      data-frame={p.framePoints?.length ?? 0}
+    >
       {p.caption}
     </div>
   ),
@@ -109,6 +115,30 @@ describe("the test track", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     key("2");
     expect(await screen.findByText(/seed 4000/)).toBeTruthy();
+  });
+
+  it("draws the arm in the studio look, framed wide, with the hand's and the cube's paths up to now", async () => {
+    page();
+    await screen.findByText(/step 1 of 4/);
+    const twin = screen.getByTestId("twin");
+    expect(twin.getAttribute("data-look")).toBe("studio");
+    expect(Number(twin.getAttribute("data-frame"))).toBe(3 + 4 + 4); // the robot (2), the bin, the cube's 4 and the hand's 4
+    expect(twin.getAttribute("data-trails")).toBe("solid@0,solid@0");
+    key("ArrowRight");
+    expect(screen.getByTestId("twin").getAttribute("data-trails")).toBe("solid@1,solid@1");
+    const paths = screen.getByRole("button", { name: "Paths" });
+    expect(paths.getAttribute("aria-pressed")).toBe("true");
+    key("t");
+    expect(paths.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByTestId("twin").getAttribute("data-trails")).toBe("");
+    fireEvent.click(paths);
+    expect(screen.getByTestId("twin").getAttribute("data-trails")).toBe("solid@1,solid@1");
+  });
+
+  it("dashes the cube's path where it is an estimate", async () => {
+    page("/test-track?source=distill-r0");
+    await screen.findByText(/seed 4000/);
+    expect(screen.getByTestId("twin").getAttribute("data-trails")).toBe("solid@0,dashed@0");
   });
 
   it("picks a run from the grid", async () => {

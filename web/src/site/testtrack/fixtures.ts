@@ -21,5 +21,6 @@ export const RUN = (over: Record<string, unknown> = {}) => ({
   demo_id: "teacher_5350", source: "isaac", robot: "franka", fps: 50, n_steps: 4, joint_names: ["panda_joint1"], joint_pos: [[0], [0.1], [0.2], [0.3]],
   gripper: [0, 1, 1, 0], cube_pos: [[0.5, 0, 0.025], [0.5, 0, 0.03], [0.5, 0.1, 0.1], [0.5, 0.3, 0.035]], cube_quat: [1, 0, 0, 0],
   bin: [0.5, 0.3, 0, 1, 0, 0, 0], base: [0, 0, 0, 1, 0, 0, 0], verified: null, lineage: null, cube_source: "recorded", contact_n: [0, 0, 1.5, 0],
+  hand_pos: [[0.5, 0, 0.04], [0.5, 0, 0.05], [0.5, 0.1, 0.12], [0.5, 0.3, 0.06]],
   facts: { success: true, reasons: [], duration_s: 2.82, path_m: 1.41, peak_contact_n: 1.5, settle_s: 0.7 }, ...over,
 });

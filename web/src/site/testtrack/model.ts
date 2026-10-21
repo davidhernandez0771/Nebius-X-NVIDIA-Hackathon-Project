@@ -2,6 +2,7 @@
 // web/public/test-track-data (index.json, then one runs/<source>/<seed>.json per replay). Pure: parsing, the playback
 // clock, the keyboard map and the words on the tags. Nothing here runs physics; every pose is one Isaac recorded.
 import { parseEpisode, type Episode } from "../../twin/replay";
+import type { Vec3 } from "../../twin/types";
 
 export type CubeSource = "recorded" | "estimated";
 
@@ -41,7 +42,8 @@ export type TrackIndex = { built: string; sources: Source[] };
 
 export type Facts = { success: boolean; reasons: string[]; durationS: number | null; pathM: number | null; peakContactN: number | null; settleS: number | null };
 
-export type TrackRun = Episode & { cubeSource: CubeSource; contactN: number[] | null; facts: Facts };
+/** handPos: the tool point Isaac recorded each step (the trail), or null. */
+export type TrackRun = Episode & { cubeSource: CubeSource; contactN: number[] | null; handPos: Vec3[] | null; facts: Facts };
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
@@ -109,10 +111,12 @@ export function parseRun(body: unknown): TrackRun {
   const b = body as Record<string, unknown>;
   const f = (b.facts ?? {}) as Record<string, unknown>;
   const contact = Array.isArray(b.contact_n) && b.contact_n.length === ep.nSteps ? (b.contact_n as number[]) : null;
+  const hand = Array.isArray(b.hand_pos) && b.hand_pos.length === ep.nSteps ? (b.hand_pos as Vec3[]) : null;
   return {
     ...ep,
     cubeSource: b.cube_source === "estimated" ? "estimated" : "recorded",
     contactN: contact,
+    handPos: hand,
     facts: {
       success: f.success === true,
       reasons: strs(f.reasons),
@@ -165,6 +169,7 @@ export type KeyAction =
   | { type: "run"; dir: 1 | -1 }
   | { type: "source"; index: number }
   | { type: "resetView" }
+  | { type: "trails" }
   | { type: "help" }
   | { type: "close" };
 
@@ -175,6 +180,7 @@ export const SHORTCUTS: { keys: string; what: string }[] = [
   { keys: "J K", what: "Previous or next run" },
   { keys: "1 2 3", what: "Pick a source" },
   { keys: "R", what: "Reset the camera" },
+  { keys: "T", what: "Show or hide the paths" },
   { keys: "?", what: "These shortcuts" },
 ];
 
@@ -204,6 +210,9 @@ export function keyAction(e: { key: string; shiftKey?: boolean; ctrlKey?: boolea
     case "k":
     case "K":
       return { type: "run", dir: 1 };
+    case "t":
+    case "T":
+      return { type: "trails" };
     case "r":
     case "R":
       return { type: "resetView" };

@@ -42,6 +42,8 @@ describe("a run", () => {
     expect(r.facts).toEqual({ success: true, reasons: [], durationS: 2.82, pathM: 1.41, peakContactN: 1.5, settleS: 0.7 });
     expect(parseRun(RUN({ cube_source: "estimated", contact_n: null })).cubeSource).toBe("estimated");
     expect(parseRun(RUN({ contact_n: [1] })).contactN).toBeNull(); // the wrong length is no contact, not a wrong one
+    expect(r.handPos).toHaveLength(4);
+    expect(parseRun(RUN({ hand_pos: undefined })).handPos).toBeNull();
   });
 });
 
@@ -88,6 +90,7 @@ describe("the keyboard", () => {
     expect(key("J")).toEqual({ type: "run", dir: -1 });
     expect(key("2")).toEqual({ type: "source", index: 1 });
     expect(key("r")).toEqual({ type: "resetView" });
+    expect(key("t")).toEqual({ type: "trails" });
     expect(key("?")).toEqual({ type: "help" });
     expect(key("x")).toBeNull();
   });

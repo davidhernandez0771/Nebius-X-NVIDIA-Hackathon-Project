@@ -13,7 +13,7 @@ Sources (read only; the defaults are where T3 and T6 wrote them on this machine)
 Writes:
     <out>/index.json                  {built, sources: [{id, title, what, checkpoint, seeds, summary, runs: [...]}]}
     <out>/runs/<source>/<seed>.json   the twin's episode payload (app.routers.twin: joint_pos, gripper, cube_pos, bin,
-                                      base, 4 decimals) + cube_source, contact_n, facts
+                                      base, 4 decimals) + cube_source, contact_n, hand_pos (3 decimals), facts
 
 The cube: the gate and replay-check runs recorded its position every step (signals.npz). Round 0 did not record the
 cube at all, so its cube is ESTIMATED from the gripper (estimate_cube) and marked cube_source "estimated";
@@ -130,6 +130,8 @@ def _episode(ep_dir: Path, scene: dict, *, cube_pos: np.ndarray | None, contact:
         "lineage": None,
         "cube_source": source,
         "contact_n": None if contact is None or len(contact) != n else _round(np.round(contact, 2)),
+        # the hand's tool point as Isaac recorded it (steps.npz ee_pos), for the page's trail; mm is plenty for a line
+        "hand_pos": (np.round(ee.astype(np.float64), 3) + 0.0).tolist(),
     }
 
 

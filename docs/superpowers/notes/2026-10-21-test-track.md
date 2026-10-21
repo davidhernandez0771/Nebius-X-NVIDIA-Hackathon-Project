@@ -93,6 +93,36 @@ uv run --no-sync python scripts/build_test_track.py --check-estimate   # measure
   - styles.css halves every disabled button's opacity, which put the "Camera robot · eval" entry at 2.65:1, so that entry keeps full opacity.
   - The data folder was first `public/test-track`, the route's own path, which a static host could serve as a folder instead of the page. It is now `public/test-track-data`.
 
+## Polish pass (the lead, 18:00): light, framing, paths
+
+The lead found shot 01 too dark: the robot read almost black, and the camera was too close (the operator's view from behind the arm). Three fixes:
+
+1. **Light and paint:** a "studio" look on the twin. There's no shared lighting rig: the robots page (ShelfScene) and the setup preview each light their own scene.
+   - The robot gets the Franka's own paint: white links, a dark wrist flange and dark fingers (`twin/looks.ts studioTone`, per link, since the twin draws one mesh per link).
+   - Lights: a warm key over the camera's shoulder, a cool fill, a teal rim from behind the arm, and a brighter hemisphere.
+   - The scene: the sim's red cube and blue bin, a lighter table, edges down to a whisper.
+   - The gripper still turns orange while closed.
+   - It's opt-in: `<RobotTwin look="studio">`. /record and /data keep the hologram look, which is the default.
+2. **Framing:** `framePoints` gives a wide camera (`looks.ts frameScene`).
+   - It frames the robot (base and height), the bin, the cube's path and the hand's path.
+   - It looks from the robot's front left, raised, so the arm doesn't stand between the camera and the cube or the bin.
+   - It steps back for narrow panes (phones).
+   - The frame is computed once per run, so playback never moves the camera. R puts it back.
+3. **Paths:** `trails` draws each path faintly in full and brightly up to the current step.
+   - The hand path (teal) is the tool point Isaac recorded (steps.npz `ee_pos`, now `hand_pos` in each run file, 3 decimals; the data went from 5.6 to 7.0 MB).
+   - The cube path (red-orange) is dashed where it's estimated (round 0).
+   - The Paths button or T shows or hides them.
+
+"Follow the cube" was optional and isn't built. Perf: the trails are 4 lines per run; frameloop stays "demand", and only the bright line's draw range changes per step.
+
+Checks after the pass:
+- web vitest 1828 passed, 2 skipped (looks.ts +5 tests; the page +2: studio, frame and trails, T, and dashed for estimated);
+- `test_build_test_track.py` 8 pass (hand_pos checked);
+- tsc and vite build pass;
+- shots 01–08 retaken under the same names (SwiftShader): no contrast failures, no unnamed controls, no horizontal scroll at 390.
+
+One race came up under full-suite load: the round-0 estimate note waited for the run file, while its tag came from the index. Both now come from the index.
+
 ## Not done
 
 - No Isaac camera footage: the round-0 front and wrist frames are about 1 GB, too big for a static page. /data shows footage through the API.
