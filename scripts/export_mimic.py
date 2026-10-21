@@ -24,8 +24,10 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
-if str(REPO / "src") not in sys.path:  # Isaac Lab's Python doesn't have SANT installed
-    sys.path.insert(0, str(REPO / "src"))
+sys.path.insert(0, str(REPO))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src first: the venv's editable install (if any) points at another worktree
 
 from demo_pipeline import mimic  # noqa: E402
 
@@ -132,6 +134,7 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--select", choices=("sources", "all"), default="sources")
     ap.add_argument("--env-name", default=DEFAULT_ENV)
     args = ap.parse_args(argv)
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
 
     if args.out.exists():
         raise SystemExit(f"{args.out} exists; pick a new file")

@@ -26,10 +26,10 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
-if str(REPO / "src") not in sys.path:
-    sys.path.insert(0, str(REPO / "src"))
-if str(REPO) not in sys.path:
-    sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 from demo_pipeline import mimic  # noqa: E402
 from sim_worker.gpu_lock import GpuLock  # noqa: E402
@@ -137,6 +137,7 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--viz", action="store_true", help="open Isaac Sim's window (Kit visualizer)")
     ap.add_argument("--dry-run", action="store_true", help="print the command and stop")
     args = ap.parse_args(argv)
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
 
     if args.output.exists():
         raise SystemExit(f"{args.output} exists; pick a new --output")
