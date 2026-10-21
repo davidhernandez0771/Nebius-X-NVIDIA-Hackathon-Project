@@ -448,8 +448,11 @@ describe("/record: the hologram's top bar and boot", () => {
     expect(screen.getByText("FRANKA")).toBeTruthy();
     expect(screen.getByText("Franka Panda")).toBeTruthy();
     const steps = screen.getByRole("navigation", { name: "SANT steps" });
-    expect(within(steps).getByText("S · show").getAttribute("aria-current")).toBe("step");
-    expect(within(steps).getByText("T · train").getAttribute("aria-current")).toBeNull();
+    // Each step reads in full ("S · show"); on laptop widths only its letter shows (the word stays for screen readers).
+    const step = (text: string) => within(steps).getByText((_, el) => !!el?.classList.contains("rg-step") && el.textContent === text);
+    expect(step("S · show").getAttribute("aria-current")).toBe("step");
+    expect(step("S · show").querySelector(".rg-step__word")?.textContent).toBe(" · show");
+    expect(step("T · train").getAttribute("aria-current")).toBeNull();
   });
 
   it("plugs in once: panes draw in with one scanline sweep, then it's gone", () => {

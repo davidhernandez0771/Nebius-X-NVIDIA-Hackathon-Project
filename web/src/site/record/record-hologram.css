@@ -1195,21 +1195,49 @@
   color: var(--rg-ink-2);
 }
 
-/* Laptop widths (to 1500 px): the input chip and Stop & discard / Delete last demo widen the right group, so the steps
-   take the space left in the middle (still centred there), with shorter joins, and the cartridge shows its code only
-   (the name is in its title). */
+/* Laptop widths (to 1500 px): the input chip and Stop & discard / Delete last demo widen the right group, so the strip
+   is a row that wraps instead of a fixed grid: the crumb, the steps (centred in what is left) and the right group, and
+   when they don't fit side by side the last ones drop to a second line rather than overlap. The steps show their
+   letters only (S · A · N · T, the word kept for screen readers and in the title), with shorter joins, and the
+   cartridge shows its code only (the name is in its title). */
 @media (min-width: 961px) and (max-width: 1500px) {
   .rg-top {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 16px;
+    row-gap: 6px;
+  }
+
+  .rg-crumb {
+    flex: none;
   }
 
   .rg-steps {
-    justify-self: center;
-    min-width: 0;
+    flex: 1 0 auto;
+    justify-content: center;
+  }
+
+  .rg-right {
+    flex: none;
+    margin-left: auto;
   }
 
   .rg-steps em {
     width: 10px;
+  }
+
+  .rg-step {
+    padding: 4px 8px;
+  }
+
+  .rg-step__word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   .rg-cart > span {
