@@ -407,7 +407,26 @@ the test are unchanged.
   - the `lift` reward (Amendment 2).
 
   Its exact command and start time are added here if it runs.
-- **A finding, recorded:** a demo's steps are 2–4 mm, while the exploration noise is 6–17 mm per step. So noise at the
+- **A finding, recorded:** a demo's steps are 2–4 mm, while the exploration noise is 6–17 mm per step.
+
+**`demo_v6` finished** its 1500 iterations at about 12:59 (66 min).
+
+**The checkpoint was picked before the gate**, from T3's start-type breakdown (`scripts/rl_start_breakdown.py`) only.
+- **The scenes:** 128 episodes per checkpoint, with scenes from `rng(7)`. None of them overlaps the gate's seeds
+  5300–5349.
+- **The settings:** deterministic actions, deadband 0.25, grace 10, and the fixed bonus code (`bf56c20`). The bonus
+  agreed with the in-env `check_success` on 128/128.
+
+| Checkpoint | Home starts | Demo starts, free | Demo starts, held | Failures |
+|---|---|---|---|---|
+| `model_1499` | **61/67** (Wilson 0.82–0.96) | 30/31 | 30/30 | 7 drops |
+| `model_1450` | 58/67 | — | — | 7 collisions |
+
+**The pick is `model_1499`:** it has more home-start successes and no collisions. These numbers are not the gate.
+
+**The gate runs once on `model_1499`.** T3's part, check (a) above, is `rl_eval_teacher` on practice seeds 5300–5349 plus
+`rl_verify_teacher`, and it passes at ≥ 45/50. Both checks must pass, so T6's 50-scene in-env gate on seeds
+4000–4049 (≥ 45/50) still applies before round 0. The results are added here. So noise at the
   earlier std swamped demo-like motion, which is why the planned initial std is low.
 
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
