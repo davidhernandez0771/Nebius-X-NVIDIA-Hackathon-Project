@@ -184,7 +184,7 @@ The Hydra override paths (`env.…`, `agent.…`) follow Isaac Lab's convention;
     terms by a test).
   - It applies the same action mapping and the same soft floor as the env.
 - **For T6:** `--teacher sim_worker.rl_policy:make --teacher-checkpoint
-  datal\logssl_rl\sant_rl_teacher\<run>\exported\policy.pt`. The run directory works too.
+  data\rl\logs\rsl_rl\sant_rl_teacher\<run>\exported\policy.pt`. The run directory works too.
 - **The `TeacherState` mismatch:** T6's module isn't on this branch, so the adapter returns T6's `TeacherAction` when
   `sim_eval.teacher` is importable, and an identical mirror otherwise. The test mirrors T6's `TeacherState` fields.
 - **Matched to T6's env:**
