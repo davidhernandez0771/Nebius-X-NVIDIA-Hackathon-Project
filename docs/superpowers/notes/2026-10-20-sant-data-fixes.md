@@ -65,8 +65,7 @@ New or extended:
 - `test_diagnose*.py` (rules-only issues), and web `review/model`, `data/model`.
 
 Results:
-- the touched files pass, and web tsc is clean;
-- the full Python suite passed earlier in the work (2390 passed, then the one hybrid test fixed);
-- **it was not rerun after the last changes (usage limit)**: rerun `uv run --no-sync pytest -q` before merging.
+- full Python suite: **2405 passed, 29 skipped** (`uv run --no-sync pytest -q`);
+- web: **1563 passed, 1 skipped**; tsc is clean.
 
 **Left in the worktree, untracked:** `p.out` (a profiler dump of mine in the repo root; not committed).
