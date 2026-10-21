@@ -11,7 +11,7 @@ time estimates, cancel or resume it, download what it made. The shape is the pip
                                             | {kind: "teacher", human_run, teacher_n? (300|600), dagger?,
                                                preset? (smoke|full), rl_iterations?, dry_run?} (app.pipeline.recipe)
     GET  /pipeline/runs/{id}                the run's state (app.pipeline.progress.snapshot)
-    GET  /pipeline/runs/{id}/events         SSE: "snapshot", then patches (stage, gpu, check, repair, variant, train,
+    GET  /pipeline/runs/{id}/events         SSE: "snapshot", then patches (stage, gpu, teacher, check, repair, variant, train,
                                             checkpoint, evaluate, artifact, log), then "end" {status}
     POST /pipeline/runs/{id}/cancel         stop at the next stage boundary (resumable)
     POST /pipeline/runs/{id}/resume         a failed, cancelled or interrupted run carries on from its markers
@@ -232,6 +232,9 @@ def patches(before: dict, after: dict) -> list[dict]:
             out.append({"type": "stage", "stage": s["id"], **s})
     if before.get("gpu") != after.get("gpu"):
         out.append({"type": "gpu", **after["gpu"]})
+    # A teacher run's block (gate, rounds, rollouts, selection), whole: the pages replace theirs with it
+    if after.get("teacher") is not None and before.get("teacher") != after.get("teacher"):
+        out.append({"type": "teacher", **after["teacher"]})
     for kind, key, typ in (("check", lambda r: r["demo"], "check"), ("repair", lambda r: r["demo"], "repair"),
                            ("variants", lambda r: (r.get("id"), r.get("seed")), "variant")):
         old = _keyed(before.get(kind, []), key)

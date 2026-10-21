@@ -157,6 +157,17 @@ def test_the_patches_match_the_pages_reducer():
     assert [x["type"] for x in pipeline.patches(base, tick)] == []
 
 
+def test_a_teacher_patch_carries_the_whole_block_when_it_changes():
+    # T2's reducer replaces the block on this event: gate results, round phases, rollouts, selection
+    block = {"iteration": 150, "iterations": 150, "gate": {"successes": None, "n": None, "passed": None}, "rounds": []}
+    base = {"stages": [], "gpu": {}, "check": [], "repair": [], "variants": [], "train": {}, "evaluate": {}, "artifacts": [],
+            "teacher": block}
+    later = {**base, "teacher": {**block, "gate": {"successes": 49, "n": 50, "passed": True}}}
+    assert pipeline.patches(base, later) == [{"type": "teacher", **later["teacher"]}]
+    assert pipeline.patches(later, later) == []
+    assert pipeline.patches({**base, "teacher": None} | {"teacher": None}, {**base, "teacher": None}) == []
+
+
 def test_more_local_dev_origins_come_from_an_env_var(monkeypatch):
     from app.config import cors_origins
 
