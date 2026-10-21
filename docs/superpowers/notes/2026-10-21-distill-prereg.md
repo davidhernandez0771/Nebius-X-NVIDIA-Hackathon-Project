@@ -216,5 +216,38 @@ The reward, the success definition and everything in the list at the top of this
 these as run-enabling. They are training settings for the teacher, and the teacher is held to the same gate (≥ 90%,
 both checks) before any distillation, so they do not touch what the test measures.
 
-The gate and everything after it apply to the teacher from `demo_v3`, or from a later run logged here. T3's final
+**`demo_v3` failed:** started 10:47 and stopped at about 11:06 by the lead, with the user's permission. Lift and carry
+stayed flat at about 1.5%, and the action std rose from 0.6 to 1.2. No rollout or student used it, and it was never gated.
+
+## Amendment 1 (2026-10-21, approved by the lead, decided before any teacher passed the gate)
+
+This one is an amendment, not a run-enabling fix, because it changes the teacher's training reward.
+
+**What changes, for the run `demo_v4` (RL training only):**
+- **Reward scale:** the progress, penalty and success terms are multiplied by 50. This undoes Isaac Lab's
+  multiplication of every reward term by dt. The action_rate and joint_vel penalties are unchanged.
+- **Entropy:** `entropy_coef` 0.006 → 0.001.
+- **Gripper deadband:** 0.5 (`6008c41`). The gripper switches only past ±0.5 and otherwise keeps its state, in the
+  env's gripper term and in T6's adapter, which reads it from the run's `params/env.yaml`. It is off by default in
+  the code.
+
+**Why:** in `demo_v3`, the entropy bonus outweighed a per-step reward of about 1e-4 to 1e-2. So the policy grew noisier
+(std 0.6 → 1.2) instead of learning to lift.
+
+**Unchanged:**
+- the success definition and `check_success`;
+- the teacher gate (≥ 90%, both checks);
+- the seed ranges;
+- the selection rule;
+- the data mix's weights;
+- the test command.
+
+The reward's *scale* changes. What counts as success does not, and the gate and the test measure success only.
+
+**Where it is in the code:** at `6008c41`, the tip of `pm/rl-teacher` and T3's worktree (clean), the deadband is
+committed. The ×50 scale and `entropy_coef` 0.001 are not: `rl_ppo_cfg.py` still has `entropy_coef=0.006`, and there
+is no reward-scale setting. They are presumably set on `demo_v4`'s command line. The run's `params/env.yaml` and
+`params/agent.yaml` are the record of the values it used. If they are committed later, that commit is added here.
+
+The gate and everything after it apply to the teacher from `demo_v4`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
