@@ -1,6 +1,6 @@
 // The opening's shaders. The dust is the prototype's (site-journey.html), its point size clamped in
 // the shader (3.5 px times the pixel ratio: unclamped points near the camera stalled the prototype),
-// with the column's floor and height as uniforms. The backdrop is the dark space round the glass logo.
+// with the column's floor and height as uniforms. The backdrop is the dark space round the tesseract.
 
 export const dustVert = /* glsl */ `
 attribute vec4 aRand; uniform float uTime, uPR, uMix, uSize, uY0, uH; uniform vec3 uHigh, uLow, uWarm;
@@ -36,18 +36,17 @@ void main(){
 
 /**
  * Near-black with a little lift toward the top, the teal light leak up and to the left (Active
- * Theory's corner glow), and a faint glow behind the logo: transmission only refracts what is drawn
- * opaque behind the glass, so this is what it carries (its bright edges come from the studio's reflections).
+ * Theory's corner glow), and a soft glow behind the tesseract, which follows it where the hero places it.
  */
 export const backdropFrag = /* glsl */ `
-uniform float uDim; uniform vec3 uBase, uLeak;
+uniform float uDim; uniform vec3 uBase, uLeak, uGlow;
 varying vec3 vDir;
 void main(){
   vec3 d = normalize(vDir);
   vec3 c = uBase * (.65 + .55 * smoothstep(-.6, .9, d.y));
   c += uLeak * pow(max(0., dot(d, normalize(vec3(-.7, .55, .45)))), 7.) * .35;
-  // A soft glow straight behind the logo, so the glass always has some light to carry.
-  c += uLeak * .006 * smoothstep(.96, 1., -d.z);
+  // A soft glow behind the tesseract, wherever the hero has placed it (uGlow, Scene.tsx).
+  c += uLeak * .008 * smoothstep(.93, 1., dot(d, uGlow));
   gl_FragColor = vec4(c * (1. - uDim), 1.);
   #include <colorspace_fragment>
 }`;

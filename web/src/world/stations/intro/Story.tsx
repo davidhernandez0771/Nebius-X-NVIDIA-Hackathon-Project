@@ -29,6 +29,8 @@ const COPY: BeatCopy[] = [
     kicker: "S·A·N·T · perfect, then multiply",
     head: ["Show a robot", "once."],
     side: "left",
+    // The tesseract is the hero: the copy stacks on the left (on phones, under it), the right half is its.
+    className: "intro-beat--hero",
     items: [
       <p key="a">One human demo, by webcam or keyboard teleop, becomes robot training data.</p>,
       <p key="b">Physics-checked. Repaired. Multiplied. Labelled by Nemotron.</p>,

@@ -24,23 +24,26 @@ The user chose the "open-corner tesseract" mark (docs/design/logo). The hero's g
 
   The look follows `tesseract-3d-A.png`.
 
-## Where it floats: never over the type (`heroSlot.ts`)
-The first version sat in the middle, and the headline ran through it. Now:
-- `Scene.tsx` measures the page's boxes on load, as the fonts and words settle, and on every resize:
-  - the hero's headline and column;
-  - the scroll hint;
-  - the brand, the contact button, the station rail and the quality chip.
-- `heroSlot` finds the largest circle clear of them (16 px round each box, 12 px from the edges); among the largest, it takes the one nearest the centre.
-- The tesseract goes there, sized so its widest reach at any 4D angle (`HYPER_RADIUS`, plus a ball) fits. It is never larger than its old size.
-- The hero camera's field of view is fitted to the screen as the rig does (portrait screens get a wider one).
+## The tesseract is the hero: the layout around it
+The first placement put it in the largest clear circle around the old layout. At 1280×720 that tucked it, small, into the upper right. Now the copy makes room:
+- **Desktop.** The hero beat (`intro-beat--hero` in `intro.css`) stacks the kicker, the headline and the small column on the left, the column under "ONCE.". The right half is the tesseract's.
+  - The hero's headline is a little smaller: 5.4vw (from 6.6vw), at most 104 px. At 6.6vw, "SHOW A ROBOT" plus the station rail left too little room for a large tesseract at 1280×720.
+- **Phone.** The tesseract is on top, large, and the copy is under it (kicker, headline, column, then the scroll hint).
+- **Size and place** (`Scene.tsx` + `heroSlot.ts`):
+  - It is as large as `HERO_SIZE` asks: the still pose about 56% of the screen's height.
+  - Its widest 4D reach (`HYPER_RADIUS`, plus a ball) must fit the largest circle clear of the page's boxes: the headline and kicker, the column, the scroll hint, the brand, the contact button, the station rail and the quality chip. The pad is 16 px.
+  - The boxes are measured on load, as the fonts and words settle, and on every resize, with the rig's fitted field of view.
+- **The backdrop's soft teal glow** follows it: it sits where the camera's ray through the tesseract meets the backdrop sphere (`uGlow`).
 
-Results (the tests use the boxes headless Chrome measured):
+Results, from the boxes headless Chrome measured; `heroSlot.test.ts` holds each layout clear, large and on its side:
 
-| Screen | Where | Screenshot |
+| Screen | Reach radius | Where |
 |---|---|---|
-| 1280×720 | Upper right, above the column; the headline-to-column gap is only 106 px there | 01 |
-| 1920×1080 | Right of the headline | 01b |
-| 390×844 | Between the headline and the column | 10 |
+| 1280×720 | 262 px | right half, between the copy and the station rail |
+| 1920×1080 | 435 px | right half |
+| 390×844 | 162 px | on top, above the copy |
+
+Mid-turn frames with the copy showing stay clear. Screenshots: 01, 01b and 10 (the hero), 08 (the still pose), 11 (the fallback).
 
 ## The steel
 The chrome was too white under the bloom. It is now polished steel:
@@ -83,7 +86,7 @@ The hero frame on ultra (HUD): 19 calls, 17,182 triangles, post-processing inclu
 The SVG path to the logo is gone: the mark is now the tesseract in code.
 
 ## Checked
-- **Tests.** Web 1682 passed, 1 skipped. New tests:
+- **Tests.** Web 1683 passed, 1 skipped. One full run had a timing failure in `DataPage.test.tsx` (the data page, untouched here). It passed 3 times alone, and the full rerun was green. New tests:
   - `tesseractPlan.test.ts`: 10. It covers:
     - the vertices, edges and their kinds;
     - rotation keeps lengths, and a full turn comes back;
@@ -94,7 +97,7 @@ The SVG path to the logo is gone: the mark is now the tesseract in code.
     - reduced motion;
     - the scroll is scrubbable and holds past the sink.
   - `Tesseract.test.ts`: 3. It covers three draws with the right counts, tubes laid along their edges, and thinner tubes with fewer sides on low.
-  - `heroSlot.test.ts`: 5. It covers the three layouts, the size cap and centring, and determinism.
+  - `heroSlot.test.ts`: 6. It covers the three layouts (clear, inside, large), the right half on desktop and above the copy on phones, the size cap and centring, and determinism.
   - In `tesseractPlan.test.ts`, the perspective test is now the depth-scaling ratio test, and there is a new test for the reach (`HYPER_RADIUS`).
 - **Typecheck and build** pass.
 - **Screenshots:**
@@ -109,6 +112,5 @@ The SVG path to the logo is gone: the mark is now the tesseract in code.
 
 ## Open
 - **Real-GPU look and frame time** aren't checked (SwiftShader only).
-- **The backdrop's soft teal glow** still sits near the screen's centre, where the old logo was, not behind the tesseract.
 - **Frames 01–07 include some idle turn** (the shots wait a few seconds), so they aren't exact scroll-only poses.
 - **The site header's small logo and the favicon** are separate and not touched here.

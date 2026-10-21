@@ -30,7 +30,7 @@ export const LOGO_SCALE = 22 / 16.5;
  * tube is as thick as their stroke. THE RING has the same tube.
  */
 export const RING = { radius: 4.2, tube: 0.37 } as const;
-
+/** The ring's radius in world metres, which is also the hero tesseract's unit (tesseractPlan.ts: the old ring at 1). */
 /** The ring's radius in world metres, which is also the 3D logo's scale (logo3d.ts: the arcs at 1). */
 export const LOGO_R = RING.radius * LOGO_SCALE;
 

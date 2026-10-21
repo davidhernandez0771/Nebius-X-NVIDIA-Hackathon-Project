@@ -26,7 +26,7 @@ import { load } from "./progress";
 import { backdropFrag, backdropVert, dustFrag, dustVert } from "./shaders";
 import { INTRO_VH, logoPose, placeLights } from "./storyPlan";
 import { CHROME_ENV, makeTesseract, TESSERACT_LOOK, type TesseractHandle } from "./Tesseract";
-import { HYPER_RADIUS, hyperPose, ISO } from "./tesseractPlan";
+import { HYPER_RADIUS, hyperPose, ISO, STILL_RADIUS } from "./tesseractPlan";
 
 // The forest and the reactor: after the first frame, with their STL loader and shaders.
 const Places = lazy(() => import("./Places"));
@@ -74,14 +74,22 @@ function makeLogo(q: QualityTier, env: THREE.Texture): Logo {
  *  contact button, the station rail, the quality chip. */
 const KEEP_CLEAR = [".intro-beat__main", ".intro-beat__col", ".intro-down", ".world-brand", ".world-contact", ".world-rail", ".world-q"];
 
+/** The tesseract is the hero: its still pose about this much of the screen's height, where the space allows. */
+const HERO_SIZE = 0.56;
+/** The backdrop sphere's radius (makeBackdrop). */
+const BACKDROP_R = 80;
+
 interface Placement {
   position: THREE.Vector3;
-  /** Of its designed size (1 at most). */
+  /** Of its old fixed size. */
   scale: number;
+  /** Where the backdrop's soft glow sits: the direction (from the backdrop's centre) behind the tesseract. */
+  glow: THREE.Vector3;
 }
 
-/** Where the tesseract floats and how large, so that even at its widest turn it stays in the largest space clear of
- *  the page's boxes (heroSlot.ts), as seen from the hero's camera at the canvas's size. */
+/** Where the tesseract floats and how large: as large as HERO_SIZE asks, in the largest space clear of the page's
+ *  boxes (heroSlot.ts), so that even its widest 4D reach never covers the type; seen from the hero's camera at the
+ *  canvas's size. */
 function place(canvas: HTMLCanvasElement, tubeR: number): Placement {
   const c = canvas.getBoundingClientRect();
   const w = c.width || 1, h = c.height || 1;
@@ -99,13 +107,20 @@ function place(canvas: HTMLCanvasElement, tubeR: number): Placement {
   cam.updateMatrixWorld();
   const forward = cam.getWorldDirection(new THREE.Vector3());
   const depth = new THREE.Vector3(...LOGO).sub(cam.position).dot(forward);
-  // Its widest reach (a corner and its ball) at the designed size, in pixels at the logo's depth.
+  // Its widest reach (a corner and its ball) at the old size, in pixels at the logo's depth.
   const reach = (HYPER_RADIUS + tubeR * 1.7) * LOGO_R;
-  const design = (reach / (depth * Math.tan(THREE.MathUtils.degToRad(fov) / 2))) * (h / 2);
-  const slot = heroSlot({ w, h }, keep, { pad: 16, margin: 12, maxR: design });
+  const base = (reach / (depth * Math.tan(THREE.MathUtils.degToRad(fov) / 2))) * (h / 2);
+  // The size asked for: the still pose HERO_SIZE of the height, so its reach that much larger again.
+  const want = (HERO_SIZE * h) / 2 * (HYPER_RADIUS / STILL_RADIUS);
+  const slot = heroSlot({ w, h }, keep, { pad: 16, margin: 12, maxR: want });
   const ray = new THREE.Vector3((slot.cx / w) * 2 - 1, 1 - (slot.cy / h) * 2, 0.5).unproject(cam).sub(cam.position).normalize();
   const position = cam.position.clone().addScaledVector(ray, depth / ray.dot(forward));
-  return { position, scale: Math.min(1, slot.r / design) };
+  // The glow: where that ray meets the backdrop sphere (centred on LOGO).
+  const o = cam.position.clone().sub(new THREE.Vector3(...LOGO));
+  const b = o.dot(ray);
+  const t = -b + Math.sqrt(Math.max(0, b * b - (o.lengthSq() - BACKDROP_R * BACKDROP_R)));
+  const glow = o.addScaledVector(ray, t).normalize();
+  return { position, scale: slot.r / base, glow };
 }
 
 function makeBackdrop() {
@@ -119,9 +134,10 @@ function makeBackdrop() {
       uDim: { value: 0 },
       uBase: { value: new THREE.Color("#04080b") },
       uLeak: { value: new THREE.Color("#19f5c2") },
+      uGlow: { value: new THREE.Vector3(0, 0, -1) },
     },
   });
-  const geo = new THREE.SphereGeometry(80, 48, 24);
+  const geo = new THREE.SphereGeometry(BACKDROP_R, 48, 24);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.set(...LOGO);
   // First, behind everything; opaque, so the glass refracts it.
@@ -175,7 +191,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   // Sparse: a third of the tier's dust, so the space reads empty and deep.
   const dust = useMemo(() => makeDust(Math.round(quality.dustParticles / 3)), [quality.dustParticles]);
   const st = useRef({ readyAt: null as number | null, mx: 0, my: 0, spin: 0, spin4: 0 });
-  const slot = useRef<Placement>({ position: new THREE.Vector3(...LOGO), scale: 1 });
+  const slot = useRef<Placement>({ position: new THREE.Vector3(...LOGO), scale: 1, glow: new THREE.Vector3(0, 0, -1) });
 
   // Placed clear of the page's type: on load, as the fonts and the hero's words settle, and on every resize.
   useEffect(() => {
@@ -261,6 +277,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
 
     const b = backdrop.mat.uniforms;
     b.uDim.value = 1 - light;
+    (b.uGlow.value as THREE.Vector3).copy(slot.current.glow);
     backdrop.mesh.visible = light > 0;
     dust.visible = light > 0;
 
