@@ -282,6 +282,8 @@ describe("the pipeline pages", () => {
     expect(await screen.findByRole("link", { name: /dataset_perfected_multiply_10\.zip/i })).toBeTruthy();
     expect(screen.getByText(/2\.5 GB/)).toBeTruthy();
     expect(screen.getByText(/SANT \(repaired \+ multiplied\)/)).toBeTruthy();
+    // and on to the next page, Data (the hand-off between the work pages)
+    expect(screen.getByRole("link", { name: /next: data/i }).getAttribute("href")).toBe("/data");
   });
 
   it("Evaluate: both cells scored on their own (they run the same seeds)", async () => {

@@ -13,7 +13,7 @@ export function PipelineBar({ run, bar, shown, conn, search = "" }: { run: RunSt
   const stages = stagesFor(run.kind);
   const left = /^(done|failed|cancelled|dry run)/.test(bar.remaining) ? bar.remaining : `${bar.remaining} left`;
   return (
-    <nav className="pipe-bar" aria-label="Pipeline">
+    <nav className="pipe-bar holo-panel" aria-label="Pipeline">
       <div className="pipe-bar__head">
         <h2 className="pipe-bar__name">{run.name || run.id}</h2>
         <p className="pipe-bar__time">

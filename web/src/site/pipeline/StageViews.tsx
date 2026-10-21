@@ -4,6 +4,7 @@
 import type { CSSProperties } from "react";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { FootageView } from "../data/FootageView";
+import { HandoffLink } from "../holo/Holo";
 import { useAsync, useClock } from "../data/hooks";
 import { VerdictBadge } from "../data/Pane";
 import { repairText, verdictOf, whatChanged, demoName, type RepairStage, type Verification } from "../data/model";
@@ -369,23 +370,34 @@ function ExportView({ run, fetchImpl }: { run: RunState; fetchImpl?: Fetch }) {
   const listed = useAsync(run.id && run.status === "done" && run.plan_s === null ? `artifacts:${run.id}` : null, () => fetchArtifacts(run.id, fetchImpl));
   const files = listed.state === "ok" && listed.value.length ? listed.value : run.artifacts;
   if (files.length === 0) return <p className="data-note">Nothing to download yet: the files appear here when the run gets to Export.</p>;
+  const over = run.status === "done" && run.plan_s === null;
   return (
-    <ul className="pipe-files" aria-label="Downloads">
-      {files.map((a) => (
-        <li key={a.name} className="pipe-file" data-kind={a.kind}>
-          <span className="pipe-file__kind">{kindOf(a)}</span>
-          {a.url ? (
-            <a className="pipe-file__link" href={downloadUrl(a.url)} download={a.name}>
-              {a.name}
-            </a>
-          ) : (
-            <span className="pipe-file__link">{a.name}</span>
-          )}
-          <span className="pipe-file__size">{MB(a.bytes)}</span>
-          {a.note && <span className="pipe-file__note">{a.note}</span>}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="pipe-files" aria-label="Downloads">
+        {files.map((a) => (
+          <li key={a.name} className="pipe-file" data-kind={a.kind}>
+            <span className="pipe-file__kind">{kindOf(a)}</span>
+            {a.url ? (
+              <a className="pipe-file__link" href={downloadUrl(a.url)} download={a.name}>
+                {a.name}
+              </a>
+            ) : (
+              <span className="pipe-file__link">{a.name}</span>
+            )}
+            <span className="pipe-file__size">{MB(a.bytes)}</span>
+            {a.note && <span className="pipe-file__note">{a.note}</span>}
+          </li>
+        ))}
+      </ul>
+      {/* the pipeline's end: on to the next work page (the shared hand-off) */}
+      {over && (
+        <p className="pipe-next">
+          <HandoffLink to="/data" label="Data">
+            Next: Data, the demos and their verdicts →
+          </HandoffLink>
+        </p>
+      )}
+    </>
   );
 }
 
@@ -405,7 +417,7 @@ const VIEWS: Record<StageId, (p: { run: RunState; fetchImpl?: Fetch }) => JSX.El
 export function StageView({ run, stage, fetchImpl }: { run: RunState; stage: StageId; fetchImpl?: Fetch }) {
   const View = VIEWS[stage];
   return (
-    <section className="pipe-stage-page" data-stage={stage} aria-label={stageMeta(stage).label}>
+    <section className="pipe-stage-page holo-panel" data-stage={stage} aria-label={stageMeta(stage).label}>
       <StageHead stage={stageOf(run, stage)} run={run} />
       {run.plan_s !== null ? <p className="data-note">A dry run plans the stages and runs none of them.</p> : <View run={run} fetchImpl={fetchImpl} />}
     </section>

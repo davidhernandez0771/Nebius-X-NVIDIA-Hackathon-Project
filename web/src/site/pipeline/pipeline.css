@@ -3,19 +3,19 @@
    conduit that fills as they complete, a stage's panel drawing in with one scanline, the loss as a glowing trace,
    the downloads as cartridge cards. Restraint: no big glows, no WebGL; animation is transform / opacity /
    clip-path only, and none of it under reduced motion. Every rule sits under .sant .pipe-*; the data-* pieces it
-   reuses (badges, buttons, notes, tables) are /data's (data.css). Tokens: T1's shared --holo-* where present
-   (site/holo), else the same values as Record's --rg-*. */
+   reuses (badges, buttons, notes, tables) are /data's (data.css). The frame, the corner ticks (.holo-panel) and the
+   tokens are T1's shared site/holo (HoloPage); the fallbacks are the same values, Record's --rg-*. */
 
 .sant .pipe-page {
   --pipe-teal: var(--holo-teal, #19f5c2);
-  --pipe-hair: rgba(25, 245, 194, 0.16);
-  --pipe-hair-hi: rgba(25, 245, 194, 0.42);
+  --pipe-hair: var(--holo-line-dim, rgba(25, 245, 194, 0.14));
+  --pipe-hair-hi: var(--holo-line-hi, rgba(25, 245, 194, 0.55));
   --pipe-glass: var(--holo-glass, rgba(14, 22, 24, 0.72));
-  --pipe-void: #040607;
+  --pipe-void: var(--holo-void, #040607);
   --pipe-ink: var(--holo-ink, #e6eeec);
-  --pipe-ink-2: #8fa3a0;
-  --pipe-ink-3: #53625f;
-  --pipe-amber: #ffb000;
+  /* text is ink or ink-2; the frame's ink-3 is for decoration only (3.3:1) */
+  --pipe-ink-2: var(--holo-ink-2, #8fa3a0);
+  --pipe-amber: var(--holo-amber, #ffb000);
   --pipe-mono: var(--holo-mono, var(--sant-font-data));
   --pipe-node: 11px;
 
@@ -25,19 +25,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Until the shared page frame (T1's HoloPage) is in: Record's void and its faint cutting-mat grid behind the page. */
-.sant.sant-shell--app:has(.pipe-page) {
-  background:
-    linear-gradient(rgba(25, 245, 194, 0.045) 1px, transparent 1px) 0 0 / 24px 24px,
-    linear-gradient(90deg, rgba(25, 245, 194, 0.045) 1px, transparent 1px) 0 0 / 24px 24px,
-    #040607;
-}
+/* ------------------------------------------------------------ the panels */
 
-/* ------------------------------------------------------------ the panels: glass, a hairline, corner ticks */
-
-.sant .pipe-bar,
-.sant .pipe-stage-page,
-.sant .pipe-start,
+/* The bar, a stage's page and the start form are .holo-panel (glass, a hairline, corner ticks on ::before); the run
+   rows and the download cards are the same glass without the ticks. */
 .sant .pipe-run,
 .sant .pipe-file {
   position: relative;
@@ -46,33 +37,13 @@
   background: var(--pipe-glass);
 }
 
-.sant .pipe-bar::before,
-.sant .pipe-stage-page::before,
-.sant .pipe-start::before {
-  --pipe-br: var(--pipe-teal);
-  content: "";
-  position: absolute;
-  inset: -1px;
-  pointer-events: none;
-  opacity: 0.8;
-  background:
-    linear-gradient(var(--pipe-br), var(--pipe-br)) top left / 14px 1px no-repeat,
-    linear-gradient(var(--pipe-br), var(--pipe-br)) top left / 1px 14px no-repeat,
-    linear-gradient(var(--pipe-br), var(--pipe-br)) top right / 14px 1px no-repeat,
-    linear-gradient(var(--pipe-br), var(--pipe-br)) top right / 1px 14px no-repeat,
-    linear-gradient(var(--pipe-br), var(--pipe-br)) bottom left / 14px 1px no-repeat,
-    linear-gradient(var(--pipe-br), var(--pipe-br)) bottom left / 1px 14px no-repeat,
-    linear-gradient(var(--pipe-br), var(--pipe-br)) bottom right / 14px 1px no-repeat,
-    linear-gradient(var(--pipe-br), var(--pipe-br)) bottom right / 1px 14px no-repeat;
-}
-
 /* A panel's small caps label: "STAGE 02 OF 06", after a short lit tick. */
 .sant .pipe-eyebrow {
   display: flex;
   gap: var(--sant-space-2);
   align-items: center;
   margin: 0;
-  color: var(--pipe-ink-3);
+  color: var(--pipe-ink-2);
   font-family: var(--pipe-mono);
   font-size: 10.5px;
   letter-spacing: 0.14em;
@@ -190,7 +161,7 @@
   justify-items: center;
   gap: 6px;
   padding: var(--sant-space-2) var(--sant-space-1) var(--sant-space-2);
-  color: var(--pipe-ink-3);
+  color: var(--pipe-ink-2);
   text-align: center;
   text-decoration: none;
 }
@@ -284,12 +255,12 @@
 .sant .pipe-head__state { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
 .sant .pipe-head__state[data-status="running"] { color: var(--pipe-teal); }
 .sant .pipe-head__state[data-status="failed"] { color: var(--pipe-amber); }
-.sant .pipe-head__basis { color: var(--pipe-ink-3); font-family: var(--pipe-mono); font-size: 11px; }
+.sant .pipe-head__basis { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: 11px; }
 
 .sant .pipe-rows { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--pipe-hair); }
 .sant .pipe-row { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; padding: var(--sant-space-2) 0; border-bottom: 1px solid var(--pipe-hair); }
 .sant .pipe-row__name { min-width: 11rem; color: var(--pipe-ink); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
-.sant .pipe-row__meta { color: var(--pipe-ink-3); font-family: var(--pipe-mono); font-size: 11px; }
+.sant .pipe-row__meta { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: 11px; }
 
 .sant .pipe-repairs { display: grid; gap: var(--sant-space-5); }
 .sant .pipe-repair { display: grid; gap: var(--sant-space-2); }
@@ -301,7 +272,7 @@
 .sant .pipe-loss__glow { fill: none; stroke: var(--pipe-teal); stroke-opacity: 0.18; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .sant .pipe-loss__line { fill: none; stroke: var(--pipe-teal); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .sant .pipe-loss__head { fill: var(--pipe-teal); stroke: rgba(25, 245, 194, 0.3); stroke-width: 6; }
-.sant .pipe-loss figcaption { color: var(--pipe-ink-3); font-family: var(--pipe-mono); font-size: 11px; }
+.sant .pipe-loss figcaption { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: 11px; }
 
 /* Seeds as small holo tags: lit if the robot did it, amber if not. */
 .sant .pipe-seeds { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.4rem, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
@@ -347,7 +318,7 @@
 .sant .pipe-phases li {
   display: flex;
   align-items: center;
-  color: var(--pipe-ink-3);
+  color: var(--pipe-ink-2);
   font-family: var(--pipe-mono);
   font-size: 11px;
   letter-spacing: 0.12em;
@@ -393,7 +364,7 @@
 .sant .pipe-file__link { min-width: 0; overflow-wrap: anywhere; color: var(--pipe-teal); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
 .sant a.pipe-file__link::after { content: " ↓"; }
 .sant .pipe-file__size { color: var(--pipe-ink); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
-.sant .pipe-file__note { grid-column: 1 / -1; color: var(--pipe-ink-3); font-size: var(--sant-fs-caption); }
+.sant .pipe-file__note { grid-column: 1 / -1; color: var(--pipe-ink-2); font-size: var(--sant-fs-caption); }
 .sant .pipe-file:hover { border-color: var(--pipe-hair-hi); }
 
 /* ------------------------------------------------------------ runs and the start form */
@@ -437,7 +408,7 @@
   display: grid;
   gap: 4px;
   min-width: 0;
-  color: var(--pipe-ink-3);
+  color: var(--pipe-ink-2);
   font-family: var(--pipe-mono);
   font-size: 10.5px;
   letter-spacing: 0.1em;
@@ -471,7 +442,7 @@
   width: 100%;
   padding: 0;
   margin-bottom: var(--sant-space-1);
-  color: var(--pipe-ink-3);
+  color: var(--pipe-ink-2);
   font-family: var(--pipe-mono);
   font-size: 10.5px;
   letter-spacing: 0.1em;
@@ -507,8 +478,10 @@
   font-size: var(--sant-fs-small);
 }
 .sant .pipe-controls .data-note--error { flex-basis: 100%; margin: 0; }
-.sant .pipe-ready { margin: 0; }
-.sant .pipe-ready a {
+.sant .pipe-ready,
+.sant .pipe-next { margin: 0; }
+.sant .pipe-ready a,
+.sant .pipe-next a {
   display: inline-block;
   padding: var(--sant-space-2) var(--sant-space-4);
   border: 1px solid var(--pipe-teal);
@@ -519,7 +492,9 @@
   text-decoration: none;
 }
 .sant .pipe-ready a:hover,
-.sant .pipe-ready a:focus-visible { background: rgba(25, 245, 194, 0.14); box-shadow: 0 0 10px rgba(25, 245, 194, 0.25); }
+.sant .pipe-ready a:focus-visible,
+.sant .pipe-next a:hover,
+.sant .pipe-next a:focus-visible { background: rgba(25, 245, 194, 0.14); box-shadow: 0 0 10px rgba(25, 245, 194, 0.25); }
 
 /* ------------------------------------------------------------ reduced motion: all of it static */
 

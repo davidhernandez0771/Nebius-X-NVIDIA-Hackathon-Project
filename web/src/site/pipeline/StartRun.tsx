@@ -91,7 +91,7 @@ export function StartRun({ demos, fetchImpl, onStarted }: { demos: string[]; fet
   };
 
   return (
-    <section className="pipe-start" aria-label="Start a run">
+    <section className="pipe-start holo-panel" aria-label="Start a run">
       <h2 className="data-h3">Run SANT</h2>
       {off && (
         <p className="data-note">
