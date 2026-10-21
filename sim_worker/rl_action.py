@@ -36,9 +36,9 @@ class SantTcpTargetAction(SantTrackingIKAction):
         super().__init__(cfg, env)
         self._policy_raw = torch.zeros(self.num_envs, ARM_DIM, device=self.device)
         # the previous target, for the speed cap (rl_teacher.cap_speed); after a reset the tool's own pose
-        self._prev_pos = torch.zeros(self.num_envs, 3, device=self.device)
-        self._prev_yaw = torch.zeros(self.num_envs, device=self.device)
-        self._prev_valid = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._cap_prev_pos = torch.zeros(self.num_envs, 3, device=self.device)
+        self._cap_prev_yaw = torch.zeros(self.num_envs, device=self.device)
+        self._cap_prev_valid = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._tcp_ready = True
 
     @property
@@ -58,18 +58,18 @@ class SantTcpTargetAction(SantTrackingIKAction):
         grip = torch.zeros_like(actions[:, :1])  # the gripper is its own term
         tcp_q = tcp_quat(self._env)[:, [3, 0, 1, 2]]  # x y z w -> w x y z
         tcp, tcp_yaw = tcp_pos(self._env), rt.tool_yaw(tcp_q)
-        valid = self._prev_valid[:, None]
-        prev_pos = torch.where(valid, self._prev_pos, tcp)
-        prev_yaw = torch.where(self._prev_valid, self._prev_yaw, tcp_yaw)
+        valid = self._cap_prev_valid[:, None]
+        prev_pos = torch.where(valid, self._cap_prev_pos, tcp)
+        prev_yaw = torch.where(self._cap_prev_valid, self._cap_prev_yaw, tcp_yaw)
         pos, quat_wxyz, _ = rt.action_to_target(torch.cat([actions, grip], dim=-1), tcp, tcp_yaw, prev_pos, prev_yaw,
                                                 float(getattr(self.cfg, "v_max", 0.0) or 0.0),
                                                 float(getattr(self.cfg, "yaw_rate_max", 0.0) or 0.0))
         bin_pos, q = bin_frame(self._env)  # x y z w
         bin_yaw = torch.atan2(2 * (q[:, 3] * q[:, 2] + q[:, 0] * q[:, 1]), 1 - 2 * (q[:, 1] ** 2 + q[:, 2] ** 2))
         pos = rt.clamp_to_soft_floor(pos, bin_pos, bin_yaw)  # as the sim worker holds teleop targets
-        self._prev_pos[:] = pos
-        self._prev_yaw[:] = rt.tool_yaw(quat_wxyz)
-        self._prev_valid[:] = True
+        self._cap_prev_pos[:] = pos
+        self._cap_prev_yaw[:] = rt.tool_yaw(quat_wxyz)
+        self._cap_prev_valid[:] = True
         pose = torch.cat([pos, quat_wxyz[:, [1, 2, 3, 0]]], dim=-1).to(self._raw_actions.dtype)  # Isaac Lab 3.0: xyzw
         self._raw_actions[:] = pose
         self._processed_actions[:] = pose
@@ -81,7 +81,7 @@ class SantTcpTargetAction(SantTrackingIKAction):
         super().reset(env_ids)
         ids = slice(None) if env_ids is None else env_ids
         self._policy_raw[ids] = 0.0
-        self._prev_valid[ids] = False
+        self._cap_prev_valid[ids] = False
 
 
 class SantGraceGripperAction(BinaryJointPositionAction):
