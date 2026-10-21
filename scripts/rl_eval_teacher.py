@@ -98,7 +98,12 @@ def main() -> int:
     out = args_cli.out
     (out / "trajectories").mkdir(parents=True, exist_ok=True)
     (out / "scenes").mkdir(parents=True, exist_ok=True)
-    with launch_simulation(env_cfg, args_cli):
+    from sim_worker.gpu_lock import GpuLock
+    from sim_worker.keepawake import KeepAwake
+
+    # one heavy GPU job at a time (C:\dev\gpu.lock), and no idle sleep mid-run
+    lock = GpuLock(task=f"rl-eval:{out.name}", owner="T3", max_wait_s=8 * 3600)
+    with lock, KeepAwake(), launch_simulation(env_cfg, args_cli):
         env = ManagerBasedRLEnv(cfg=env_cfg)
         env._sant_rl_monitor = rc.EpisodeMonitor(env.num_envs, env.device, int(env.max_episode_length), track_every=1)
         agent_cfg = handle_deprecated_rsl_rl_cfg(SantRLTeacherPPOCfg(), check_rsl_rl_version())

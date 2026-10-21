@@ -64,7 +64,9 @@ def test_the_factory_contract_name_reset_act():
     a = t.act(_state())
     _check_action(a)
     assert a.gripper == 1  # < 0 closes, as the env's binary gripper
-    pos, quat, _ = rt.action_to_target(np.array([[0.0, 0.2, 0.5, 0.3, -0.4]]))
+    # a step from the state's tool pose (0.45, 0, 0.35), pointing down (yaw 0)
+    pos, quat, _ = rt.action_to_target(np.array([[0.0, 0.2, 0.5, 0.3, -0.4]]), np.array([[0.45, 0.0, 0.35]]),
+                                       np.zeros(1))
     np.testing.assert_allclose(a.ee_pos, pos[0]) and np.testing.assert_allclose(a.ee_quat_wxyz, quat[0])
     # the observation: OBS_SPEC's layout, the previous action fed back, zeroed by reset
     assert seen[0].shape == (rt.OBS_DIM,) and np.all(seen[0][-rt.ACTION_DIM:] == 0)
@@ -108,9 +110,9 @@ def test_the_soft_floor_is_the_sim_workers():
 
 
 def test_a_target_into_the_bin_is_held_at_the_soft_floor():
-    st = _state()
-    a_bin = rt.target_to_action([[st.bin_pos[0], st.bin_pos[1], 0.02]], [0.0], [False])[0]
-    t = rl_policy.RLTeacher(lambda obs: a_bin, name="rl-test")
+    st0 = _state()
+    st = TeacherState(**{**st0.__dict__, "tcp_pos": np.array([st0.bin_pos[0], st0.bin_pos[1], 0.09])})  # over the bin
+    t = rl_policy.RLTeacher(lambda obs: np.array([0.0, 0.0, -1.0, 0.0, 1.0]), name="rl-test")  # down a full step
     a = t.act(st)
     assert a.ee_pos[2] == pytest.approx(soft_floor.floor_z(a.ee_pos, Pose(pos=tuple(st.bin_pos),
                                                                           quat_wxyz=tuple(st.bin_quat_wxyz))))

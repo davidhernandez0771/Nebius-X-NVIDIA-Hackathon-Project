@@ -26,8 +26,14 @@ when an episode ends; the teacher's eval runs it in SANT's eval env), never this
 **Action.** The teacher acts in the space SANT's trajectories live in: an absolute tool target and a binary gripper,
 as teleop, SANT's repairs and replay use. Its rollouts are therefore Trajectories, and SANT's replay -> verify ->
 LeRobot export turns them into the ACT student's training data exactly as it does human demos. A policy action is 5
-numbers in [-1, 1]: x, y, z (the WORKSPACE box), yaw (+-YAW_MAX about the vertical, the gripper pointing down, as
-every SANT demo holds it), and the gripper (< 0 closes, as Isaac Lab's binary gripper action).
+numbers in [-1, 1]: a step of the tool from where it is now, x, y, z (at most DELTA_M each) and yaw (at most
+DELTA_YAW, about the vertical, the gripper pointing down as every SANT demo holds it), and the gripper (< 0 closes,
+as Isaac Lab's binary gripper action). The target is the tool's current pose plus that step, kept in the WORKSPACE
+box and within +-YAW_MAX: an absolute tool target, as SANT's Trajectories hold.
+
+Relative, not absolute (2026-10-21, demo_v1): with absolute targets a new policy's random actions sent the arm across
+the workspace on the first step of every episode, so demo starts were thrown away at once and nothing was learned in
+300 iterations (no grasp, no lift). A zero action now means "stay", as in Isaac Lab's IK-Rel lift.
 
 Plain operators and a small array shim only, so the same functions run on numpy (tests, recorded episodes) and on
 torch (the Isaac Lab env).
@@ -71,6 +77,8 @@ HOME_JOINTS = (-0.015617, -0.338396, 0.014439, -2.384963, 0.004375, 2.104908, 0.
 # the action (edit_plan's WORKSPACE, the Franka on SANT's table)
 WORKSPACE = {"x": (0.20, 0.80), "y": (-0.45, 0.45), "z": (0.01, 0.50)}
 YAW_MAX = math.pi / 2
+DELTA_M = 0.02  # m per step: 1 m/s at 50 Hz, the tracking feed-forward's own cap
+DELTA_YAW = 0.1  # rad per step
 ACTION_DIM = 5
 DOWN_WXYZ = (0.0, 1.0, 0.0, 0.0)  # SANT's gripper pointing down (sim_worker.scripted.DOWN_WXYZ)
 
@@ -196,32 +204,44 @@ def _quat_mul_wxyz(a, b):
             aw * by - ax * bz + ay * bw + az * bx, aw * bz + ax * by - ay * bx + az * bw)
 
 
-def action_to_target(a):
-    """Policy actions [N, 5] in [-1, 1] -> (tool positions [N, 3], tool quaternions wxyz [N, 4], closed [N] bool).
-    Out-of-range actions are clipped. The orientation is SANT's: pointing down, turned by the yaw about the vertical."""
-    a = a.clip(-1.0, 1.0) if _is_np(a) else a.clamp(-1.0, 1.0)
+def tool_yaw(quat_wxyz):
+    """The yaw of SANT's pointing-down tool (wxyz [..., 4], either library): its x axis's heading."""
+    w, x, y, z = quat_wxyz[..., 0], quat_wxyz[..., 1], quat_wxyz[..., 2], quat_wxyz[..., 3]
+    num, den = 2 * (x * y + w * z), 1 - 2 * (y * y + z * z)
+    return np.arctan2(num, den) if _is_np(num) else _torch().atan2(num, den)
 
-    def span(u, key):
-        lo, hi = WORKSPACE[key]
-        return lo + (u + 1.0) * 0.5 * (hi - lo)
 
-    x, y, z = span(a[..., 0], "x"), span(a[..., 1], "y"), span(a[..., 2], "z")
-    half = a[..., 3] * YAW_MAX / 2
+def _down_turned(yaw):
+    """SANT's pointing-down gripper turned by yaw about the vertical, wxyz [..., 4]."""
+    half = yaw / 2
     c, s = (np.cos(half), np.sin(half)) if _is_np(half) else (half.cos(), half.sin())
     zero = half * 0.0
     w, qx, qy, qz = _quat_mul_wxyz(_stack4(c, zero, zero, s), DOWN_WXYZ)  # the yaw turn, then pointing down
+    return _stack4(w, qx, qy, qz)
+
+
+def _clip(v, lo, hi):
+    return v.clip(lo, hi) if _is_np(v) else v.clamp(lo, hi)
+
+
+def action_to_target(a, tcp_pos, tcp_yaw):
+    """Policy actions [N, 5] in [-1, 1], the tool's position [N, 3] and yaw [N] now -> (tool targets [N, 3], their
+    quaternions wxyz [N, 4], closed [N] bool): the step added to the current pose, kept in WORKSPACE and +-YAW_MAX.
+    Out-of-range actions are clipped."""
+    a = _clip(a, -1.0, 1.0)
+    target = tcp_pos + a[..., :3] * DELTA_M
+    x, y, z = (_clip(target[..., i], *WORKSPACE[k]) for i, k in enumerate("xyz"))
+    yaw = _clip(tcp_yaw + a[..., 3] * DELTA_YAW, -YAW_MAX, YAW_MAX)
     pos = np.stack([x, y, z], -1) if _is_np(x) else _torch().stack([x, y, z], -1)
-    quat = np.stack([w, qx, qy, qz], -1) if _is_np(w) else _torch().stack([w, qx, qy, qz], -1)
-    return pos, quat, a[..., 4] < 0
+    return pos, _down_turned(yaw), a[..., 4] < 0
 
 
-def target_to_action(pos, yaw, closed):
-    """The inverse for one or many targets (numpy): SANT tool positions [..., 3], yaw (rad), closed -> actions."""
-    pos = np.asarray(pos, dtype=np.float64)
-    out = [(pos[..., i] - WORKSPACE[k][0]) / (WORKSPACE[k][1] - WORKSPACE[k][0]) * 2 - 1 for i, k in enumerate("xyz")]
-    out.append(np.asarray(yaw, dtype=np.float64) / YAW_MAX)
-    out.append(np.where(np.asarray(closed), -1.0, 1.0))
-    return np.stack(out, -1)
+def target_to_action(target_pos, target_yaw, closed, tcp_pos, tcp_yaw):
+    """The inverse (numpy): the action that steps from the tool's pose now to a target (clipped to one step)."""
+    d = (np.asarray(target_pos, dtype=np.float64) - np.asarray(tcp_pos, dtype=np.float64)) / DELTA_M
+    dyaw = (np.asarray(target_yaw, dtype=np.float64) - np.asarray(tcp_yaw, dtype=np.float64)) / DELTA_YAW
+    grip = np.where(np.asarray(closed), -1.0, 1.0)
+    return np.clip(np.concatenate([d, dyaw[..., None], grip[..., None]], -1), -1.0, 1.0)
 
 
 def _stack4(w, x, y, z):

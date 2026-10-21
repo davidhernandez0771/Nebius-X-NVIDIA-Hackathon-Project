@@ -13,7 +13,8 @@ started; it needs torch only to load the policy.
 - **The observation** is the training env's (rl_teacher.OBS_SPEC, pinned by tests/test_rl_env.py), rebuilt from the
   TeacherState: joints and velocities, the tool's pose, the cube's pose, the bin, the cube relative to the tool and
   the bin, and the teacher's own previous action (zeros after reset, as the env's last_action).
-- **The action** is the training env's mapping (rl_teacher.action_to_target) with the soft floor
+- **The action** is the training env's mapping (rl_teacher.action_to_target: a bounded step from the state's tool
+  pose, made an absolute target) with the soft floor
   (rl_teacher.clamp_to_soft_floor), exactly as the env's action term applies them; clipped to [-1, 1] as the
   trainer clips. Its gripper is 1 for a command < 0, as the env's binary gripper.
 No scripted or recovery logic anywhere: everything the teacher does comes from the trained policy.
@@ -70,7 +71,9 @@ class RLTeacher:
         obs = rt.policy_observation(state, self._last)
         a = np.clip(np.asarray(self.policy(obs), dtype=np.float64).reshape(rt.ACTION_DIM), -1.0, 1.0)
         self._last = a
-        pos, quat, closed = rt.action_to_target(a[None])
+        tcp_q = np.asarray(state.tcp_quat_wxyz, dtype=np.float64)[None]
+        pos, quat, closed = rt.action_to_target(a[None], np.asarray(state.tcp_pos, dtype=np.float64)[None],
+                                                rt.tool_yaw(tcp_q))
         bin_pos = np.asarray(state.bin_pos, dtype=np.float64)[None]
         pos = rt.clamp_to_soft_floor(pos, bin_pos, np.array([rt.yaw_of_wxyz(state.bin_quat_wxyz)]))
         return self._action(ee_pos=pos[0].astype(np.float64), ee_quat_wxyz=quat[0].astype(np.float64),

@@ -105,20 +105,28 @@ def test_terms_on_hand_made_states():
     assert rt.reward_terms(lost, st(up, up, True, True))["dropped"][0] == 1
 
 
-def test_the_action_maps_to_sant_tool_targets_and_back():
-    a = np.array([[-1, -1, -1, 0, 1], [1, 1, 1, 0, -1], [0, 0, 0, 0.5, -0.2], [3, -3, 0, -9, 0.1]], dtype=np.float64)
-    pos, quat, closed = rt.action_to_target(a)
-    np.testing.assert_allclose(pos[0], [0.20, -0.45, 0.01])
-    np.testing.assert_allclose(pos[1], [0.80, 0.45, 0.50])
-    np.testing.assert_allclose(pos[3], [0.80, -0.45, 0.255])  # clipped
+def test_the_action_is_a_bounded_step_from_the_tool_made_an_absolute_target():
+    tcp = np.array([[0.5, 0.0, 0.3]] * 5)
+    yaw0 = np.array([0.0, 0.0, 0.2, 0.2, 1.55])
+    a = np.array([[0, 0, 0, 0, 1], [1, -1, 0.5, 0, -1], [0, 0, 0, 1, -0.2], [3, -3, 0, -9, 0.1], [0, 0, 0, 1, 1]],
+                 dtype=np.float64)
+    pos, quat, closed = rt.action_to_target(a, tcp, yaw0)
+    np.testing.assert_allclose(pos[0], tcp[0])  # zero action: stay where it is
     np.testing.assert_allclose(quat[0], rt.DOWN_WXYZ, atol=1e-12)  # no yaw: SANT's pointing-down gripper
-    assert closed.tolist() == [False, True, True, False]
-    # a yaw of 0.5 * YAW_MAX (45 degrees) is the down gripper turned 45 degrees about the vertical
-    yaw = 0.5 * rt.YAW_MAX
-    want = np.array([0.0, math.cos(yaw / 2), math.sin(yaw / 2), 0.0])  # sim_worker.scripted._down_with_yaw
-    np.testing.assert_allclose(quat[2], want, atol=1e-12)
+    np.testing.assert_allclose(pos[1], tcp[1] + np.array([1, -1, 0.5]) * rt.DELTA_M)
+    np.testing.assert_allclose(pos[3], tcp[3] + np.array([1, -1, 0]) * rt.DELTA_M)  # clipped to one step
+    assert closed.tolist() == [False, True, True, False, False]
+    # a yaw step turns the down gripper about the vertical (sim_worker.scripted._down_with_yaw's quaternion)
+    yaw = 0.2 + rt.DELTA_YAW
+    np.testing.assert_allclose(quat[2], [0.0, math.cos(yaw / 2), math.sin(yaw / 2), 0.0], atol=1e-12)
+    np.testing.assert_allclose(rt.tool_yaw(quat[2:3]), [yaw], atol=1e-12)
+    np.testing.assert_allclose(rt.tool_yaw(quat[4:5]), [rt.YAW_MAX], atol=1e-12)  # held within +-YAW_MAX
     np.testing.assert_allclose(np.linalg.norm(quat, axis=1), 1.0)
-    back = rt.target_to_action(pos[:3], [0.0, 0.0, yaw], closed[:3])
+    # kept in the workspace box
+    edge, _, _ = rt.action_to_target(np.array([[-1, 0, -1, 0, 1]]), np.array([[0.2, 0.0, 0.015]]), np.zeros(1))
+    np.testing.assert_allclose(edge[0], [rt.WORKSPACE["x"][0], 0.0, rt.WORKSPACE["z"][0]])
+    # and back: the action that steps to a target (within one step)
+    back = rt.target_to_action(pos[:3], rt.tool_yaw(quat[:3]), closed[:3], tcp[:3], yaw0[:3])
     np.testing.assert_allclose(back[:, :4], a[:3, :4], atol=1e-12)
     assert (back[:, 4] < 0).tolist() == closed[:3].tolist()
 
@@ -133,9 +141,10 @@ def test_the_same_functions_run_on_torch():
         t_terms = rt.reward_terms(to_t(states[k]), to_t(prev) if prev else None)
         for name, v in np_terms.items():
             assert float(t_terms[name][0]) == pytest.approx(float(v[0]), abs=1e-6), name
-    a = np.array([[0.2, -0.4, 0.6, 0.3, -0.5]])
-    p_np, q_np, c_np = rt.action_to_target(a)
-    p_t, q_t, c_t = rt.action_to_target(torch.as_tensor(a))
+    a, tcp, yaw = np.array([[0.2, -0.4, 0.6, 0.3, -0.5]]), np.array([[0.5, 0.1, 0.2]]), np.array([0.4])
+    p_np, q_np, c_np = rt.action_to_target(a, tcp, yaw)
+    p_t, q_t, c_t = rt.action_to_target(torch.as_tensor(a), torch.as_tensor(tcp), torch.as_tensor(yaw))
+    np.testing.assert_allclose(rt.tool_yaw(torch.as_tensor(q_np)).numpy(), rt.tool_yaw(q_np), atol=1e-9)
     np.testing.assert_allclose(p_t.numpy(), p_np, atol=1e-6)
     np.testing.assert_allclose(q_t.numpy(), q_np, atol=1e-6)
     assert c_t.tolist() == c_np.tolist()

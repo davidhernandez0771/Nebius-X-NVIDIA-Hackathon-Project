@@ -1,7 +1,8 @@
 """The RL teacher's arm action as an Isaac Lab action term (sim_worker/rl_env_cfg.py names it by string).
 
-The policy outputs 4 numbers in [-1, 1] for the arm (x, y, z, yaw: demo_pipeline.rl_teacher.action_to_target maps
-them to an absolute tool target, SANT's pointing-down gripper turned by the yaw; held at or above the record-time
+The policy outputs 4 numbers in [-1, 1] for the arm (a step in x, y, z, yaw from the tool's current pose:
+demo_pipeline.rl_teacher.action_to_target makes it an absolute tool target, SANT's pointing-down gripper turned by
+the yaw; held at or above the record-time
 soft floor, demo_pipeline.soft_floor, as the sim worker holds every teleop target), and SANT's tracking IK
 (sim_worker.mimic_tracking.SantTrackingIKAction: Isaac Lab's absolute damped-least-squares IK on the tool centre,
 plus the joint velocity feed-forward SANT's replay uses) drives the arm there. So every teacher action is a
@@ -19,7 +20,7 @@ import torch
 
 from demo_pipeline import rl_teacher as rt
 
-from .mimic_env_cfg import bin_frame
+from .mimic_env_cfg import bin_frame, tcp_pos, tcp_quat
 from .mimic_tracking import SantTrackingIKAction
 
 ARM_DIM = 4
@@ -49,7 +50,9 @@ class SantTcpTargetAction(SantTrackingIKAction):
     def process_actions(self, actions: torch.Tensor):
         self._policy_raw[:] = actions
         grip = torch.zeros_like(actions[:, :1])  # the gripper is its own term
-        pos, quat_wxyz, _ = rt.action_to_target(torch.cat([actions, grip], dim=-1))
+        tcp_q = tcp_quat(self._env)[:, [3, 0, 1, 2]]  # x y z w -> w x y z
+        pos, quat_wxyz, _ = rt.action_to_target(torch.cat([actions, grip], dim=-1), tcp_pos(self._env),
+                                                rt.tool_yaw(tcp_q))
         bin_pos, q = bin_frame(self._env)  # x y z w
         bin_yaw = torch.atan2(2 * (q[:, 3] * q[:, 2] + q[:, 0] * q[:, 1]), 1 - 2 * (q[:, 1] ** 2 + q[:, 2] ** 2))
         pos = rt.clamp_to_soft_floor(pos, bin_pos, bin_yaw)  # as the sim worker holds teleop targets
