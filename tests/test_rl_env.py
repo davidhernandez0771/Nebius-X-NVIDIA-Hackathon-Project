@@ -338,3 +338,46 @@ def test_play_episodes_end_a_margin_after_the_bonus_and_training_ones_at_it():
     mon.finish(torch.tensor([0]), torch.tensor([scene["bin_pose"]["pos"]]), torch.tensor([[x, y, z, w]]))
     (res,) = mon.results
     assert res["success"] and res["bonus"] and res["steps"] == play_end + 1
+
+
+def test_the_monitor_keeps_a_history_with_the_start_and_what_the_episode_reached():
+    """log() (each step, in training) empties results; the eval scripts read history. Each verdict says where the
+    episode started and whether it ever grasped or lifted (rl_start_breakdown.py)."""
+    states, g, scene, _ = _episode("verified")
+    mon = rc.EpisodeMonitor(1, "cpu", max_steps=len(states) + 5, track_every=1, keep_history=True)
+    to_t = lambda s: rt.StepState(*(torch.as_tensor(np.asarray(v)) for v in s))  # noqa: E731
+    for k, s in enumerate(states):
+        arm_bin, arm_table = (torch.as_tensor(g[f][k:k + 1]) for f in ("contact_arm_bin", "contact_arm_table"))
+        mon.update(to_t(s), arm_bin, arm_table)
+        if bool(mon.success[0]):
+            break
+    w, x, y, z = scene["bin_pose"]["quat_wxyz"]
+    mon.finish(torch.tensor([0]), torch.tensor([scene["bin_pose"]["pos"]]), torch.tensor([[x, y, z, w]]),
+               start_rows=torch.tensor([17]))
+    mon.log()  # what the training log does every step
+    assert mon.results == []
+    (r,) = mon.history
+    assert r["success"] and r["grasped"] and r["lifted"] and r["start_row"] == 17
+    assert not bool(mon.ever_lifted[0]) and not bool(mon.ever_grasped[0])  # cleared for the next episode
+    assert rc.EpisodeMonitor(1, "cpu", max_steps=5).history is None  # training keeps no history
+
+
+def test_the_start_breakdown_groups_first_episodes_by_start_type():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("rl_start_breakdown",
+                                                  Path(__file__).parents[1] / "scripts" / "rl_start_breakdown.py")
+    bd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bd)
+    phase = np.array([bank_mod.FREE, bank_mod.HELD])
+    res = [{"env": 0, "start_row": -1, "success": True, "bonus": True, "grasped": True, "lifted": True, "reasons": []},
+           {"env": 0, "start_row": 1, "success": False, "bonus": False, "grasped": False, "lifted": False,
+            "reasons": ["not_in_bin"]},  # env 0's second episode: not counted
+           {"env": 1, "start_row": 0, "success": False, "bonus": False, "grasped": True, "lifted": False,
+            "reasons": ["not_in_bin"]},
+           {"env": 2, "start_row": 1, "success": True, "bonus": True, "grasped": False, "lifted": True, "reasons": []}]
+    s = bd.summarize(res, phase)
+    assert (s["home"]["episodes"], s["home"]["check_success"], s["home"]["lifted"]) == (1, 1, 1)
+    assert (s["demo_free"]["episodes"], s["demo_free"]["grasped"], s["demo_free"]["reasons"]) == (1, 1, {"not_in_bin": 1})
+    assert (s["demo_held"]["episodes"], s["demo_held"]["check_success"]) == (1, 1)
+    assert "home" in bd.table(s)

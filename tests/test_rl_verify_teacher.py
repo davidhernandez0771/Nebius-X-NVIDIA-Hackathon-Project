@@ -80,3 +80,15 @@ def test_the_lift_reward_preset_is_its_own_task_and_off_by_default():
     with pytest.raises(ValueError):
         rl_train.train_command(demos=False, num_envs=64, max_iterations=20, run_name="x", reward="lift")
     assert rl_train.main(["--smoke", "--reward", "lift", "--dry-run"]) == 0
+
+
+def test_the_stock_sanity_run_is_isaac_labs_task_unchanged():
+    spec = importlib.util.spec_from_file_location("rl_train", SCRIPT.parent / "rl_train.py")
+    rl_train = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rl_train)
+    cmd = rl_train.stock_command("IsaacContrib-Lift-Cube-Franka", num_envs=4096, max_iterations=400,
+                                 run_name="stock_lift")
+    assert cmd[cmd.index("--task") + 1] == "IsaacContrib-Lift-Cube-Franka" and "--external_callback" not in cmd
+    assert cmd[cmd.index("--max_iterations") + 1] == "400"
+    assert rl_train.main(["--stock-task", "IsaacContrib-Lift-Cube-Franka", "--run-name", "stock_lift",
+                          "--max-iterations", "400", "--dry-run"]) == 0

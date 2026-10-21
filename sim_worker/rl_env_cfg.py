@@ -108,7 +108,8 @@ class EpisodeMonitor:
 
     FIELDS = ("tcp", "closed", "cube", "finger", "arm_bin", "arm_table", "force")
 
-    def __init__(self, num_envs: int, device, max_steps: int, track_every: int = TRACK_EVERY):
+    def __init__(self, num_envs: int, device, max_steps: int, track_every: int = TRACK_EVERY,
+                 keep_history: bool = False):
         z = lambda dtype=torch.float32: torch.zeros(num_envs, dtype=dtype, device=device)  # noqa: E731
         self.device = device
         self.step = None
@@ -121,6 +122,7 @@ class EpisodeMonitor:
         self.after_success = z(torch.int32)  # steps since the bonus (done_success's extra_s)
         self.length = z(torch.int32)
         self.fouled, self.success = z(torch.bool), z(torch.bool)
+        self.ever_grasped, self.ever_lifted = z(torch.bool), z(torch.bool)  # in this episode (diagnostics)
         self.terms: dict = {}
         self.tracked = torch.arange(0, num_envs, max(1, track_every), device=device)
         self.slot = torch.full((num_envs,), -1, dtype=torch.long, device=device)
@@ -131,6 +133,8 @@ class EpisodeMonitor:
                                                                                        "arm_table")},
                     "force": torch.zeros(n, m, device=device)}
         self.results: list[dict] = []  # check_success verdicts of finished tracked episodes, until logged
+        # every verdict, never emptied by log() (which runs each step): for the scripts that read them at the end
+        self.history: list[dict] | None = [] if keep_history else None
 
     def update(self, s: rt.StepState, arm_bin: torch.Tensor, arm_table: torch.Tensor,
                remaining: torch.Tensor | None = None) -> None:
@@ -161,6 +165,8 @@ class EpisodeMonitor:
         left = torch.zeros_like(self.bonus) if remaining is None else remaining.float()
         self.lift_bonus = done.float() * rt.lift_bonus(left)
         self.success |= done
+        self.ever_grasped |= terms["centred_grasp"] > 0.5
+        self.ever_lifted |= terms["lifted"] > 0
         zero = torch.zeros_like(self.after_success)
         self.after_success = torch.where(done, zero, torch.where(self.success, self.after_success + 1, zero))
         self.terms = terms
@@ -181,9 +187,11 @@ class EpisodeMonitor:
         self.prev = s
         self.fresh[:] = False
 
-    def finish(self, env_ids: torch.Tensor, bin_pos: torch.Tensor, bin_quat_xyzw: torch.Tensor) -> None:
+    def finish(self, env_ids: torch.Tensor, bin_pos: torch.Tensor, bin_quat_xyzw: torch.Tensor,
+               start_rows: torch.Tensor | None = None) -> None:
         """The episodes of env_ids end: check_success on the tracked ones (bin_pos/quat: their bins, env frame,
-        [len(env_ids), ...]); then clear them for the next episode."""
+        [len(env_ids), ...]); then clear them for the next episode. start_rows: each env's demo-start bank row
+        (-1: home; env._sant_rl_start_row), kept in the results."""
         for j, e in enumerate(env_ids.tolist()):
             k = int(self.slot[e])
             n = int(self.length[e])
@@ -198,8 +206,12 @@ class EpisodeMonitor:
                              max_contact_force=r["force"].astype(np.float64))
             x, y, z, w = bin_quat_xyzw[j].tolist()
             v = check_success(traj, sim, Pose(pos=tuple(bin_pos[j].tolist()), quat_wxyz=(w, x, y, z)))
-            self.results.append({"env": e, "success": v.success, "reasons": v.reasons, "bonus": bool(self.success[e]),
-                                 "steps": n})
+            r = {"env": e, "success": v.success, "reasons": v.reasons, "bonus": bool(self.success[e]), "steps": n,
+                 "grasped": bool(self.ever_grasped[e]), "lifted": bool(self.ever_lifted[e]),
+                 "start_row": None if start_rows is None else int(start_rows[e])}
+            self.results.append(r)
+            if self.history is not None:
+                self.history.append(r)
         self.reset(env_ids)
 
     def reset(self, env_ids: torch.Tensor) -> None:
@@ -212,6 +224,8 @@ class EpisodeMonitor:
         self.length[env_ids] = 0
         self.fouled[env_ids] = False
         self.success[env_ids] = False
+        self.ever_grasped[env_ids] = False
+        self.ever_lifted[env_ids] = False
 
     def log(self) -> dict:
         """Training-log entries: check_success on the tracked episodes that ended since the last call, and how
@@ -340,7 +354,7 @@ def reset_rl_scene(env, env_ids, bank_path: str = "", demo_prob: float = 0.5, cu
     mon = getattr(env, "_sant_rl_monitor", None)  # absent at the env's first reset, before any step
     if mon is not None:
         bin_pos, bin_quat = bin_frame(env)
-        mon.finish(ids, bin_pos[ids], bin_quat[ids])
+        mon.finish(ids, bin_pos[ids], bin_quat[ids], start_rows=getattr(env, "_sant_rl_start_row", None))
     if getattr(env, "_sant_rl_rng", None) is None:
         env._sant_rl_rng = np.random.default_rng(seed)
         env._sant_rl_bank = bank_mod.load_bank(Path(bank_path)) if (bank_path and demo_prob > 0) else None

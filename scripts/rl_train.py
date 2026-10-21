@@ -50,6 +50,17 @@ def train_command(*, demos: bool, num_envs: int, max_iterations: int, run_name: 
     return cmd + list(overrides)
 
 
+def stock_command(task: str, *, num_envs: int, max_iterations: int, run_name: str, overrides: list[str] = (),
+                  viz: bool = False) -> list[str]:
+    """An unchanged Isaac Lab task (no SANT callback): the sanity run that RL itself learns on this machine."""
+    cmd = [str(ISAAC_PY), str(ISAACLAB / "scripts" / "reinforcement_learning" / "train.py"), "--rl_library", "rsl_rl",
+           "--task", task, "--num_envs", str(num_envs), "--max_iterations", str(max_iterations),
+           "--run_name", run_name]
+    if viz:
+        cmd += ["--viz", "kit"]
+    return cmd + list(overrides)
+
+
 def child_env() -> dict:
     """This checkout's code first (the Isaac venv's editable install points at another worktree)."""
     env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
@@ -73,6 +84,9 @@ def main(argv=None) -> int:
     p.add_argument("--smoke", action="store_true", help="64 envs x 20 iterations: does it run, how fast")
     p.add_argument("--run-name", default=None)
     p.add_argument("--no-demos", action="store_true", help="home starts only: the RL-without-demos control arm")
+    p.add_argument("--stock-task", default=None,
+                   help="train an unchanged Isaac Lab task instead (its own env and PPO config), e.g. the sanity run "
+                        "IsaacContrib-Lift-Cube-Franka; with the lock and logging as ours")
     p.add_argument("--reward", choices=("potential", "lift"), default="potential",
                    help="the reward preset: potential (default) or lift (Isaac Lab's stock lift + our parts)")
     p.add_argument("--num-envs", type=int, default=None)
@@ -89,12 +103,15 @@ def main(argv=None) -> int:
     if args.max_iterations:
         size["max_iterations"] = args.max_iterations
     run = args.run_name or ("smoke" if args.smoke else "run")
-    cmd = train_command(demos=not args.no_demos, run_name=run, checkpoint=args.checkpoint, overrides=args.override,
-                        viz=args.viz, reward=args.reward, **size)
+    if args.stock_task:
+        cmd = stock_command(args.stock_task, run_name=run, overrides=args.override, viz=args.viz, **size)
+    else:
+        cmd = train_command(demos=not args.no_demos, run_name=run, checkpoint=args.checkpoint,
+                            overrides=args.override, viz=args.viz, reward=args.reward, **size)
     print(" ".join(cmd))
     if args.dry_run:
         return 0
-    if not args.no_demos and not BANK.is_file():
+    if not args.stock_task and not args.no_demos and not BANK.is_file():
         p.error(f"no demo-start bank at {BANK}: run scripts/rl_demo_bank.py first (see the note)")
     WORKDIR.mkdir(parents=True, exist_ok=True)
     log_path = WORKDIR / f"{run}.log"

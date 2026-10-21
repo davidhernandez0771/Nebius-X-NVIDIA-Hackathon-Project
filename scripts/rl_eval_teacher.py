@@ -97,7 +97,8 @@ def _play_and_write(env_cfg, out: Path) -> None:
                                     handle_deprecated_rsl_rl_cfg)
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
-    env._sant_rl_monitor = rc.EpisodeMonitor(env.num_envs, env.device, int(env.max_episode_length), track_every=1)
+    env._sant_rl_monitor = rc.EpisodeMonitor(env.num_envs, env.device, int(env.max_episode_length), track_every=1,
+                                             keep_history=True)
     agent_cfg = handle_deprecated_rsl_rl_cfg(SantRLTeacherPPOCfg(), check_rsl_rl_version())
     wrapped = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
     runner = create_rsl_rl_runner(wrapped, agent_cfg)
@@ -124,7 +125,8 @@ def _play_and_write(env_cfg, out: Path) -> None:
             if finished.all():
                 break
     verdicts: dict[int, dict] = {}
-    for r in env._sant_rl_monitor.results:  # the first episode per env (a finished env restarts in its scene)
+    # the first episode per env (a finished env restarts in its scene); history, as log() empties results each step
+    for r in env._sant_rl_monitor.history:
         verdicts.setdefault(r["env"], r)
     env.close()
     summary = {"checkpoint": str(args_cli.checkpoint), "seeds": [args_cli.seed0, args_cli.seed0 + n - 1], "n": n,
@@ -151,8 +153,12 @@ def main() -> int:
 
     from sim_worker import rl_env_cfg as rc
 
+    from sim_worker.rl_policy import run_gripper_deadband
+
     env_cfg = rc.SantPickPlaceRLPlayEnvCfg()
     env_cfg.scene.num_envs = args_cli.n
+    # the gripper as the run trained it (its params/env.yaml), as T6's adapter does; the Play env's default is none
+    env_cfg.actions.gripper_action.deadband = run_gripper_deadband(args_cli.checkpoint)
     env_cfg.events.reset_scene = EventTermCfg(func=reset_eval_scenes, mode="reset", params={"seed0": args_cli.seed0})
     out = args_cli.out
     (out / "trajectories").mkdir(parents=True, exist_ok=True)

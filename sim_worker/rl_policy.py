@@ -96,10 +96,18 @@ def resolve_checkpoint(checkpoint) -> Path:
 
 def run_gripper_deadband(path: Path) -> float:
     """The gripper deadband the run trained with (its params/env.yaml, written by Isaac Lab's trainer); 0 if none."""
+    cfg = run_env_cfg(path)
+    return float(((cfg.get("actions") or {}).get("gripper_action") or {}).get("deadband") or 0.0)
+
+
+def run_env_cfg(path: Path) -> dict:
+    """The env config the run trained with (its params/env.yaml) as plain data, {} if none. path: a checkpoint in the
+    run (or in its exported/)."""
+    path = Path(path)
     run = path.parent.parent if path.parent.name == "exported" else path.parent
     env_yaml = run / "params" / "env.yaml"
     if not env_yaml.is_file():
-        return 0.0
+        return {}
     import yaml
 
     class _Loader(yaml.SafeLoader):
@@ -108,8 +116,7 @@ def run_gripper_deadband(path: Path) -> float:
 
     _Loader.add_constructor("tag:yaml.org,2002:python/tuple", lambda loader, node: loader.construct_sequence(node))
     _Loader.add_multi_constructor("tag:yaml.org,2002:python/", lambda loader, suffix, node: None)
-    cfg = yaml.load(env_yaml.read_text(encoding="utf-8"), Loader=_Loader) or {}
-    return float(((cfg.get("actions") or {}).get("gripper_action") or {}).get("deadband") or 0.0)
+    return yaml.load(env_yaml.read_text(encoding="utf-8"), Loader=_Loader) or {}
 
 
 def make(checkpoint, device: str = "cuda:0", **_) -> RLTeacher:
