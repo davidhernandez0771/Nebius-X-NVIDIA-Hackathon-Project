@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -79,62 +80,53 @@ def reset_eval_scenes(env, env_ids, seed0: int = 5020) -> None:
                                                              env_ids=ids)
 
 
-def main() -> int:
+def _play_and_write(env_cfg, out: Path) -> None:
+    """Play the checkpoint in every env (inside the running app), then write the trajectories, scenes and verdicts."""
     import torch
-    from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.managers import EventTermCfg
-
-    from isaaclab_rl.rsl_rl import (RslRlVecEnvWrapper, check_rsl_rl_version, create_rsl_rl_runner,
-                                    handle_deprecated_rsl_rl_cfg)
 
     from demo_pipeline.multiply import sample_scene
     from demo_pipeline.schemas import Trajectory
     from sim_worker import rl_env_cfg as rc
     from sim_worker.rl_ppo_cfg import SantRLTeacherPPOCfg
 
-    env_cfg = rc.SantPickPlaceRLPlayEnvCfg()
-    env_cfg.scene.num_envs = args_cli.n
-    env_cfg.events.reset_scene = EventTermCfg(func=reset_eval_scenes, mode="reset", params={"seed0": args_cli.seed0})
-    out = args_cli.out
-    (out / "trajectories").mkdir(parents=True, exist_ok=True)
-    (out / "scenes").mkdir(parents=True, exist_ok=True)
-    from sim_worker.gpu_lock import GpuLock
-    from sim_worker.keepawake import KeepAwake
+    # imported only now, after Isaac Sim started: the env class imports USD, and importing it earlier loads the
+    # pip USD build, so Kit's own fails (omni.usd has no attribute get_context; the probe, 2026-10-21)
+    from isaaclab.envs import ManagerBasedRLEnv
 
-    # one heavy GPU job at a time (C:\dev\gpu.lock), and no idle sleep mid-run
-    lock = GpuLock(task=f"rl-eval:{out.name}", owner="T3", max_wait_s=8 * 3600)
-    with lock, KeepAwake(), launch_simulation(env_cfg, args_cli):
-        env = ManagerBasedRLEnv(cfg=env_cfg)
-        env._sant_rl_monitor = rc.EpisodeMonitor(env.num_envs, env.device, int(env.max_episode_length), track_every=1)
-        agent_cfg = handle_deprecated_rsl_rl_cfg(SantRLTeacherPPOCfg(), check_rsl_rl_version())
-        wrapped = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-        runner = create_rsl_rl_runner(wrapped, agent_cfg)
-        runner.load(str(args_cli.checkpoint))
-        policy = runner.get_inference_policy(device=env.device)
-        # the teacher for distillation (sim_worker/rl_policy.py): the run's exported/policy.pt, as Isaac Lab's play writes it
-        runner.export_policy_to_jit(path=str(args_cli.checkpoint.parent / "exported"), filename="policy.pt")
-        arm, grip = env.action_manager.get_term(rc.ARM_TERM), env.action_manager.get_term(rc.GRIPPER_TERM)
-        obs = wrapped.get_observations()
-        n = env.num_envs
-        start = torch.cat([rc.tcp_pos(env), rc.tcp_quat(env)], dim=-1).cpu().numpy()  # x y z, then x y z w
-        rows: list[list] = [[start[i]] for i in range(n)]
-        closed: list[list] = [[0] for _ in range(n)]
-        finished = np.zeros(n, dtype=bool)
-        with torch.inference_mode():
-            for _ in range(int(env.max_episode_length) + 1):
-                obs, _, dones, _ = wrapped.step(policy(obs))
-                cmd = arm.tcp_command().cpu().numpy()
-                g = (grip.raw_actions[:, 0] < 0).cpu().numpy()
-                for i in np.flatnonzero(~finished):
-                    rows[i].append(cmd[i])
-                    closed[i].append(int(g[i]))
-                finished |= dones.cpu().numpy().astype(bool)
-                if finished.all():
-                    break
-        verdicts: dict[int, dict] = {}
-        for r in env._sant_rl_monitor.results:  # the first episode per env (a finished env restarts in its scene)
-            verdicts.setdefault(r["env"], r)
-        env.close()
+    from isaaclab_rl.rsl_rl import (RslRlVecEnvWrapper, check_rsl_rl_version, create_rsl_rl_runner,
+                                    handle_deprecated_rsl_rl_cfg)
+
+    env = ManagerBasedRLEnv(cfg=env_cfg)
+    env._sant_rl_monitor = rc.EpisodeMonitor(env.num_envs, env.device, int(env.max_episode_length), track_every=1)
+    agent_cfg = handle_deprecated_rsl_rl_cfg(SantRLTeacherPPOCfg(), check_rsl_rl_version())
+    wrapped = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+    runner = create_rsl_rl_runner(wrapped, agent_cfg)
+    runner.load(str(args_cli.checkpoint))
+    policy = runner.get_inference_policy(device=env.device)
+    # the teacher for distillation (sim_worker/rl_policy.py): the run's exported/policy.pt, as Isaac Lab's play writes it
+    runner.export_policy_to_jit(path=str(args_cli.checkpoint.parent / "exported"), filename="policy.pt")
+    arm, grip = env.action_manager.get_term(rc.ARM_TERM), env.action_manager.get_term(rc.GRIPPER_TERM)
+    obs = wrapped.get_observations()
+    n = env.num_envs
+    start = torch.cat([rc.tcp_pos(env), rc.tcp_quat(env)], dim=-1).cpu().numpy()  # x y z, then x y z w
+    rows: list[list] = [[start[i]] for i in range(n)]
+    closed: list[list] = [[0] for _ in range(n)]
+    finished = np.zeros(n, dtype=bool)
+    with torch.inference_mode():
+        for _ in range(int(env.max_episode_length) + 1):
+            obs, _, dones, _ = wrapped.step(policy(obs))
+            cmd = arm.tcp_command().cpu().numpy()
+            g = (grip.raw_actions[:, 0] < 0).cpu().numpy()
+            for i in np.flatnonzero(~finished):
+                rows[i].append(cmd[i])
+                closed[i].append(int(g[i]))
+            finished |= dones.cpu().numpy().astype(bool)
+            if finished.all():
+                break
+    verdicts: dict[int, dict] = {}
+    for r in env._sant_rl_monitor.results:  # the first episode per env (a finished env restarts in its scene)
+        verdicts.setdefault(r["env"], r)
+    env.close()
     summary = {"checkpoint": str(args_cli.checkpoint), "seeds": [args_cli.seed0, args_cli.seed0 + n - 1], "n": n,
                "in_env": {}}
     for i in range(n):
@@ -152,6 +144,35 @@ def main() -> int:
     summary["in_env_successes"] = ok
     (out / "in_env.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     print(f"in-env check_success: {ok}/{n}; trajectories in {out}; next: scripts/rl_verify_teacher.py --runs {out}")
+
+
+def main() -> int:
+    from isaaclab.managers import EventTermCfg
+
+    from sim_worker import rl_env_cfg as rc
+
+    env_cfg = rc.SantPickPlaceRLPlayEnvCfg()
+    env_cfg.scene.num_envs = args_cli.n
+    env_cfg.events.reset_scene = EventTermCfg(func=reset_eval_scenes, mode="reset", params={"seed0": args_cli.seed0})
+    out = args_cli.out
+    (out / "trajectories").mkdir(parents=True, exist_ok=True)
+    (out / "scenes").mkdir(parents=True, exist_ok=True)
+    from sim_worker.gpu_lock import GpuLock
+    from sim_worker.keepawake import KeepAwake
+
+    # one heavy GPU job at a time (C:\dev\gpu.lock), and no idle sleep mid-run
+    lock = GpuLock(task=f"rl-eval:{out.name}", owner="T3", max_wait_s=8 * 3600)
+    with lock, KeepAwake(), launch_simulation(env_cfg, args_cli):
+        # Everything happens inside: closing the app ends the process, so nothing after this block runs, and an
+        # exception raised in it would vanish unprinted (the held-start probe, 2026-10-21). Write it out first.
+        try:
+            _play_and_write(env_cfg, out)
+        except BaseException:
+            (out / "error.txt").write_text(traceback.format_exc(), encoding="utf-8")
+            traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
+            raise
     return 0
 
 

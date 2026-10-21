@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -43,7 +44,6 @@ CHECK_AT = (1, 5, 10, 30)
 
 def main() -> int:
     import torch
-    from isaaclab.envs import ManagerBasedRLEnv
 
     from demo_pipeline import rl_teacher as rt
     from sim_worker import rl_env_cfg as rc
@@ -57,31 +57,49 @@ def main() -> int:
     p = env_cfg.events.reset_scene.params
     p.update(demo_prob=1.0, bank_phase="held", curriculum_start=0.0, held_grace_steps=args_cli.grace)
     args_cli.out.mkdir(parents=True, exist_ok=True)
-    rows_out = []
     lock = GpuLock(task=f"rl-probe:{args_cli.out.name}", owner="T3", max_wait_s=8 * 3600)
     with lock, KeepAwake(), launch_simulation(env_cfg, args_cli):
-        env = ManagerBasedRLEnv(cfg=env_cfg)
-        env.reset()
-        bank = env._sant_rl_bank
-        start_rows = env._sant_rl_start_row.cpu().numpy()
-        robot = env.scene["robot"]
-        restored_fingers = robot.data.joint_pos.torch[:, 7:9].cpu().numpy()
-        recorded_fingers = bank["joint_pos"][start_rows][:, 7:9]
-        recorded_cube = bank["cube_pos"][start_rows]
-        n = env.num_envs
-        held, cube_z, cube_off = {}, {}, {}
-        with torch.inference_mode():
-            for k in range(1, args_cli.steps + 1):
-                a = torch.zeros(n, rt.ACTION_DIM, device=env.device)  # arm: stay
-                a[:, 4] = -1.0 if (args_cli.grace == 0 and k <= args_cli.forced_steps) else 0.0
-                env.step(a)
-                if k in CHECK_AT:
-                    s = rc.step_state(env)
-                    held[k] = (s.closed & s.finger_contact).cpu().numpy()
-                    cube = s.cube.cpu().numpy()
-                    cube_z[k] = cube[:, 2]
-                    cube_off[k] = np.linalg.norm(cube - recorded_cube, axis=1)
-        env.close()
+        # Everything happens inside: closing the app ends the process, so nothing after this block runs, and an
+        # exception raised in it would vanish unprinted (the probe, 2026-10-21). Write it out first.
+        try:
+            summary = _probe(env_cfg, rt, rc, torch)
+        except BaseException:
+            (args_cli.out / "error.txt").write_text(traceback.format_exc(), encoding="utf-8")
+            traceback.print_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
+            raise
+        print(json.dumps(summary, indent=1), flush=True)
+    return 0
+
+
+def _probe(env_cfg, rt, rc, torch) -> dict:
+    # imported only now, after Isaac Sim started: the env class imports USD, and importing it earlier loads the pip
+    # USD build, so Kit's own fails (omni.usd has no attribute get_context; the probe, 2026-10-21)
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env = ManagerBasedRLEnv(cfg=env_cfg)
+    env.reset()
+    bank = env._sant_rl_bank
+    start_rows = env._sant_rl_start_row.cpu().numpy()
+    robot = env.scene["robot"]
+    restored_fingers = robot.data.joint_pos.torch[:, 7:9].cpu().numpy()
+    recorded_fingers = bank["joint_pos"][start_rows][:, 7:9]
+    recorded_cube = bank["cube_pos"][start_rows]
+    n = env.num_envs
+    held, cube_z, cube_off = {}, {}, {}
+    with torch.inference_mode():
+        for k in range(1, args_cli.steps + 1):
+            a = torch.zeros(n, rt.ACTION_DIM, device=env.device)  # arm: stay
+            a[:, 4] = -1.0 if (args_cli.grace == 0 and k <= args_cli.forced_steps) else 0.0
+            env.step(a)
+            if k in CHECK_AT:
+                s = rc.step_state(env)
+                held[k] = (s.closed & s.finger_contact).cpu().numpy()
+                cube = s.cube.cpu().numpy()
+                cube_z[k] = cube[:, 2]
+                cube_off[k] = np.linalg.norm(cube - recorded_cube, axis=1)
+    rows_out = []
     for i in range(n):
         rows_out.append({
             "env": i, "bank_row": int(start_rows[i]), "progress": float(bank["progress"][start_rows[i]]),
@@ -97,8 +115,8 @@ def main() -> int:
                "finger_width_error_median": float(np.median(np.abs(restored_fingers - recorded_fingers)))}
     (args_cli.out / "probe.json").write_text(json.dumps({"summary": summary, "envs": rows_out}, indent=1),
                                              encoding="utf-8")
-    print(json.dumps(summary, indent=1))
-    return 0
+    env.close()
+    return summary
 
 
 if __name__ == "__main__":
