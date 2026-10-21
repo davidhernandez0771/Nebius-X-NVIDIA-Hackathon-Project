@@ -194,6 +194,19 @@ on 5300–5349 (under `data\rl\eval\v6_gate`), and those are our selection seeds
 | Teacher | This round's teacher range, inside `r0\episodes` |
 | DAgger | The practice seeds 5200–5279, inside its own round's `episodes` |
 
+**T3's speed cap (pm/rl-teacher f5b6646, demo_v6c; merged here as a28d406, 2026-10-21).** demo_v6 commanded 1.7 m/s
+(median) and SANT's replay could not follow (gate 1: replay 3/50). Each target now moves at most 0.5 m/s × 0.02 s =
+1 cm from the previous target, stays within one step (2 cm per axis) of the tool, and turns at most 2.5 rad/s × 0.02 s
+= 0.05 rad. It lives in the adapter (`rl_teacher.cap_speed` inside `action_to_target`, with the previous target kept
+after the soft floor and forgotten on reset), exactly as in T3's env action term. `make()` reads v_max / yaw_rate_max
+from the run's `params/env.yaml` (0 = off for runs before demo_v6c). Nothing changed on our side: `rollout` resets the
+teacher every rollout and passes the tool pose the cap reads. `sim_eval/tests/test_teacher_speed_cap.py` checks this
+through our rollout loop.
+- **DAgger caveat (for the lead):** the adapter caps from the teacher's OWN previous target. When the student drives,
+  that is the teacher's last label, not where the student's tool went. The one-step-from-the-tool bound still keeps
+  every label within 2 cm per axis of the tool. In T3's env, too, the previous target is the last command, not the
+  tool. Round 0 is unaffected (the teacher drives).
+
 `round.json` records the result as `data_check` (episodes and seed range per source). No code reads `data\rl` for
 training: the sources are only the human grid's cell and our own round folders. The guard makes that a checked fact.
 
@@ -353,6 +366,14 @@ That fits the research note's Oct 25 (round 0) / Oct 26 (round 1) / Oct 27 (test
     round 1 needs round 0.
   - **Rules and options:** the seed rules; inference and train option pass-through; `--stop-after` with a resumed
     larger run; the wrapper's dry run writes nothing.
+- **`sim_eval/tests/test_teacher_speed_cap.py` (2, 2026-10-21).**
+  - A full-scale RL policy (+x at twice the cap, random y and yaw) driven through `rollout` in a toy env whose tool
+    follows each target (position and yaw). Consecutive targets step ≤ 1 cm and ≤ 0.05 rad, and the cap binds every
+    step. Each rollout's first target is ≤ 1 cm from the tool (a reused teacher is reset). Uncapped (a pre-v6c run),
+    the same policy steps > 2 cm.
+  - `make()` on a TorchScript export with a demo_v6c `env.yaml` reads cap 0.5 / 2.5 and deadband 0.25, and holds
+    the cap in a rollout. It needs torch, so it is skipped in the project venv. Under Isaac's Python
+    (`PYTHONPATH=src;.`, `--noconftest`) it passes, with T3's rl tests: 37 passed.
 - **`lerobot_tools/tests/test_assemble.py`:** unchanged and green with the new `sources` field.
 - **Full suite** (`uv run --no-sync pytest -q` from the repo root): 2655 passed, 32 skipped, 0 failed (2026-10-21, with T3's ba9e664 merged as 957ec1e and the guard; 10 min 51 s).
 
