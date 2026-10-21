@@ -1,10 +1,10 @@
-# A real loading screen (`pm/real-loader`, 2026-10-20). Paused mid-task
+# A real loading screen (`pm/real-loader`, 2026-10-20 and 10-21)
 
 Branched from `pm/live-12` at `309ee2e`, with `pm/hero-tesseract` at `0e02132` (T2's hero perf fix) merged in. Nothing
 pushed. No new dependencies.
 
-**Paused at the lead's request** (the user went to sleep). The work is committed and the tests are green, but the task
-isn't finished: see "Half-done" and "Next" below.
+Built on 10-20, paused overnight, and finished on 10-21 (a training day: the GPU was busy, so 10-21's checks are
+SwiftShader only). One check is still to do: the real-GPU scroll through the stations (see "Still to do").
 
 ## Done
 
@@ -99,23 +99,36 @@ That held on both high and ultra. On the GPU, the rooms step takes about 0.8 s.
 - `assets.test.ts`, `waiting.test.ts` (the sizes against the files), `rooms.test.ts`, `Wait.test.tsx`;
 - `compileSafe`'s progress.
 
-## Half-done (the next session)
+### SwiftShader, 10-21 (headless Chrome, no GPU; the dev server ran inside the check script and ended with it)
 
-1. **Screenshots for the note** aren't copied yet. The scratchpad has `ss-loading-0..3`, `ss-after-0`, `slow-wait-*`
-   and `slow2-*`. Still to shoot: 1280×720 high, the 12 s choices, 390×844 phone, reduced motion.
-2. **Not yet checked in the browser:**
-   - the phone (390×844) and reduced motion with the new loader;
-   - the "Continue anyway" and "Use the 2D version" buttons by hand (the unit tests cover them);
-   - the low tier (where the forest skips the crack's model).
-3. **The first scroll into each station** after the reveal isn't measured on the GPU: only the hero hold is. Its
-   shaders are compiled under the loader, so it should be smooth.
-4. **A temporary checkout of `0e02132`** sits in my scratchpad (`git worktree list` shows it) with a junction to
-   `web/node_modules`. Remove it with `git worktree remove --force <path>` once the "before" numbers aren't needed.
-5. **This branch hasn't been sent to T7.**
+| Run | Result |
+|---|---|
+| 1280×720, high | The loader lets go at 14.2 s (SwiftShader draws about 120 ms a frame), through every step, the rooms counted (01, 02). The hero after it (03). |
+| 1280×720, high, CPU throttled 6× (a weak device) | "Continue anyway" and "Use the 2D version" are offered at 12 s (seen at 16.4 s and 17.5 s, the probe's polling being slow under the throttle) (04). "Continue anyway" took it in at what was ready: the loader lifted 1.8 s after the click. |
+| 390×844 @3×, low tier (phone) | The loader lets go at 5.3 s (05); the hero over the copy (06). |
+| 1280×720, reduced motion | 3 rooms (the forest is left out: reduced motion holds the hero); the plain fade; the mark's still pose (07, 08). |
+| Model downloads held 1.5 s each, a jump to the workshop right after the reveal | The chip "Loading the workshop" counts up (4.1, 4.7, 5.8 / 6.9 MB) and lifts onto the room (09, 10). |
 
-## Next step (exact)
+No console errors in any run.
 
-1. Shoot the loader screenshots (high 1280×720, phone 390×844, reduced motion, the 12 s choices via a CPU-throttled
-   run) into `2026-10-20-real-loader/`.
-2. Run one GPU `MODE=reveal` scroll check through the stations.
-3. Finish this note, commit, and tell T7 the commit.
+**Checks on 10-21:** web tests 194 files, 1739 passed, 1 skipped, 0 failed; `tsc -b` clean; `npm --prefix web run build` passes.
+
+## Screenshots (`2026-10-20-real-loader/`, SwiftShader, 1280×720 unless marked)
+
+| | |
+|---|---|
+| ![](2026-10-20-real-loader/01-loader-rooms-start.jpg) 01 the loader at 60%: the rooms begin | ![](2026-10-20-real-loader/02-loader-rooms.jpg) 02 building the rooms, the mark's frame lit |
+| ![](2026-10-20-real-loader/03-hero-after-reveal.jpg) 03 the hero after the reveal, the chrome back | ![](2026-10-20-real-loader/04-twelve-second-choices.jpg) 04 a weak device: the 12 s choices |
+| ![](2026-10-20-real-loader/05-phone-loader.jpg) 05 phone (390×844 @3×): the loader at 100%, lifting | ![](2026-10-20-real-loader/06-phone-hero.jpg) 06 phone: the hero |
+| ![](2026-10-20-real-loader/07-reduced-loader.jpg) 07 reduced motion: building 1 / 3 | ![](2026-10-20-real-loader/08-reduced-hero.jpg) 08 reduced motion: the still mark |
+| ![](2026-10-20-real-loader/09-loading-in-place.jpg) 09 jumped ahead of the files: loading in place | ![](2026-10-20-real-loader/10-workshop-arrived.jpg) 10 the room once they are in |
+
+## Still to do
+
+- **Real-GPU scroll check: still to do** (the GPU was busy with training on 10-21). Measure the first scroll into each
+  station after the reveal with `web/scripts/world-perf.mjs`. Only the hero hold was measured on the GPU (above). The
+  stations' shaders are compiled under the loader, so the scroll should be smooth.
+- **The low tier on a desktop** (where the forest skips the crack's model) was seen only on the phone run.
+- **The temporary checkout of `0e02132`** (the "before" for the GPU numbers) sits in my scratchpad: `git worktree list`
+  shows it, with a junction to `web/node_modules`. Keep it for the GPU scroll check's "before", then remove it with
+  `git worktree remove --force <path>`.
