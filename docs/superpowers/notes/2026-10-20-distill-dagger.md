@@ -37,9 +37,22 @@ teacher and a stub student stand in.
   `tests/test_teacher_ik.py` checks them against finite differences on a 3-joint spatial arm.
 - **Why:** the 50-scene gate then measures the teacher in our scene, not a different controller.
 
-**The bridge to the student:** `IsaacDistillEnv.ik_label()` is the label.
-- It is one DLS step on the tool frame from the observed joints toward the teacher's target. That equals the first
-  substep's position target in `step_teacher`, and is the 9-joint target the student holds for the step.
+**The labels (the lead's decision, 2026-10-21, after T3 and I first proposed the first-substep label for both).**
+- **Round 0 (the teacher executes).** The label is the **last substep's** arm target plus the finger targets, which
+  `step_teacher` returns. That is exactly what `replay.py`'s `_physics_step` returns and every human/SANT episode
+  records as `action`.
+- **Teacher episode rows also follow replay's pairing.** Replay steps first, then reads the joints, tool pose and
+  both cameras. So row k = **the observation after step k** + step k's label, and the rollout's last step is dropped
+  (it has no later observation). The whole round-0 mix (human 0.25 + teacher 0.5) then gives `action` one meaning.
+- **DAgger (the student executes).** No teacher step runs, so the label is `ik_label()`: one DLS step on the tool
+  frame from the observation before the step, paired with that observation. **This is the known approximation:** a
+  label one substep (10 ms) earlier than replay's, and paired the other way round. It is only used if round 0 at 600
+  misses 18/30.
+- **Both targets are kept** for every teacher-labelled step in `teacher.npz` (`label_first`, `label_last`, with
+  `obs_step` / `label_step`), to measure the difference. `distill.json` records `pairing` and `label`.
+- **Post-hackathon experiment (not for today, the lead's note).** Replay's own pairing labels s(k+1) with the target
+  that produced it. At test time the student observes s(k) and then acts, so every dataset carries a one-step shift.
+  Whether it matters is worth an A/B after the test, not now.
 - The finger targets are open or closed.
 - So the student keeps its action space and nothing downstream changes (export, training, eval).
 - The student's own steps (`step`) hold their 9-joint target for both substeps with zero arm velocity targets,
@@ -292,9 +305,14 @@ That fits the research note's Oct 25 (round 0) / Oct 26 (round 1) / Oct 27 (test
   - Repeated substep IK converging.
   - Feed-forward clamping (1 m/s, 3 rad/s).
   - No feed-forward after a reset.
-- **`sim_eval/tests/test_distill.py` (22).** All against a toy kinematic env, a stub teacher and a stub student.
-  - **Added 2026-10-21:** every teacher-executed step goes through `step_teacher`, and every student step through
-    `step`.
+- **`sim_eval/tests/test_distill.py` (24).** All against a toy kinematic env, a stub teacher and a stub student.
+  - **Added 2026-10-21:**
+    - every teacher-executed step goes through `step_teacher`, and every student step through `step`;
+    - round-0 labels are the last-substep target and DAgger labels the first (β-mixed steps follow whoever
+      executed);
+    - teacher episodes use replay's pairing (the observation after step k, the last step dropped), checked through
+      the toy's images;
+    - pairing can be chosen and is checked.
   - **Teacher interface:** check_action, the 8-vector round trip, load_teacher, and the no-hand-written-teacher guard.
   - **Teacher rollouts:** label = executed; stops at the first passing check.
   - **Student rollouts:** labels are the teacher's commands at the student's own states (the trajectory is the

@@ -19,6 +19,7 @@ from sim_eval.teacher import TeacherAction, TeacherState, check_action, load_tea
 
 DOWN = np.array([0.0, 1.0, 0.0, 0.0])
 OPEN_F, CLOSED_F = 0.04, 0.0
+LAST_MARK = 1.0  # the toy's step_teacher puts this in joint 3 of the target it returns
 
 
 def fingers(g: int) -> list[float]:
@@ -61,9 +62,12 @@ class ToyEnv:
         return np.r_[a.ee_pos, [0.0] * 4, fingers(a.gripper)]
 
     def step_teacher(self, a: TeacherAction):
-        """The teacher's own tracking: in the toy it reaches the target exactly too."""
+        """The teacher's own tracking: in the toy it reaches the target exactly too. The returned last-substep target
+        is marked (joint 3 = 1) so tests can tell it from ik_label's first-substep one."""
         self.teacher_steps.append(self.k)
-        return self._move(self.ik_label(a))
+        last = self.ik_label(a)
+        last[3] = LAST_MARK
+        return self._move(last), last
 
     def step(self, action):
         self.student_steps.append(self.k)
@@ -304,17 +308,49 @@ def test_teacher_episode_is_a_training_episode_with_provenance(scene, tmp_path):
     ep = Path(rows[0]["ep_dir"])
     meta, arrays, images = load_episode(ep)
     n = len(r.records)
-    assert meta.n_steps == n and meta.cameras == ["front", "wrist"] and meta.fps == 50
+    # replay's convention: row k = the observation after step k + step k's last-substep target; the last step drops
+    assert meta.n_steps == n - 1 and meta.cameras == ["front", "wrist"] and meta.fps == 50
     assert meta.passport.lineage == ["teacher-stub", "teacher_r0_4000"] and meta.passport.verification.success
-    assert np.allclose(arrays["action"], r.label) and np.allclose(arrays["joint_pos"], r.joint_pos)
-    assert np.allclose(arrays["ee_pos"], r.tcp_pos) and arrays["gripper"].tolist() == r.teacher_ee[:, 7].tolist()
-    assert all(p.exists() for p in images["front"]) and len(images["wrist"]) == n
+    assert np.allclose(arrays["action"], r.label_last[:-1]) and (arrays["action"][:, 3] == LAST_MARK).all()
+    assert np.allclose(arrays["joint_pos"], r.joint_pos[1:]) and np.allclose(arrays["ee_pos"], r.tcp_pos[1:])
+    assert arrays["gripper"].tolist() == r.teacher_ee[:-1, 7].tolist()
+    assert len(images["wrist"]) == n - 1
+    from PIL import Image
+    with Image.open(images["front"][0]) as im:  # the toy's image k shows k: row 0 holds the image after step 0
+        assert np.asarray(im)[0, 0, 0] == 1
+    with np.load(ep / "teacher.npz") as z:
+        assert np.allclose(z["label_last"], r.label_last[:-1]) and np.allclose(z["label_first"], r.label_first[:-1])
+        assert z["obs_step"].tolist() == list(range(1, n)) and z["label_step"].tolist() == list(range(n - 1))
     prov = json.loads((ep / "distill.json").read_text(encoding="utf-8"))
     assert prov["kind"] == "teacher" and prov["round"] == 0 and prov["teacher"] == "stub"
-    assert prov["segment"] == [0, n] and prov["rollout"]["success"] is True
-    assert (ep / "scene.json").exists() and (ep / "teacher.npz").exists()
+    assert prov["segment"] == [0, n] and prov["n_steps"] == n - 1 and prov["rollout"]["success"] is True
+    assert prov["pairing"] == "after" and prov["label"] == "last substep"
+    assert (ep / "scene.json").exists()
     m = build_manifest(Cell(condition="distill", n_human=1, episode_dirs=[_human(tmp_path), ep]))
-    assert m["sources"]["teacher"] == {"episodes": 1, "frames": n}
+    assert m["sources"]["teacher"] == {"episodes": 1, "frames": n - 1}
+
+
+def test_teacher_labels_are_the_last_substep_and_dagger_labels_the_first(scene):
+    """Round 0 (the teacher executes): label = step_teacher's last-substep target, as replay records `action`.
+    DAgger (the student executes): label = ik_label's one DLS step from the observed state."""
+    t = rollout(ToyEnv(), scene, StubTeacher(), RolloutConfig(driver="teacher"))
+    assert np.allclose(t.label, t.label_last) and (t.label[:, 3] == LAST_MARK).all()
+    assert (t.label_first[:, 3] == 0).all() and np.allclose(t.label_first[:, :3], t.label_last[:, :3])
+    assert np.allclose(t.executed, t.label_last)
+    d = rollout(ToyEnv(), scene, StubTeacher(), RolloutConfig(driver="student", max_seconds=1.0), student=StubStudent())
+    assert np.allclose(d.label, d.label_first) and np.isnan(d.label_last).all() and (d.label[:, 3] == 0).all()
+    m = rollout(ToyEnv(), scene, StubTeacher(), RolloutConfig(driver="student", beta=0.5, max_seconds=1.0, rng_seed=3),
+                student=StubStudent())
+    assert (m.label[m.by_teacher, 3] == LAST_MARK).all() and (m.label[~m.by_teacher, 3] == 0).all()
+
+
+def test_pairing_can_be_chosen_and_is_checked(scene, tmp_path):
+    r = rollout(ToyEnv(), scene, StubTeacher(), RolloutConfig(driver="teacher"))
+    rows = write_rollout(tmp_path, r, scene, kind="teacher", round_id=0, teacher_name="stub", pairing="before")
+    _, arrays, _ = load_episode(Path(rows[0]["ep_dir"]))
+    assert len(arrays["action"]) == len(r.records) and np.allclose(arrays["joint_pos"], r.joint_pos)
+    with pytest.raises(ValueError):
+        write_rollout(tmp_path, r, scene, kind="teacher", round_id=0, teacher_name="stub", pairing="later")
 
 
 def _human(tmp_path):

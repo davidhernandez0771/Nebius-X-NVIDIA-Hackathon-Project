@@ -12,8 +12,10 @@ and start pose are IsaacEvalEnv's.
   re-solved at every physics substep, plus SANT's joint velocity feed-forward from the previous teacher command
   (sim_eval.teacher_ik, the same formulas). So the teacher gate measures the teacher in our scene, not a different
   controller. After a student step the feed-forward restarts (no previous teacher command), as after a reset.
-- ik_label(action): the label, one damped-least-squares step from the observed state toward the teacher's tool target
-  (the first substep's position target in step_teacher): the 9-joint target the student must hold for that step.
+  It returns the record and the round-0 label: the last substep's arm target + the finger targets, which is what
+  replay.py's _physics_step returns and every human/SANT episode records as `action`.
+- ik_label(action): one damped-least-squares step from the observed state toward the teacher's tool target (the first
+  substep's position target in step_teacher): the DAgger label, where no teacher step is executed.
 The IK arithmetic runs in numpy (one env, 6x7 matrices): sim_eval.teacher_ik, tested against finite differences.
 """
 
@@ -111,17 +113,23 @@ class IsaacDistillEnv(IsaacEvalEnv):
         _, _, _, j_tool = self._arm()
         ff = torch.tensor(self.tracker.command(tgt_p, tgt_q, j_tool)[None], dtype=torch.float32, device=dev)
         fingers = self._fingers(action.gripper)
+        last = None
         for _ in range(DECIMATION):
             q, tool_p, tool_q, j_tool = self._arm()
-            arm = torch.tensor(ik_target(q, j_tool, tool_p, tool_q, tgt_p, tgt_q)[None], dtype=torch.float32,
-                               device=dev)
+            last = ik_target(q, j_tool, tool_p, tool_q, tgt_p, tgt_q)
+            arm = torch.tensor(last[None], dtype=torch.float32, device=dev)
             robot.set_joint_position_target_index(target=arm, joint_ids=self.arm_ids)
             robot.set_joint_velocity_target_index(target=ff, joint_ids=self.arm_ids)
             robot.set_joint_position_target_index(target=fingers, joint_ids=self.finger_ids)
             self.scene.write_data_to_sim()
             self.sim.step()
             self.scene.update(PHYSICS_DT)
-        return self._record(int(action.gripper))
+        # The label replay.py would record: the joints now, with the arm at the last substep's IK target and the
+        # fingers at their command (replay's _physics_step returns exactly this).
+        full = self.scene["robot"].data.joint_pos.torch[0].cpu().numpy().astype(np.float64)
+        full[self.arm_ids] = last
+        full[self.finger_ids] = finger_targets(self.spec, bool(action.gripper))
+        return self._record(int(action.gripper)), full
 
     def ik_label(self, action: TeacherAction) -> np.ndarray:
         tgt_p, tgt_q = self._target_b(action)

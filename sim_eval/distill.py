@@ -4,18 +4,27 @@ The teacher (sim_eval.teacher; T3's state-based RL policy) has privileged state;
 (ACT, 9-joint targets). Two kinds of rollout, both in the eval env with the cameras on (sim_eval.isaac_distill_env):
 
 - teacher (round 0): the teacher drives. Each step its absolute tool target is executed as the teacher's own RL env
-  executes it (env.step_teacher: IK at every physics substep + velocity feed-forward, sim_eval.teacher_ik), and its
-  label is the 9-joint target of one differential-IK step from the observed state (env.ik_label: the first substep's
-  target, the action the student will hold for the step). Only rollouts that pass
-  the unchanged check_success are kept, so round 0 also validates the teacher in the eval env (the research note's
-  risk 2: an RL env that differs from ours).
+  executes it (env.step_teacher: IK at every physics substep + velocity feed-forward, sim_eval.teacher_ik). The label
+  is the arm target of the LAST substep's IK solve + the finger targets, which step_teacher returns: the same
+  convention as replay.py's recorded `action` (its _physics_step returns the last substep's target), so the teacher's
+  episodes and the human/SANT episodes they are mixed with give one meaning to `action` (the lead's decision,
+  2026-10-21). Only rollouts that pass the unchanged check_success are kept, so round 0 also validates the teacher in
+  the eval env (the research note's risk 2: an RL env that differs from ours).
 - student (DAgger rounds): the student drives (with probability `beta` per step the teacher's command is executed
-  instead; default 0). At every visited state the teacher is asked what it would do, and that is the label: relabel,
-  not replace. The trajectory is the student's own, mistakes included; that is the point.
+  instead, labelled as above; default 0). At every visited state the teacher is asked what it would do, and the label
+  is one differential-IK step from the observed state toward its target (env.ik_label: what the first substep would
+  command): relabel, not replace. No teacher step is executed there, so the last-substep target does not exist; this
+  is the known approximation of DAgger labels (one 10 ms substep earlier than the replay convention). The trajectory is
+  the student's own, mistakes included; that is the point.
+Both targets are kept for every teacher-labelled step (teacher.npz: label_first, label_last) to measure the
+difference.
 
-A step's row pairs the observation before the action (joints, images, the tool pose) with that step's label: what
-the student will see and must answer at test time. (Replayed demos pair the state after step k with action k, one
-20 ms step later; ACT predicts 100-step chunks, so both are kept as they are.)
+Episode rows (write_rollout's pairing): teacher episodes follow replay.py exactly, row k = the observation after step
+k (joints, tool pose, both images) + step k's last-substep target, so they mean what the human/SANT rows they are
+mixed with mean. DAgger rows pair the observation before step k with its one-step label (computed from that
+observation). Replay's convention labels s(k+1) with the target that produced it, a one-step shift against what the
+student does at test time (observe s(k), then act); whether that matters is a post-hackathon experiment, not a change
+today.
 
 Steps where the teacher returns None get no label; the labelled runs become separate episodes (label_segments),
 because ACT's action chunks must not jump across a gap. Every episode carries its provenance (distill.json) and a
@@ -51,6 +60,7 @@ MIN_SEGMENT = 25  # steps (0.5 s): a shorter labelled run is dropped
 ARM = slice(0, 7)
 Driver = Literal["teacher", "student"]
 Kind = Literal["teacher", "dagger"]
+Pairing = Literal["before", "after"]  # which observation an episode row pairs with step k's label (write_rollout)
 
 
 class DistillEnv(Protocol):
@@ -62,9 +72,11 @@ class DistillEnv(Protocol):
     def reset(self, scene: Scene) -> None: ...
     def observe(self) -> Observation: ...
     def step(self, action: np.ndarray) -> StepRecord: ...  # the student's 9-joint target, held for the step
-    def step_teacher(self, action: TeacherAction) -> StepRecord: ...  # as the teacher's own env executes it
+    # As the teacher's own env executes it; returns the record and the 9-joint target of the last substep's IK solve
+    # (+ fingers), replay's `action` convention.
+    def step_teacher(self, action: TeacherAction) -> tuple[StepRecord, np.ndarray]: ...
     def teacher_state(self, scene: Scene, k: int, gripper: int) -> TeacherState: ...
-    def ik_label(self, action: TeacherAction) -> np.ndarray: ...
+    def ik_label(self, action: TeacherAction) -> np.ndarray: ...  # one DLS step from the observed state
 
 
 @dataclass(frozen=True)
@@ -92,7 +104,9 @@ class Rollout:
     joint_pos: np.ndarray  # (T, 9) observed before each action
     tcp_pos: np.ndarray  # (T, 3) observed before each action
     tcp_quat_wxyz: np.ndarray  # (T, 4)
-    label: np.ndarray  # (T, 9) the teacher's command as a 9-joint target; NaN where it gave none
+    label: np.ndarray  # (T, 9) the training label: label_last where the teacher executed, else label_first
+    label_first: np.ndarray  # (T, 9) one DLS step from the observed state (ik_label); NaN where the teacher gave none
+    label_last: np.ndarray  # (T, 9) the last substep's target of an executed teacher step; NaN elsewhere
     teacher_ee: np.ndarray  # (T, 8) its raw tool target + gripper; NaN where none
     executed: np.ndarray  # (T, 9) what was sent to the sim
     by_teacher: np.ndarray  # (T,) bool: the executed action was the teacher's
@@ -108,10 +122,10 @@ class Rollout:
         return self.ended_by == "success"
 
 
-def _label(env: DistillEnv, a: TeacherAction) -> np.ndarray:
-    q = np.asarray(env.ik_label(a), dtype=np.float64).reshape(-1)
+def _joints(q, what: str) -> np.ndarray:
+    q = np.asarray(q, dtype=np.float64).reshape(-1)
     if q.shape != (9,) or not np.isfinite(q).all():
-        raise ValueError(f"ik_label returned {q.tolist()}; expected 9 finite joint targets")
+        raise ValueError(f"{what} returned {q.tolist()}; expected 9 finite joint targets")
     return q
 
 
@@ -123,19 +137,21 @@ def rollout(env: DistillEnv, scene: Scene, teacher: Teacher, cfg: RolloutConfig,
         raise ValueError("a student rollout needs the student policy")
     max_steps = int(round(cfg.max_seconds * FPS))
     rng = np.random.default_rng([cfg.rng_seed, scene.seed])
-    rows: dict[str, list] = {k: [] for k in ("joint_pos", "tcp_pos", "tcp_quat_wxyz", "label", "teacher_ee",
-                                             "executed", "by_teacher")}
+    rows: dict[str, list] = {k: [] for k in ("joint_pos", "tcp_pos", "tcp_quat_wxyz", "label", "label_first",
+                                             "label_last", "teacher_ee", "executed", "by_teacher")}
     images: dict[str, list[np.ndarray]] = {c: [] for c in env.cameras}
     records: list[StepRecord] = []
     verdict: VerificationResult | None = None
 
     def done(ended_by: str, error: Exception | None = None) -> Rollout:
         n = len(records)
-        widths = {"joint_pos": 9, "tcp_pos": 3, "tcp_quat_wxyz": 4, "label": 9, "teacher_ee": 8, "executed": 9}
+        widths = {"joint_pos": 9, "tcp_pos": 3, "tcp_quat_wxyz": 4, "label": 9, "label_first": 9, "label_last": 9,
+                  "teacher_ee": 8, "executed": 9}
         arr = {k: np.asarray(rows[k], dtype=np.float64).reshape(-1, w) for k, w in widths.items()}
         reasons = [] if ended_by == "success" else (list(verdict.reasons) if verdict is not None else [ended_by])
         return Rollout(seed=scene.seed, driver=cfg.driver, beta=cfg.beta, joint_pos=arr["joint_pos"],
                        tcp_pos=arr["tcp_pos"], tcp_quat_wxyz=arr["tcp_quat_wxyz"], label=arr["label"],
+                       label_first=arr["label_first"], label_last=arr["label_last"],
                        teacher_ee=arr["teacher_ee"], executed=arr["executed"],
                        by_teacher=np.asarray(rows["by_teacher"], dtype=bool), images={c: v[:n] for c, v in images.items()},
                        records=records, ended_by=ended_by, reasons=reasons, verdict=verdict,
@@ -159,28 +175,38 @@ def rollout(env: DistillEnv, scene: Scene, teacher: Teacher, cfg: RolloutConfig,
         except Exception as e:  # noqa: BLE001
             return done("sim_error", e)
         t_act = check_action(teacher.act(state))  # raises on a malformed teacher output
-        label = _label(env, t_act) if t_act is not None else None
+        first = _joints(env.ik_label(t_act), "ik_label") if t_act is not None else None
         if cfg.driver == "teacher":
-            if label is None:
+            if first is None:
                 return done("teacher_abstained")
-            action, by_teacher = label, True
+            by_teacher = True
         else:
             try:
                 s_act = _check_action(student.act(obs.joint_pos, obs.images))
             except Exception as e:  # noqa: BLE001 - server down, malformed action
                 return done("policy_error", e)
-            use_teacher = label is not None and cfg.beta > 0 and rng.random() < cfg.beta
-            action, by_teacher = (label, True) if use_teacher else (s_act, False)
+            by_teacher = first is not None and cfg.beta > 0 and rng.random() < cfg.beta
+        last = None
         try:
             # The teacher's command runs through its own tracking (sim_eval.teacher_ik: IK at every substep plus the
             # velocity feed-forward, as in T3's env); the student's 9-joint target is held for the step.
-            rec = env.step_teacher(t_act) if by_teacher else env.step(action)
+            if by_teacher:
+                rec, last = env.step_teacher(t_act)
+            else:
+                rec = env.step(s_act)
         except Exception as e:  # noqa: BLE001
             return done("sim_error", e)
+        if last is not None:
+            last = _joints(last, "step_teacher")
+        action = last if by_teacher else s_act
+        label = last if last is not None else first
+        nan9 = np.full(9, np.nan)
         rows["joint_pos"].append(np.asarray(obs.joint_pos, dtype=np.float64))
         rows["tcp_pos"].append(np.asarray(state.tcp_pos, dtype=np.float64))
         rows["tcp_quat_wxyz"].append(np.asarray(state.tcp_quat_wxyz, dtype=np.float64))
-        rows["label"].append(label if label is not None else np.full(9, np.nan))
+        rows["label"].append(label if label is not None else nan9)
+        rows["label_first"].append(first if first is not None else nan9)
+        rows["label_last"].append(last if last is not None else nan9)
         rows["teacher_ee"].append(t_act.as_array() if t_act is not None else np.full(8, np.nan))
         rows["executed"].append(np.asarray(action, dtype=np.float64))
         rows["by_teacher"].append(by_teacher)
@@ -229,12 +255,35 @@ def _save_png(path: Path, img: np.ndarray) -> None:
     Image.fromarray(np.asarray(img, dtype=np.uint8)).save(path)
 
 
+def _rows(seg: tuple[int, int], n_steps: int, pairing: Pairing) -> tuple[np.ndarray, np.ndarray]:
+    """(observation indices, label indices) of one segment's episode rows. "before": step k's observation (taken
+    before its action) with step k's label. "after": replay's convention, the observation after step k (= the one
+    taken before step k + 1) with step k's label; a segment's last step has no later observation in the rollout if it
+    ends the rollout, so it is dropped."""
+    k0, k1 = seg
+    if pairing == "before":
+        lab = np.arange(k0, k1)
+        return lab, lab
+    lab = np.arange(k0, min(k1, n_steps - 1))
+    return lab + 1, lab
+
+
 def write_rollout(root: Path, r: Rollout, scene: Scene, *, kind: Kind, round_id: int, teacher_name: str,
                   student_checkpoint: str | None = None, min_len: int = MIN_SEGMENT, robot: str = "franka",
+                  pairing: Pairing | None = None,
                   save_image: Callable[[Path, np.ndarray], None] = _save_png) -> list[dict]:
     """Write the rollout's training episodes into <root>/episodes/ (episode_io format + scene.json, distill.json,
     teacher.npz). kind "teacher": round 0, only a successful rollout, one episode per labelled segment. kind "dagger":
-    round >= 1, every labelled segment, whatever the outcome. Returns one row per episode written."""
+    round >= 1, every labelled segment, whatever the outcome. Returns one row per episode written.
+
+    pairing (default by kind, the lead's decision 2026-10-21): teacher episodes "after", exactly replay.py's
+    convention for every human/SANT episode (replay steps first, then reads joints, tool pose and both cameras: row k
+    = the state after step k + the last substep's target of step k), so round 0's mix gives `action` one meaning.
+    DAgger episodes "before": the label is one DLS step computed from the observation before the step, the documented
+    approximation (no teacher step is executed there)."""
+    pairing = pairing or ("after" if kind == "teacher" else "before")
+    if pairing not in ("before", "after"):
+        raise ValueError(f"pairing must be 'before' or 'after', got {pairing!r}")
     if kind == "teacher":
         if round_id != 0:
             raise ValueError("teacher rollouts are round 0")
@@ -257,35 +306,40 @@ def write_rollout(root: Path, r: Rollout, scene: Scene, *, kind: Kind, round_id:
     arm, grip = _disagreement(r)
     out = []
     for i, (k0, k1) in enumerate(segs):
+        obs, lab = _rows((k0, k1), len(r.records), pairing)
+        if len(lab) == 0:
+            continue
         name = f"teacher_r0_{r.seed}" if kind == "teacher" and len(segs) == 1 else (
             f"{kind}_r{round_id}_{r.seed}_{i}")
         ep = episodes_dir(Path(root)) / name
-        meta = EpisodeMeta(demo_id=name, robot=robot, task_text=TASK_TEXT, fps=FPS, n_steps=k1 - k0,
+        meta = EpisodeMeta(demo_id=name, robot=robot, task_text=TASK_TEXT, fps=FPS, n_steps=len(lab),
                            cameras=sorted(r.images), passport=passport(name, [root_id, name], r.verdict, robot=robot))
         save_episode(ep, meta, {
-            "joint_pos": r.joint_pos[k0:k1].astype(np.float32),
-            "action": r.label[k0:k1].astype(np.float32),
-            "ee_pos": r.tcp_pos[k0:k1].astype(np.float32),
-            "ee_quat": r.tcp_quat_wxyz[k0:k1].astype(np.float32),
-            "gripper": r.teacher_ee[k0:k1, 7].astype(np.int8),
+            "joint_pos": r.joint_pos[obs].astype(np.float32),
+            "action": r.label[lab].astype(np.float32),
+            "ee_pos": r.tcp_pos[obs].astype(np.float32),
+            "ee_quat": r.tcp_quat_wxyz[obs].astype(np.float32),
+            "gripper": r.teacher_ee[lab, 7].astype(np.int8),
         })
         for cam, imgs in r.images.items():
-            for j, img in enumerate(imgs[k0:k1]):
-                save_image(image_path(ep, cam, j), img)
-        np.savez_compressed(ep / "teacher.npz", teacher_ee=r.teacher_ee[k0:k1], executed=r.executed[k0:k1],
-                            by_teacher=r.by_teacher[k0:k1])
+            for j, k in enumerate(obs):
+                save_image(image_path(ep, cam, j), imgs[k])
+        np.savez_compressed(ep / "teacher.npz", teacher_ee=r.teacher_ee[lab], executed=r.executed[lab],
+                            by_teacher=r.by_teacher[lab], label_first=r.label_first[lab], label_last=r.label_last[lab],
+                            obs_step=obs, label_step=lab)
         (ep / "scene.json").write_text(scene.model_dump_json(indent=1), encoding="utf-8")
         prov = {
             "kind": kind, "round": round_id, "teacher": teacher_name, "lineage_root": root_id,
-            "student_checkpoint": student_checkpoint, "seed": r.seed, "segment": [k0, k1], "n_steps": k1 - k0,
-            "beta": r.beta, "executed_by_teacher": float(r.by_teacher[k0:k1].mean()),
+            "student_checkpoint": student_checkpoint, "seed": r.seed, "segment": [k0, k1], "n_steps": len(lab),
+            "pairing": pairing, "label": "last substep" if kind == "teacher" else "first substep (one DLS step)",
+            "beta": r.beta, "executed_by_teacher": float(r.by_teacher[lab].mean()),
             "rollout": {"driver": r.driver, "success": r.success, "ended_by": r.ended_by, "reasons": list(r.reasons),
                         "steps": len(r.records), "arm_disagreement": arm, "gripper_disagreement": grip},
             "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
         (ep / "distill.json").write_text(json.dumps(prov, indent=1), encoding="utf-8")
         out.append({"name": name, "ep_dir": str(ep), "seed": r.seed, "kind": kind, "round": round_id,
-                    "n_steps": k1 - k0, "segment": [k0, k1]})
+                    "n_steps": len(lab), "segment": [k0, k1]})
     return out
 
 
