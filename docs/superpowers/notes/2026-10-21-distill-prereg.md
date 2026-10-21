@@ -544,8 +544,21 @@ The plan above applies to it.
     the in-env verdict).
 
 **Gate attempt 2 was launched once**, on `model_2098`, seeds 5350–5399, with `rl_eval_teacher` + `rl_verify_teacher`
-(part (a)). Outputs: `data\rl\eval\v6c2_gate2`. The results are added here when they arrive. Part (b), T6's in-env
-gate on 4000–4049, is still required.
+(part (a)). Outputs: `data\rl\eval\v6c2_gate2`.
+
+**Gate attempt 2, part (a): PASSED.** It ran once, on `demo_v6c2` `model_2098`, seeds 5350–5399:
+- **In the env, `check_success`:** 50/50.
+- **SANT's replay verify (the gate number):** 50/50 (Wilson 95% 0.93–1.00). The threshold is ≥ 45/50.
+- **Checked here:** `v6c2_gate2` holds 50 scenes, 5350–5399. `in_env.json` has 50/50 on `model_2098`, and
+  `verify.json` has a replay summary of 50/50, with all 50 agreeing with the in-env verdict.
+
+**T3's final code for the teacher: `b7935c0`** on `pm/rl-teacher`. It is merged into `pm/distill-dagger` as
+`2168db0`, local only, which the lead approved.
+- **The teacher export:** `data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-21_13-39-10_demo_v6c2\exported\policy.pt`
+  (in `C:\dev\pm-t3`, written 14:35).
+
+**Part (b) is still required** before any distillation: T6's in-env gate on 4000–4049, at ≥ 45/50. T6 runs the smoke
+test first, then part (b). Round 0 at 300 teacher runs starts only after that, on the lead's go.
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
@@ -554,5 +567,6 @@ run-enabling initialisation change; it has not been used.
 on a selection or test seed. It checks each episode's `scene.json` and records the result as `data_check`. This is a
 run-enabling safeguard. It makes the existing rule enforceable in code, and changes no rule.
 
-The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
-commit is added here after the gate, as the lead will send it.
+The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. **T3's final
+commit, after the gate: `b7935c0`** on `pm/rl-teacher` (in `pm/distill-dagger` as `2168db0`). The teacher is
+`demo_v6c2` `model_2098`.
