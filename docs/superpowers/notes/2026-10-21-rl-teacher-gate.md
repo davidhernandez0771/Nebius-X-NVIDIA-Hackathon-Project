@@ -48,3 +48,34 @@ Commanded tool speed (m/s):
 - Add a speed limit: each target moves at most v_max × 0.02 s from the previous target.
 - v_max is 0.5 m/s (recommended) or 1.0 m/s.
 - Then resume from model_1499 and gate a second time on fresh seeds 5350–5399.
+
+## Gate 2 — demo_v6c2 model_2098: PASSED
+
+**Run.** demo_v6c2 resumed from model_1499 with the speed cap (f5b6646, fix b7935c0) and the v6r settings: std reset 0.3, std_range [0.1, 0.5], curricula held.
+- Iterations 1500–2098 took 1903 s.
+- In total the teacher has 2099 iterations and 5856 s of training (v6 took 3953 s).
+- Checkpoint: `data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-21_13-39-10_demo_v6c2\model_2098.pt`.
+- Export: `...\demo_v6c2\exported\policy.pt`.
+
+**Start-type breakdown** (128 episodes, rng 7, demo_prob 0.5, deadband 0.25, grace 10; not on gate seeds). Each cell is check_success / episodes [Wilson 95%].
+
+| start | model_2098 | model_2000 |
+|---|---|---|
+| home | 66/67 [0.92–1.00], 1 collision | 66/67 [0.92–1.00], 1 collision |
+| demo_free | 31/31 [0.89–1.00] | 31/31 [0.89–1.00] |
+| demo_held | 30/30 [0.89–1.00] | 30/30 [0.89–1.00] |
+
+- The two checkpoints match on every start type. model_2098 was picked (the last one). model_2000's breakdown was re-run afterwards as a check only.
+- Replayability check on non-gate seeds 7000–7031: in-env 32/32, replay 32/32, the verdicts agree 32/32.
+
+**Gate 2** was run once, on fresh seeds 5350–5399 (Amendment 3), into `data\rl\eval\v6c2_gate2`.
+
+| | result | Wilson 95% |
+|---|---|---|
+| in-env | 50/50 | |
+| replay verify (the gate) | **50/50** | 0.93–1.00 |
+| first 30 (5350–5379) | 30/30 | 0.89–1.00 |
+
+- In-env and replay agree on 50/50.
+- Replay durations are 2.5–3.2 s.
+- The speed cap closed the gate-1 gap: the replay went from 3/50 to 50/50.
