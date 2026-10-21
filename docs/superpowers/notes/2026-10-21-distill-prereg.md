@@ -216,7 +216,7 @@ The reward, the success definition and everything in the list at the top of this
 these as run-enabling. They are training settings for the teacher, and the teacher is held to the same gate (≥ 90%,
 both checks) before any distillation, so they do not touch what the test measures.
 
-**`demo_v3` failed:** started 10:47 and stopped at about 11:06 by the lead, with the user's permission. Lift and carry
+**`demo_v3` failed:** started 10:47 and stopped at about 11:05 by the lead, with the user's permission. Lift and carry
 stayed flat at about 1.5%, and the action std rose from 0.6 to 1.2. No rollout or student used it, and it was never gated.
 
 ## Amendment 1 (2026-10-21, approved by the lead, decided before any teacher passed the gate)
@@ -269,8 +269,9 @@ only. `action_rate` (−1e-3) and `joint_vel` (−1e-4) are not overridden.
 which matters for reading the deadband. That is a run-enabling fix. T3 will make these values a named preset in code
 after the gate, if `demo_v4` is the teacher.
 
-**`demo_v4` failed:** started 11:05 (the lead's time) and stopped at about 11:27 by the lead, with the user's
-permission. It converged too early:
+**`demo_v4` failed:** started at 11:05:57, when it took `gpu.lock` (T3's report says 11:05:56). The lead stopped it at
+about 11:27, with the user's permission. T3's `ce5762c` (11:12) recorded its command after the start. It converged too
+early:
 - the action std fell from 0.6 to 0.05;
 - `check_success` fell from 0.34 to 0.19;
 - the gripper was left open.
