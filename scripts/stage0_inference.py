@@ -14,6 +14,10 @@ Each eval is one sim_eval/scripts/eval_cells.py run with --checkpoint LABEL=PATH
 results land in DATA_DIR/evals/<run_id>/<target>__<variant>__<phase>.json and a re-run resumes where it stopped. The
 whole run holds C:\\dev\\gpu.lock and keeps Windows awake. The summary goes to DATA_DIR/evals/<run_id>/stage0_summary.json.
 --dry-run prints every practice command and the final-phase template, and runs nothing.
+
+--quick: the quick pre-registered alternative. S4 (binarize + re-plan every 20 steps), chosen a priori, goes straight
+to the final seeds for every target in plan order, with no practice phase. --with-control adds S0 on the primary target's
+final seeds last, as a concurrent control (descriptive). Its summary is stage0_quick_summary.json.
 """
 
 from __future__ import annotations
@@ -44,6 +48,7 @@ VARIANTS = {
     "S4_binarize_replan20": InferenceOptions(binarize_gripper=True, n_action_steps=20),
 }
 PHASES = ("practice", "final")
+QUICK_VARIANT = "S4_binarize_replan20"  # chosen a priori for --quick (the prereg says why)
 
 
 def load_plan(path: Path) -> dict:
@@ -85,15 +90,27 @@ def choose_variant(practice: dict[str, tuple[int, int]]) -> str:
     return max(candidates, key=lambda v: (practice[v][0], -candidates.index(v)))
 
 
+def quick_steps(plan: dict, *, control: bool) -> list[tuple[str, str]]:
+    """(target, variant) evals of --quick, all on the final seeds: S4 for every target in plan order, then (control)
+    S0 on the primary target."""
+    steps = [(t["name"], QUICK_VARIANT) for t in plan["targets"]]
+    if control:
+        steps.append((next(t["name"] for t in plan["targets"] if t.get("primary")), "S0_baseline"))
+    return steps
+
+
 def _successes(results: Path) -> tuple[int, int]:
     summary = json.loads(Path(results).read_text(encoding="utf-8"))["summary"]
     return summary["successes"], summary["n"]
 
 
 def summarize(plan: dict, practice: dict[str, dict[str, tuple[int, int]]],
-              final: dict[str, tuple[str, int, int]]) -> dict:
-    """practice: target -> variant -> (k, n); final: target -> (variant, k, n)."""
-    out = {"run_id": plan["run_id"], "alpha": ALPHA, "test": "fisher_exact_two_sided vs the target's existing result",
+              final: dict[str, tuple[str, int, int]], *, mode: str = "full",
+              control: dict[str, tuple[int, int]] | None = None) -> dict:
+    """practice: target -> variant -> (k, n); final: target -> (variant, k, n); control: target -> (k, n) of a
+    concurrent S0 on the final seeds (--quick --with-control; descriptive, not the pre-registered test)."""
+    out = {"run_id": plan["run_id"], "mode": mode, "alpha": ALPHA,
+           "test": "fisher_exact_two_sided vs the target's existing result",
            "primary": next(t["name"] for t in plan["targets"] if t.get("primary")), "targets": [],
            "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     for t in plan["targets"]:
@@ -105,6 +122,11 @@ def summarize(plan: dict, practice: dict[str, dict[str, tuple[int, int]]],
             p = fisher_exact(k, n, b["successes"], b["n"])
             rec.update(chosen=variant, inference=VARIANTS[variant].record(), final={"successes": k, "n": n},
                        final_wilson_95=list(wilson_ci(k, n)), fisher_p=p, significant=p < ALPHA)
+            if control and t["name"] in control:
+                ck, cn = control[t["name"]]
+                rec["concurrent_control"] = {"variant": "S0_baseline", "successes": ck, "n": cn,
+                                             "wilson_95": list(wilson_ci(ck, cn)),
+                                             "fisher_p_vs_final": fisher_exact(k, n, ck, cn), "descriptive_only": True}
         out["targets"].append(rec)
     return out
 
@@ -120,10 +142,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--plan", type=Path, required=True)
     p.add_argument("--dry-run", action="store_true", help="print the commands; run nothing")
     p.add_argument("--lock-wait-s", type=float, default=3600, help="wait this long for C:\\dev\\gpu.lock")
+    p.add_argument("--quick", action="store_true", help=f"{QUICK_VARIANT} a priori, straight on the final seeds")
+    p.add_argument("--with-control", action="store_true", help="with --quick: S0 on the primary target's final seeds")
     args = p.parse_args(argv)
+    if args.with_control and not args.quick:
+        p.error("--with-control goes with --quick")
     check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     plan = load_plan(args.plan)
     python = sys.executable
+    targets = {t["name"]: t for t in plan["targets"]}
+    if args.dry_run and args.quick:
+        for name, v in quick_steps(plan, control=args.with_control):
+            print(" ".join(eval_cells_command(python, plan, targets[name], v, "final")))
+        return 0
     if args.dry_run:
         for t in plan["targets"]:
             for v in VARIANTS:
@@ -142,6 +173,25 @@ def main(argv: list[str] | None = None) -> int:
     log_path = out_dir / "stage0.log"
     practice: dict[str, dict[str, tuple[int, int]]] = {}
     final: dict[str, tuple[str, int, int]] = {}
+    if args.quick:
+        control: dict[str, tuple[int, int]] = {}
+        with GpuLock(task=f"stage0-quick:{plan['run_id']}", max_wait_s=args.lock_wait_s), KeepAwake():
+            for name, v in quick_steps(plan, control=args.with_control):
+                t = targets[name]
+                if _run(eval_cells_command(python, plan, t, v, "final"), log_path) != 0:
+                    print(f"[stage0] {label(t, v, 'final')} did not finish; see {log_path}", flush=True)
+                    return 1
+                k, n = _successes(out_dir / f"{label(t, v, 'final')}.json")
+                if v == QUICK_VARIANT:
+                    final[name] = (v, k, n)
+                else:
+                    control[name] = (k, n)
+                print(f"[stage0] {name} {v} on the final seeds: {k}/{n}", flush=True)
+                (out_dir / "stage0_quick_summary.json").write_text(
+                    json.dumps(summarize(plan, {}, final, mode="quick", control=control), indent=2), encoding="utf-8")
+        summary = summarize(plan, {}, final, mode="quick", control=control)
+        print("[stage0] SUMMARY " + json.dumps(summary), flush=True)
+        return 0
     with GpuLock(task=f"stage0:{plan['run_id']}", max_wait_s=args.lock_wait_s), KeepAwake():
         for t in plan["targets"]:
             practice[t["name"]] = {}

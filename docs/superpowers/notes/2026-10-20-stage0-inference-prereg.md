@@ -1,6 +1,6 @@
 # Pre-registration DRAFT: Stage 0, inference-only variants on existing checkpoints (not run)
 
-**Status: draft, not run, not frozen.** Nothing here has touched the GPU. Freeze it by committing this note and the plan file
+**Status: draft, not run, not frozen.** Nothing here has touched the GPU. It holds two alternatives, a quick one (A, about 1.5–2.3 h) and a full one (B, about 7 h); run one. Freeze it by committing this note and the plan file
 unchanged *before* the first command runs; any later change is an amendment with its time and reason.
 
 From the research note ([2026-10-20-research-cube-in-bin.md](2026-10-20-research-cube-in-bin.md), Part 3 (c), Stage 0
@@ -8,6 +8,87 @@ and "Order of work" 1). This is the cheapest test there: no new data, no trainin
 is run* is a bottleneck.
 - The 100-step chunks run open loop, so the grasp is planned 2 s ahead.
 - The finger targets are half-closed on 48% of steps.
+
+## Two alternatives: run ONE of them
+
+- **Quick (A, about 1.5–2.3 h):** S4 chosen *a priori*, straight on the final seeds. It fits a morning. The section
+  below has the details.
+- **Full (B, about 7 h):** all 5 variants on practice seeds, then the best on the final seeds (the rest of this note).
+
+They are alternatives, not a sequence. If A runs, seeds 5020–5059 have been seen with S4. A later B would then choose
+on practice seeds as written, but would have to take its final eval on **fresh seeds 5400–5439** (an amendment
+recorded before B starts), not 5020–5059.
+
+## A. The quick alternative: S4 a priori
+
+**The variant, fixed now, before any variant has been run: `S4_binarize_replan20`** (`--binarize-gripper
+--n-action-steps 20`). The reasoning, from the research note's measurements:
+1. **It targets both measured problems at once.**
+   - Half-closed fingers: 48% of the mouse policy's steps sent 5–35 mm, while the labels are only ever 0 or 40 mm.
+     Binarizing fixes that.
+   - Stale open-loop plans: the first close came 15–96 mm too high, planned up to 2 s earlier, and the arm target
+     jumped 0.24 rad at chunk boundaries. Re-planning every 0.4 s instead of every 2 s addresses that.
+   - S1 or S2 alone tests one mechanism; with one shot, the combination is the best single bet.
+2. **Binarizing is nearly free of risk.** The labels are binary, so a binary command is in-distribution by
+   construction. It only removes commands the policy was never shown.
+3. **Re-planning beats ensembling here.**
+   - The human-derived data is multimodal at the grasp: swoop timing, and the multiplied wrist yaw conflicts in 46% of
+     look-alike pairs.
+   - BID (Liu et al. 2024) reports that temporal averaging "can be detrimental when consecutive decisions fall into
+     distinct modes". Re-planning keeps one mode per 0.4 s.
+   - Diffusion Policy's ablation found short execution horizons best (Ta = 8), and "too long a horizon reduces
+     performance". 20 steps keeps some within-chunk smoothness while re-planning 5× as often.
+   - Ensembling also queries the policy every step, about +15–30 s per episode.
+4. **Why 20, not 10:** 20 sits between Diffusion Policy's 8 and Mobile ALOHA's chunk of 45. It also halves the
+   policy-call overhead compared with 10. This is unvalidated [G]; it was fixed now and not tuned.
+
+**Procedure (one command)**, from `C:\dev\pm-t8` (`pm/live-12`):
+
+```powershell
+$env:DATA_DIR = "C:\dev\pm-t6\data"
+C:\isaac\env_isaaclab\Scripts\python.exe scripts\stage0_inference.py --plan docs\superpowers\notes\2026-10-20-stage0-inference-plan.json --quick --with-control
+```
+
+Leave out `--with-control` if time is short. The run order is below; it holds `gpu.lock` and keeps the PC awake.
+
+| # | Eval | Seeds | Results file (`C:\dev\pm-t6\data\evals\stage0_inference_v1\`) |
+|---|---|---|---|
+| 1 | `mouse_pm10` with S4 (**primary**) | 5020–5059 | `mouse_pm10__S4_binarize_replan20__final.json` |
+| 2 | `scripted_rm10` with S4 (secondary) | 5020–5059 | `scripted_rm10__S4_binarize_replan20__final.json` |
+| 3 | (`--with-control`) `mouse_pm10` with S0, a concurrent control | 5020–5059 | `mouse_pm10__S0_baseline__final.json` |
+
+The underlying commands (`--quick --with-control --dry-run` prints them):
+
+```text
+C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t8\sim_eval\scripts\eval_cells.py --run-id stage0_inference_v1 --checkpoint mouse_pm10__S4_binarize_replan20__final=C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\train\perfected_multiply_10\checkpoints\030000\pretrained_model --n 40 --seed0 5020 --start-state C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset --binarize-gripper --n-action-steps 20
+C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t8\sim_eval\scripts\eval_cells.py --run-id stage0_inference_v1 --checkpoint scripted_rm10__S4_binarize_replan20__final=C:\dev\pm-t3\data\experiments\sprint6_home_a_20261016_205725\train\raw_multiply_10\checkpoints\030000\pretrained_model --n 40 --seed0 5020 --start-state C:\dev\pm-t3\data\experiments\sprint6_home_a_20261016_205725\datasets\raw_10 --start-pose dataset --binarize-gripper --n-action-steps 20
+C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t8\sim_eval\scripts\eval_cells.py --run-id stage0_inference_v1 --checkpoint mouse_pm10__S0_baseline__final=C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\train\perfected_multiply_10\checkpoints\030000\pretrained_model --n 40 --seed0 5020 --start-state C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset
+```
+
+**Analysis (pre-registered):**
+- **Primary:** `mouse_pm10` S4 vs its existing **3/40**: two-sided Fisher, α = 0.05, with Wilson 95% CIs.
+  Significant needs **≥ 11/40**.
+- **Secondary:** `scripted_rm10` S4 vs its existing **17/40**. A rise needs **≥ 27/40**; a drop is reported as such.
+- **Concurrent control (descriptive only):** mouse S0 on the same seeds in the same session.
+  - It shows how far the old 3/40 reproduces today, given PhysX non-determinism.
+  - It is reported with S4-vs-S0 Fisher p as a descriptive number. It does **not** replace the primary test.
+  - If it differs a lot from 3/40, say so beside the primary result.
+- **The summary** goes to `stage0_quick_summary.json`.
+
+**Time estimate** (measured: mouse about 68 s per episode, scripted about 53 s; successes end early):
+
+| Part | Episodes | Estimate |
+|---|---|---|
+| 1. mouse S4 | 40 | ≈ 45 min |
+| 2. scripted S4 | 40 | ≈ 35 min |
+| 3. mouse S0 control (optional) | 40 | ≈ 45 min |
+| per eval: 60 s free-GPU window + server and Isaac start | — | ≈ 2–3 min each |
+| **Total** | **80 / 120** | **≈ 1.4 h without the control, ≈ 2.2 h with it**; the primary result arrives after ≈ 50 min |
+
+**Its own caveats:**
+- **One variant, chosen without data:** a null result says S4 didn't help, not that inference doesn't matter.
+- **Both mechanisms are changed at once,** so a win can't say which one helped.
+- **The baseline caveat below applies here too.** The control is there for exactly that reason.
 
 ## Question
 
@@ -37,7 +118,7 @@ The policy server reports its settings in `/health`, and `run_eval` refuses a se
 flags it was given. Every results file, episode-log header and registry row records them. These runs use
 `--checkpoint LABEL=PATH`, so the registry is never touched.
 
-## Procedure (one command)
+## B. The full alternative: procedure (one command)
 
 From `C:\dev\pm-t8` (`pm/live-12` with `pm/policy-fixes` merged), with Isaac's Python:
 
