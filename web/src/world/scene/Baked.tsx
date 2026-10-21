@@ -25,7 +25,10 @@ export function Baked({ name, anisotropy = 1, cut }: { name: BakedName; anisotro
     // The atlas is already the final picture: no tone mapping on top of it.
     const material = new THREE.MeshBasicMaterial({ map, toneMapped: false, side: THREE.DoubleSide });
     const whole = src.geometry as THREE.BufferGeometry;
-    return { geometry: cut ? cut(whole) : whole, material };
+    const geometry = cut ? cut(whole) : whole;
+    // A cut may tint its parts per vertex (the machine body's cable, machineV2.ts): the atlas times it.
+    material.vertexColors = !!geometry.getAttribute("color");
+    return { geometry, material };
   }, [gltf, name, url, anisotropy, cut]);
 
   useEffect(() => {

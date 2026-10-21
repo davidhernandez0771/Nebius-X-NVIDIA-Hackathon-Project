@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { readPublic } from "../../twin/testFiles";
 import { MACHINE_ANCHOR } from "../core/layout";
-import { BAKED_BODY_KEEP, HOLO_ABOVE_LENS, cutBakedBody, splitMachineV2, type MachineV2 } from "./machineV2";
+import { BAKED_BODY_KEEP, CABLE_TINT, HOLO_ABOVE_LENS, PARTICLE_FLOOR, cutBakedBody, machineV2Points, splitMachineV2, surfaceArea, type MachineV2 } from "./machineV2";
 import { PORT_LOCAL, SLOT_TOP_LOCAL } from "./plugSequence";
 
 const tris = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.getAttribute("position").count) / 3;
@@ -110,6 +110,29 @@ describe("the baked machine body under the new machine", () => {
     // machine.glb's M_Cable (864 triangles) and M_PowerPlug (108), baked.
     expect(tris(cut)).toBe(864 + 108);
     expect(cut.getAttribute("uv")).toBeTruthy();
+    // The cable's atlas was lit warm from above (about (99, 84, 72) on screen against the live card's
+    // (19, 20, 22)): its vertices carry CABLE_TINT to bring it to the card's dark rubber; the plug, already
+    // that dark, keeps its colour.
+    const col = cut.getAttribute("color");
+    expect(col).toBeTruthy();
+    const anchorAt = new THREE.Vector3(...MACHINE_ANCHOR);
+    const q = new THREE.Vector3();
+    const pos = cut.getAttribute("position");
+    let cable = 0, plug = 0;
+    for (let i = 0; i < pos.count; i++) {
+      q.fromBufferAttribute(pos as never, i).sub(anchorAt);
+      const tint = [col.getX(i), col.getY(i), col.getZ(i)];
+      // By piece: the plug's own vertices stay white, the cable's (some reach into the plug) are tinted.
+      if (tint.every((x) => x === 1)) {
+        plug++;
+        expect(BAKED_BODY_KEEP.PowerPlug.containsPoint(q)).toBe(true);
+      } else {
+        expect(tint.map((x) => +x.toFixed(3))).toEqual([CABLE_TINT.r, CABLE_TINT.g, CABLE_TINT.b].map((x) => +x.toFixed(3)));
+        if (!BAKED_BODY_KEEP.PowerPlug.containsPoint(q)) cable++;
+      }
+    }
+    expect(plug).toBeGreaterThan(0);
+    expect(cable).toBeGreaterThan(0.9 * (pos.count - plug));
     // The keep boxes are the old nodes' own (machine.glb, in the machine's frame).
     const old = (await glb("world/models/machine.glb")).scene;
     old.updateMatrixWorld(true);
@@ -127,5 +150,43 @@ describe("the baked machine body under the new machine", () => {
       v.fromBufferAttribute(p as never, i).sub(anchor);
       expect(Object.values(BAKED_BODY_KEEP).some((b) => b.clone().expandByScalar(0.3).containsPoint(v))).toBe(true);
     }
+  });
+});
+
+describe("the descent's sculpture of the machine (machineV2Points)", () => {
+  const rnd = (seed: number) => () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+
+  it("spreads points over the new machine's surfaces, the same every visit", () => {
+    const a = machineV2Points(m, 4000, rnd(7));
+    const b = machineV2Points(m, 4000, rnd(7));
+    expect(a.position).toHaveLength(4000 * 3);
+    expect(a.color).toHaveLength(4000 * 3);
+    expect([...a.position]).toEqual([...b.position]);
+    // On the card, the dock and the lens: inside the model's bounds (machine frame).
+    const box = new THREE.Box3().setFromObject(v2.scene).expandByScalar(0.01);
+    const p = new THREE.Vector3();
+    for (let i = 0; i < 4000; i++) expect(box.containsPoint(p.fromArray(a.position, i * 3))).toBe(true);
+    // The fans are there too (around their axes, at fan height), not left at the origin.
+    const nearFan = (i: number) => m.fans.some((f) => Math.hypot(a.position[i * 3] - f.centre.x, a.position[i * 3 + 2] - f.centre.z) < 0.9 && a.position[i * 3 + 1] > 4.1);
+    expect([...Array(4000).keys()].filter(nearFan).length).toBeGreaterThan(40);
+  });
+
+  it("colours each point by its surface: the teal lights teal, nothing darker than the descent's graphite", () => {
+    const { color } = machineV2Points(m, 6000, rnd(3));
+    const c = new THREE.Color();
+    let teal = 0;
+    for (let i = 0; i < 6000; i++) {
+      c.fromArray(color, i * 3);
+      if (c.g > 0.9 && c.r < 0.2) teal++;
+      expect(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b).toBeGreaterThanOrEqual(0.2126 * PARTICLE_FLOOR.r + 0.7152 * PARTICLE_FLOOR.g + 0.0722 * PARTICLE_FLOOR.b - 1e-6);
+    }
+    expect(teal).toBeGreaterThan(30);
+    expect(teal).toBeLessThan(6000 * 0.2);
+  });
+
+  it("measures a surface's area (for the cable's share of the machine's points)", () => {
+    const quad = new THREE.PlaneGeometry(2, 3);
+    expect(surfaceArea(quad)).toBeCloseTo(6, 6);
+    expect(surfaceArea(m.body)).toBeGreaterThan(10);
   });
 });

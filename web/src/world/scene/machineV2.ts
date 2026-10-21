@@ -181,15 +181,116 @@ export const BAKED_BODY_KEEP: Record<"Cable" | "PowerPlug", THREE.Box3> = {
   PowerPlug: new THREE.Box3(new THREE.Vector3(0.132, 4.44, -1.582), new THREE.Vector3(0.742, 4.68, -1.034)),
 };
 
-/** The baked body (in the room's frame) with only the pieces whose centre is in a BAKED_BODY_KEEP box. */
+/**
+ * The cable's tint (linear, times its atlas). Its atlas was lit warm from above: about (99, 84, 72) on
+ * screen beside the live card's dark parts at (19, 20, 22) (measured, SwiftShader, high). This brings it
+ * to about (40, 40, 42), the card's dark rubber under the same lamp. The plug is already that dark.
+ */
+export const CABLE_TINT = new THREE.Color(0.17, 0.24, 0.35);
+
+/**
+ * The baked body (in the room's frame) with only the pieces whose centre is in a BAKED_BODY_KEEP box,
+ * coloured per vertex: the cable's pieces CABLE_TINT, the plug's white (Baked multiplies its atlas by it).
+ */
 export function cutBakedBody(g: THREE.BufferGeometry): THREE.BufferGeometry {
   const anchor = new THREE.Vector3(...MACHINE_ANCHOR);
   const local = new THREE.Vector3();
-  const keep = connectedPieces(g).filter((p) => {
+  const owner = (p: Piece) => {
     local.copy(p.centre).sub(anchor);
-    return Object.values(BAKED_BODY_KEEP).some((b) => b.containsPoint(local));
-  });
-  const out = subGeometry(g, keep.flatMap((p) => p.tris));
+    return BAKED_BODY_KEEP.PowerPlug.containsPoint(local) ? "plug" : BAKED_BODY_KEEP.Cable.containsPoint(local) ? "cable" : null;
+  };
+  const keep = connectedPieces(g)
+    .map((p) => ({ p, who: owner(p) }))
+    .filter((x) => x.who !== null);
+  const out = subGeometry(g, keep.flatMap((x) => x.p.tris));
+  // subGeometry numbers the vertices in the order the triangles name them: colour them in the same order.
+  const idx = g.index ? (g.index.array as ArrayLike<number>) : [...Array(g.getAttribute("position").count).keys()];
+  const tintOf = new Map<number, THREE.Color>();
+  const white = new THREE.Color(1, 1, 1);
+  for (const { p, who } of keep) for (const t of p.tris) for (let k = 0; k < 3; k++) if (!tintOf.has(idx[t + k])) tintOf.set(idx[t + k], who === "cable" ? CABLE_TINT : white);
+  const col = new Float32Array(tintOf.size * 3);
+  [...tintOf.values()].forEach((c, i) => col.set([c.r, c.g, c.b], i * 3));
+  out.setAttribute("color", new THREE.BufferAttribute(col, 3));
   out.computeBoundingSphere();
   return out;
+}
+
+/** The darkest a point of the descent's sculpture gets (its graphite, stations/descent/Generator.tsx): a darker one wouldn't show. */
+export const PARTICLE_FLOOR = new THREE.Color().setRGB(0.1, 0.11, 0.12, THREE.SRGBColorSpace);
+const lum = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+
+/** A triangle mesh's area. */
+export function surfaceArea(g: THREE.BufferGeometry): number {
+  const p = g.getAttribute("position");
+  const idx = g.index ? (g.index.array as ArrayLike<number>) : [...Array(p.count).keys()];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  let total = 0;
+  for (let t = 0; t < idx.length; t += 3) {
+    a.fromBufferAttribute(p as never, idx[t]);
+    b.fromBufferAttribute(p as never, idx[t + 1]).sub(a);
+    c.fromBufferAttribute(p as never, idx[t + 2]).sub(a);
+    total += 0.5 * b.cross(c).length();
+  }
+  return total;
+}
+
+/**
+ * n points over the machine's surfaces by area, in the machine's frame, each with its surface's colour
+ * (linear; the body's per vertex, the lights' glow): the descent's particle sculpture of the machine.
+ */
+export function machineV2Points(m: MachineV2, n: number, rnd: () => number): { position: Float32Array; color: Float32Array } {
+  const surfaces: { g: THREE.BufferGeometry; at: THREE.Vector3; color: THREE.Color | null }[] = [
+    { g: m.body, at: new THREE.Vector3(), color: null },
+    ...m.fans.map((f) => ({ g: f.body, at: f.centre, color: null })),
+    ...m.fans.map((f) => ({ g: f.mark, at: f.centre, color: m.glowColor })),
+    { g: m.glow, at: new THREE.Vector3(), color: m.glowColor },
+    { g: m.slot, at: new THREE.Vector3(), color: m.glowColor },
+    { g: m.lens, at: new THREE.Vector3(), color: m.lensColor },
+  ];
+  // Every triangle, with its cumulative area.
+  const tris: { s: number; t: number }[] = [];
+  const cum: number[] = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  let total = 0;
+  surfaces.forEach((s, si) => {
+    const p = s.g.getAttribute("position");
+    const idx = s.g.index!.array as ArrayLike<number>;
+    for (let t = 0; t < idx.length; t += 3) {
+      a.fromBufferAttribute(p as never, idx[t]);
+      b.fromBufferAttribute(p as never, idx[t + 1]).sub(a);
+      c.fromBufferAttribute(p as never, idx[t + 2]).sub(a);
+      total += 0.5 * b.cross(c).length();
+      tris.push({ s: si, t });
+      cum.push(total);
+    }
+  });
+  const position = new Float32Array(n * 3);
+  const color = new Float32Array(n * 3);
+  const col = new THREE.Color();
+  const v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * total;
+    let lo = 0, hi = cum.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (cum[mid] < x) lo = mid + 1;
+      else hi = mid;
+    }
+    const { s, t } = tris[lo];
+    const surf = surfaces[s];
+    const p = surf.g.getAttribute("position");
+    const idx = surf.g.index!.array as ArrayLike<number>;
+    let r1 = rnd(), r2 = rnd();
+    if (r1 + r2 > 1) [r1, r2] = [1 - r1, 1 - r2];
+    a.fromBufferAttribute(p as never, idx[t]);
+    b.fromBufferAttribute(p as never, idx[t + 1]);
+    c.fromBufferAttribute(p as never, idx[t + 2]);
+    v.copy(a).multiplyScalar(1 - r1 - r2).addScaledVector(b, r1).addScaledVector(c, r2).add(surf.at);
+    position.set([v.x, v.y, v.z], i * 3);
+    if (surf.color) col.copy(surf.color);
+    else col.fromBufferAttribute(surf.g.getAttribute("color") as never, idx[t]);
+    if (lum(col) < lum(PARTICLE_FLOOR)) col.copy(PARTICLE_FLOOR);
+    color.set([col.r, col.g, col.b], i * 3);
+  }
+  return { position, color };
 }

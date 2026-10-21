@@ -1,8 +1,9 @@
 // The transition's particles (generatorPlan.ts): one Points draw. Over the descent THE RING (the reactor's
 // top ring, lifted off the core: stations/intro) bursts into a cloud that fills the shaft round the
 // camera as it dives through, then every particle streams down onto its point of the
-// workshop, sampled from the baked GLBs with the colour of the atlas there, and the cartridges on the
-// spiral and the shelves as boxes. The room is a glittering sculpture before it is a room. As the
+// workshop, sampled from the baked GLBs with the colour of the atlas there (the machine from
+// machine_v2.glb with its surfaces' colours, scene/machineV2.ts), and the cartridges on the spiral and the
+// shelves as boxes. The room is a glittering sculpture before it is a room. As the
 // workshop's travel materializes the real surfaces (scene/dissolve.ts), each particle fades exactly
 // where its surface appears: the shader evaluates the same field at its target. Off with reduced motion
 // (the room fades in behind the veil instead).
@@ -13,9 +14,11 @@ import * as THREE from "three";
 import { ambient } from "../../core/activity";
 import type { QualityTier } from "../../core/quality";
 import type { StationFrame } from "../../core/types";
-import { BAKED, bakedUrl, type BakedName } from "../../scene/assets";
+import { MACHINE_ANCHOR } from "../../core/layout";
+import { BAKED, MACHINE_V2_URL, bakedUrl, type BakedName } from "../../scene/assets";
 import { DISSOLVE_EDGE, DISSOLVE_GLSL, dissolve, FIELD_MAX } from "../../scene/dissolve";
 import { HELIX, LIBRARY, type Slot } from "../../scene/layout";
+import { cutBakedBody, machineV2Points, splitMachineV2, surfaceArea } from "../../scene/machineV2";
 import { RING_TUBE, THE_RING } from "../intro/layout";
 import { seeded } from "../intro/particles";
 import { burstPoints, POINTS, SHARES, sampleBox, sampleTriangles, splitBudget, type Piece } from "./generatorPlan";
@@ -117,7 +120,7 @@ interface Buffers {
   geometry: THREE.BufferGeometry;
 }
 
-function build(scenes: Record<BakedName, THREE.Object3D>, n: number): Buffers {
+function build(scenes: Record<BakedName, THREE.Object3D>, machine: THREE.Object3D, n: number): Buffers {
   const rnd = seeded(23);
   const counts = splitBudget(n, SHARES);
   const target = new Float32Array(n * 3);
@@ -126,13 +129,8 @@ function build(scenes: Record<BakedName, THREE.Object3D>, n: number): Buffers {
   const c = new THREE.Color();
   const v = new THREE.Vector3();
 
-  for (const name of BAKED) {
-    const count = counts[name as Piece];
-    const root = scenes[name];
-    root.updateMatrixWorld(true);
-    const mesh = root.getObjectByName(`baked_${name}`) as THREE.Mesh | undefined;
-    if (!mesh || !count) continue;
-    const g = mesh.geometry as THREE.BufferGeometry;
+  /** count points over a baked mesh (geometry g, in its own frame), coloured from its atlas. */
+  const sampleBaked = (mesh: THREE.Mesh, g: THREE.BufferGeometry, count: number) => {
     const s = sampleTriangles(
       { position: g.attributes.position.array, index: g.index ? g.index.array : null, uv: g.attributes.uv ? g.attributes.uv.array : null },
       count,
@@ -145,6 +143,35 @@ function build(scenes: Record<BakedName, THREE.Object3D>, n: number): Buffers {
       read(s.uv[i * 2], s.uv[i * 2 + 1], c);
       color.set([c.r, c.g, c.b], at * 3);
     }
+  };
+
+  for (const name of BAKED) {
+    const count = counts[name as Piece];
+    const root = scenes[name];
+    root.updateMatrixWorld(true);
+    const mesh = root.getObjectByName(`baked_${name}`) as THREE.Mesh | undefined;
+    if (!mesh || !count) continue;
+    const g = mesh.geometry as THREE.BufferGeometry;
+    if (name !== "machine_body") {
+      sampleBaked(mesh, g, count);
+      continue;
+    }
+    // The machine is machine_v2 now (scene/machineV2.ts): its own surfaces, plus what the room keeps of
+    // the baked body (the cable and plug), each its share of the points by area.
+    const parts = splitMachineV2(machine);
+    const cable = cutBakedBody(g);
+    const area = [parts.body, parts.glow, parts.slot, parts.lens, ...parts.fans.flatMap((f) => [f.body, f.mark])].reduce((s, x) => s + surfaceArea(x), 0);
+    const cableN = Math.round((count * surfaceArea(cable)) / (surfaceArea(cable) + area));
+    sampleBaked(mesh, cable, cableN);
+    const pts = machineV2Points(parts, count - cableN, rnd);
+    const anchor = new THREE.Vector3(...MACHINE_ANCHOR);
+    for (let i = 0; i < count - cableN; i++, at++) {
+      v.fromArray(pts.position, i * 3).add(anchor);
+      target.set([v.x, v.y, v.z], at * 3);
+      color.set([pts.color[i * 3], pts.color[i * 3 + 1], pts.color[i * 3 + 2]], at * 3);
+    }
+    cable.dispose();
+    [parts.body, parts.glow, parts.slot, parts.lens, ...parts.fans.flatMap((f) => [f.body, f.mark])].forEach((x) => x.dispose());
   }
   const shells = HELIX.map((h) => (h.shell ? new THREE.Color(h.shell[0], h.shell[1], h.shell[2]) : null));
   for (const [slots, count, shell] of [
@@ -176,12 +203,13 @@ function build(scenes: Record<BakedName, THREE.Object3D>, n: number): Buffers {
 
 export function Generator({ frame, quality, reduced }: { frame: StationFrame; quality: QualityTier; reduced: boolean }) {
   const gltfs = useGLTF(BAKED.map(bakedUrl), false) as unknown as { scene: THREE.Object3D }[];
+  const machine = useGLTF(MACHINE_V2_URL, false);
   const gl = useThree((s) => s.gl);
   const invalidate = useThree((s) => s.invalidate);
   const n = POINTS[quality.name];
   const points = useMemo(() => {
     const scenes = Object.fromEntries(BAKED.map((name, i) => [name, gltfs[i].scene])) as Record<BakedName, THREE.Object3D>;
-    const { geometry } = build(scenes, n);
+    const { geometry } = build(scenes, machine.scene, n);
     const material = new THREE.ShaderMaterial({
       vertexShader: vert,
       fragmentShader: frag,
@@ -205,7 +233,7 @@ export function Generator({ frame, quality, reduced }: { frame: StationFrame; qu
     p.raycast = () => {};
     p.visible = false;
     return p;
-  }, [gltfs, n]);
+  }, [gltfs, machine, n]);
   useEffect(
     () => () => {
       points.geometry.dispose();
