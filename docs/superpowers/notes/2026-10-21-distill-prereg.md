@@ -269,5 +269,24 @@ only. `action_rate` (−1e-3) and `joint_vel` (−1e-4) are not overridden.
 which matters for reading the deadband. That is a run-enabling fix. T3 will make these values a named preset in code
 after the gate, if `demo_v4` is the teacher.
 
-The gate and everything after it apply to the teacher from `demo_v4`, or from a later run logged here. T3's final
+**`demo_v4` failed:** started 11:05 (the lead's time) and stopped at about 11:27 by the lead, with the user's
+permission. It converged too early:
+- the action std fell from 0.6 to 0.05;
+- `check_success` fell from 0.34 to 0.19;
+- the gripper was left open.
+
+The 0.5 deadband froze the gripper's exploration once the std was low. No rollout or student used it, and it was never
+gated.
+
+**`demo_v5`** changes RL training settings only. There is no reward change beyond Amendment 1. Relative to `demo_v4`:
+- `entropy_coef` 0.001 → 0.005;
+- a new `std_range` of [0.3, 1.0];
+- deadband 0.5 → 0.25;
+- curriculum 48000 → 24000 steps;
+- the demo starts are about a 50/50 mix of uniform demo-progress starts and the late-to-early curriculum.
+
+It keeps the ×50 reward scale, a grace of 10 and an initial std of 0.6. The unchanged list under Amendment 1 still
+holds. T3 will send the commit and the exact command, and they are added here.
+
+The gate and everything after it apply to the teacher from `demo_v5`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
