@@ -87,6 +87,8 @@ from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, _arm, achieved_
                                   compare, config_diff, demo_sha256, headline, select_ids, variant_seed,
                                   variant_trajectory)
 from sim_worker.homeset import approach_misalignment, find_hover  # noqa: E402
+from lerobot_tools.inference import InferenceOptions, add_inference_args  # noqa: E402
+from lerobot_tools.train import MAX_STEPS  # noqa: E402
 
 ISAAC_PY = Path(r"C:\isaac\env_isaaclab\Scripts\python.exe")
 LEROBOT_PY = Path(r"C:\venvs\lerobot\Scripts\python.exe")
@@ -546,6 +548,10 @@ class Experiment:
         cmd = [str(LEROBOT_PY), "-m", "lerobot_tools.experiments", "--grid", str(self.root / "grid.json"),
                "--steps", str(self.config["steps"]), "--batch-size", str(BATCH),
                "--save-freq", str(min(self.config["save_freq"], self.config["steps"]))]
+        if self.config.get("augment"):  # the improved recipe's options, only when frozen in the config
+            cmd += ["--augment", self.config["augment"]]
+        if self.config.get("dilation"):
+            cmd += ["--dilation"]
         self.log(f"train: {' '.join(cmd)}")
         with self.deps.gpu_stage(f"human-exp:{self.name}:train"):
             rc = self.deps.run(cmd, self.root / "logs" / "train.log")
@@ -580,6 +586,12 @@ class Experiment:
                    "--registry", str(self.data / "results" / "registry.jsonl")]
             if self.multiplied_only:
                 cmd += ["--cells", *cells]
+            if self.config.get("select_steps"):
+                cmd += ["--select-steps", *map(str, self.config["select_steps"]),
+                        "--practice-seed0", str(self.config["practice_seed0"]),
+                        "--practice-n", str(self.config["practice_n"])]
+            if self.config.get("inference"):
+                cmd += InferenceOptions(**self.config["inference"]).run_eval_args()
             self.log(f"eval: {' '.join(cmd)}")
             with self.deps.gpu_stage(f"human-exp:{self.name}:eval"):
                 rc = self.deps.run(cmd, self.root / "logs" / "eval.log")
@@ -735,7 +747,7 @@ trained on the same {n} demos as recorded?
   - start-aligned;
   - plus {config['variants']} variants in new scenes, each kept only if it verifies.
 
-  A demo whose repair does not verify contributes nothing to this arm.{data_fixes_text(config)}
+  A demo whose repair does not verify contributes nothing to this arm.{data_fixes_text(config)}{recipe_text(config)}
 - **Start alignment** (both arms): a min-jerk move from the home pose to the demo's first pose is put in front
   of every training episode.
 
@@ -771,6 +783,38 @@ def assist_text(config: dict) -> str:
             f"holding the target up" + (": " + ", ".join(f"`{id}` ({n} steps)" for id, n in held) if held else "")
             + f". {idle} more had it on without it engaging; {unknown} carry no assist record. Both arms use every "
             f"selected demo either way, and the per-demo record is in config.json.")
+
+
+def recipe_text(config: dict) -> str:
+    """The improved training and evaluation recipe this run uses (--augment, --dilation, --select-steps, the inference
+    options); nothing when none, so older pre-registrations read as before."""
+    items = []
+    if config.get("augment") == "shift":
+        items.append("**shift augmentation** (training): random affine (translate 5%, +-5 degrees) plus mild "
+                     "brightness/contrast, at most 2 per frame (lerobot_tools.experiments --augment shift)")
+    if config.get("dilation"):
+        items.append("**dilation** (training): ResNet-18's final stride replaced by dilation, 8x8 image tokens at "
+                     "128 px instead of 4x4")
+    if config.get("select_steps"):
+        s0, n = config["practice_seed0"], config["practice_n"]
+        items.append(f"**checkpoint selection** (eval): each arm's checkpoints at steps "
+                     f"{', '.join(map(str, config['select_steps']))} on practice seeds {s0}-{s0 + n - 1} (n = {n}); "
+                     "the most successes wins, a tie goes to the later step; only that checkpoint is evaluated on the "
+                     "final seeds, and practice results are never reported as results")
+    inf = config.get("inference") or {}
+    parts = []
+    if inf.get("binarize_gripper"):
+        parts.append("binarized gripper (fingers fully open or closed at the 20 mm label midpoint)")
+    if inf.get("temporal_ensemble_coeff") is not None:
+        parts.append(f"ACT temporal ensembling, coefficient {inf['temporal_ensemble_coeff']:g}, re-querying every step")
+    elif inf.get("n_action_steps") is not None:
+        parts.append(f"re-planning every {inf['n_action_steps']} steps instead of every 100")
+    if parts:
+        items.append("**inference** (eval, both arms): " + "; ".join(parts))
+    if not items:
+        return ""
+    return ("\n\n**Training and evaluation recipe** (2026-10-20 research note; the same for both arms):\n"
+            + "\n".join(f"- {i};" for i in items))
 
 
 def data_fixes_text(config: dict) -> str:
@@ -814,7 +858,7 @@ two-arm design; hashes in config.json.
 
 **The arm.** `perfected_multiply_{n}`: ACT, {config['steps']} steps, batch {config['batch_size']}. Each demo rules-repaired and
 verified in Isaac, start-aligned, plus {config['variants']} variants in new scenes, each kept only if it verifies.
-A demo whose repair does not verify contributes nothing.{data_fixes_text(config)}
+A demo whose repair does not verify contributes nothing.{data_fixes_text(config)}{recipe_text(config)}
 
 **Primary endpoint.** Successes out of {ne}, as the eval's physics check decides, on the unseen scenes with seeds
 **{s0}–{s0 + ne - 1}**.
@@ -1015,6 +1059,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="repair: the rules also retime a swoop grasp (hover, slow last 4 cm, stop, close, hold, lift)")
     p.add_argument("--approach-offset", type=float, default=None, metavar="M",
                    help="multiply: the centered approach at the retimed grasp's hover, offsets up to M m (0.04)")
+    p.add_argument("--augment", choices=("off", "shift"), default=None, help="training image augmentation (default off)")
+    p.add_argument("--dilation", action="store_true", help="training: replace ResNet's final stride with dilation")
+    p.add_argument("--select-steps", type=int, nargs="+", default=None, metavar="STEP",
+                   help="choose each arm's checkpoint among these steps on practice seeds before the final eval")
+    p.add_argument("--practice-seed0", type=int, default=5300, help="first practice seed (with --select-steps)")
+    p.add_argument("--practice-n", type=int, default=30, help="practice seeds per candidate (with --select-steps)")
+    add_inference_args(p)
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)
@@ -1040,9 +1091,31 @@ def main(argv: list[str] | None = None) -> int:
         if not 0 < args.approach_offset <= 0.05:
             p.error("--approach-offset is a radius in m, 0 < r <= 0.05 (the note suggests 0.04)")
         settings["approach_offset_m"] = args.approach_offset
-    if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
+    # The improved recipe (research note Stage 1), likewise only when set
+    if args.augment and args.augment != "off":
+        settings["augment"] = args.augment
+    if args.dilation:
+        settings["dilation"] = True
+    try:
+        inference = InferenceOptions.from_args(args)
+    except ValueError as e:
+        p.error(str(e))
+    if not inference.is_default:
+        settings["inference"] = inference.record()
+    if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= MAX_STEPS and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
-        p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")
+        p.error(f"need 1-99 variants, 1-{MAX_STEPS} steps, eval n > 0 and eval seeds >= 5000")
+    if args.select_steps:
+        steps, freq = settings["steps"], min(settings["save_freq"], settings["steps"])
+        unsaved = [s for s in args.select_steps if not (0 < s <= steps and (s % freq == 0 or s == steps))]
+        if unsaved:
+            p.error(f"--select-steps {unsaved}: training saves a checkpoint every {freq} steps up to {steps}")
+        lo = max(args.practice_seed0, settings["eval_seed0"])
+        hi = min(args.practice_seed0 + args.practice_n, settings["eval_seed0"] + settings["eval_n"])
+        if lo < hi or args.practice_seed0 < 5000 or args.practice_n < 1:
+            p.error("practice seeds must be >= 5000 and must not overlap the final eval seeds")
+        settings.update(select_steps=sorted(args.select_steps), practice_seed0=args.practice_seed0,
+                        practice_n=args.practice_n)
 
     if args.data_dir is not None:
         os.environ["DATA_DIR"] = str(args.data_dir)
