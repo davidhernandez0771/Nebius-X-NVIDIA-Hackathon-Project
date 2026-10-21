@@ -267,3 +267,44 @@ Code `6008c41` plus these Hydra overrides (the code defaults are unchanged):
 If demo_v4 becomes the teacher, these become a named preset in code after the gate, so T5's pipeline recipe reproduces it.
 
 **T6's adapter reads the run's deadband** from `params/env.yaml`. Isaac Lab dumps tuples as `!!python/tuple`, which `yaml.safe_load` refuses, so the adapter uses a safe loader that also reads those (tested on demo_v4's real file).
+
+### demo_v4 → demo_v5
+
+**demo_v4 failed: premature convergence.**
+- **Numbers at 300 iterations:** the action std fell 0.6 → 0.05 and `check_success` fell 0.34 → 0.19.
+- **Why it collapsed:** with entropy 0.001, the policy settled on the easy late-start win (open over the bin) and stopped exploring grasps.
+- **An interaction I introduced:** deadband 0.5 with std 0.05 froze the gripper, since noise could never cross the band.
+
+**demo_v5** (11:28, `7e12dde`) keeps exploration alive and mixes the starts:
+
+| Setting | Value |
+|---|---|
+| entropy | 0.005 |
+| std floor | `std_range=[0.3,1.0]` (rsl_rl clamps the sampling std) |
+| deadband | 0.25 (crossable at std ≥ 0.3) |
+| curriculum | back to 24,000 |
+| start mix | `uniform_share=0.5`: half the demo starts sample the whole episode from iteration 1 (the lead's addition) |
+| unchanged | Amendment 1 (×50), grace 10, init std 0.6 |
+
+### If demo_v5 also stalls: BC-initialised RL (a plan, not built)
+
+1. **Data:** the 110 verified episodes the bank comes from. For each step it needs rl_teacher's observation and action.
+   - **The observation** is rebuilt from the episode files:
+     - joints from `steps.npz`, with velocities by finite difference;
+     - the tool pose (`ee_pos`, `ee_quat`) and the cube's position (`signals.npz`);
+     - the cube's orientation as the bank computes it (the scene's while free, turned with the hand while held);
+     - the bin from `scene.json`, the derived terms, and the previous action.
+   - **The action** is `rt.target_to_action` from the reached tool pose to the next commanded target (the demo's
+     Trajectory): the step clipped to one action, the gripper ±1 (always past the deadband).
+   - About 40k pairs. Steps after the release are kept, because the teacher has to learn to let go and back off.
+2. **BC:** fit rsl_rl's actor (MLP [512, 256, 128] with its observation normaliser) to those actions by MSE: about
+   50 epochs, minutes on the GPU.
+   - Save it as an rsl_rl checkpoint: the actor's weights and normaliser, with a fresh critic.
+   - The checkpoint format has to be read from rsl_rl 5.5's `OnPolicyRunner.save`/`load`.
+3. **PPO from it:** `rl_train.py --checkpoint <bc.pt>` with `--no-resume_optimizer_state`, init/std floor about 0.2,
+   entropy 0.005, the same reward and starts.
+   - **Optional:** a BC term to keep it near the demos early (not built into rsl_rl).
+   - **Risk:** fine-tuning a Gaussian actor from BC can collapse (DPPO). Watch std and `check_success` at 150/300 as
+     today.
+4. **Effort:** about 2–3 h of code and tests, then one GPU run. The human demos then seed the policy, not only its
+   starts, which is still "learned from the reward with SANT-verified demos" and no hand-written logic.
