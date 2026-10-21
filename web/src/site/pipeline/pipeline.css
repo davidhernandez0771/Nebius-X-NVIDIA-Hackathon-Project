@@ -431,6 +431,7 @@
   width: 100%;
   min-width: 0;
   height: 2.25rem;
+  min-height: 0; /* the app's global text inputs are 44 px tall */
 }
 .sant .pipe-start input:focus-visible,
 .sant .pipe-start select:focus-visible { border-color: var(--pipe-teal); outline: 1px solid var(--pipe-hair-hi); outline-offset: 1px; }
@@ -465,6 +466,7 @@
 
 /* ------------------------------------------------------------ the run's state, Cancel / Resume, the downloads link */
 
+.sant .pipe-run-status:empty { display: none; }
 .sant .pipe-run-status { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; justify-content: space-between; }
 .sant .pipe-run-status > .data-note { margin: 0; flex: 1 1 18rem; font-family: var(--pipe-mono); font-size: var(--sant-fs-caption); }
 .sant .pipe-controls { display: flex; flex-wrap: wrap; gap: var(--sant-space-2); align-items: center; }

@@ -32,7 +32,7 @@ From 2 it borrows one thing: the conduit runs off the strip's right edge once th
 **Shared primitives:** T1 is restyling /data (pm/data-holo) in the same language and owns `web/src/site/holo/holo.css` + `Holo.tsx`. They also own the data-* look (badges, buttons, notes), which the pipeline reuses. This branch styles only the `pipe-*` classes, against T1's `--holo-*` token names with fallbacks.
 
 ## Build
-**The frame.** `/pipeline` now sits in T1's shared `HoloPage`: Record's top strip (mark, "⏏ workshop", serif title, the path Record › Pipeline › Data), the void, and the cutting-mat grid. It replaces AppShell. Inside it, the `--sant-*` tokens take the holo values, so /data's badges, buttons, notes and tables come out in the same look. Cherry-picked from T1's pm/data-holo: 2bb9484 → 0dd8cf2, 2bd1fd9 → b37c3fb (holo files only).
+**The frame.** `/pipeline` now sits in T1's shared `HoloPage`: Record's top strip (mark, "⏏ workshop", serif title, the path Record › Pipeline › Data), the void, and the cutting-mat grid. It replaces AppShell. Inside it, the `--sant-*` tokens take the holo values, so /data's badges, buttons, notes and tables come out in the same look. Cherry-picked from T1's pm/data-holo: 2bb9484 → 0dd8cf2, 2bd1fd9 → b37c3fb, 96699c6 → bfbbc6d (holo files only), and T1's /data restyle 80683b6 → c65318d (data files only).
 
 **The pieces, all in `pipeline.css` plus a little markup:**
 - **Panels.** The bar, each stage's page and the start form are `.holo-panel` (glass, a teal hairline, corner ticks). The run rows and download cards are the same glass without ticks.
@@ -57,3 +57,44 @@ From 2 it borrows one thing: the conduit runs off the strip's right edge once th
   - Animation is transform, opacity and clip-path only; the conduit and gate fills are `scaleX`. There is no blur, no filter and no WebGL.
   - With reduced motion (the OS setting or `data-motion="reduced"`) nothing animates: the panel just appears, and the fills jump.
 - **Contrast.** Text is ink or ink-2. The frame's ink-3 (3.3:1) is decoration only.
+
+## Checks
+- **Tests first:**
+  - model: `conduitOf` and `lossHead`, 2 new tests;
+  - pages: 5 new (the conduit's fill and nodes, stage panels and remounting, the trace's glow and head, download kinds and run states, the gate meter and phase track), plus the Data hand-off at the end;
+  - every old test unchanged and passing.
+  - Pipeline: model 14, stub 3, pages 34 (51 in all).
+- **Full web suite** (with T1's holo + /data commits): 199 files, 1,808 passed, 1 skipped.
+  - The first full run had 1 failure in T1's `DataPage.test.tsx` ("shows the variants with their badges…"). It passed 3/3 alone and in the next full run, so it is load-dependent (reported to T1).
+- **`tsc -b` and `npm run build`:** pass.
+- **Headless Chrome, SwiftShader only** (`ANGLE … SwiftShader Device`), after 17:35 per the lead's CPU window:
+  - The example run (no backend) covers the list, Check, Train, Evaluate and Export. A scratch fixture server covers the teacher pages; it served the tests' teacher snapshot (runs labelled "FIXTURE:"), with no run, GPU or backend.
+  - The "before" set is pm/live-13 `7637481`, from a detached scratch worktree.
+  - Desktop shots are 1280×720 (full page). Phone shots are 390×844, full page, and none scrolls sideways (scrollWidth 390).
+- **Reduced motion** (emulated `prefers-reduced-motion: reduce`):
+  - after a stage click, the panel has animation `none` and opacity 1;
+  - the scanline has animation `none`;
+  - the conduit's transition is 0 s. (shot `after/desktop-11-transition-reduced.jpg`)
+- **Fixed from the shots:**
+  - an empty status row left a gap under the bar;
+  - the demos field was 44 px tall (the app's global input min-height) next to 36 px fields.
+
+## Screenshots (`2026-10-21-pipeline-holo/`)
+`before/` and `after/`, each named `desktop-NN-…` and `phone-NN-…`:
+- 01: the list and start form;
+- 02: Check;
+- 03: Train (the loss trace);
+- 04: Export (the downloads);
+- 05: Evaluate;
+- 06: Gate (fixture);
+- 07: Distill (fixture);
+- 08: Teacher (fixture);
+- 09: the teacher form (fixture);
+- 10: a stage click mid draw-in, with the scanline;
+- 11 (after only): the same click with reduced motion.
+
+## Open
+- **The example's end asks the absent API for its artifact list** (`GET /pipeline/runs/example/artifacts`, connection refused, 2 requests), then shows its own list. This happened before this branch too (same count on live-13). It could skip the fetch for the example; not changed here.
+- **The fixture's loss noise** on the Distill shot is the fixture's, not a run's.
+- **The teacher pages:** like the rest, they have been seen live only against fixtures. The first real teacher run tonight is their first live view.
+- **Left on disk, by design** (no rm): the scratch worktree `scratchpad/before-wt`, whose `web/node_modules` is a junction to pm-t2's. Remove the junction (`rmdir`, not a recursive delete) before `git worktree remove`.
