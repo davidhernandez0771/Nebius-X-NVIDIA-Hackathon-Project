@@ -118,6 +118,7 @@ class EpisodeMonitor:
         # the lift preset's parts (rl_teacher.lift_*): its level reward, its foul penalty, its bonus
         self.lift_level, self.lift_penalty, self.lift_bonus = z(), z(), z()
         self.placed_steps = z(torch.int32)
+        self.after_success = z(torch.int32)  # steps since the bonus (done_success's extra_s)
         self.length = z(torch.int32)
         self.fouled, self.success = z(torch.bool), z(torch.bool)
         self.terms: dict = {}
@@ -160,6 +161,8 @@ class EpisodeMonitor:
         left = torch.zeros_like(self.bonus) if remaining is None else remaining.float()
         self.lift_bonus = done.float() * rt.lift_bonus(left)
         self.success |= done
+        zero = torch.zeros_like(self.after_success)
+        self.after_success = torch.where(done, zero, torch.where(self.success, self.after_success + 1, zero))
         self.terms = terms
         # the tracked environments' record for check_success
         t, ln = self.tracked, self.length[self.tracked].long()
@@ -205,6 +208,7 @@ class EpisodeMonitor:
                     self.lift_bonus):
             buf[env_ids] = 0.0
         self.placed_steps[env_ids] = 0
+        self.after_success[env_ids] = 0
         self.length[env_ids] = 0
         self.fouled[env_ids] = False
         self.success[env_ids] = False
@@ -244,8 +248,10 @@ def monitor(env) -> EpisodeMonitor:
 # --- terms -----------------------------------------------------------------------------------------------
 
 
-def done_success(env) -> torch.Tensor:
-    return monitor(env).success
+def done_success(env, extra_s: float = 0.0) -> torch.Tensor:
+    """The episode ends extra_s after the success bonus (0 in training: at the bonus)."""
+    m = monitor(env)
+    return m.success & (m.after_success.float() * rt.STEP_S >= extra_s - 1e-6)
 
 
 def cube_fell(env) -> torch.Tensor:
@@ -529,6 +535,9 @@ class SantPickPlaceRLNoDemoEnvCfg(SantPickPlaceRLEnvCfg):
         self.events.reset_scene.params["bank_path"] = ""
 
 
+PLAY_SUCCESS_EXTRA_S = 0.2
+
+
 @configclass
 class SantPickPlaceRLPlayEnvCfg(SantPickPlaceRLEnvCfg):
     """For playing a checkpoint: few envs, home starts only."""
@@ -538,3 +547,7 @@ class SantPickPlaceRLPlayEnvCfg(SantPickPlaceRLEnvCfg):
         self.scene.num_envs = 40
         self.events.reset_scene.params["demo_prob"] = 0.0
         self.events.reset_scene.params["bank_path"] = ""
+        # the policy keeps acting PLAY_SUCCESS_EXTRA_S past the bonus: the trajectory the gate replays then ends with
+        # margin on check_success's 0.5 s settle (the replay re-simulates), and a teacher that bumps the bin after
+        # placing fails (the lead's decision A, 2026-10-21). Training ends at the bonus, unchanged
+        self.terminations.success.params = {"extra_s": PLAY_SUCCESS_EXTRA_S}

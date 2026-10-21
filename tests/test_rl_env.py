@@ -311,3 +311,30 @@ def test_the_bonus_waits_for_check_successs_settle_time_whatever_physics_says_th
     mon.finish(torch.tensor([0]), torch.tensor([scene["bin_pose"]["pos"]]), torch.tensor([[x, y, z, w]]))
     (res,) = mon.results
     assert res["bonus"] and res["success"], res["reasons"]
+
+
+def test_play_episodes_end_a_margin_after_the_bonus_and_training_ones_at_it():
+    """The lead's decision A: the gate's trajectories run PLAY_SUCCESS_EXTRA_S past the bonus; training is unchanged."""
+    assert rc.SantPickPlaceRLPlayEnvCfg().terminations.success.params == {"extra_s": 0.2}
+    assert rc.SantPickPlaceRLEnvCfg().terminations.success.params == {}
+    assert rc.SantPickPlaceRLLiftEnvCfg().terminations.success.params == {}
+    states, g, scene, _ = _episode("verified")
+    mon = rc.EpisodeMonitor(1, "cpu", max_steps=len(states) + 5, track_every=1)
+    env = NS(_sant_rl_monitor=mon, common_step_counter=0)
+    to_t = lambda s: rt.StepState(*(torch.as_tensor(np.asarray(v)) for v in s))  # noqa: E731
+    bonus_at, play_end = None, None
+    for k, s in enumerate(states):
+        arm_bin, arm_table = (torch.as_tensor(g[f][k:k + 1]) for f in ("contact_arm_bin", "contact_arm_table"))
+        mon.update(to_t(s), arm_bin, arm_table)
+        mon.step = env.common_step_counter  # the monitor is up to date: done_success only reads it
+        if bonus_at is None and bool(rc.done_success(env)[0]):
+            bonus_at = k
+            assert not bool(rc.done_success(env, extra_s=0.2)[0])
+        if bool(rc.done_success(env, extra_s=0.2)[0]):
+            play_end = k
+            break
+    assert bonus_at == rt.episode_return(states)["success_bonus_at"] and play_end == bonus_at + 10
+    w, x, y, z = scene["bin_pose"]["quat_wxyz"]
+    mon.finish(torch.tensor([0]), torch.tensor([scene["bin_pose"]["pos"]]), torch.tensor([[x, y, z, w]]))
+    (res,) = mon.results
+    assert res["success"] and res["bonus"] and res["steps"] == play_end + 1
