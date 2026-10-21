@@ -126,7 +126,7 @@
   border-radius: var(--sant-radius-sm);
 }
 .sant .pipe-file__kind { color: var(--sant-muted); font-size: var(--sant-fs-small); }
-.sant .pipe-file__link { color: var(--sant-accent); font-family: var(--sant-font-data); }
+.sant .pipe-file__link { min-width: 0; overflow-wrap: anywhere; color: var(--sant-accent); font-family: var(--sant-font-data); }
 .sant .pipe-file__size { font-family: var(--sant-font-data); font-size: var(--sant-fs-small); }
 .sant .pipe-file__note { grid-column: 2 / -1; color: var(--sant-muted); font-size: var(--sant-fs-caption); }
 
@@ -150,7 +150,7 @@
 
 .sant .pipe-start { display: grid; gap: var(--sant-space-3); padding: var(--sant-space-4); border: 1px solid var(--sant-line); border-radius: var(--sant-radius-md); }
 .sant .pipe-start__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--sant-space-3); align-items: end; }
-.sant .pipe-start label { display: grid; gap: 4px; color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+.sant .pipe-start label { display: grid; gap: 4px; min-width: 0; color: var(--sant-muted); font-size: var(--sant-fs-caption); }
 .sant .pipe-start input,
 .sant .pipe-start select {
   padding: var(--sant-space-1) var(--sant-space-2);
@@ -160,7 +160,13 @@
   color: var(--sant-text);
   font: inherit;
   font-size: var(--sant-fs-small);
+  /* one height for every field, and the server's longer preset labels stay in their column */
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 2.25rem;
 }
+.sant .pipe-start label.pipe-start__check input { width: auto; height: auto; }
 .sant .pipe-start label.pipe-start__check { display: flex; gap: var(--sant-space-2); align-items: center; }
 .sant .pipe-start__demos { margin: 0; font-family: var(--sant-font-data); }
 .sant .pipe-start__go { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; }
@@ -176,3 +182,38 @@
   .sant .pipe-file__kind,
   .sant .pipe-file__note { grid-column: 1 / -1; }
 }
+
+/* Phones: two stages a row so a duration stays on one line, and the bar scrolls away (sticky, it would cover a
+   third of the screen). */
+@media (max-width: 480px) {
+  .sant .pipe-bar { position: static; }
+  .sant .pipe-stages ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sant .pipe-stage__state { white-space: nowrap; }
+}
+
+/* ------------------------------------------------------------ the run's state, Cancel / Resume, the downloads link */
+
+.sant .pipe-run-status { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; justify-content: space-between; }
+.sant .pipe-run-status > .data-note { margin: 0; flex: 1 1 18rem; }
+.sant .pipe-controls { display: flex; flex-wrap: wrap; gap: var(--sant-space-2); align-items: center; }
+.sant .pipe-controls__ask {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-2);
+  align-items: center;
+  margin: 0;
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-small);
+}
+.sant .pipe-controls .data-note--error { flex-basis: 100%; margin: 0; }
+.sant .pipe-ready { margin: 0; }
+.sant .pipe-ready a {
+  display: inline-block;
+  padding: var(--sant-space-2) var(--sant-space-3);
+  border: 1px solid var(--sant-line);
+  border-radius: var(--sant-radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+.sant .pipe-ready a:hover,
+.sant .pipe-ready a:focus-visible { border-color: currentColor; }

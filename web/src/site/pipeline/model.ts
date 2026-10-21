@@ -68,6 +68,10 @@ export type RunState = {
   artifacts: Artifact[];
   /** The run log's last lines. */
   log: string[];
+  /** How many demos it runs on. */
+  demos: number;
+  /** A dry run's plan: what the full run would take, in seconds. */
+  plan_s: number | null;
 };
 
 export type RunSummary = { id: string; name: string; created: string; status: RunStatus; stage: string; demos: number; detail: string | null; resumable: boolean };
@@ -131,7 +135,8 @@ const repairRow = (o: Obj): RepairRow => ({
   after: o.after ? metrics(obj(o.after)) : null,
   output_id: typeof o.output_id === "string" ? o.output_id : null,
 });
-const variantRow = (o: Obj): VariantRow => ({ id: str(o.id), source: str(o.source), seed: num(o.seed), success: o.success === true, reasons: strs(o.reasons), frames: num(o.frames, 0)! });
+// A failed variant has no episode id: it gets the name T5 gives it (<source>_m<seed>), so every row has its own.
+const variantRow = (o: Obj): VariantRow => ({ id: str(o.id) || `${str(o.source)}_m${num(o.seed) ?? "?"}`, source: str(o.source), seed: num(o.seed), success: o.success === true, reasons: strs(o.reasons), frames: num(o.frames, 0)! });
 const evalRow = (o: Obj): EvalRow => ({ seed: num(o.seed, 0)!, success: o.success === true, reasons: strs(o.reasons), cell: typeof o.cell === "string" ? o.cell : null });
 const artifact = (o: Obj): Artifact => ({
   name: str(o.name),
@@ -162,6 +167,8 @@ export function emptyRun(id: string): RunState {
     evaluate: { seeds: [], planned: 0 },
     artifacts: [],
     log: [],
+    demos: 0,
+    plan_s: null,
   };
 }
 
@@ -197,6 +204,8 @@ export function parseRun(body: unknown): RunState {
     evaluate: { seeds: arr(e.seeds).map((x) => evalRow(obj(x))), planned: num(e.planned, 0)! },
     artifacts: arr(o.artifacts).map((x) => artifact(obj(x))),
     log: strs(o.log).slice(-LOG_LINES),
+    demos: num(o.demos, 0)!,
+    plan_s: num(o.plan_s),
   };
 }
 
@@ -227,6 +236,12 @@ export function parseRunEvent(data: string): RunEvent | null {
   }
 }
 
+const lossPoints = (v: unknown): [number, number][] =>
+  arr(v).map((p) => arr(p)).filter((p) => p.length === 2 && num(p[0]) !== null && num(p[1]) !== null).map((p) => [num(p[0])!, num(p[1])!]);
+
+/** Both cells (raw_N, perfected_multiply_N) run the same seeds. */
+const evalKey = (r: EvalRow) => `${r.cell ?? ""}:${r.seed}`;
+
 const upsert = <T>(rows: T[], row: T, key: (r: T) => string | number): T[] => {
   const i = rows.findIndex((r) => key(r) === key(row));
   return i < 0 ? [...rows, row] : rows.map((r, j) => (j === i ? row : r));
@@ -249,7 +264,14 @@ export function applyRunEvent(s: RunState, e: RunEvent): RunState {
       return { ...s, variants: upsert(s.variants, variantRow(e), (r) => r.id) };
     case "train": {
       const step = num(e.step, s.train.step)!;
+      const cell = typeof e.cell === "string" ? e.cell : s.train.cell;
+      // A new cell trains from step 0: its own curve and checkpoints.
+      const fresh = cell !== s.train.cell && s.train.cell !== null;
+      // The new points (T5's loss_points, or loss as a list), else the latest loss (a number) at this step.
       const loss = num(e.loss);
+      const given = "loss_points" in e ? lossPoints(e.loss_points) : Array.isArray(e.loss) ? lossPoints(e.loss) : loss !== null ? [[step, loss] as [number, number]] : [];
+      const at = new Set(given.map(([k]) => k));
+      const kept = fresh ? [] : s.train.loss.filter(([k]) => !at.has(k));
       return {
         ...s,
         train: {
@@ -257,19 +279,27 @@ export function applyRunEvent(s: RunState, e: RunEvent): RunState {
           step,
           steps: num(e.steps, s.train.steps)!,
           eta_s: "eta_s" in e ? num(e.eta_s) : s.train.eta_s,
-          cell: typeof e.cell === "string" ? e.cell : s.train.cell,
-          loss: loss === null ? s.train.loss : [...s.train.loss.filter(([k]) => k !== step), [step, loss]],
+          cell,
+          loss: [...kept, ...given].sort((a, b) => a[0] - b[0]),
+          checkpoints: fresh ? [] : s.train.checkpoints,
         },
       };
     }
     case "checkpoint":
       return { ...s, train: { ...s.train, checkpoints: upsert(s.train.checkpoints, { step: num(e.step, 0)!, name: str(e.name) }, (c) => c.step) } };
     case "evaluate":
-      return { ...s, evaluate: { ...s.evaluate, seeds: upsert(s.evaluate.seeds, evalRow(e), (r) => r.seed) } };
+      return { ...s, evaluate: { ...s.evaluate, seeds: upsert(s.evaluate.seeds, evalRow(e), evalKey) } };
     case "artifact":
       return { ...s, artifacts: upsert(s.artifacts, artifact(e), (a) => a.name) };
     case "run":
-      return { ...s, elapsed_s: "elapsed_s" in e ? num(e.elapsed_s) : s.elapsed_s, remaining_s: "remaining_s" in e ? num(e.remaining_s) : s.remaining_s, status: oneOf(e.status, RUN_STATUSES, s.status) };
+      return {
+        ...s,
+        status: oneOf(e.status, RUN_STATUSES, s.status),
+        detail: "detail" in e ? (typeof e.detail === "string" ? e.detail : null) : s.detail,
+        resumable: "resumable" in e ? e.resumable === true : s.resumable,
+        elapsed_s: "elapsed_s" in e ? num(e.elapsed_s) : s.elapsed_s,
+        remaining_s: "remaining_s" in e ? num(e.remaining_s) : s.remaining_s,
+      };
     case "log":
       return typeof e.line === "string" ? { ...s, log: [...s.log, e.line].slice(-LOG_LINES) } : s;
     case "end":
@@ -299,16 +329,36 @@ export type Bar = { current: StageId | null; waiting: string | null; elapsed: st
 export function barOf(r: RunState): Bar {
   const finished = r.status === "done" || r.status === "failed" || r.status === "cancelled";
   const current = finished ? null : (r.stages.find((s) => s.status === "running") ?? r.stages.find((s) => s.status === "pending"))?.id ?? null;
-  const waiting =
-    r.gpu.state === "queued"
-      ? `Waiting for the GPU${r.gpu.position ? ` (${ordinal(r.gpu.position)} in line${r.gpu.holder ? `; it's busy: ${r.gpu.holder}` : ""})` : ""}`
-      : null;
-  return { current, waiting, elapsed: formatDuration(r.elapsed_s), remaining: finished ? r.status : formatDuration(r.remaining_s) };
+  const g = r.gpu;
+  const why = [g.position ? `${ordinal(g.position)} in line` : "", g.holder ? `it's busy: ${g.holder}` : ""].filter(Boolean).join("; ");
+  const waiting = g.state === "queued" ? `Waiting for the GPU${why ? ` (${why})` : ""}` : null;
+  const remaining = r.plan_s !== null && r.status === "done" ? `dry run: about ${formatDuration(r.plan_s)}` : finished ? r.status : formatDuration(r.remaining_s);
+  return { current, waiting, elapsed: formatDuration(r.elapsed_s), remaining };
 }
 
 /** Successes out of the seeds run so far, and of those planned. */
 export function evalScore(r: RunState): { k: number; run: number; planned: number } {
   return { k: r.evaluate.seeds.filter((s) => s.success).length, run: r.evaluate.seeds.length, planned: r.evaluate.planned };
+}
+
+const CELL_LABELS: [RegExp, string][] = [
+  [/^raw_/, "Raw demos"],
+  [/^perfected_multiply_/, "SANT (repaired + multiplied)"],
+];
+
+/** The evaluation per cell (raw demos against SANT's data), in the order they appear; planned split between them. */
+export function evalCells(r: RunState): { cell: string; label: string; k: number; run: number; planned: number }[] {
+  const cells = [...new Set(r.evaluate.seeds.map((s) => s.cell ?? ""))];
+  return cells.map((cell) => {
+    const rows = r.evaluate.seeds.filter((s) => (s.cell ?? "") === cell);
+    return {
+      cell,
+      label: CELL_LABELS.find(([re]) => re.test(cell))?.[1] ?? (cell || "Policy"),
+      k: rows.filter((s) => s.success).length,
+      run: rows.length,
+      planned: Math.round(r.evaluate.planned / Math.max(1, cells.length)),
+    };
+  });
 }
 
 /** The loss curve as an SVG path in a w x h box: steps along x, log(loss) down y (high loss at the top). */

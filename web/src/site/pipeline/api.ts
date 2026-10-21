@@ -33,8 +33,30 @@ export const startRun = (r: Recipe, f: Fetch = fetch): Promise<string> => post<{
 export const estimateRun = (r: Recipe, f: Fetch = fetch): Promise<{ demos: number; remaining_s: number | null }> =>
   post<{ demos?: number; remaining_s?: number | null }>("/pipeline/estimate", r, f).then((b) => ({ demos: b.demos ?? 0, remaining_s: b.remaining_s ?? null }));
 
-export const cancelRun = (id: string, f: Fetch = fetch) => post<unknown>(`/pipeline/runs/${encodeURIComponent(id)}/cancel`, {}, f);
-export const resumeRun = (id: string, f: Fetch = fetch) => post<unknown>(`/pipeline/runs/${encodeURIComponent(id)}/resume`, {}, f);
+/** Cancel or resume a run; both answer with its snapshot (resume: 409 unless it stopped). */
+export const cancelRun = (id: string, f: Fetch = fetch): Promise<RunState> => post<unknown>(`/pipeline/runs/${encodeURIComponent(id)}/cancel`, {}, f).then(parseRun);
+export const resumeRun = (id: string, f: Fetch = fetch): Promise<RunState> => post<unknown>(`/pipeline/runs/${encodeURIComponent(id)}/resume`, {}, f).then(parseRun);
+
+export type Preset = { id: NonNullable<Recipe["preset"]>; label: string; steps: number | null; eval_n: number | null };
+export type PipelineConfig = { enabled: boolean; presets: Preset[] };
+
+/** The server's pipeline settings (GET /pipeline/config): whether it runs at all, and its presets. */
+export const fetchConfig = (f: Fetch = fetch): Promise<PipelineConfig> =>
+  pmFetch<{ enabled?: unknown; presets?: Record<string, { label?: unknown; steps?: unknown; eval_n?: unknown }> }>("/pipeline/config", undefined, f).then((b) => ({
+    enabled: b.enabled === true,
+    presets: Object.entries(b.presets ?? {})
+      .filter(([id]) => id === "smoke" || id === "standard" || id === "long")
+      .map(([id, p]) => ({
+        id: id as Preset["id"],
+        label: typeof p?.label === "string" ? p.label : id,
+        steps: typeof p?.steps === "number" ? p.steps : null,
+        eval_n: typeof p?.eval_n === "number" ? p.eval_n : null,
+      })),
+  }));
+
+/** A finished run's downloads (GET /pipeline/runs/{id}/artifacts). */
+export const fetchArtifacts = (id: string, f: Fetch = fetch): Promise<RunState["artifacts"]> =>
+  pmFetch<unknown>(`/pipeline/runs/${encodeURIComponent(id)}/artifacts`, undefined, f).then((b) => parseRun({ artifacts: (b as { artifacts?: unknown })?.artifacts }).artifacts);
 
 export const fetchRunFootage = (id: string, episode: string, f: Fetch = fetch): Promise<Footage> =>
   pmFetch<unknown>(`/pipeline/runs/${encodeURIComponent(id)}/footage/${encodeURIComponent(episode)}?camera=front`, undefined, f)

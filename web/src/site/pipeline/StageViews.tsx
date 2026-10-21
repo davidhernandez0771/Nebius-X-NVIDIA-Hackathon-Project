@@ -6,16 +6,17 @@ import { FootageView } from "../data/FootageView";
 import { useAsync, useClock } from "../data/hooks";
 import { VerdictBadge } from "../data/Pane";
 import { repairText, verdictOf, whatChanged, demoName, type RepairStage, type Verification } from "../data/model";
-import { downloadUrl, fetchRunFootage, type Fetch } from "./api";
+import { downloadUrl, fetchArtifacts, fetchRunFootage, type Fetch } from "./api";
 import {
-  PIPELINE_STAGES, evalScore, formatDuration, lossPath, stageOf, type Metrics, type RepairRow, type RunState, type Stage, type StageId, type VariantRow,
+  PIPELINE_STAGES, evalCells, evalScore, formatDuration, lossPath, stageOf, type Metrics, type RepairRow, type RunState, type Stage, type StageId, type VariantRow,
 } from "./model";
 
 const nf = new Intl.NumberFormat("en-US");
 
 function StageHead({ stage, run }: { stage: Stage; run: RunState }) {
   const meta = PIPELINE_STAGES.find((s) => s.id === stage.id)!;
-  const items = stage.items;
+  // Train counts its steps itself, per cell (TrainView); its items add up every cell.
+  const items = stage.id === "train" ? null : stage.items;
   return (
     <header className="pipe-head">
       <h2 className="data-h2">{meta.label}</h2>
@@ -30,9 +31,11 @@ function StageHead({ stage, run }: { stage: Stage; run: RunState }) {
         {stage.status === "pending" && (run.gpu.state === "queued" ? "Waiting for the GPU." : `Not started${stage.eta_s !== null ? ` (about ${formatDuration(stage.eta_s)} when it runs)` : ""}.`)}
         {stage.status === "done" && `Done${stage.detail ? `: ${stage.detail}` : ""}.`}
         {stage.status === "failed" && `Stopped${stage.detail ? `: ${stage.detail}` : ""}.`}
-        {stage.status === "skipped" && "Skipped for this run."}
+        {stage.status === "skipped" &&
+          (run.plan_s !== null && stage.eta_s !== null ? `Skipped (a dry run): about ${formatDuration(stage.eta_s)} when it runs.` : "Skipped for this run.")}
       </p>
-      {stage.status === "running" && stage.detail && <p className="data-note">{stage.detail}</p>}
+      {/* Train's summary line says the step already */}
+      {stage.status === "running" && stage.detail && stage.id !== "train" && <p className="data-note">{stage.detail}</p>}
       {stage.eta_basis && <p className="pipe-head__basis">Estimate: {stage.eta_basis}</p>}
     </header>
   );
@@ -155,7 +158,6 @@ function TrainView({ run }: { run: RunState }) {
     <>
       <p className="data-summary">
         {nf.format(t.step)} of {nf.format(t.steps)} steps
-        {t.eta_s !== null && t.step < t.steps ? ` · ${formatDuration(t.eta_s)} left` : ""}
         {t.cell ? ` · ${t.cell}` : ""}
       </p>
       <figure className="pipe-loss">
@@ -184,18 +186,29 @@ function TrainView({ run }: { run: RunState }) {
 
 function EvaluateView({ run }: { run: RunState }) {
   const s = evalScore(run);
+  const cells = evalCells(run);
   return (
     <>
-      <p className="data-summary">
-        {s.k} of {s.run} seeds succeeded{s.planned ? ` (${s.planned} planned)` : ""}
-      </p>
+      {cells.length > 1 ? (
+        // Both cells run the same seeds: each is scored on its own.
+        cells.map((c) => (
+          <p key={c.cell} className="data-summary">
+            {c.label}: {c.k} of {c.run} seeds succeeded{c.planned ? ` (${c.planned} planned)` : ""}
+          </p>
+        ))
+      ) : (
+        <p className="data-summary">
+          {s.k} of {s.run} seeds succeeded{s.planned ? ` (${s.planned} planned)` : ""}
+        </p>
+      )}
       <ul className="pipe-seeds" aria-label="Seeds">
         {run.evaluate.seeds.map((x) => (
           <li
-            key={`${x.cell ?? ""}${x.seed}`}
+            key={`${x.cell ?? ""}:${x.seed}`}
             className="pipe-seed"
             data-ok={x.success}
-            title={`seed ${x.seed}: ${x.success ? "succeeded" : x.reasons.join(", ") || "failed"}`}
+            data-cell={x.cell ?? undefined}
+            title={`${cells.length > 1 ? `${cells.find((c) => c.cell === (x.cell ?? ""))?.label}, ` : ""}seed ${x.seed}: ${x.success ? "succeeded" : x.reasons.join(", ") || "failed"}`}
           >
             {x.seed}
           </li>
@@ -208,13 +221,24 @@ function EvaluateView({ run }: { run: RunState }) {
 const MB = (b: number) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b >= 1e6 ? `${Math.round(b / 1e6)} MB` : `${Math.max(1, Math.round(b / 1e3))} kB`);
 const KIND: Record<string, string> = { dataset: "The dataset", robota: "The Robota export", report: "The report", checkpoint: "A checkpoint", other: "A file" };
 
-function ExportView({ run }: { run: RunState }) {
-  if (run.artifacts.length === 0) return <p className="data-note">Nothing to download yet: the files appear here when the run gets to Export.</p>;
+/** What a file is, from its name where T5's export names it (dataset_<cell>.zip, results.json), else its kind. */
+function kindOf(a: RunState["artifacts"][number]): string {
+  const cell = /^dataset_(.+).zip$/.exec(a.name)?.[1];
+  if (cell) return `The dataset: ${/^raw_/.test(cell) ? "raw demos" : /^perfected_multiply_/.test(cell) ? "SANT (repaired + multiplied)" : cell}`;
+  if (a.name === "results.json") return "The results";
+  return KIND[a.kind];
+}
+
+function ExportView({ run, fetchImpl }: { run: RunState; fetchImpl?: Fetch }) {
+  // Once the run is over, its artifact list is the word on what there is to download.
+  const listed = useAsync(run.id && run.status === "done" && run.plan_s === null ? `artifacts:${run.id}` : null, () => fetchArtifacts(run.id, fetchImpl));
+  const files = listed.state === "ok" && listed.value.length ? listed.value : run.artifacts;
+  if (files.length === 0) return <p className="data-note">Nothing to download yet: the files appear here when the run gets to Export.</p>;
   return (
     <ul className="pipe-files" aria-label="Downloads">
-      {run.artifacts.map((a) => (
+      {files.map((a) => (
         <li key={a.name} className="pipe-file">
-          <span className="pipe-file__kind">{KIND[a.kind]}</span>
+          <span className="pipe-file__kind">{kindOf(a)}</span>
           {a.url ? (
             <a className="pipe-file__link" href={downloadUrl(a.url)} download={a.name}>
               {a.name}
@@ -244,7 +268,7 @@ export function StageView({ run, stage, fetchImpl }: { run: RunState; stage: Sta
   return (
     <section className="pipe-stage-page" aria-label={PIPELINE_STAGES.find((s) => s.id === stage)!.label}>
       <StageHead stage={stageOf(run, stage)} run={run} />
-      <View run={run} fetchImpl={fetchImpl} />
+      {run.plan_s !== null ? <p className="data-note">A dry run plans the stages and runs none of them.</p> : <View run={run} fetchImpl={fetchImpl} />}
     </section>
   );
 }

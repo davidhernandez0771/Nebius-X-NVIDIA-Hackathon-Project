@@ -174,6 +174,7 @@ describe("the pipeline pages", () => {
     show("/pipeline/r1/train", backend().f);
     await waitFor(() => expect(FakeSource.all.length).toBe(1));
     live().send(SNAP);
+    live().send({ type: "stage", stage: "train", status: "running", progress: 0.1, eta_s: 1400 });
     live().send({ type: "train", step: 3000, steps: 30000, loss: 0.4, eta_s: 1400 });
     expect(screen.getByText(/3,000 of 30,000 steps/i)).toBeTruthy();
     expect(screen.getByText(/23 min left/i)).toBeTruthy();
@@ -187,6 +188,129 @@ describe("the pipeline pages", () => {
     live().send(SNAP);
     expect(screen.getByText(/1 of 2 seeds succeeded \(40 planned\)/i)).toBeTruthy();
     expect(screen.getByTitle(/seed 5021: dropped/i)).toBeTruthy();
+  });
+
+  it("cancels a run from the page (after asking), then follows it again", async () => {
+    const { f, calls } = backend({ "POST /pipeline/runs/r1/cancel": () => new Response(JSON.stringify({ ...SNAP, status: "running", detail: "cancelling" })) });
+    show("/pipeline/r1/repair", f);
+    await waitFor(() => expect(FakeSource.all.length).toBe(1));
+    live().send(SNAP);
+    fireEvent.click(screen.getByRole("button", { name: /^cancel run/i }));
+    expect(calls.some((c) => c.path.endsWith("/cancel"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /yes, cancel/i }));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path === "/pipeline/runs/r1/cancel")).toBe(true));
+    await waitFor(() => expect(FakeSource.all.length).toBe(2));
+    expect(FakeSource.all[0].readyState).toBe(2);
+  });
+
+  it("resumes a stopped run, and says why the server refused", async () => {
+    let refuse = true;
+    const { f, calls } = backend({
+      "POST /pipeline/runs/r1/resume": () =>
+        refuse ? new Response(JSON.stringify({ detail: "run r1 is running; only a stopped run resumes" }), { status: 409 }) : new Response(JSON.stringify({ ...SNAP, status: "queued" })),
+    });
+    show("/pipeline/r1/train", f);
+    await waitFor(() => expect(FakeSource.all.length).toBe(1));
+    live().send({ ...SNAP, status: "cancelled", detail: "cancelled at train; resumable", resumable: true });
+    expect(screen.queryByRole("button", { name: /^cancel run/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /resume/i }));
+    expect(await screen.findByText(/only a stopped run resumes/i)).toBeTruthy();
+    refuse = false;
+    fireEvent.click(screen.getByRole("button", { name: /resume/i }));
+    await waitFor(() => expect(calls.filter((c) => c.path === "/pipeline/runs/r1/resume").length).toBe(2));
+    await waitFor(() => expect(FakeSource.all.length).toBe(2));
+  });
+
+  it("takes the presets from the server, and says when it keeps the pipeline off", async () => {
+    const config = { enabled: false, presets: { smoke: { steps: 2000, eval_n: 5, label: "Smoke test: proves every stage runs" }, standard: { steps: 30000, eval_n: 40, label: "Standard: 30k ACT steps, 40 eval seeds" } } };
+    show("/pipeline?demos=d1", backend({ "GET /pipeline/config": () => new Response(JSON.stringify(config)) }).f);
+    expect(await screen.findByRole("option", { name: /smoke test: proves every stage runs/i })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /long/i })).toBeNull();
+    expect(screen.getByText(/the pipeline is off on this server/i)).toBeTruthy();
+  });
+
+  it("the estimate: a dry run asks for the full run's time (its own is 0), and a tag that matches nothing says so", async () => {
+    const { f, calls } = backend({
+      "POST /pipeline/estimate": () => {
+        const body = calls[calls.length - 1].body as { tag?: string; dry_run?: boolean };
+        if (body.tag === "nomatch*") return new Response(JSON.stringify({ detail: "no human demo in C:\\data matches 'nomatch*'" }), { status: 422 });
+        return new Response(JSON.stringify({ demos: 3, remaining_s: body.dry_run ? 0 : 9752 }));
+      },
+    });
+    show("/pipeline", f);
+    fireEvent.change(await screen.findByRole("textbox", { name: /demos/i }), { target: { value: "human_2026102*" } });
+    expect(await screen.findByText(/3 demos · about 2 h 43 min/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: /dry run/i }));
+    expect(await screen.findByText(/a dry run plans it: the full run would take about 2 h 43 min/i)).toBeTruthy();
+    expect(calls.filter((c) => c.path === "/pipeline/estimate").every((c) => !(c.body as { dry_run?: boolean }).dry_run)).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: /demos/i }), { target: { value: "nomatch*" } });
+    expect(await screen.findByText(/no human demo in .* matches 'nomatch\*'/i)).toBeTruthy();
+  });
+
+  it("a dry run: posts dry_run, then shows every stage planned and what the full run would take", async () => {
+    const { f, calls } = backend();
+    show("/pipeline?demos=d1", f);
+    fireEvent.click(await screen.findByRole("checkbox", { name: /dry run/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run sant/i }));
+    await waitFor(() => expect(calls.find((c) => c.method === "POST" && c.path === "/pipeline/runs")?.body).toMatchObject({ dry_run: true }));
+    await waitFor(() => expect(FakeSource.all.length).toBe(1));
+    live().send({
+      ...SNAP,
+      status: "done",
+      detail: "dry run: 1 demos selected; the full run would take about 1.5 h",
+      plan_s: 5400,
+      gpu: { state: "idle", position: null, holder: null },
+      stages: ["check", "repair", "multiply", "train", "evaluate", "export"].map((id) => ({ id, status: "skipped", eta_s: 900, items: { done: 0, total: 1, unit: "demo" } })),
+    });
+    const bar = screen.getByRole("navigation", { name: /pipeline/i });
+    expect(bar.textContent).toMatch(/dry run: about 1 h 30 min/);
+    expect(screen.getByText(/skipped \(a dry run\): about 15 min when it runs/i)).toBeTruthy();
+    expect(screen.getByText(/a dry run plans the stages and runs none of them/i)).toBeTruthy();
+    expect(screen.queryByText(/no verdicts yet/i)).toBeNull();
+  });
+
+  it("at the end: the downloads come from the run's artifact list, and every stage points to them", async () => {
+    const list = { artifacts: [{ name: "dataset_perfected_multiply_10.zip", kind: "dataset", bytes: 2_500_000_000, sha256: "cd", url: "/pipeline/runs/r1/artifacts/dataset_perfected_multiply_10.zip" }, { name: "report.html", kind: "report", bytes: 9000, sha256: "ef", url: "/pipeline/runs/r1/artifacts/report.html" }] };
+    const { f, calls } = backend({ "GET /pipeline/runs/r1/artifacts": () => new Response(JSON.stringify(list)) });
+    show("/pipeline/r1/evaluate", f);
+    await waitFor(() => expect(FakeSource.all.length).toBe(1));
+    live().send({ ...SNAP, artifacts: [] });
+    live().send({ type: "end", status: "done", detail: null });
+    expect(screen.getByRole("link", { name: /your data is ready/i }).getAttribute("href")).toBe("/pipeline/r1/export");
+    fireEvent.click(screen.getByRole("link", { name: /your data is ready/i }));
+    await waitFor(() => expect(calls.some((c) => c.path === "/pipeline/runs/r1/artifacts")).toBe(true));
+    expect(await screen.findByRole("link", { name: /dataset_perfected_multiply_10\.zip/i })).toBeTruthy();
+    expect(screen.getByText(/2\.5 GB/)).toBeTruthy();
+    expect(screen.getByText(/SANT \(repaired \+ multiplied\)/)).toBeTruthy();
+  });
+
+  it("Evaluate: both cells scored on their own (they run the same seeds)", async () => {
+    show("/pipeline/r1/evaluate", backend().f);
+    await waitFor(() => expect(FakeSource.all.length).toBe(1));
+    live().send({ ...SNAP, evaluate: { seeds: [], planned: 80 } });
+    live().send({ type: "evaluate", cell: "raw_10", seed: 5020, success: false, reasons: ["dropped"] });
+    live().send({ type: "evaluate", cell: "perfected_multiply_10", seed: 5020, success: true, reasons: [] });
+    expect(screen.getByText(/raw demos: 0 of 1 seeds succeeded \(40 planned\)/i)).toBeTruthy();
+    expect(screen.getByText(/SANT \(repaired \+ multiplied\): 1 of 1 seeds succeeded \(40 planned\)/i)).toBeTruthy();
+  });
+
+  it("Train: says the step once", async () => {
+    show("/pipeline/r1/train", backend().f);
+    await waitFor(() => expect(FakeSource.all.length).toBe(1));
+    live().send({ ...SNAP, stages: [{ id: "train", status: "running", progress: 0.1, detail: "perfected_multiply_10: step 3000/30000", eta_s: 1400 }] });
+    expect(screen.queryByText(/step 3000\/30000/)).toBeNull();
+  });
+
+  it("a run in the list that has no current stage reads as running, not 'at '", async () => {
+    show("/pipeline", backend({ "GET /pipeline/runs": () => new Response(JSON.stringify({ runs: [{ id: "r2", name: "starting", status: "running", stage: null, demos: 3 }] })) }).f);
+    const row = await screen.findByRole("link", { name: /starting/i });
+    expect(row.textContent).toMatch(/3 demos · running/);
+  });
+
+  it("the example keeps its speed when you move between stages", async () => {
+    show("/pipeline/example/check?speed=120", backend().f);
+    const bar = await screen.findByRole("navigation", { name: /pipeline/i });
+    expect(within(bar).getByRole("link", { name: /train/i }).getAttribute("href")).toBe("/pipeline/example/train?speed=120");
   });
 
   it("Export: the downloads, with their sizes", async () => {
