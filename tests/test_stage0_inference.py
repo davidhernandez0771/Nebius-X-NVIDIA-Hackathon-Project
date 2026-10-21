@@ -110,3 +110,28 @@ def test_the_summary_tests_the_final_result_against_the_existing_baseline(s0, tm
     assert m["fisher_p"] == pytest.approx(0.0371, abs=1e-3) and m["significant"] is True
     assert out["primary"] == "mouse_pm10" and out["targets"][1]["significant"] is False
     assert m["practice"]["S0_baseline"] == {"successes": 1, "n": 30}
+
+
+# --- the quick alternative: S4 chosen a priori, straight on the final seeds ------------------------------------------
+
+def test_quick_runs_s4_on_the_final_seeds_for_each_target_in_plan_order(s0, tmp_path):
+    plan = s0.load_plan(_plan(tmp_path))
+    assert s0.QUICK_VARIANT == "S4_binarize_replan20"
+    assert s0.quick_steps(plan, control=False) == [("mouse_pm10", "S4_binarize_replan20"),
+                                                   ("scripted_rm10", "S4_binarize_replan20")]
+    # the optional concurrent control: S0 on the primary target, last
+    assert s0.quick_steps(plan, control=True)[-1] == ("mouse_pm10", "S0_baseline")
+    cmd = s0.eval_cells_command("py", plan, plan["targets"][0], s0.QUICK_VARIANT, "final")
+    assert (cmd[cmd.index("--seed0") + 1], cmd[cmd.index("--n") + 1]) == ("5020", "40")
+    assert "--binarize-gripper" in cmd and cmd[cmd.index("--n-action-steps") + 1] == "20"
+
+
+def test_the_quick_summary_tests_s4_against_the_existing_baseline_and_reports_the_control(s0, tmp_path):
+    plan = s0.load_plan(_plan(tmp_path))
+    final = {"mouse_pm10": ("S4_binarize_replan20", 11, 40), "scripted_rm10": ("S4_binarize_replan20", 20, 40)}
+    out = s0.summarize(plan, {}, final, mode="quick", control={"mouse_pm10": (4, 40)})
+    assert out["mode"] == "quick" and out["targets"][0]["chosen"] == "S4_binarize_replan20"
+    assert out["targets"][0]["significant"] is True and out["targets"][1]["significant"] is False
+    ctl = out["targets"][0]["concurrent_control"]
+    assert ctl["successes"] == 4 and ctl["descriptive_only"] is True and 0 < ctl["fisher_p_vs_final"] <= 1
+    assert "concurrent_control" not in out["targets"][1]

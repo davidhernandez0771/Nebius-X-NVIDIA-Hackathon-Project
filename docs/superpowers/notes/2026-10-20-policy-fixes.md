@@ -59,7 +59,7 @@ Practice seeds that overlap the final ones are refused. `--select-steps` can't b
 The per-eval loop moved out of `main` into `evaluate_one`, and `evaluate_with_selection` calls it for each candidate,
 then for the chosen checkpoint. Behaviour without `--select-steps` is the same.
 
-## 4. The Stage-0 driver and its pre-registration draft
+## 4. The Stage-0 driver and its pre-registration draft (full, and a quick S4-a-priori alternative: --quick)
 
 `scripts/stage0_inference.py` and [2026-10-20-stage0-inference-prereg.md](2026-10-20-stage0-inference-prereg.md),
 with the plan [2026-10-20-stage0-inference-plan.json](2026-10-20-stage0-inference-plan.json). **Not run.**
