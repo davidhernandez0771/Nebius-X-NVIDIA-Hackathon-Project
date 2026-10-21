@@ -63,8 +63,10 @@ def _apply(lines: list[str], cell: str, checkpoint: str | None, payload: dict) -
 
 
 def update_registry(registry: Path, cell: str, summary: EvalSummary, *, seed0: int, checkpoint: str | None = None,
-                    results_file: str | None = None) -> int:
-    """Set eval_success (= successes / n) and an `eval` record on the matching row(s). Returns how many."""
+                    results_file: str | None = None, extra: dict | None = None) -> int:
+    """Set eval_success (= successes / n) and an `eval` record on the matching row(s). Returns how many.
+    extra: more fields for the `eval` record, e.g. the inference options and, when a practice-seed selection chose a
+    checkpoint other than the row's last, which checkpoint was evaluated and the selection file."""
     registry = Path(registry)
     payload = {
         "success_rate": summary.success_rate,
@@ -75,6 +77,7 @@ def update_registry(registry: Path, cell: str, summary: EvalSummary, *, seed0: i
         "ended_by": summary.ended_by,
         "results_file": results_file,
         "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        **(extra or {}),
     }
     for _ in range(_REWRITE_TRIES):
         text = registry.read_text(encoding="utf-8")  # FileNotFoundError if missing

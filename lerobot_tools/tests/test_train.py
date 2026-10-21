@@ -16,6 +16,7 @@ import pytest
 
 from lerobot_tools.train import (
     LAST_POINTER,
+    MAX_STEPS,
     build_lerobot_argv,
     resolve_last_checkpoint,
     update_last_checkpoint_pointer,
@@ -76,7 +77,7 @@ def test_argv_resume_last_points_config_path_at_resolved_checkpoint(tmp_path):
     assert f"--config_path={step / 'pretrained_model'}" in argv
 
 
-@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=60001"], ["--batch_size", "9"]])
+@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=100001"], ["--batch_size", "9"]])
 def test_argv_enforces_sprint_gpu_budget(bad):
     with pytest.raises(ValueError, match="budget"):
         build_lerobot_argv(bad)
@@ -160,3 +161,10 @@ def test_resume_last_continues_from_pointer(tmp_path):
 def test_grasp_fix_run2_budget_allows_60k_steps_at_batch_8():
     # T3 grasp-fix run 2 (recovery copies + longer training) trains to 60k; the step count is chosen on practice seeds
     assert build_lerobot_argv(["--steps=60000", "--batch_size=8"])[:2] == ["--steps=60000", "--batch_size=8"]
+
+
+def test_the_budget_allows_80k_and_100k_steps_at_batch_8():
+    # 2026-10-20 research note, Stage 1: train to 80k (LeRobot's ACT reference runs ~80-100k) and select on practice seeds
+    assert MAX_STEPS == 100_000
+    assert build_lerobot_argv(["--steps=80000", "--batch_size=8"])[:2] == ["--steps=80000", "--batch_size=8"]
+    assert build_lerobot_argv(["--steps=100000", "--batch_size=8"])[:2] == ["--steps=100000", "--batch_size=8"]
