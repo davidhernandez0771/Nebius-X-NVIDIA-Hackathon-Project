@@ -345,7 +345,27 @@ bonus match `check_success`.
 
 **`demo_v6` started** at 11:47:06, when it took `gpu.lock` (wrapper pid 25664). Its command, as the lead gave it:
 `--run-name demo_v6 --reward lift --max-iterations 1500`, plus `demo_v5`'s overrides, including `uniform_share` 0.5.
-T3's `command.txt` is added here when T3 sends it.
+T3's `command.txt` is added here when T3 sends it. T3's own report gives the start as 11:47:05, with trainer pid 34700.
+
+**The open item, explained: `bf56c20`** (T3, 11:50, on `pm/rl-teacher`). This is a run-enabling fix, with no rule
+change.
+- **The cause:** the env's bonus and success termination measured the cube's speed from the physics body velocity.
+  That drops below 0.01 m/s one step before `check_success`'s speed, which comes from position change. So the bonus
+  fired at 0.48 s of the 0.5 s settle, the episode was cut there, and `check_success` failed it as `not_settled`. That
+  explains `demo_v5`'s agreement of 0.85–0.91. The error went one way: the bonus was paid and the check failed.
+- **The fix:** the env measures speed from position change, as `check_success` does. The first step counts as moving.
+  The bonus now only fires when `check_success` would pass, which is the rule set under Amendment 2.
+- **`demo_v6` runs on the old code** (`d9cf2a7`; it started before `bf56c20`). So its `Metrics/check_success`
+  undercounts, and `Episode_Termination/success` is read beside it. Its reward can still pay the bonus about one step
+  early on a few episodes. The gate is unaffected, because it runs `check_success` itself.
+
+**Decision A (the lead): run-enabling, no rule change.**
+- **What it does:** in the eval/Play env only, success termination comes at `SETTLE_S` + 0.2 s, so the gate's replay
+  is not cut at the exact edge of the settle.
+- **What stays the same:** training and the reward; `check_success` and its thresholds; the gate's ≥ 90%.
+- **What changes for the gate:** only where an eval episode stops.
+
+T3 sends the commit, and it is added here.
 
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
