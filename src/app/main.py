@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .config import cors_origins
 from .db import init_db
 from .routers import ask, candidates, chat, corrections, demos, items, organize, phone_scans, photos, pipeline, results, review, robots, rooms, scans, scenes, showcase, teleop, twin
 
@@ -24,7 +25,7 @@ app = FastAPI(title="Room assistant API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # the Vite dev server, by either name
+    allow_origins=cors_origins(),  # the Vite dev server, by either name (+ SANT_CORS_ORIGINS, local only)
     allow_methods=["*"],
     allow_headers=["*"],
 )

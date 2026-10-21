@@ -9,6 +9,12 @@ Each run.log line starts "[human-exp HH:MM:SS]"; a stage's per-item time is the 
 - eval_s (per episode): the eval lock (or its start) to "eval: <cell> k/n, ...", over the episodes.
 A clock that runs past midnight wraps; a gap that is negative or over 2 h (a resumed run) is dropped.
 Every finished run adds its lines, so the estimates keep learning.
+
+The teacher recipe (app.pipeline.teacher_runner) learns from its stage markers (DATA_DIR/teacher/*/stages/<stage>.json:
+seconds and items): rl_iter_s from "teacher" (full-size runs only: a smoke run's 64 envs are far faster), gate_eval_s
+and gate_verify_s per gate episode; and from T6's rollout rows (<repo>/data/distill/<run>/r<k>/rollouts.jsonl,
+wall_s per seed): rollout_s (round 0, the teacher) and dagger_rollout_s (later rounds, the student). The defaults
+are T3's and T6's estimates in their notes until today's runs measure them.
 """
 from __future__ import annotations
 
@@ -30,6 +36,14 @@ DEFAULTS: dict[str, float] = {
     "eval_s": 70.0,  # per eval episode
     "results_s": 2.0,
     "export_s": 120.0,  # zips of the datasets and the Robota export
+    # the teacher recipe (estimates from T3's and T6's notes, 2026-10-20)
+    "rl_iter_s": 2.0,  # per RL iteration at 4,096 envs: the stock lift's ~0.8-1.5 s, SANT's env is heavier
+    "gate_eval_s": 30.0,  # per gate episode: the teacher in Isaac (rl_eval_teacher)
+    "gate_verify_s": 20.0,  # per gate episode: its replay in SANT's eval env (a physics replay)
+    "rollout_s": 24.0,  # per teacher rollout (T6: 21-27 s per seed)
+    "grid_s_per_1k_frames": 21.0,  # T6: assembling the mixed grid
+    "frames_per_rollout": 500.0,  # a teacher episode's frames (estimate: ~10 s at 50 fps)
+    "dagger_rollout_s": 70.0,  # per DAgger rollout: the student, with the teacher labelling (T6: 40 x ~70 s)
 }
 _LINE = re.compile(r"\[human-exp (\d\d):(\d\d):(\d\d)\] (.*)")
 _PER_DEMO = re.compile(r"(physics|repair|align|multiply) (\S+): (.*)")
@@ -118,9 +132,43 @@ class Timings:
                 for k in DEFAULTS}
 
 
+def teacher_samples(data: Path) -> dict[str, list[float]]:
+    """The teacher recipe's measured times (see the module doc), from every run under DATA_DIR/teacher."""
+    out: dict[str, list[float]] = {k: [] for k in ("rl_iter_s", "gate_eval_s", "gate_verify_s", "rollout_s",
+                                                   "dagger_rollout_s", "frames_per_rollout")}
+
+    def read(path: Path):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    for root in sorted(Path(data).glob("teacher/*")):
+        config = read(root / "config.json") or {}
+        for stage, key in (("teacher", "rl_iter_s"), ("gate_eval", "gate_eval_s"), ("gate_verify", "gate_verify_s")):
+            m = read(root / "stages" / f"{stage}.json") or {}
+            if m.get("seconds") and m.get("items") and not (stage == "teacher" and config.get("smoke")):
+                out[key].append(m["seconds"] / m["items"])
+        repo = Path(config["repo"]) if config.get("repo") else None
+        if repo is None:
+            continue
+        for rdir in sorted((repo / "data" / "distill" / root.name).glob("r[0-9]")):
+            key = "rollout_s" if rdir.name == "r0" else "dagger_rollout_s"
+            try:
+                rows = [json.loads(x) for x in (rdir / "rollouts.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
+            except (OSError, ValueError):
+                continue
+            out[key] += [float(r["wall_s"]) for r in rows if r.get("wall_s")]
+            if rdir.name == "r0":
+                out["frames_per_rollout"] += [float(r["frames"]) for r in rows if r.get("frames")]
+    return out
+
+
 def learn(data: Path) -> Timings:
-    """Every run.log under DATA_DIR/human_exp (the site's runs are there too), as Timings."""
+    """Every run.log under DATA_DIR/human_exp (the site's runs are there too) and every teacher run, as Timings."""
     samples: dict[str, list[float]] = {k: [] for k in DEFAULTS}
+    for k, v in teacher_samples(data).items():
+        samples[k].extend(v)
     for log in sorted(Path(data).glob("human_exp/*/run.log")):
         try:
             config = json.loads((log.parent / "config.json").read_text(encoding="utf-8"))

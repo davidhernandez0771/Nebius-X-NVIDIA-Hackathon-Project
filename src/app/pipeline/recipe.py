@@ -5,6 +5,11 @@ The demos: `ids`, or `tag` (an fnmatch pattern over human demo ids), optionally 
 repairer, the variants per demo, a training preset (steps and eval seeds), the eval size, where to stop
 (`stop_after`: "grid" for the data alone, no training) and whether Nemotron labels the demos (billed, off by
 default). A `dry_run` selects and freezes the demos (no GPU) and stops: the plan and its time estimate are the result.
+
+The "teacher" recipe (`kind: "teacher"`, TeacherRecipe) trains the real approach instead (scripts/run_teacher_pipeline.py):
+T3's RL teacher, the teacher gate, T6's distillation round 0 with `teacher_n` teacher rollouts (300 or 600), and a
+DAgger round when asked, from the SANT data of an earlier human-demo run (`human_run`). Its `dry_run` checks the
+scripts and inputs and stops.
 """
 from __future__ import annotations
 
@@ -26,6 +31,7 @@ _TAG = re.compile(r"[A-Za-z0-9_*?.\[\]-]+")
 class Recipe(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    kind: Literal["demos"] = "demos"
     ids: list[str] | None = Field(None, validation_alias=AliasChoices("ids", "demos"))  # the pages send `demos`
     tag: str | None = None
     input: Literal["camera", "keyboard", "mouse"] | None = None
@@ -90,4 +96,66 @@ def runner_args(r: Recipe, name: str) -> list[str]:
         args.append("--multiplied-only")
     if not r.nemotron:
         args.append("--no-nemotron")
+    return args
+
+
+TEACHER_PRESETS: dict[str, dict] = {
+    "smoke": {"rl_iterations": 20, "smoke": True,
+              "label": "Smoke test: T3's and T6's smallest sizes, no gate threshold; proves every stage runs"},
+    "full": {"rl_iterations": 1500, "smoke": False,
+             "label": "Full: 1,500 RL iterations, the 90% teacher gate, round 0 at 60k ACT steps"},
+}
+
+
+class TeacherRecipe(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["teacher"]
+    human_run: str
+    teacher_n: Literal[300, 600] = 300
+    dagger: bool = False
+    preset: Literal["smoke", "full"] = "full"
+    rl_iterations: int | None = Field(None, ge=20, le=5000)
+    dry_run: bool = False
+
+    @field_validator("human_run")
+    @classmethod
+    def _run_name(cls, v: str) -> str:
+        if not _ID.fullmatch(v):
+            raise ValueError("human_run is a human-demo run's name (letters, digits, _ . -)")
+        return v
+
+    @property
+    def iterations(self) -> int:
+        return self.rl_iterations or TEACHER_PRESETS[self.preset]["rl_iterations"]
+
+    @property
+    def smoke(self) -> bool:
+        return TEACHER_PRESETS[self.preset]["smoke"]
+
+    @property
+    def until(self) -> str:
+        return "plan" if self.dry_run else "results"
+
+    @property
+    def gpu(self) -> bool:
+        return not self.dry_run
+
+
+AnyRecipe = Recipe | TeacherRecipe
+
+
+def parse_recipe(body: dict) -> AnyRecipe:
+    """A request body as its recipe: `kind: "teacher"` is the teacher recipe, anything else the demos recipe."""
+    return TeacherRecipe.model_validate(body) if body.get("kind") == "teacher" else Recipe.model_validate(body)
+
+
+def teacher_args(r: TeacherRecipe, name: str) -> list[str]:
+    """scripts/run_teacher_pipeline.py's arguments for this recipe, as run `name`."""
+    args = ["--name", name, "--human-run", r.human_run, "--teacher-n", str(r.teacher_n),
+            "--rl-iterations", str(r.iterations), "--until", r.until]
+    if r.dagger:
+        args.append("--dagger")
+    if r.smoke:
+        args.append("--smoke")
     return args

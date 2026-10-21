@@ -75,6 +75,41 @@ def _train_log(path: Path) -> list[list[float]]:
     return [[s, out[s]] for s in sorted(out)]
 
 
+def stage_rows(order, plan: dict, run: dict, *, status: str, active: bool, now: float, skipped) -> list[dict]:
+    """Each stage's row from its plan (done_n, total, unit, full_eta, per_item, basis, detail, done): its status (the
+    first unfinished stage is the running one, or the failed one), progress, items, times and what is left of it."""
+    out_stages = []
+    running_seen = False
+    stopped = status in ("failed", "cancelled")
+    for sid in order:
+        done_n, total, unit, full_eta, per_item, basis, detail, done = plan[sid]
+        times = (run.get("stage_times") or {}).get(sid) or [None, None]
+        started, finished = times[0], times[1] if len(times) > 1 else None
+        if skipped(sid):
+            st = "skipped"
+        elif done:
+            st = "done"
+        elif not running_seen and (active or stopped):
+            running_seen = True
+            st = "running" if active else ("failed" if status == "failed" else "pending")
+        else:
+            st = "pending"
+        progress = 1.0 if st == "done" else (done_n / total if total else 0.0)
+        elapsed = None if started is None else ((finished or now) - started)
+        if st == "done":
+            eta = 0.0
+        elif st == "running" and per_item is not None and total:
+            left = total - done_n
+            pace = elapsed / done_n if (elapsed and done_n >= 2) else per_item
+            eta = left * pace if done_n or full_eta is None else full_eta
+        else:
+            eta = full_eta
+        out_stages.append({"id": sid, "status": st, "progress": round(progress, 4), "eta_s": eta,
+                           "items": {"done": done_n, "total": total, "unit": unit}, "elapsed_s": elapsed,
+                           "started": started, "finished": finished, "detail": detail or None, "eta_basis": basis})
+    return out_stages
+
+
 def snapshot(run: dict, *, data: Path, timings: Timings, now: float, lock: str | None, position: int | None) -> dict:
     """The run's full state (see the module doc). `lock`: C:\\dev\\gpu.lock's line, or None; `position`: its place in
     our queue behind other runs, or None."""
@@ -157,36 +192,8 @@ def snapshot(run: dict, *, data: Path, timings: Timings, now: float, lock: str |
                    export.get("detail") or ("" if export.get("status") != "done" else "ready"),
                    export.get("status") == "done"),
     }
-    out_stages = []
-    running_seen = False
-    stopped = status in ("failed", "cancelled")
-    for sid in STAGES:
-        done_n, total, unit, full_eta, per_item, basis, detail, done = plan[sid]
-        times = (run.get("stage_times") or {}).get(sid) or [None, None]
-        started, finished = times[0], times[1] if len(times) > 1 else None
-        skipped = recipe.get("dry_run") or (sid != "export" and STAGES.index(sid) > STAGES.index(last))
-        if skipped:
-            st = "skipped"
-        elif done:
-            st = "done"
-        elif not running_seen and (active or stopped):
-            running_seen = True
-            st = "running" if active else ("failed" if status == "failed" else "pending")
-        else:
-            st = "pending"
-        progress = 1.0 if st == "done" else (done_n / total if total else 0.0)
-        elapsed = None if started is None else ((finished or now) - started)
-        if st == "done":
-            eta = 0.0
-        elif st == "running" and per_item is not None and total:
-            left = total - done_n
-            pace = elapsed / done_n if (elapsed and done_n >= 2) else per_item
-            eta = left * pace if done_n or full_eta is None else full_eta
-        else:
-            eta = full_eta
-        out_stages.append({"id": sid, "status": st, "progress": round(progress, 4), "eta_s": eta,
-                           "items": {"done": done_n, "total": total, "unit": unit}, "elapsed_s": elapsed,
-                           "started": started, "finished": finished, "detail": detail or None, "eta_basis": basis})
+    out_stages = stage_rows(STAGES, plan, run, status=status, active=active, now=now,
+                            skipped=lambda sid: bool(recipe.get("dry_run")) or (sid != "export" and STAGES.index(sid) > STAGES.index(last)))
 
     remaining = sum(s["eta_s"] or 0 for s in out_stages if s["status"] in ("pending", "running"))
     if status in ("done", "failed", "cancelled"):
