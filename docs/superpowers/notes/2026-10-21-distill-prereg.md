@@ -407,7 +407,8 @@ the test are unchanged.
   - the `lift` reward (Amendment 2).
 
   Its exact command and start time are added here if it runs.
-- **A finding, recorded:** a demo's steps are 2–4 mm, while the exploration noise is 6–17 mm per step.
+- **A finding, recorded:** a demo's steps are 2–4 mm, while the exploration noise is 6–17 mm per step. So noise at the
+  earlier std swamped demo-like motion, which is why the planned initial std is low.
 
 **`demo_v6` finished** its 1500 iterations at about 12:59 (66 min).
 
@@ -527,13 +528,31 @@ for T6's rollouts. `make()` reads the cap from the run's `params/env.yaml`, as i
 `b7935c0`.
 The plan above applies to it.
 
+**`demo_v6c2` finished** all 600 iterations in 1903 s. It resumed from `model_1499`, so its iterations are numbered
+1500–2098. T3's session ended at about 14:14, so the lead ran T3's committed scripts from `C:\dev\pm-t3`, at
+`b7935c0`, for everything below.
+
+**Checkpoint picked before gate 2: `model_2098`**, the only checkpoint tested. No gate seed was used to pick it.
+- **The start-type breakdown** (128 episodes, `rng(7)`, deterministic):
+  - from home: 66/67 (Wilson 0.92–1.00);
+  - demo-free: 31/31;
+  - demo-held: 30/30.
+- **The replayability check on non-gate seeds 7000–7031:**
+  - in the env: 32/32;
+  - SANT's replay verify: 32/32 (Wilson 0.89–1.00).
+  - Outputs: `datal\eval6c2_replaycheck_7000` (`in_env.json`: 32 successes; `verify.json`: 32 of 32 agree with
+    the in-env verdict).
+
+**Gate attempt 2 was launched once**, on `model_2098`, seeds 5350–5399, with `rl_eval_teacher` + `rl_verify_teacher`
+(part (a)). Outputs: `datal\eval6c2_gate2`. The results are added here when they arrive. Part (b), T6's in-env
+gate on 4000–4049, is still required.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
 **T6's guard, `da4a6cc`** (13:18, on `pm/distill-dagger`): the grid refuses any training episode from `data\rl`, or
 on a selection or test seed. It checks each episode's `scene.json` and records the result as `data_check`. This is a
-run-enabling safeguard. It makes the existing rule enforceable in code, and changes no rule. So noise at the
-  earlier std swamped demo-like motion, which is why the planned initial std is low.
+run-enabling safeguard. It makes the existing rule enforceable in code, and changes no rule.
 
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
