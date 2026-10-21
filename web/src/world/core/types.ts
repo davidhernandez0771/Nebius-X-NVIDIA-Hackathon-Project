@@ -104,6 +104,11 @@ export interface StationModule {
    * camera(0.5)) and its t is 1.
    */
   duration?: number;
+  /**
+   * A held branch whose shot changes as it goes (the workbench, stage by stage): the shot now, local
+   * to `anchor`, read every frame. A new key tweens the camera to it (a cut with reduced motion).
+   */
+  shot?: () => { key: string; pose: CameraPose };
   /** A pre-rendered still of the station, shown instead of the canvas when there is no usable GPU. */
   still?: string;
 }

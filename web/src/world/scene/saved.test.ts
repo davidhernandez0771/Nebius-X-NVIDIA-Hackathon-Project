@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Quaternion, Vector3 } from "three";
 import { HELIX, SPARE, slotAt } from "./layout";
 import { ROBOTS } from "./robots";
-import { MAX_SAVED, NAME_MAX, SHELLS, STORAGE_KEY, cartridgeOfSaved, cleanName, parseSaved, removeSaved, resetSaved, saveCartridge, savedCartridges, savedInSlot, savedSlot, subscribeSaved } from "./saved";
+import { COLOURS, FINISHES, MAX_SAVED, NAME_MAX, STORAGE_KEY, cartridgeOfSaved, cleanColour, cleanName, finishOf, parseSaved, removeSaved, resetSaved, saveCartridge, savedCartridges, savedInSlot, savedSlot, subscribeSaved, type Draft } from "./saved";
+
+const draft = (name: string, color: string, robot: string, finish: Draft["finish"] = "matte"): Draft => ({ name, finish, color, robot });
 
 const angle = (p: readonly number[]) => Math.atan2(p[2], p[0]);
 
@@ -39,9 +41,30 @@ describe("the spiral's empty places", () => {
 });
 
 describe("the shells", () => {
-  it("are the bench's five looks, Graphite first", () => {
-    expect(SHELLS.map((s) => s.name)).toEqual(["Graphite", "Smoke", "Bone", "Ash", "Signal"]);
-    for (const s of SHELLS) expect(s.hex).toMatch(/^#[0-9a-f]{6}$/i);
+  it("are six finishes, Matte first, each with its own blank colour and surface", () => {
+    expect(FINISHES.map((f) => f.name)).toEqual(["Matte", "Brushed metal", "Glossy", "Translucent", "Carbon", "Ceramic"]);
+    expect(new Set(FINISHES.map((f) => f.id)).size).toBe(6);
+    for (const f of FINISHES) {
+      expect(f.color).toMatch(/^#[0-9a-f]{6}$/);
+      expect(f.roughness).toBeGreaterThanOrEqual(0);
+      expect(f.roughness).toBeLessThanOrEqual(1);
+    }
+    // Only the translucent one lets light through; only the metal is metal.
+    expect(FINISHES.filter((f) => f.opacity < 1).map((f) => f.id)).toEqual(["clear"]);
+    expect(FINISHES.filter((f) => f.metalness > 0.5).map((f) => f.id)).toEqual(["brushed"]);
+    expect(finishOf("carbon").surface).toBe("weave");
+    expect(finishOf("nope" as never).id).toBe("matte");
+  });
+
+  it("take any colour: the swatches, or a free #rrggbb, kept lower case", () => {
+    expect(COLOURS.length).toBeGreaterThanOrEqual(6);
+    for (const c of COLOURS) expect(c.hex).toMatch(/^#[0-9a-f]{6}$/);
+    // Never the sponsor's green among the swatches.
+    expect(COLOURS.map((c) => c.hex)).not.toContain("#76b900");
+    expect(cleanColour("#2BB39A")).toBe("#2bb39a");
+    expect(cleanColour("red")).toBeNull();
+    expect(cleanColour("#fff")).toBeNull();
+    expect(cleanColour("#12345g")).toBeNull();
   });
 });
 
@@ -53,11 +76,11 @@ describe("saved cartridges", () => {
 
   it("start empty and save into the next empty place, kept in localStorage", () => {
     expect(savedCartridges()).toEqual([]);
-    const r = saveCartridge({ name: "  Kitchen   arm ", shell: "signal", robot: "FR3" });
+    const r = saveCartridge(draft("  Kitchen   arm ", "#2BB39A", "FR3", "gloss"));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.place).toBe(0);
-    expect(r.cartridge).toMatchObject({ name: "Kitchen arm", shell: "signal", robot: "FR3" });
+    expect(r.cartridge).toMatchObject({ name: "Kitchen arm", finish: "gloss", color: "#2bb39a", robot: "FR3" });
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toHaveLength(1);
     // A fresh load (the next visit) reads it back.
     resetSaved();
@@ -65,16 +88,16 @@ describe("saved cartridges", () => {
   });
 
   it("refuse a blank name and a full shelf", () => {
-    expect(saveCartridge({ name: "   ", shell: "bone", robot: "S101" })).toEqual({ ok: false, reason: "name" });
-    for (let i = 0; i < MAX_SAVED; i++) expect(saveCartridge({ name: `arm ${i}`, shell: "bone", robot: "S101" }).ok).toBe(true);
-    expect(saveCartridge({ name: "one more", shell: "bone", robot: "S101" })).toEqual({ ok: false, reason: "full" });
+    expect(saveCartridge(draft("   ", "#e2ddd0", "S101"))).toEqual({ ok: false, reason: "name" });
+    for (let i = 0; i < MAX_SAVED; i++) expect(saveCartridge(draft(`arm ${i}`, "#e2ddd0", "S101")).ok).toBe(true);
+    expect(saveCartridge(draft("one more", "#e2ddd0", "S101"))).toEqual({ ok: false, reason: "full" });
   });
 
   it("free a place on remove, and tell subscribers about each change", () => {
     let heard = 0;
     const off = subscribeSaved(() => heard++);
-    const a = saveCartridge({ name: "a", shell: "ash", robot: "PPR" });
-    const b = saveCartridge({ name: "b", shell: "smoke", robot: "OPN" });
+    const a = saveCartridge(draft("a", "#9da2a6", "PPR"));
+    const b = saveCartridge(draft("b", "#5d6268", "OPN"));
     if (!a.ok || !b.ok) throw new Error("save failed");
     removeSaved(a.cartridge.id);
     expect(savedCartridges().map((c) => c.name)).toEqual(["b"]);
@@ -94,14 +117,34 @@ describe("saved cartridges", () => {
     expect(parseSaved(null)).toEqual([]);
     expect(parseSaved("{not json")).toEqual([]);
     expect(parseSaved(JSON.stringify({ name: "x" }))).toEqual([]);
-    const ok = { id: "k1", name: "Good", shell: "bone", robot: "FR3", savedAt: 1 };
-    const list = parseSaved(JSON.stringify([ok, { ...ok, id: "k2", shell: "gold" }, { ...ok, id: "k3", robot: "ZZZ" }, { ...ok, id: "k4", name: "" }, ...Array.from({ length: 9 }, (_, i) => ({ ...ok, id: `m${i}` }))]));
+    const ok = { id: "k1", name: "Good", finish: "ceramic", color: "#e2ddd0", robot: "FR3", savedAt: 1 };
+    const list = parseSaved(
+      JSON.stringify([ok, { ...ok, id: "k2", color: "gold" }, { ...ok, id: "k3", robot: "ZZZ" }, { ...ok, id: "k4", name: "" }, { ...ok, id: "k5", finish: "velvet" }, ...Array.from({ length: 9 }, (_, i) => ({ ...ok, id: `m${i}` }))]),
+    );
     expect(list[0]).toEqual(ok);
+    expect(list.map((c) => c.id)).not.toContain("k5");
     expect(list).toHaveLength(MAX_SAVED);
   });
 
+  it("read the first bench's cartridges (a named shell) as a colour on a finish", () => {
+    const old = [
+      { id: "o1", name: "Old", shell: "bone", robot: "FR3", savedAt: 1 },
+      { id: "o2", name: "Glass", shell: "smoke", robot: "S101", savedAt: 2 },
+      { id: "o3", name: "Bad", shell: "gold", robot: "S101", savedAt: 3 },
+    ];
+    expect(parseSaved(JSON.stringify(old))).toEqual([
+      { id: "o1", name: "Old", finish: "matte", color: "#e2ddd0", robot: "FR3", savedAt: 1 },
+      { id: "o2", name: "Glass", finish: "clear", color: "#5d6268", robot: "S101", savedAt: 2 },
+    ]);
+  });
+
+  it("save a draft with no shell picked yet as Matte", () => {
+    const r = saveCartridge({ name: "x", finish: null, color: "#323336", robot: "S101" });
+    expect(r.ok && r.cartridge.finish).toBe("matte");
+  });
+
   it("go to the machine as their robot's cartridge, from their own place", () => {
-    const r = saveCartridge({ name: "Desk arm", shell: "graphite", robot: "S101" });
+    const r = saveCartridge(draft("Desk arm", "#323336", "S101"));
     if (!r.ok) throw new Error("save failed");
     expect(cartridgeOfSaved(r.cartridge, r.place)).toEqual({ id: `mine-${r.cartridge.id}`, label: "Desk arm", route: "/pm/record", slot: HELIX.length });
     expect(ROBOTS.some((x) => x.code === r.cartridge.robot)).toBe(true);
@@ -124,12 +167,12 @@ describe("saved cartridges on the spiral", () => {
     expect(instanceSlot(SAVED0 + 2)).toBe(savedSlot(2));
     // Empty until one is saved.
     expect(instanceInSlot(savedSlot(0))).toBe(-1);
-    saveCartridge({ name: "Shed arm", shell: "signal", robot: "OPN" });
+    saveCartridge(draft("Shed arm", "#2bb39a", "OPN"));
     expect(instanceInSlot(savedSlot(0))).toBe(SAVED0);
     expect(instanceLabel(SAVED0)).toBe("Shed arm");
     const look = slotLook(savedSlot(0));
     expect(look.tile).toBe(SAVED_TILE0);
-    // Signal's teal: more green than red.
+    // The saved colour, teal: more green than red.
     expect(look.shell.g).toBeGreaterThan(look.shell.r);
   });
 
@@ -138,7 +181,7 @@ describe("saved cartridges on the spiral", () => {
     const { cartridgeAt } = await import("./robots");
     expect(cartridgeInSlot(0)).toEqual(cartridgeAt(HELIX[0]));
     expect(() => cartridgeInSlot(savedSlot(0))).toThrow(/empty/);
-    const r = saveCartridge({ name: "Lab arm", shell: "ash", robot: "RZ4" });
+    const r = saveCartridge(draft("Lab arm", "#9da2a6", "RZ4"));
     if (!r.ok) throw new Error("save failed");
     expect(cartridgeInSlot(savedSlot(0)).label).toBe("Lab arm");
   });

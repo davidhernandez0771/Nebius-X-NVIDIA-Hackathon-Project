@@ -23,7 +23,6 @@ import { Pendants } from "../../scene/Pendants";
 import { addEnvironment } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
 import { RobotWall } from "../../scene/RobotWall";
-import { shellOf } from "../../scene/saved";
 import { N_ITEMS, instanceSlot, spiral } from "../../scene/spiral";
 import { bench } from "../workbench/draft";
 import { benchMatrix } from "../workbench/layout";
@@ -103,7 +102,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
     () => ({
       matrix: benchMatrix(),
       shown: () => store.getCoarse().branch !== "workbench",
-      shell: () => shellOf(bench.draft.shell).hex,
+      shell: () => bench.draft.color,
       landing: () => bench.landing,
     }),
     [store],

@@ -1,13 +1,30 @@
 // Workbench (T1): a branch off the room view. "Add a cartridge" (or a click on the bench) flies the
-// camera to Blender's "Workbench edit" stop over the baked bench, where the editor (Editor.tsx) names
-// a new cartridge and picks its shell and robot while the one on the turntable follows (Scene.tsx).
-// Save stands it on the spiral; Back (or Escape) returns to the room view.
+// camera over the baked bench, where the editor (Editor.tsx) builds a new cartridge in five stages while
+// the bench in 3D follows (Scene.tsx). Each stage has its own shot (layout.ts shotFor), framed beside
+// the editor: the row of blanks, then the turntable, the robot's hologram, the label. Finish stands it
+// on the spiral; Back (or Escape) returns to the room view.
 import { still } from "../../core/layout";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
+import { bench, type Stage } from "./draft";
 import { Editor } from "./Editor";
+import { FINALE } from "./finale";
+import { shotFor } from "./layout";
 import { WorkbenchScene } from "./Scene";
+
+/**
+ * The stage's shot for this window, made again only when either changes. A save holds the name's close
+ * shot through the click, the light and the sparks, then pulls back as the cartridge leaves.
+ */
+let last: { stage: Stage; aspect: number; shot: { key: string; pose: ReturnType<typeof shotFor> } } | null = null;
+function shot() {
+  const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  const clicking = bench.stage === "done" && performance.now() - bench.savedAt < FINALE.flyAt * 1000;
+  const stage: Stage = clicking ? "name" : bench.stage;
+  if (!last || last.stage !== stage || last.aspect !== aspect) last = { stage, aspect, shot: { key: stage, pose: shotFor(stage, aspect) } };
+  return last.shot;
+}
 
 function Overlay({ current }: StationOverlayProps) {
   return <Editor current={current} />;
@@ -23,6 +40,7 @@ const workbench: StationModule = {
   travel: 0,
   length: 0,
   camera: still(stopFrom(BENCH_PIVOT.position, "Workbench edit")),
+  shot,
   Scene: WorkbenchScene,
   Overlay,
 };

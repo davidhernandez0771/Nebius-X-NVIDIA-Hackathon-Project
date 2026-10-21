@@ -49,12 +49,12 @@ describe("saved cartridge tiles", () => {
     expect(SAVED_TILE0).toBe(ITEM_TILE0 + ITEMS.length);
     expect(SAVED_TILE0 + MAX_SAVED).toBeLessThanOrEqual(TILE_COUNT);
     expect(labelArt(SAVED_TILE0).code).toBe("+");
-    saveCartridge({ name: "Kitchen arm", shell: "bone", robot: "PPR" });
+    saveCartridge({ name: "Kitchen arm", finish: "matte", color: "#e2ddd0", robot: "PPR" });
     const art = labelArt(SAVED_TILE0);
     expect(art).toMatchObject({ code: "KITCHEN ARM", line: "AGILEX PIPER · 6-DOF · DESKTOP ARM", serial: "MINE-001" });
     expect(labelArt(SAVED_TILE0 + 1).code).toBe("+");
     // A draft with no name yet is the render's blank, with the robot chosen so far.
-    expect(draftArt({ name: " ", shell: "bone", robot: "FR3" })).toMatchObject({ code: "+", line: "NAME YOUR ROBOT  ·  FRANKA FR3", serial: "MINE-NEW" });
+    expect(draftArt({ name: " ", robot: "FR3" })).toMatchObject({ code: "+", line: "NAME YOUR ROBOT  ·  FRANKA FR3", serial: "MINE-NEW" });
     localStorage.clear();
     resetSaved();
   });
@@ -68,7 +68,7 @@ describe("the bench's draft tile", () => {
     expect(DRAFT_TILE).toBeGreaterThanOrEqual(SAVED_TILE0 + MAX_SAVED);
     expect(DRAFT_TILE).toBeLessThan(TILE_COUNT);
     expect(labelArt(DRAFT_TILE)).toMatchObject({ code: "+", serial: "MINE-NEW" });
-    setDraftTileArt(draftArt({ name: "desk arm", shell: "bone", robot: "FR3" }));
+    setDraftTileArt(draftArt({ name: "desk arm", robot: "FR3" }));
     expect(labelArt(DRAFT_TILE).code).toBe("DESK ARM");
     setDraftTileArt(null);
     expect(labelArt(DRAFT_TILE).code).toBe("+");

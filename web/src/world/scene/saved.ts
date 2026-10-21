@@ -1,29 +1,65 @@
-// The cartridges made on the workbench: a name, a shell and a robot each, kept in localStorage and
-// stood in the spiral's empty places (layout.ts SPARE), oldest lowest. Mutated through these
-// functions only; the spiral, the label atlas and the bench hear about changes through `subscribeSaved`.
+// The cartridges made on the workbench: a name, a shell (a finish and a colour) and a robot each, kept
+// in localStorage and stood in the spiral's empty places (layout.ts SPARE), oldest lowest. Mutated
+// through these functions only; the spiral, the label atlas and the bench hear about changes through
+// `subscribeSaved`.
 import type { Cartridge } from "../core/types";
 import { HELIX, SPARE } from "./layout";
 import { ROBOTS, cartridgeAt } from "./robots";
 
-/** The bench's five shell plastics (sRGB), as in the C-workbench render. */
-export const SHELLS = [
+/**
+ * The six blank shells on the bench, one per finish: how the surface takes the light (roughness,
+ * metalness, see-through), the pattern drawn into it (shellSurface.ts) and the colour the blank comes in.
+ */
+export const FINISHES = [
+  { id: "matte", name: "Matte", color: "#323336", roughness: 0.92, metalness: 0, opacity: 1, surface: "none" },
+  { id: "brushed", name: "Brushed metal", color: "#a7acb1", roughness: 0.34, metalness: 0.92, opacity: 1, surface: "brushed" },
+  { id: "gloss", name: "Glossy", color: "#16181b", roughness: 0.06, metalness: 0, opacity: 1, surface: "none" },
+  { id: "clear", name: "Translucent", color: "#5d6268", roughness: 0.12, metalness: 0, opacity: 0.55, surface: "none" },
+  { id: "carbon", name: "Carbon", color: "#25272a", roughness: 0.38, metalness: 0.15, opacity: 1, surface: "weave" },
+  { id: "ceramic", name: "Ceramic", color: "#e2ddd0", roughness: 0.3, metalness: 0, opacity: 1, surface: "speckle" },
+] as const;
+
+export type FinishId = (typeof FINISHES)[number]["id"];
+export type Finish = (typeof FINISHES)[number];
+export type Surface = Finish["surface"];
+
+export const finishOf = (id: FinishId | null): Finish => FINISHES.find((f) => f.id === id) ?? FINISHES[0];
+const isFinish = (v: unknown): v is FinishId => FINISHES.some((f) => f.id === v);
+
+/** The colour stage's swatches (sRGB). Any other colour comes from the free picker. */
+export const COLOURS = [
   { id: "graphite", name: "Graphite", hex: "#323336" },
-  { id: "smoke", name: "Smoke", hex: "#5d6268" },
   { id: "bone", name: "Bone", hex: "#e2ddd0" },
   { id: "ash", name: "Ash", hex: "#9da2a6" },
   { id: "signal", name: "Signal", hex: "#2bb39a" },
+  { id: "amber", name: "Amber", hex: "#e8a33d" },
+  { id: "ember", name: "Ember", hex: "#d4503a" },
+  { id: "cobalt", name: "Cobalt", hex: "#3b6fd8" },
+  { id: "snow", name: "Snow", hex: "#f2f1ec" },
 ] as const;
 
-export type ShellId = (typeof SHELLS)[number]["id"];
+/** A colour as it is kept: #rrggbb, lower case; anything else is null. */
+export function cleanColour(v: unknown): string | null {
+  return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : null;
+}
 
-export const shellOf = (id: ShellId) => SHELLS.find((s) => s.id === id) ?? SHELLS[0];
-const isShell = (v: unknown): v is ShellId => SHELLS.some((s) => s.id === v);
+/** The first bench's five shell plastics: what its saved cartridges kept still reads back (parseSaved). */
+const SHELLS = [
+  { id: "graphite", hex: "#323336" },
+  { id: "smoke", hex: "#5d6268" },
+  { id: "bone", hex: "#e2ddd0" },
+  { id: "ash", hex: "#9da2a6" },
+  { id: "signal", hex: "#2bb39a" },
+] as const;
+
 const isRobot = (v: unknown): v is string => ROBOTS.some((r) => r.code === v);
 
 export interface SavedCartridge {
   id: string;
   name: string;
-  shell: ShellId;
+  finish: FinishId;
+  /** #rrggbb. */
+  color: string;
   /** The robot's label code (robots.ts). */
   robot: string;
   savedAt: number;
@@ -31,7 +67,9 @@ export interface SavedCartridge {
 
 export interface Draft {
   name: string;
-  shell: ShellId;
+  /** null until a blank is picked off the bench. */
+  finish: FinishId | null;
+  color: string;
   robot: string;
 }
 
@@ -60,9 +98,13 @@ export function parseSaved(raw: string | null): SavedCartridge[] {
   const out: SavedCartridge[] = [];
   for (const d of data) {
     if (!d || typeof d !== "object") continue;
-    const { id, name, shell, robot, savedAt } = d as Record<string, unknown>;
-    if (typeof id !== "string" || !id || typeof name !== "string" || !cleanName(name) || !isShell(shell) || !isRobot(robot)) continue;
-    out.push({ id, name: cleanName(name), shell, robot, savedAt: typeof savedAt === "number" ? savedAt : 0 });
+    const { id, name, finish, color, shell, robot, savedAt } = d as Record<string, unknown>;
+    if (typeof id !== "string" || !id || typeof name !== "string" || !cleanName(name) || !isRobot(robot)) continue;
+    // The first bench kept a named plastic: its colour on Matte (Smoke was the see-through one).
+    const old = finish === undefined && color === undefined ? SHELLS.find((s) => s.id === shell) : undefined;
+    const look = old ? { finish: old.id === "smoke" ? "clear" : "matte", color: old.hex } : { finish, color: cleanColour(color) };
+    if (!isFinish(look.finish) || !look.color) continue;
+    out.push({ id, name: cleanName(name), finish: look.finish, color: look.color, robot, savedAt: typeof savedAt === "number" ? savedAt : 0 });
     if (out.length === MAX_SAVED) break;
   }
   return out;
@@ -110,7 +152,8 @@ export function saveCartridge(draft: Draft): SaveResult {
   const cartridge: SavedCartridge = {
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     name,
-    shell: isShell(draft.shell) ? draft.shell : "graphite",
+    finish: isFinish(draft.finish) ? draft.finish : FINISHES[0].id,
+    color: cleanColour(draft.color) ?? FINISHES[0].color,
     robot: isRobot(draft.robot) ? draft.robot : ROBOTS[0].code,
     savedAt: Date.now(),
   };
