@@ -9,9 +9,42 @@
 
 import type { HandFrame } from "../hand/contracts";
 import type { TeleopControlSettings } from "./teleop/controlRegion";
+import type { HandPoseMsg } from "./teleop/handPoseMessage";
 import { TeleopClient, type TeleopClientOptions, type TeleopStatus } from "./teleop/teleopClient";
 
-export type ControlAction = "record_start" | "record_stop" | "reset_scene";
+export type ControlAction = "record_start" | "record_stop" | "record_discard" | "reset_scene" | "set_input";
+/** How the page drives the arm (drive/drive.ts InputMode); set_input tells the sim, which saves it with each demo. */
+export type ControlInput = "camera" | "keyboard" | "mouse";
+
+/** The live scene (sim_status "scene"): the library entry, Isaac's settle check of it, a restart in progress
+ *  (switching: the scene it will come back in), and a recording session's scene list. */
+export interface SimScene {
+  id: string;
+  name: string;
+  hash: string;
+  settle: { ok: boolean; errors: string[] } | null;
+  switching: string | null;
+  playlist: { index: number; of: number; take: number; takesPerScene: number } | null;
+}
+
+function sceneOf(v: unknown): SimScene | null {
+  if (!v || typeof v !== "object") return null;
+  const s = v as Record<string, unknown>;
+  if (typeof s.id !== "string" || typeof s.hash !== "string") return null;
+  const settle = s.settle as { ok?: unknown; errors?: unknown } | null;
+  const pl = s.playlist as Record<string, unknown> | null;
+  return {
+    id: s.id,
+    name: typeof s.name === "string" ? s.name : s.id,
+    hash: s.hash,
+    settle: settle && typeof settle.ok === "boolean" ? { ok: settle.ok, errors: Array.isArray(settle.errors) ? settle.errors.map(String) : [] } : null,
+    switching: typeof s.switching === "string" ? s.switching : null,
+    playlist:
+      pl && typeof pl.index === "number" && typeof pl.of === "number"
+        ? { index: pl.index, of: pl.of, take: Number(pl.take ?? 0), takesPerScene: Number(pl.takes_per_scene ?? 1) }
+        : null,
+  };
+}
 
 /** The relay's SimStatusMsg, camelCased. */
 export interface SimStatus {
@@ -20,12 +53,15 @@ export interface SimStatus {
   demoId: string | null; // the last saved demo
   lastResult: string | null;
   paused: boolean; // recording, but held because hand tracking was lost
+  softFloor?: boolean | null; // the sim's soft floor is on (null: a sim from before it)
+  contactPeakN?: number | null; // the current (or last) take's largest arm contact force, N
+  scene?: SimScene | null; // the scene picker's live scene (absent: today's sink, no library)
 }
 
 const SOCKET_OPEN = 1; // WebSocket.OPEN
 
-export function controlMessage(action: ControlAction): string {
-  return JSON.stringify({ type: "control", action });
+export function controlMessage(action: ControlAction, input?: ControlInput): string {
+  return JSON.stringify(action === "set_input" ? { type: "control", action, input } : { type: "control", action });
 }
 
 export function parseSimStatus(data: unknown): SimStatus | null {
@@ -37,13 +73,18 @@ export function parseSimStatus(data: unknown): SimStatus | null {
   }
   if (msg?.type !== "sim_status" || typeof msg.recording !== "boolean" || typeof msg.steps !== "number") return null;
   const str = (v: unknown) => (typeof v === "string" ? v : null);
-  return {
+  const status: SimStatus = {
     recording: msg.recording,
     steps: msg.steps,
     demoId: str(msg.demo_id),
     lastResult: str(msg.last_result),
     paused: msg.paused === true,
   };
+  // From a sim with the soft floor and the contact glow (left out for an older one)
+  if ("soft_floor" in msg) status.softFloor = typeof msg.soft_floor === "boolean" ? msg.soft_floor : null;
+  if ("contact_peak_n" in msg) status.contactPeakN = typeof msg.contact_peak_n === "number" && Number.isFinite(msg.contact_peak_n) ? msg.contact_peak_n : null;
+  if ("scene" in msg) status.scene = sceneOf(msg.scene);
+  return status;
 }
 
 export class RecordLink {
@@ -75,15 +116,34 @@ export class RecordLink {
     this.teleop.push(frame, grip);
   }
 
+  /** A ready-made HandPoseMsg (keyboard and mouse driving), throttled like push. */
+  send(msg: HandPoseMsg, grip?: 0 | 1): void {
+    this.teleop.send(msg, grip);
+  }
+
   /** Control-region settings for the hand poses (HandPoseMsg.control); null sends none. */
   setControl(settings: TeleopControlSettings | null): void {
     this.teleop.setControl(settings);
   }
 
   /** False when the socket isn't open, so nothing was sent. */
-  sendControl(action: ControlAction): boolean {
+  /** The soft floor on or off ({"type": "control", "action": "set_assist", "soft_floor"}); false if not sent. */
+  /** Change the live scene ({"type": "control", "action": "set_scene", "scene"}); false if not sent. */
+  sendScene(sceneId: string): boolean {
     if (this.closed || !this.socket || this.socket.readyState !== SOCKET_OPEN) return false;
-    this.socket.send(controlMessage(action));
+    this.socket.send(JSON.stringify({ type: "control", action: "set_scene", scene: sceneId }));
+    return true;
+  }
+
+  sendAssist(softFloor: boolean): boolean {
+    if (this.closed || !this.socket || this.socket.readyState !== SOCKET_OPEN) return false;
+    this.socket.send(JSON.stringify({ type: "control", action: "set_assist", soft_floor: softFloor }));
+    return true;
+  }
+
+  sendControl(action: ControlAction, input?: ControlInput): boolean {
+    if (this.closed || !this.socket || this.socket.readyState !== SOCKET_OPEN) return false;
+    this.socket.send(controlMessage(action, input));
     return true;
   }
 

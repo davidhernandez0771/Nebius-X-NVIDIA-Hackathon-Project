@@ -45,6 +45,9 @@ export function toHandPoseMsg(
   frame: FrameInfo,
   last?: HandPoseMsg,
   control?: TeleopControlSettings | null,
+  /** The reach signal for depth (handControl.ts: the pinch-stable size, anchored across gripper changes). Absent:
+   *  the pixel palm width, or the 3D size with 3D reach on. */
+  reachSize?: number,
 ): HandPoseMsg {
   const { timestamp, frameWidth: w, frameHeight: h } = frame;
   const untracked = (): HandPoseMsg => ({
@@ -79,7 +82,7 @@ export function toHandPoseMsg(
   };
   if (control?.enabled) {
     // Reach from the pixel palm width; with 3D reach on, from the scale fit (same units).
-    const c = toControl(lm, depthSize(hand, msg.palm_width, w, h, control.reach3d), control);
+    const c = toControl(lm, reachSize ?? depthSize(hand, msg.palm_width, w, h, control.reach3d), control);
     // Depth is smoothed against the last tracked message (after a lost hand it starts fresh).
     if (last?.tracking_ok && last.control) c[2] = smoothDepth(c[2], last.control[2], timestamp - last.t_ms);
     msg.control = c;

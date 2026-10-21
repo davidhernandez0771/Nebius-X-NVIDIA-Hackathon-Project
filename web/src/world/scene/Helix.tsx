@@ -1,9 +1,13 @@
-// The spiral shelf's 29 cartridges: one InstancedMesh per part of cartridge.glb (8 draw calls for all
+// The spiral shelf's cartridges (29, and up to 4 more from the bench): one InstancedMesh per part of cartridge.glb (8 draw calls for all
 // of them), each label reading its tile of the atlas and each shell its tint. The 24 jobs (items.ts)
 // fill the top slots and slide along the helix when a filter reorders them (spiral.ts); the five robot
-// cartridges keep the lowest slots. The front cartridge (the scroll's step) stands out of its slot,
+// cartridges keep the lowest slots. The bench's saved cartridges (saved.ts) stand in the empty
+// places Blender left (layout.ts SPARE). The front cartridge (the scroll's step) stands out of its slot,
 // the pointed-at one lifts further, the one open in the detail view comes right out, and with a
-// filter on the others dim. Hits go to a box per cartridge (12 triangles) instead of the shells.
+// filter on the others dim. Hits go to a box per cartridge (12 triangles) instead of the shells; a
+// press on one can become a drag to the machine (onGrab), and the one in the hand leaves its slot.
+// One more instance, past the spiral's, is the bench's draft on its turntable in the room view, so
+// the bench isn't empty and costs no draw call (the bench draws its own close copy when it opens).
 import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
@@ -11,37 +15,63 @@ import * as THREE from "three";
 import type { QualityTier } from "../core/quality";
 import { CARTRIDGE_URL } from "./assets";
 import { cartridgeParts, labelAtlas, offRedraw, slotMatrix, tileAttribute } from "./cartridge";
-import { ITEM_TILE0 } from "./labels";
-import { HELIX } from "./layout";
+import { DRAFT_TILE, ITEM_TILE0, SAVED_TILE0 } from "./labels";
+import { HELIX, SPARE } from "./layout";
 import { liveMaterial, trackLive, withTiles } from "./materials";
 import { plug } from "./plug";
 import { markLoaded } from "./power";
 import { ROBOTS, robotInSlot } from "./robots";
 import { ITEMS } from "./items";
-import { N_ITEMS, ROBOT_SLOTS, itemInSlot, itemShell, matches, setHover, spiral, stepPose } from "./spiral";
+import { MAX_SAVED, savedCartridges, subscribeSaved } from "./saved";
+import { N_INSTANCES, N_ITEMS, ROBOT_SLOTS, SAVED0, itemInSlot, itemShell, matches, setHover, spiral, stepPose } from "./spiral";
 
 /** Graphite, the default shell: glossy near-black plastic (linear RGB). */
 export const GRAPHITE = [0.032, 0.033, 0.036] as const;
 
-/** Instances: the jobs first (instance i is job i), then the robots in slots 0–4. */
-export const N = N_ITEMS + ROBOT_SLOTS.length;
+/** Instances: the jobs first (instance i is job i), then the robots in slots 0–4, then the saved places, then the bench's draft. */
+export const BENCH_INSTANCE = N_INSTANCES;
+export const N = N_INSTANCES + 1;
 const robotSlot = (k: number) => ROBOT_SLOTS[k - N_ITEMS];
-/** The instance in a helix slot. */
+/** The instance in a spiral slot, or -1 (an empty place). */
 export function instanceInSlot(slot: number): number {
+  if (slot >= HELIX.length) {
+    const place = slot - HELIX.length;
+    return place < savedCartridges().length ? SAVED0 + place : -1;
+  }
   const i = itemInSlot(slot);
   return i >= 0 ? i : ROBOT_SLOTS.indexOf(slot) >= 0 ? N_ITEMS + ROBOT_SLOTS.indexOf(slot) : -1;
 }
 /** What an instance is called (the hover tip). */
 export function instanceLabel(k: number): string {
   if (k < N_ITEMS) return ITEMS[k].title;
+  if (k >= SAVED0) return savedCartridges()[k - SAVED0]?.name ?? "";
   return robotInSlot(robotSlot(k))?.name ?? HELIX[robotSlot(k)].code;
 }
 
-const TILES = [...ITEMS.map((_, i) => ITEM_TILE0 + i), ...ROBOT_SLOTS.map((s) => ROBOTS.findIndex((r) => r.code === robotInSlot(s)?.code))];
+const TILES = [
+  ...ITEMS.map((_, i) => ITEM_TILE0 + i),
+  ...ROBOT_SLOTS.map((s) => ROBOTS.findIndex((r) => r.code === robotInSlot(s)?.code)),
+  ...SPARE.map((_, i) => SAVED_TILE0 + i),
+  DRAFT_TILE,
+];
 const ROBOT_BASE = ROBOT_SLOTS.map((s) => slotMatrix(HELIX[s]));
-const shells = [...ITEMS.map((_, i) => itemShell(i)), ...ROBOT_SLOTS.map((s) => new THREE.Color().setRGB(...(HELIX[s].shell ?? GRAPHITE), THREE.LinearSRGBColorSpace))];
+const SAVED_BASE = SPARE.map((s) => slotMatrix(s));
+const shells = [
+  ...ITEMS.map((_, i) => itemShell(i)),
+  ...ROBOT_SLOTS.map((s) => new THREE.Color().setRGB(...(HELIX[s].shell ?? GRAPHITE), THREE.LinearSRGBColorSpace)),
+  ...SPARE.map(() => new THREE.Color().setRGB(...GRAPHITE, THREE.LinearSRGBColorSpace)),
+  new THREE.Color().setRGB(...GRAPHITE, THREE.LinearSRGBColorSpace),
+];
 
-/** What the cartridge in a helix slot looks like: its label tile and shell tint (the machine's copy). */
+/** Retint the saved places from the saved list (each shell as the bench picked it). */
+function dressSaved(): void {
+  const list = savedCartridges();
+  for (let i = 0; i < MAX_SAVED; i++) if (list[i]) shells[SAVED0 + i].set(list[i].color);
+}
+dressSaved();
+subscribeSaved(dressSaved);
+
+/** What the cartridge in a spiral slot looks like: its label tile and shell tint (the machine's copy). */
 export function slotLook(slot: number): { tile: number; shell: THREE.Color } {
   const k = instanceInSlot(slot);
   return k < 0 ? { tile: 0, shell: new THREE.Color().setRGB(...GRAPHITE, THREE.LinearSRGBColorSpace) } : { tile: TILES[k], shell: shells[k] };
@@ -65,14 +95,32 @@ export interface HelixProps {
   /** Whether the front cartridge stands out (the workshop is browsing). */
   browsing: () => boolean;
   onPick: (instance: number) => void;
+  /** A press on a cartridge (it may become a drag to the machine). */
+  onGrab?: (instance: number, e: ThreeEvent<PointerEvent>) => void;
+  /** The instance in the hand (dragged, dropping or floating back): its slot stands empty. -1: none. */
+  held?: () => number;
+  /** A click right after a drag's pointerup is not a click. */
+  wasDrag?: () => boolean;
+  /** The bench's draft on its turntable in the room view. */
+  bench?: BenchInstance;
 }
 
-export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps) {
+export interface BenchInstance {
+  matrix: THREE.Matrix4;
+  /** Shown: in the room view, not while the bench is open (it draws its own copy then). */
+  shown: () => boolean;
+  /** The draft's shell (sRGB hex). */
+  shell: () => string;
+  /** A saved place whose cartridge is still flying from the bench (it stays hidden till it lands), or -1. */
+  landing: () => number;
+}
+
+export function Helix({ quality, reduced, active, browsing, onPick, onGrab, held, wasDrag, bench }: HelixProps) {
   const gltf = useGLTF(CARTRIDGE_URL, false);
   const invalidate = useThree((s) => s.invalidate);
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
   const proxyRef = useRef<THREE.InstancedMesh | null>(null);
-  const st = useMemo(() => ({ pop: new Float32Array(N), dim: new Float32Array(N).fill(1), shown: -1, first: true }), []);
+  const st = useMemo(() => ({ pop: new Float32Array(N), dim: new Float32Array(N).fill(1), shown: -1, held: -1, bench: false, landing: -1, benchShell: "", first: true }), []);
 
   const parts = useMemo(() => {
     const atlas = labelAtlas();
@@ -99,9 +147,15 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
     markLoaded(CARTRIDGE_URL);
     st.first = true;
     invalidate();
+    // A save or a remove on the bench: stand the saved places up (or hide them) and retint them.
+    const offSaved = subscribeSaved(() => {
+      st.first = true;
+      invalidate();
+    });
     return () => {
       releases.forEach((r) => r());
       offRedraw(redraw);
+      offSaved();
     };
   }, [parts, invalidate, st]);
 
@@ -117,10 +171,22 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
     const ks = reduced ? 1 : 1 - Math.exp(-dt * SLIDE_RATE);
     const kp = reduced ? 1 : 1 - Math.exp(-dt * POP_RATE);
     const away = plug.progress > 0 ? instanceInSlot(plug.slot) : -1;
+    const inHand = held?.() ?? -1;
+    const benchOn = bench?.shown() ?? false;
+    const landing = bench?.landing() ?? -1;
     const front = browsing();
-    let moving = st.first || away !== st.shown;
+    let moving = st.first || away !== st.shown || inHand !== st.held || benchOn !== st.bench || landing !== st.landing;
     let recolor = st.first;
     st.shown = away;
+    st.held = inHand;
+    st.bench = benchOn;
+    st.landing = landing;
+    const benchShell = bench?.shell() ?? "";
+    if (benchShell !== st.benchShell) {
+      st.benchShell = benchShell;
+      if (benchShell) shells[BENCH_INSTANCE].set(benchShell);
+      recolor = true;
+    }
 
     for (let k = 0; k < N; k++) {
       const item = k < N_ITEMS;
@@ -138,7 +204,7 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
         st.pop[k] = Math.abs(dp) < 0.002 ? target : st.pop[k] + dp * kp;
         moving = true;
       }
-      let dimTarget = item ? (matches(k) ? 1 : DIM.off) : spiral.filter ? DIM.others : 1;
+      let dimTarget = item ? (matches(k) ? 1 : DIM.off) : spiral.filter && k !== BENCH_INSTANCE ? DIM.others : 1;
       if (spiral.selected >= 0 && spiral.selected !== k) dimTarget *= DIM.others;
       const dd = dimTarget - st.dim[k];
       if (dd !== 0) {
@@ -151,12 +217,18 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
     if (moving) {
       for (let k = 0; k < N; k++) {
         let mat: THREE.Matrix4;
-        if (k === away) mat = HIDDEN;
+        if (k === BENCH_INSTANCE) {
+          // On the turntable: drawn, but never a hit (a click there opens the bench, HubTags).
+          meshes.current.forEach((m) => m?.setMatrixAt(k, benchOn && bench ? bench.matrix : HIDDEN));
+          proxyRef.current?.setMatrixAt(k, HIDDEN);
+          continue;
+        }
+        if (k === away || k === inHand || k === SAVED0 + landing || (k >= SAVED0 && k - SAVED0 >= savedCartridges().length)) mat = HIDDEN;
         else {
           if (k < N_ITEMS) {
             stepPose(spiral.pos[k], p3, q4);
             m4.compose(p3, q4, s3);
-          } else m4.copy(ROBOT_BASE[k - N_ITEMS]);
+          } else m4.copy(k < SAVED0 ? ROBOT_BASE[k - N_ITEMS] : SAVED_BASE[k - SAVED0]);
           const pop = st.pop[k];
           if (pop > 0) {
             o3.set(0, 0, 1).applyQuaternion(q4.setFromRotationMatrix(m4));
@@ -192,7 +264,8 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
 
   const point = (e: ThreeEvent<PointerEvent>) => {
     const k = e.instanceId ?? -1;
-    if (!active() || k < 0) return leave();
+    // Nothing lifts under a cartridge in the hand.
+    if (!active() || k < 0 || k === BENCH_INSTANCE || (held?.() ?? -1) >= 0) return leave();
     e.stopPropagation();
     if (spiral.hover !== k) {
       setHover(k);
@@ -207,9 +280,16 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
     invalidate();
   };
   const click = (e: ThreeEvent<MouseEvent>) => {
-    if (!active() || e.instanceId === undefined) return;
+    if (!active() || e.instanceId === undefined || e.instanceId === BENCH_INSTANCE) return;
     e.stopPropagation();
+    if (wasDrag?.()) return;
     onPick(e.instanceId);
+  };
+  const down = (e: ThreeEvent<PointerEvent>) => {
+    const k = e.instanceId ?? -1;
+    if (!onGrab || !active() || k < 0 || k === BENCH_INSTANCE) return;
+    e.stopPropagation();
+    onGrab(k, e);
   };
   useEffect(
     () => () => {
@@ -224,7 +304,7 @@ export function Helix({ quality, reduced, active, browsing, onPick }: HelixProps
       {parts.map((p, k) => (
         <instancedMesh key={p.name} ref={(m) => (meshes.current[k] = m)} args={[p.geometry, p.material, N]} raycast={() => null} name={`helix:${p.name}`} frustumCulled={false} />
       ))}
-      <instancedMesh ref={proxyRef} args={[proxy, proxyMat, N]} onPointerMove={point} onPointerOut={leave} onClick={click} name="helix:hits" />
+      <instancedMesh ref={proxyRef} args={[proxy, proxyMat, N]} onPointerMove={point} onPointerOut={leave} onPointerDown={down} onClick={click} name="helix:hits" />
     </group>
   );
 }

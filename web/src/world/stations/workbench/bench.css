@@ -1,0 +1,577 @@
+/* The workbench's editor: bottom left over the bench (a sheet across the bottom on a phone), in the
+   detail view's look (one mono face, 11 px caps, teal for what is chosen and what goes on, amber for
+   what needs attention). One stage at a time under a row of five steps. */
+.world-bench {
+  --bench-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 7;
+  width: min(380px, calc(100vw - 48px));
+  font-family: var(--w-mono);
+  color: var(--w-ink);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.45s var(--bench-ease), transform 0.45s var(--bench-ease), visibility 0s 0.45s;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.world-bench[data-on="true"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+  transition: opacity 0.45s var(--bench-ease), transform 0.45s var(--bench-ease), visibility 0s;
+}
+
+/* A soft pool of the ground colour behind the copy, as the journey's panels have. */
+.world-bench::before {
+  content: "";
+  position: absolute;
+  inset: -64px -96px -48px -72px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgb(7 9 12 / 0.82), rgb(7 9 12 / 0.52) 60%, rgb(7 9 12 / 0));
+  pointer-events: none;
+}
+
+.world-bench button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.world-bench button:focus-visible,
+.world-bench__input:focus-visible {
+  outline: 1px solid var(--w-teal);
+  outline-offset: 3px;
+}
+
+/* A stage's heading takes the focus so a screen reader says where it is; it needs no ring. */
+.world-bench .world-bench__title:focus {
+  outline: none;
+}
+
+.world-bench .world-bench__h {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--w-dim);
+}
+
+/* The five steps: the number, the name; the one you are on lit, with a bar under it. */
+.world-bench .world-bench__steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: rgb(216 239 233 / 0.36);
+}
+
+.world-bench__steps li {
+  position: relative;
+  padding-bottom: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.3s ease;
+}
+
+.world-bench__steps li span {
+  display: block;
+  margin-bottom: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.world-bench__steps li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--w-line);
+  transform-origin: left;
+  transform: scaleX(1);
+  transition: background-color 0.3s ease;
+}
+
+.world-bench__steps li[data-past="true"] {
+  color: var(--w-dim);
+}
+
+.world-bench__steps li[data-past="true"]::after {
+  background: rgb(25 245 194 / 0.55);
+}
+
+.world-bench__steps li[aria-current="step"] {
+  color: var(--w-ink);
+}
+
+.world-bench__steps li[aria-current="step"] span {
+  color: var(--w-teal);
+}
+
+.world-bench__steps li[aria-current="step"]::after {
+  background: var(--w-teal);
+  animation: world-bench-bar 0.5s var(--bench-ease);
+}
+
+@keyframes world-bench-bar {
+  from {
+    transform: scaleX(0.15);
+  }
+}
+
+/* A stage comes in from a little below. */
+.world-bench__stage {
+  animation: world-bench-in 0.32s var(--bench-ease);
+}
+
+@keyframes world-bench-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.world-bench .world-bench__title {
+  display: block;
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.world-bench__title span {
+  margin-right: 8px;
+  color: var(--w-teal);
+  font-size: 11px;
+  vertical-align: 2px;
+}
+
+.world-bench__title small {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  color: var(--w-dim);
+}
+
+.world-bench .world-bench__step {
+  display: block;
+  margin: 0 0 8px;
+  font-weight: 500;
+  color: var(--w-dim);
+}
+
+.world-bench__step span {
+  color: var(--w-teal);
+  margin-right: 6px;
+}
+
+/* The choices: native radios (arrow keys move through them), the dot hidden, the chip and the name shown. */
+.world-bench__choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin-bottom: 12px;
+}
+
+.world-bench__choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 30px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  color: var(--w-dim);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, transform 0.16s ease-out;
+}
+
+.world-bench__choice input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .world-bench__choice:hover {
+    color: var(--w-ink);
+    background: rgb(25 245 194 / 0.05);
+  }
+}
+
+.world-bench__choice:active {
+  transform: scale(0.97);
+}
+
+.world-bench__choice:has(input:checked) {
+  color: #fff;
+  border-color: rgb(25 245 194 / 0.45);
+  background: rgb(25 245 194 / 0.07);
+}
+
+.world-bench__choice:has(input:focus-visible) {
+  outline: 1px solid var(--w-teal);
+  outline-offset: 2px;
+}
+
+.world-bench__chip {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  transition: transform 0.2s var(--bench-ease);
+}
+
+.world-bench__choice:has(input:checked) .world-bench__chip {
+  transform: scale(1.08);
+}
+
+/* Each finish's chip suggests its surface. */
+.world-bench__chip[data-finish="brushed"] {
+  background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / 0.16) 0 1px, transparent 1px 3px), linear-gradient(120deg, rgb(255 255 255 / 0.25), transparent 55%);
+}
+.world-bench__chip[data-finish="gloss"] {
+  background-image: radial-gradient(circle at 30% 28%, rgb(255 255 255 / 0.55), transparent 38%);
+}
+.world-bench__chip[data-finish="clear"] {
+  opacity: 0.6;
+  background-image: linear-gradient(135deg, rgb(255 255 255 / 0.28), transparent 60%);
+}
+.world-bench__chip[data-finish="carbon"] {
+  background-image: repeating-conic-gradient(rgb(255 255 255 / 0.12) 0 25%, transparent 0 50%);
+  background-size: 6px 6px;
+}
+.world-bench__chip[data-finish="ceramic"] {
+  background-image: radial-gradient(circle, rgb(0 0 0 / 0.35) 0.6px, transparent 1px), linear-gradient(150deg, rgb(255 255 255 / 0.35), transparent 50%);
+  background-size: 5px 5px, auto;
+}
+
+.world-bench__choices[aria-label="Colour"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.world-bench__choice--swatch {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 5px;
+  font-size: 9px;
+}
+
+.world-bench__choice--swatch .world-bench__chip {
+  width: 100%;
+  height: 18px;
+}
+
+.world-bench__choices[aria-label="Robot"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.world-bench__choice--robot {
+  justify-content: center;
+  padding: 4px 6px;
+}
+
+/* Any colour: the browser's own picker, shown as a ringed chip with the colour's hex beside it. */
+.world-bench__any {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--w-dim);
+  cursor: pointer;
+}
+
+.world-bench__any input {
+  width: 30px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: conic-gradient(from 90deg, #e8a33d, #d4503a, #3b6fd8, #2bb39a, #e8a33d);
+  cursor: pointer;
+}
+
+.world-bench__any input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.world-bench__any input::-webkit-color-swatch {
+  border: 0;
+}
+
+.world-bench__any input:focus-visible {
+  outline: 1px solid var(--w-teal);
+  outline-offset: 2px;
+}
+
+.world-bench__hex {
+  color: var(--w-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.world-bench .world-bench__label {
+  display: block;
+  margin: 0 0 4px;
+  color: var(--w-dim);
+}
+
+.world-bench__name {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.world-bench .world-bench__input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 0 6px;
+  border: 0;
+  border-bottom: 1px solid var(--w-line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  color: var(--w-ink);
+  font-family: var(--w-mono);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  caret-color: var(--w-teal);
+  transition: border-color 0.25s ease;
+}
+
+.world-bench__input::placeholder {
+  color: var(--w-mute);
+  opacity: 1;
+}
+
+.world-bench .world-bench__input:focus {
+  border-bottom-color: var(--w-teal);
+}
+
+.world-bench .world-bench__input:focus-visible {
+  outline: none;
+}
+
+.world-bench__count {
+  color: var(--w-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.world-bench__count[data-near="true"] {
+  color: var(--w-amber);
+}
+
+.world-bench__spec {
+  min-height: 1.5em;
+  margin: 0 0 4px;
+  color: var(--w-dim);
+  font-size: 10px;
+}
+
+.world-bench__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.world-bench .world-bench__next {
+  padding: 8px 14px;
+  border: 1px solid rgb(25 245 194 / 0.25);
+  color: var(--w-dim);
+  letter-spacing: 0.1em;
+  transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease, transform 0.16s ease-out;
+}
+
+.world-bench .world-bench__next[data-ready="true"] {
+  border-color: var(--w-teal);
+  color: var(--w-teal);
+  background: rgb(25 245 194 / 0.08);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .world-bench .world-bench__next[data-ready="true"]:hover {
+    background: rgb(25 245 194 / 0.16);
+  }
+}
+
+.world-bench .world-bench__next:active {
+  transform: scale(0.97);
+}
+
+.world-bench .world-bench__next[data-full="true"] {
+  border-color: var(--w-amber);
+  color: var(--w-amber);
+  background: none;
+}
+
+.world-bench button.world-bench__back {
+  color: var(--w-dim);
+  transition: color 0.2s ease;
+}
+
+.world-bench button.world-bench__back:hover {
+  color: var(--w-ink);
+}
+
+.world-bench__status {
+  min-height: 1.6em;
+  margin: 6px 0 10px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--w-teal);
+}
+
+.world-bench__status[data-tone="warn"] {
+  color: var(--w-amber);
+}
+
+.world-bench__saved {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--w-line);
+}
+
+.world-bench__saved .world-bench__step span {
+  margin: 0 0 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.world-bench__saved ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.world-bench__saved li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.world-bench__saved li i {
+  width: 10px;
+  height: 10px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+.world-bench__savedname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-bench__savedrobot {
+  color: var(--w-dim);
+}
+
+.world-bench__saved li button {
+  color: var(--w-dim);
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.world-bench__saved li button:hover,
+.world-bench__saved li button:focus-visible {
+  color: var(--w-amber);
+}
+
+.world-bench__empty {
+  margin: 0;
+  color: var(--w-dim);
+  font-size: 10px;
+}
+
+.world-bench__warn {
+  margin-bottom: 8px;
+  color: var(--w-amber);
+}
+
+/* A short window: the editor scrolls inside itself rather than running off the top. */
+@media (max-height: 640px) {
+  .world-bench {
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* A phone: a sheet across the bottom, at most 360 px tall (the stage's shot keeps the bench above it,
+   layout.ts shotFor), its content scrolling inside. */
+@media (max-width: 700px) {
+  .world-bench {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 360px;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: linear-gradient(rgb(7 9 12 / 0.88), rgb(7 9 12 / 0.96));
+    border-top: 1px solid var(--w-line);
+    transform: translateY(24px);
+  }
+
+  .world-bench::before {
+    display: none;
+  }
+
+  .world-bench .world-bench__h {
+    display: none;
+  }
+
+  .world-bench .world-bench__steps {
+    margin-bottom: 12px;
+  }
+
+  .world-bench .world-bench__title {
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+
+  .world-bench__choices {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .world-bench__choice {
+    min-height: 40px;
+    font-size: 10px;
+  }
+
+  .world-bench .world-bench__next {
+    padding: 11px 18px;
+  }
+}
+
+[data-motion-world="reduced"] .world-bench,
+[data-motion-world="reduced"] .world-bench * {
+  transition: none;
+  animation: none;
+}

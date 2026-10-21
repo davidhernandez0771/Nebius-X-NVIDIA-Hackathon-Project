@@ -16,6 +16,13 @@ from typing import Callable
 import numpy as np
 
 from .measure import gripper_events
+from .scene_geometry import (
+    BIN_FOOTPRINT_HALF,
+    BIN_INNER,
+    BIN_RIM_HEIGHT,
+    CUBE_HALF,
+    RELEASE_CLEARANCE,
+)
 from .schemas import REPAIR_ORDER, RepairOp, Scene, Trajectory
 
 DT = 0.02  # 50 Hz output grid
@@ -23,6 +30,13 @@ SMOOTH_SIGMA_S = {"low": 0.04, "med": 0.08, "high": 0.16}
 SMOOTH_RAMP_S = 0.1  # smoothing fades to 0 this close to a gripper event or the span's edges
 RECENTER_RAMP_S = 1.0  # recenter_grasp ramps in over 1 s, holds 1 s through the lift, ramps out over 1 s
 MIN_TRANSIT_SPEED = 0.05  # m/s; replan_transit's speed when the original span barely moved
+# release_above_bin (sizes from scene_geometry; these are timings and margins, the same for every demo and bin)
+RELEASE_APPROACH_MARGIN = 0.05  # m outside the bin's footprint: the place starts once the tool comes this near
+RELEASE_INSIDE_MARGIN = 0.01  # m kept between the held cube's side and an inner wall at the release point
+RELEASE_SETTLE_S = 0.2  # held still, closed, over the release point before opening
+RELEASE_OPEN_S = 0.5  # held open there while the cube drops in
+RELEASE_LIFT_M, RELEASE_LIFT_S = 0.10, 1.0  # then straight up, away from the bin
+RELEASE_END_S = 0.5  # and still at the top, so the cube's settling is on the record (check_success: 0.5 s)
 _TOL = 1e-9
 
 TimeMap = Callable[[np.ndarray], np.ndarray]
@@ -227,6 +241,65 @@ def _replan_transit(traj: Trajectory, t0: float, t1: float, bin_rim_z: float,
     return _splice(traj, i0, i1, {"ee_pos": pos, "ee_quat": quat, "gripper": np.full(n_steps + 1, g[0])})
 
 
+def _bin_frame(scene: Scene) -> tuple[np.ndarray, float]:
+    """(bin origin xy, bin yaw) from the scene."""
+    w, x, y, z = scene.bin_pose.quat_wxyz
+    return np.asarray(scene.bin_pose.pos[:2], dtype=np.float64), math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+
+def _rot(xy: np.ndarray, yaw: float) -> np.ndarray:
+    c, s = math.cos(yaw), math.sin(yaw)
+    return np.stack([c * xy[..., 0] - s * xy[..., 1], s * xy[..., 0] + c * xy[..., 1]], axis=-1)
+
+
+def _release_above_bin(traj: Trajectory, t: float, scene: Scene) -> tuple[Trajectory, TimeMap]:
+    traj = _regrid(traj)
+    a = traj.to_arrays()
+    times, g, pos, quat = a["t"], a["gripper"], a["ee_pos"], a["ee_quat"]
+    opens = np.flatnonzero((g[1:] == 0) & (g[:-1] == 1)) + 1
+    if opens.size == 0:
+        raise ValueError("release_above_bin: the gripper never opens after a close")
+    k_open = int(opens[np.argmin(np.abs(times[opens] - t))])  # anchor on the real open nearest the diagnosed time
+    closes = np.flatnonzero((g[1:] == 1) & (g[:-1] == 0)) + 1
+    closes = closes[closes < k_open]
+    k_close = int(closes[-1]) if closes.size else 0
+
+    origin, yaw = _bin_frame(scene)
+    local = _rot(pos[:, :2] - origin, -yaw)
+    near = np.all(np.abs(local) <= BIN_FOOTPRINT_HALF + RELEASE_APPROACH_MARGIN, axis=1)
+    entering = np.flatnonzero(near[k_close + 1 : k_open + 1])
+    k_s = k_close + 1 + int(entering[0]) if entering.size else k_open  # the place starts as the tool nears the bin
+
+    inside = np.array([BIN_INNER[0], BIN_INNER[1]]) / 2 - CUBE_HALF - RELEASE_INSIDE_MARGIN
+    xy = origin + _rot(np.clip(local[k_open], -inside, inside), yaw)  # the person's release point, kept inside
+    z_place = scene.bin_pose.pos[2] + BIN_RIM_HEIGHT + CUBE_HALF + RELEASE_CLEARANCE
+    p_s = pos[k_s]
+    z_high = max(p_s[2], z_place)
+    corners = np.array([p_s, [p_s[0], p_s[1], z_high], [xy[0], xy[1], z_high], [xy[0], xy[1], z_place]])
+    corners = corners[np.r_[True, np.linalg.norm(np.diff(corners, axis=0), axis=1) > _TOL]]
+    cum = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(corners, axis=0), axis=1))])
+    span = times[k_open] - times[k_s]
+    speed = max(_arc_length(a, k_s, k_open) / span if span > 0 else 0.0, MIN_TRANSIT_SPEED)
+    n_move = max(1, math.ceil(cum[-1] / speed / DT - 1e-6))
+    move = np.stack([np.interp(np.linspace(0.0, cum[-1], n_move + 1), cum, corners[:, k]) for k in range(3)], axis=1)
+    move[0] = p_s
+    q_open = quat[k_open]
+    move_q = _slerp(np.tile(quat[k_s], (n_move + 1, 1)), np.tile(q_open, (n_move + 1, 1)), np.linspace(0, 1, n_move + 1))
+
+    top = np.array([xy[0], xy[1], z_place])
+    n_settle, n_open = round(RELEASE_SETTLE_S / DT), round(RELEASE_OPEN_S / DT)
+    n_lift, n_end = round(RELEASE_LIFT_S / DT), round(RELEASE_END_S / DT)
+    lift = top + np.outer(np.arange(1, n_lift + 1) / n_lift, [0.0, 0.0, RELEASE_LIFT_M])
+    new_pos = np.concatenate([move, np.tile(top, (n_settle + n_open, 1)), lift, np.tile(lift[-1], (n_end, 1))])
+    new_q = np.concatenate([move_q, np.tile(q_open, (len(new_pos) - len(move_q), 1))])
+    new_g = np.concatenate([np.ones(n_move + 1 + n_settle, dtype=g.dtype), np.zeros(len(new_pos) - n_move - 1 - n_settle,
+                                                                                    dtype=g.dtype)])
+    out = _build(np.concatenate([pos[:k_s], new_pos]), np.concatenate([quat[:k_s], new_q]), np.concatenate([g[:k_s], new_g]))
+    t_s, old_len, new_len = times[k_s], times[-1] - times[k_s], (len(new_pos) - 1) * DT
+    scale = new_len / old_len if old_len > 0 else 1.0
+    return out, lambda x: np.where(np.asarray(x) <= t_s, x, t_s + (np.asarray(x, dtype=np.float64) - t_s) * scale)
+
+
 # --- public API ---------------------------------------------------------------------
 
 def trim(traj: Trajectory, t0: float, t1: float) -> Trajectory:
@@ -259,6 +332,13 @@ def replan_transit(traj: Trajectory, t0: float, t1: float, bin_rim_z: float, cle
     return _replan_transit(traj, t0, t1, bin_rim_z, clearance)[0]
 
 
+def release_above_bin(traj: Trajectory, t: float, scene: Scene) -> Trajectory:
+    """Rewrite the place: from where the tool nears the bin, rise if low, cross over to the release point (kept
+    over the bin's inside) with the held cube's bottom RELEASE_CLEARANCE above the rim, stop, open, lift away.
+    Every size comes from demo_pipeline.scene_geometry and the scene's bin pose; t anchors on the nearest open."""
+    return _release_above_bin(traj, t, scene)[0]
+
+
 def apply_repairs(traj: Trajectory, repairs: list[RepairOp], scene: Scene, bin_rim_z: float) -> Trajectory:
     """Apply the ops in REPAIR_ORDER (list order is ignored), mapping their original-demo times as the timeline changes."""
     if any(r.op == "discard" for r in repairs):
@@ -269,6 +349,13 @@ def apply_repairs(traj: Trajectory, repairs: list[RepairOp], scene: Scene, bin_r
     for op in sorted(repairs, key=lambda r: REPAIR_ORDER.index(r.op)):
         if op.op == "recenter_grasp":
             cur, step_map = _recenter_grasp(cur, float(tmap(op.t)), scene.cube_pose.pos)
+        elif op.op == "release_above_bin":
+            cur, step_map = _release_above_bin(cur, float(tmap(op.t)), scene)
+        elif op.op == "retime_grasp":
+            from .grasp_retime import retime_grasp  # it builds on this module's helpers
+
+            done = retime_grasp(cur, float(tmap(op.t)))
+            cur, step_map = done.trajectory, done.tmap
         else:
             t0, t1 = (float(v) for v in np.clip(tmap([op.t0, op.t1]), 0.0, cur.t[-1]))
             if t1 - t0 < DT / 2:  # the span vanished, e.g. it lay inside a removed pause

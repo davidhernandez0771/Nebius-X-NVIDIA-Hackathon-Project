@@ -1,0 +1,2827 @@
+{
+ "base": "http://localhost:4181",
+ "at": "2026-10-20T05:19:14.082Z",
+ "bundle": {
+  "chunks": [
+   {
+    "file": "three.module-BYuLWGLq.js",
+    "kind": "js",
+    "raw": 684035,
+    "gzip": 176396
+   },
+   {
+    "file": "index-BLi-NboZ.js",
+    "kind": "js",
+    "raw": 192295,
+    "gzip": 64188
+   },
+   {
+    "file": "vision_bundle-BKjrwyyy.js",
+    "kind": "js",
+    "raw": 139034,
+    "gzip": 41670
+   },
+   {
+    "file": "WorldRoot-DVH506v9.js",
+    "kind": "js",
+    "raw": 138117,
+    "gzip": 46940
+   },
+   {
+    "file": "RecordHudPreview-Bbx3wJlp.js",
+    "kind": "js",
+    "raw": 134098,
+    "gzip": 33541
+   },
+   {
+    "file": "events-776716bd.esm-DUslVwwg.js",
+    "kind": "js",
+    "raw": 129351,
+    "gzip": 42594
+   },
+   {
+    "file": "SetupPage-DcYRtGVi.js",
+    "kind": "js",
+    "raw": 86479,
+    "gzip": 22991
+   },
+   {
+    "file": "Gltf-2ysJZb8m.js",
+    "kind": "js",
+    "raw": 73134,
+    "gzip": 21825
+   },
+   {
+    "file": "ReviewPage2-DfzXKRpN.js",
+    "kind": "js",
+    "raw": 59241,
+    "gzip": 22257
+   },
+   {
+    "file": "URDFLoader-e15dGrYm.js",
+    "kind": "js",
+    "raw": 56909,
+    "gzip": 16637
+   },
+   {
+    "file": "index-BLMrC2xn.css",
+    "kind": "css",
+    "raw": 48205,
+    "gzip": 9911
+   },
+   {
+    "file": "animation-DitDG-Z0.js",
+    "kind": "js",
+    "raw": 30335,
+    "gzip": 11757
+   },
+   {
+    "file": "DesignPage-DZk60g19.js",
+    "kind": "js",
+    "raw": 30216,
+    "gzip": 9845
+   },
+   {
+    "file": "CalibrationPanel-BH2LmeUD.js",
+    "kind": "js",
+    "raw": 29975,
+    "gzip": 9123
+   },
+   {
+    "file": "useRecordSession-BpYdqtfk.js",
+    "kind": "js",
+    "raw": 28147,
+    "gzip": 10925
+   },
+   {
+    "file": "Landing-Dd85fLDa.js",
+    "kind": "js",
+    "raw": 26780,
+    "gzip": 10108
+   },
+   {
+    "file": "RecordConsole-Dt80R_ds.js",
+    "kind": "js",
+    "raw": 26420,
+    "gzip": 8885
+   },
+   {
+    "file": "SetupPage-CDVNeUVW.css",
+    "kind": "css",
+    "raw": 24827,
+    "gzip": 4857
+   },
+   {
+    "file": "Scene-2N_xotME.js",
+    "kind": "js",
+    "raw": 22163,
+    "gzip": 8905
+   },
+   {
+    "file": "lenis-XHln91gA.js",
+    "kind": "js",
+    "raw": 19860,
+    "gzip": 5739
+   },
+   {
+    "file": "RobotsPage-uCoAWE3V.js",
+    "kind": "js",
+    "raw": 19650,
+    "gzip": 8299
+   },
+   {
+    "file": "WorldRoot-DV4nBY-o.css",
+    "kind": "css",
+    "raw": 19560,
+    "gzip": 4596
+   },
+   {
+    "file": "ResultsPage-BFVaM5ho.js",
+    "kind": "js",
+    "raw": 18570,
+    "gzip": 6238
+   },
+   {
+    "file": "RobotPreview-Cd5ww0Fv.js",
+    "kind": "js",
+    "raw": 18485,
+    "gzip": 7025
+   },
+   {
+    "file": "Scene-Cp-fyzIV.js",
+    "kind": "js",
+    "raw": 17126,
+    "gzip": 7153
+   },
+   {
+    "file": "HandArtOverlay-C_5GPzk0.js",
+    "kind": "js",
+    "raw": 17072,
+    "gzip": 6668
+   },
+   {
+    "file": "RecordConsole-DZY9mHef.css",
+    "kind": "css",
+    "raw": 16375,
+    "gzip": 3931
+   },
+   {
+    "file": "ShelfScene-B0yhixgi.js",
+    "kind": "js",
+    "raw": 15663,
+    "gzip": 7173
+   },
+   {
+    "file": "OrbitControls-Fsk0jF9b.js",
+    "kind": "js",
+    "raw": 15626,
+    "gzip": 4818
+   },
+   {
+    "file": "RecordPage-y27QpxTc.js",
+    "kind": "js",
+    "raw": 15503,
+    "gzip": 4580
+   },
+   {
+    "file": "RoomScene-Cx4YjJhn.js",
+    "kind": "js",
+    "raw": 14953,
+    "gzip": 5902
+   },
+   {
+    "file": "StaticRoom-SwdAD28A.css",
+    "kind": "css",
+    "raw": 13756,
+    "gzip": 3591
+   },
+   {
+    "file": "ReviewPage-AkjrxMyF.js",
+    "kind": "js",
+    "raw": 12140,
+    "gzip": 4264
+   },
+   {
+    "file": "Helix-C4wNItgR.js",
+    "kind": "js",
+    "raw": 11104,
+    "gzip": 5192
+   },
+   {
+    "file": "WorldCanvas-p9h1Gf98.js",
+    "kind": "js",
+    "raw": 10160,
+    "gzip": 3678
+   },
+   {
+    "file": "UnrealBloomPass-CISDrKwo.js",
+    "kind": "js",
+    "raw": 10027,
+    "gzip": 2603
+   },
+   {
+    "file": "record-hud-CMyYr3YA.css",
+    "kind": "css",
+    "raw": 8963,
+    "gzip": 2321
+   },
+   {
+    "file": "HandArtPreviewPage-C4h72vGr.js",
+    "kind": "js",
+    "raw": 8808,
+    "gzip": 3648
+   },
+   {
+    "file": "ReviewPage2-304TRq-y.css",
+    "kind": "css",
+    "raw": 8728,
+    "gzip": 1996
+   },
+   {
+    "file": "pm-DLELaubD.css",
+    "kind": "css",
+    "raw": 8484,
+    "gzip": 2099
+   },
+   {
+    "file": "ResultsPage-Jw-ZRDFa.js",
+    "kind": "js",
+    "raw": 8277,
+    "gzip": 3278
+   },
+   {
+    "file": "ResultsPage-C3y00Met.css",
+    "kind": "css",
+    "raw": 8020,
+    "gzip": 1913
+   },
+   {
+    "file": "react-three-fiber.esm-mMdw811p.js",
+    "kind": "js",
+    "raw": 7070,
+    "gzip": 2885
+   },
+   {
+    "file": "design-DcxsXEsb.css",
+    "kind": "css",
+    "raw": 6955,
+    "gzip": 1560
+   },
+   {
+    "file": "CalibrationPanel-9ejj7Ka7.css",
+    "kind": "css",
+    "raw": 6742,
+    "gzip": 1593
+   },
+   {
+    "file": "calibrationPanel-BlVNlSoH.css",
+    "kind": "css",
+    "raw": 6665,
+    "gzip": 1607
+   },
+   {
+    "file": "RobotTwin-DdWa-osA.js",
+    "kind": "js",
+    "raw": 6443,
+    "gzip": 2702
+   },
+   {
+    "file": "StaticRoom-15rzFSBR.js",
+    "kind": "js",
+    "raw": 6160,
+    "gzip": 3144
+   },
+   {
+    "file": "WorkShell-B7HZfpba.css",
+    "kind": "css",
+    "raw": 6053,
+    "gzip": 1986
+   },
+   {
+    "file": "HandArtPreviewPage-CuOBl4ro.css",
+    "kind": "css",
+    "raw": 5577,
+    "gzip": 1827
+   },
+   {
+    "file": "Entry-DubtxWWL.js",
+    "kind": "js",
+    "raw": 5381,
+    "gzip": 2291
+   },
+   {
+    "file": "AddScan-BLi2gZCS.js",
+    "kind": "js",
+    "raw": 4994,
+    "gzip": 1992
+   },
+   {
+    "file": "StoryShell-CpP8gOCx.js",
+    "kind": "js",
+    "raw": 4487,
+    "gzip": 1887
+   },
+   {
+    "file": "ScanViewer-Du3Gx_SJ.js",
+    "kind": "js",
+    "raw": 4485,
+    "gzip": 2134
+   },
+   {
+    "file": "DatasetPage-eVW59oDj.js",
+    "kind": "js",
+    "raw": 4482,
+    "gzip": 1748
+   },
+   {
+    "file": "Nav-rbl9MuXO.js",
+    "kind": "js",
+    "raw": 4154,
+    "gzip": 1689
+   },
+   {
+    "file": "RobotsPage-Bnd59_Vr.css",
+    "kind": "css",
+    "raw": 4051,
+    "gzip": 1486
+   },
+   {
+    "file": "Perf-gruNC875.js",
+    "kind": "js",
+    "raw": 3850,
+    "gzip": 1908
+   },
+   {
+    "file": "BufferGeometryUtils-DJl8_4I2.js",
+    "kind": "js",
+    "raw": 3838,
+    "gzip": 1130
+   },
+   {
+    "file": "RoomView-NDpQiyZU.js",
+    "kind": "js",
+    "raw": 3642,
+    "gzip": 1587
+   },
+   {
+    "file": "Review-Dwl_MGPO.js",
+    "kind": "js",
+    "raw": 3545,
+    "gzip": 1700
+   },
+   {
+    "file": "index-CZRGBIUh.js",
+    "kind": "js",
+    "raw": 3059,
+    "gzip": 1539
+   },
+   {
+    "file": "replay-BjYF0Ixo.js",
+    "kind": "js",
+    "raw": 3015,
+    "gzip": 1309
+   },
+   {
+    "file": "Chat-gq4IrJtN.js",
+    "kind": "js",
+    "raw": 3004,
+    "gzip": 1406
+   },
+   {
+    "file": "DashboardShell-UvB_DNBe.js",
+    "kind": "js",
+    "raw": 2924,
+    "gzip": 1222
+   },
+   {
+    "file": "labels-BtC8pqM4.js",
+    "kind": "js",
+    "raw": 2761,
+    "gzip": 1145
+   },
+   {
+    "file": "Inventory-BrivjQRU.js",
+    "kind": "js",
+    "raw": 2421,
+    "gzip": 1184
+   },
+   {
+    "file": "compileSafe-CAPkV0vv.js",
+    "kind": "js",
+    "raw": 2214,
+    "gzip": 1058
+   },
+   {
+    "file": "Organize-CXGPH5aY.js",
+    "kind": "js",
+    "raw": 2157,
+    "gzip": 1117
+   },
+   {
+    "file": "AddPhoto-B1mJ0B8K.js",
+    "kind": "js",
+    "raw": 2108,
+    "gzip": 1121
+   },
+   {
+    "file": "ScanViewer-C_fAr1J_.css",
+    "kind": "css",
+    "raw": 2034,
+    "gzip": 869
+   },
+   {
+    "file": "model-Cg1gE35M.js",
+    "kind": "js",
+    "raw": 1936,
+    "gzip": 970
+   },
+   {
+    "file": "DesignAppPage-CIyNA93l.js",
+    "kind": "js",
+    "raw": 1912,
+    "gzip": 931
+   },
+   {
+    "file": "Home-C4shualY.js",
+    "kind": "js",
+    "raw": 1910,
+    "gzip": 928
+   },
+   {
+    "file": "api-DyMem0el.js",
+    "kind": "js",
+    "raw": 1844,
+    "gzip": 919
+   },
+   {
+    "file": "record-hud-YpFsNcIg.js",
+    "kind": "js",
+    "raw": 1804,
+    "gzip": 922
+   },
+   {
+    "file": "WorkShell-pvaQ31J-.js",
+    "kind": "js",
+    "raw": 1716,
+    "gzip": 838
+   },
+   {
+    "file": "jobs-jo8aszCf.js",
+    "kind": "js",
+    "raw": 1655,
+    "gzip": 863
+   },
+   {
+    "file": "PerspectiveCamera-DWXk6tLy.js",
+    "kind": "js",
+    "raw": 1569,
+    "gzip": 841
+   },
+   {
+    "file": "Icon-Dfqyt0D1.js",
+    "kind": "js",
+    "raw": 1465,
+    "gzip": 852
+   },
+   {
+    "file": "framing-BOdTXHye.js",
+    "kind": "js",
+    "raw": 1448,
+    "gzip": 640
+   },
+   {
+    "file": "pm-CgSnuVOq.js",
+    "kind": "js",
+    "raw": 1422,
+    "gzip": 747
+   },
+   {
+    "file": "GlyphLoader-BqQNEPJE.js",
+    "kind": "js",
+    "raw": 1361,
+    "gzip": 710
+   },
+   {
+    "file": "Settings-2kCzmJ9c.js",
+    "kind": "js",
+    "raw": 1242,
+    "gzip": 603
+   },
+   {
+    "file": "ItemCard-CELySkcf.js",
+    "kind": "js",
+    "raw": 1127,
+    "gzip": 545
+   },
+   {
+    "file": "errors-BEE5iPcg.js",
+    "kind": "js",
+    "raw": 1040,
+    "gzip": 480
+   },
+   {
+    "file": "design-CKuE9uOM.js",
+    "kind": "js",
+    "raw": 1038,
+    "gzip": 578
+   },
+   {
+    "file": "LegacyHand-9WredawK.js",
+    "kind": "js",
+    "raw": 802,
+    "gzip": 484
+   },
+   {
+    "file": "loadTwinRobot-B4Yha_OI.js",
+    "kind": "js",
+    "raw": 792,
+    "gzip": 530
+   },
+   {
+    "file": "presets-1wzZad05.js",
+    "kind": "js",
+    "raw": 717,
+    "gzip": 438
+   },
+   {
+    "file": "capability-m66kr8b-.js",
+    "kind": "js",
+    "raw": 667,
+    "gzip": 375
+   },
+   {
+    "file": "AppShell-BXmayNMy.js",
+    "kind": "js",
+    "raw": 630,
+    "gzip": 335
+   },
+   {
+    "file": "Materialize-Vphd83X3.js",
+    "kind": "js",
+    "raw": 570,
+    "gzip": 379
+   },
+   {
+    "file": "usage-BHoao32o.js",
+    "kind": "js",
+    "raw": 537,
+    "gzip": 358
+   },
+   {
+    "file": "Button-CkNq6bU1.js",
+    "kind": "js",
+    "raw": 427,
+    "gzip": 262
+   },
+   {
+    "file": "DotMeter-k1TnptJ7.js",
+    "kind": "js",
+    "raw": 418,
+    "gzip": 303
+   },
+   {
+    "file": "Zones-bzlSXRm4.js",
+    "kind": "js",
+    "raw": 404,
+    "gzip": 250
+   },
+   {
+    "file": "contracts-CiIPTzpy.js",
+    "kind": "js",
+    "raw": 371,
+    "gzip": 274
+   },
+   {
+    "file": "EmptyState-h1XVFJ5-.js",
+    "kind": "js",
+    "raw": 344,
+    "gzip": 249
+   },
+   {
+    "file": "Badge-udJG67AO.js",
+    "kind": "js",
+    "raw": 252,
+    "gzip": 201
+   },
+   {
+    "file": "extends-CF3RwP-h.js",
+    "kind": "js",
+    "raw": 232,
+    "gzip": 185
+   },
+   {
+    "file": "StatusPill-HHQL74zu.js",
+    "kind": "js",
+    "raw": 227,
+    "gzip": 180
+   },
+   {
+    "file": "viewTransition-BBIVphQq.js",
+    "kind": "js",
+    "raw": 218,
+    "gzip": 182
+   },
+   {
+    "file": "format-dZ8TOwiy.js",
+    "kind": "js",
+    "raw": 181,
+    "gzip": 157
+   },
+   {
+    "file": "HandArtOverlay-CFRMIsqf.css",
+    "kind": "css",
+    "raw": 102,
+    "gzip": 105
+   },
+   {
+    "file": "activeScanViewer-Dv1WYOev.js",
+    "kind": "js",
+    "raw": 74,
+    "gzip": 84
+   },
+   {
+    "file": "client-da6qgxdd.js",
+    "kind": "js",
+    "raw": 59,
+    "gzip": 79
+   }
+  ],
+  "totals": {
+   "js": {
+    "raw": 2238358,
+    "gzip": 700415
+   },
+   "css": {
+    "raw": 195097,
+    "gzip": 46248
+   }
+  },
+  "firstRequest": {
+   "entry": [
+    "index-BLi-NboZ.js"
+   ],
+   "js": [
+    "index-BLi-NboZ.js"
+   ],
+   "jsSize": {
+    "raw": 192295,
+    "gzip": 64188
+   },
+   "css": [
+    "index-BLMrC2xn.css"
+   ],
+   "cssSize": {
+    "raw": 48205,
+    "gzip": 9911
+   },
+   "external": [
+    "https://fonts.googleapis.com",
+    "https://fonts.gstatic.com",
+    "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@300;400;500&display=swap"
+   ]
+  }
+ },
+ "load": [
+  {
+   "viewport": "desktop",
+   "query": "?q=high",
+   "mode": "3d",
+   "readyMs": 2855,
+   "lastBeforeReadyEndMs": 1152,
+   "fcpMs": 788,
+   "wallMs": 2904,
+   "beforeReady": {
+    "requests": 18,
+    "bytes": 387282,
+    "decoded": 1324550,
+    "js": 370109,
+    "jsDecoded": 1254795,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29544
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-BYuLWGLq.js",
+      "type": "script",
+      "bytes": 176696,
+      "decoded": 684035,
+      "startMs": 437
+     },
+     {
+      "url": "/assets/index-BLi-NboZ.js",
+      "type": "script",
+      "bytes": 64488,
+      "decoded": 192295,
+      "startMs": 61
+     },
+     {
+      "url": "/assets/WorldRoot-DVH506v9.js",
+      "type": "script",
+      "bytes": 47240,
+      "decoded": 138117,
+      "startMs": 437
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DUslVwwg.js",
+      "type": "script",
+      "bytes": 42894,
+      "decoded": 129351,
+      "startMs": 437
+     },
+     {
+      "url": "/assets/Gltf-2ysJZb8m.js",
+      "type": "script",
+      "bytes": 22125,
+      "decoded": 73134,
+      "startMs": 437
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 61
+     },
+     {
+      "url": "/assets/WorldRoot-DV4nBY-o.css",
+      "type": "link",
+      "bytes": 4896,
+      "decoded": 19560,
+      "startMs": 438
+     },
+     {
+      "url": "/assets/WorldCanvas-p9h1Gf98.js",
+      "type": "script",
+      "bytes": 3978,
+      "decoded": 10160,
+      "startMs": 515
+     },
+     {
+      "url": "/assets/react-three-fiber.esm-mMdw811p.js",
+      "type": "script",
+      "bytes": 3185,
+      "decoded": 7070,
+      "startMs": 515
+     },
+     {
+      "url": "/assets/UnrealBloomPass-CISDrKwo.js",
+      "type": "script",
+      "bytes": 2903,
+      "decoded": 10027,
+      "startMs": 516
+     },
+     {
+      "url": "/assets/Perf-gruNC875.js",
+      "type": "script",
+      "bytes": 2208,
+      "decoded": 3850,
+      "startMs": 516
+     },
+     {
+      "url": "/assets/BufferGeometryUtils-DJl8_4I2.js",
+      "type": "script",
+      "bytes": 1430,
+      "decoded": 3838,
+      "startMs": 438
+     },
+     {
+      "url": "/assets/compileSafe-CAPkV0vv.js",
+      "type": "script",
+      "bytes": 1358,
+      "decoded": 2214,
+      "startMs": 437
+     },
+     {
+      "url": "/world/mark.svg",
+      "type": "fetch",
+      "bytes": 1167,
+      "decoded": 867,
+      "startMs": 1148
+     },
+     {
+      "url": "/?q=high",
+      "type": "document",
+      "bytes": 899,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Button-CkNq6bU1.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 438
+     },
+     {
+      "url": "/assets/viewTransition-BBIVphQq.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 437
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 438
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 37,
+    "bytes": 3569169,
+    "files": [
+     {
+      "url": "/world/models/machine.glb",
+      "bytes": 1158104,
+      "startMs": 3472
+     },
+     {
+      "url": "/world/models/room.glb",
+      "bytes": 644332,
+      "startMs": 3317
+     },
+     {
+      "url": "/world/models/machine_body.glb",
+      "bytes": 397916,
+      "startMs": 3318
+     },
+     {
+      "url": "/world/models/bench.glb",
+      "bytes": 391924,
+      "startMs": 3317
+     },
+     {
+      "url": "/world/models/shelves.glb",
+      "bytes": 314000,
+      "startMs": 3317
+     },
+     {
+      "url": "/world/models/desk.glb",
+      "bytes": 179712,
+      "startMs": 3318
+     },
+     {
+      "url": "/world/models/pedestal.glb",
+      "bytes": 165708,
+      "startMs": 3317
+     },
+     {
+      "url": "/world/models/cartridge.glb",
+      "bytes": 127020,
+      "startMs": 3471
+     },
+     {
+      "url": "/assets/URDFLoader-e15dGrYm.js",
+      "bytes": 16937,
+      "startMs": 9618
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link1.stl",
+      "bytes": 15384,
+      "startMs": 12921
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link2.stl",
+      "bytes": 15384,
+      "startMs": 12921
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link3.stl",
+      "bytes": 15384,
+      "startMs": 12922
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link4.stl",
+      "bytes": 15384,
+      "startMs": 12922
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link5.stl",
+      "bytes": 15384,
+      "startMs": 12922
+     },
+     {
+      "url": "/world/demo-episode.json",
+      "bytes": 15054,
+      "startMs": 9618
+     }
+    ]
+   },
+   "errors": []
+  },
+  {
+   "viewport": "desktop",
+   "query": "",
+   "mode": "stills",
+   "readyMs": 743,
+   "lastBeforeReadyEndMs": 708,
+   "fcpMs": 788,
+   "wallMs": 757,
+   "beforeReady": {
+    "requests": 19,
+    "bytes": 639769,
+    "decoded": 1556704,
+    "js": 357835,
+    "jsDecoded": 1223688,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29543
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-BYuLWGLq.js",
+      "type": "script",
+      "bytes": 176696,
+      "decoded": 684035,
+      "startMs": 432
+     },
+     {
+      "url": "/world/stills/descent.webp",
+      "type": "img",
+      "bytes": 117622,
+      "decoded": 117322,
+      "startMs": 691
+     },
+     {
+      "url": "/assets/index-BLi-NboZ.js",
+      "type": "script",
+      "bytes": 64488,
+      "decoded": 192295,
+      "startMs": 16
+     },
+     {
+      "url": "/world/stills/workshop.webp",
+      "type": "img",
+      "bytes": 55208,
+      "decoded": 54908,
+      "startMs": 691
+     },
+     {
+      "url": "/assets/WorldRoot-DVH506v9.js",
+      "type": "script",
+      "bytes": 47240,
+      "decoded": 138117,
+      "startMs": 431
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DUslVwwg.js",
+      "type": "script",
+      "bytes": 42894,
+      "decoded": 129351,
+      "startMs": 432
+     },
+     {
+      "url": "/world/stills/machine.webp",
+      "type": "img",
+      "bytes": 32508,
+      "decoded": 32208,
+      "startMs": 691
+     },
+     {
+      "url": "/world/stills/workbench.webp",
+      "type": "img",
+      "bytes": 30092,
+      "decoded": 29792,
+      "startMs": 691
+     },
+     {
+      "url": "/assets/Gltf-2ysJZb8m.js",
+      "type": "script",
+      "bytes": 22125,
+      "decoded": 73134,
+      "startMs": 432
+     },
+     {
+      "url": "/world/stills/story.webp",
+      "type": "img",
+      "bytes": 17996,
+      "decoded": 17696,
+      "startMs": 690
+     },
+     {
+      "url": "/world/stills/zoom.webp",
+      "type": "img",
+      "bytes": 12502,
+      "decoded": 12202,
+      "startMs": 691
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 16
+     },
+     {
+      "url": "/assets/WorldRoot-DV4nBY-o.css",
+      "type": "link",
+      "bytes": 4896,
+      "decoded": 19560,
+      "startMs": 433
+     },
+     {
+      "url": "/assets/BufferGeometryUtils-DJl8_4I2.js",
+      "type": "script",
+      "bytes": 1430,
+      "decoded": 3838,
+      "startMs": 432
+     },
+     {
+      "url": "/assets/compileSafe-CAPkV0vv.js",
+      "type": "script",
+      "bytes": 1358,
+      "decoded": 2214,
+      "startMs": 432
+     },
+     {
+      "url": "/",
+      "type": "document",
+      "bytes": 899,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Button-CkNq6bU1.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 433
+     },
+     {
+      "url": "/assets/viewTransition-BBIVphQq.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 432
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 433
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 0,
+    "bytes": 0,
+    "files": []
+   },
+   "errors": []
+  },
+  {
+   "viewport": "laptop",
+   "query": "?q=high",
+   "mode": "3d",
+   "readyMs": 2456,
+   "lastBeforeReadyEndMs": 899,
+   "fcpMs": 584,
+   "wallMs": 2501,
+   "beforeReady": {
+    "requests": 18,
+    "bytes": 387282,
+    "decoded": 1324550,
+    "js": 370109,
+    "jsDecoded": 1254795,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29543
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-BYuLWGLq.js",
+      "type": "script",
+      "bytes": 176696,
+      "decoded": 684035,
+      "startMs": 416
+     },
+     {
+      "url": "/assets/index-BLi-NboZ.js",
+      "type": "script",
+      "bytes": 64488,
+      "decoded": 192295,
+      "startMs": 11
+     },
+     {
+      "url": "/assets/WorldRoot-DVH506v9.js",
+      "type": "script",
+      "bytes": 47240,
+      "decoded": 138117,
+      "startMs": 415
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DUslVwwg.js",
+      "type": "script",
+      "bytes": 42894,
+      "decoded": 129351,
+      "startMs": 416
+     },
+     {
+      "url": "/assets/Gltf-2ysJZb8m.js",
+      "type": "script",
+      "bytes": 22125,
+      "decoded": 73134,
+      "startMs": 416
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 11
+     },
+     {
+      "url": "/assets/WorldRoot-DV4nBY-o.css",
+      "type": "link",
+      "bytes": 4896,
+      "decoded": 19560,
+      "startMs": 416
+     },
+     {
+      "url": "/assets/WorldCanvas-p9h1Gf98.js",
+      "type": "script",
+      "bytes": 3978,
+      "decoded": 10160,
+      "startMs": 496
+     },
+     {
+      "url": "/assets/react-three-fiber.esm-mMdw811p.js",
+      "type": "script",
+      "bytes": 3185,
+      "decoded": 7070,
+      "startMs": 496
+     },
+     {
+      "url": "/assets/UnrealBloomPass-CISDrKwo.js",
+      "type": "script",
+      "bytes": 2903,
+      "decoded": 10027,
+      "startMs": 497
+     },
+     {
+      "url": "/assets/Perf-gruNC875.js",
+      "type": "script",
+      "bytes": 2208,
+      "decoded": 3850,
+      "startMs": 497
+     },
+     {
+      "url": "/assets/BufferGeometryUtils-DJl8_4I2.js",
+      "type": "script",
+      "bytes": 1430,
+      "decoded": 3838,
+      "startMs": 416
+     },
+     {
+      "url": "/assets/compileSafe-CAPkV0vv.js",
+      "type": "script",
+      "bytes": 1358,
+      "decoded": 2214,
+      "startMs": 416
+     },
+     {
+      "url": "/world/mark.svg",
+      "type": "fetch",
+      "bytes": 1167,
+      "decoded": 867,
+      "startMs": 896
+     },
+     {
+      "url": "/?q=high",
+      "type": "document",
+      "bytes": 899,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Button-CkNq6bU1.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 416
+     },
+     {
+      "url": "/assets/viewTransition-BBIVphQq.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 416
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 416
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 37,
+    "bytes": 3569169,
+    "files": [
+     {
+      "url": "/world/models/machine.glb",
+      "bytes": 1158104,
+      "startMs": 3125
+     },
+     {
+      "url": "/world/models/room.glb",
+      "bytes": 644332,
+      "startMs": 2914
+     },
+     {
+      "url": "/world/models/machine_body.glb",
+      "bytes": 397916,
+      "startMs": 2915
+     },
+     {
+      "url": "/world/models/bench.glb",
+      "bytes": 391924,
+      "startMs": 2914
+     },
+     {
+      "url": "/world/models/shelves.glb",
+      "bytes": 314000,
+      "startMs": 2914
+     },
+     {
+      "url": "/world/models/desk.glb",
+      "bytes": 179712,
+      "startMs": 2915
+     },
+     {
+      "url": "/world/models/pedestal.glb",
+      "bytes": 165708,
+      "startMs": 2914
+     },
+     {
+      "url": "/world/models/cartridge.glb",
+      "bytes": 127020,
+      "startMs": 3104
+     },
+     {
+      "url": "/assets/URDFLoader-e15dGrYm.js",
+      "bytes": 16937,
+      "startMs": 6741
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link1.stl",
+      "bytes": 15384,
+      "startMs": 8436
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link2.stl",
+      "bytes": 15384,
+      "startMs": 8436
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link3.stl",
+      "bytes": 15384,
+      "startMs": 8436
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link4.stl",
+      "bytes": 15384,
+      "startMs": 8437
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link5.stl",
+      "bytes": 15384,
+      "startMs": 8437
+     },
+     {
+      "url": "/world/demo-episode.json",
+      "bytes": 15054,
+      "startMs": 6741
+     }
+    ]
+   },
+   "errors": []
+  },
+  {
+   "viewport": "laptop",
+   "query": "",
+   "mode": "stills",
+   "readyMs": 571,
+   "lastBeforeReadyEndMs": 544,
+   "fcpMs": 608,
+   "wallMs": 591,
+   "beforeReady": {
+    "requests": 19,
+    "bytes": 639769,
+    "decoded": 1556704,
+    "js": 357835,
+    "jsDecoded": 1223688,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29543
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-BYuLWGLq.js",
+      "type": "script",
+      "bytes": 176696,
+      "decoded": 684035,
+      "startMs": 415
+     },
+     {
+      "url": "/world/stills/descent.webp",
+      "type": "img",
+      "bytes": 117622,
+      "decoded": 117322,
+      "startMs": 525
+     },
+     {
+      "url": "/assets/index-BLi-NboZ.js",
+      "type": "script",
+      "bytes": 64488,
+      "decoded": 192295,
+      "startMs": 14
+     },
+     {
+      "url": "/world/stills/workshop.webp",
+      "type": "img",
+      "bytes": 55208,
+      "decoded": 54908,
+      "startMs": 525
+     },
+     {
+      "url": "/assets/WorldRoot-DVH506v9.js",
+      "type": "script",
+      "bytes": 47240,
+      "decoded": 138117,
+      "startMs": 414
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DUslVwwg.js",
+      "type": "script",
+      "bytes": 42894,
+      "decoded": 129351,
+      "startMs": 415
+     },
+     {
+      "url": "/world/stills/machine.webp",
+      "type": "img",
+      "bytes": 32508,
+      "decoded": 32208,
+      "startMs": 525
+     },
+     {
+      "url": "/world/stills/workbench.webp",
+      "type": "img",
+      "bytes": 30092,
+      "decoded": 29792,
+      "startMs": 525
+     },
+     {
+      "url": "/assets/Gltf-2ysJZb8m.js",
+      "type": "script",
+      "bytes": 22125,
+      "decoded": 73134,
+      "startMs": 415
+     },
+     {
+      "url": "/world/stills/story.webp",
+      "type": "img",
+      "bytes": 17996,
+      "decoded": 17696,
+      "startMs": 525
+     },
+     {
+      "url": "/world/stills/zoom.webp",
+      "type": "img",
+      "bytes": 12502,
+      "decoded": 12202,
+      "startMs": 525
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 14
+     },
+     {
+      "url": "/assets/WorldRoot-DV4nBY-o.css",
+      "type": "link",
+      "bytes": 4896,
+      "decoded": 19560,
+      "startMs": 415
+     },
+     {
+      "url": "/assets/BufferGeometryUtils-DJl8_4I2.js",
+      "type": "script",
+      "bytes": 1430,
+      "decoded": 3838,
+      "startMs": 415
+     },
+     {
+      "url": "/assets/compileSafe-CAPkV0vv.js",
+      "type": "script",
+      "bytes": 1358,
+      "decoded": 2214,
+      "startMs": 415
+     },
+     {
+      "url": "/",
+      "type": "document",
+      "bytes": 899,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Button-CkNq6bU1.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 415
+     },
+     {
+      "url": "/assets/viewTransition-BBIVphQq.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 415
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 415
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 0,
+    "bytes": 0,
+    "files": []
+   },
+   "errors": []
+  },
+  {
+   "viewport": "phone",
+   "query": "?q=high",
+   "mode": "3d",
+   "readyMs": 2574,
+   "lastBeforeReadyEndMs": 825,
+   "fcpMs": 556,
+   "wallMs": 2618,
+   "beforeReady": {
+    "requests": 18,
+    "bytes": 387282,
+    "decoded": 1324550,
+    "js": 370109,
+    "jsDecoded": 1254795,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23635
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29544
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-BYuLWGLq.js",
+      "type": "script",
+      "bytes": 176696,
+      "decoded": 684035,
+      "startMs": 378
+     },
+     {
+      "url": "/assets/index-BLi-NboZ.js",
+      "type": "script",
+      "bytes": 64488,
+      "decoded": 192295,
+      "startMs": 15
+     },
+     {
+      "url": "/assets/WorldRoot-DVH506v9.js",
+      "type": "script",
+      "bytes": 47240,
+      "decoded": 138117,
+      "startMs": 377
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DUslVwwg.js",
+      "type": "script",
+      "bytes": 42894,
+      "decoded": 129351,
+      "startMs": 378
+     },
+     {
+      "url": "/assets/Gltf-2ysJZb8m.js",
+      "type": "script",
+      "bytes": 22125,
+      "decoded": 73134,
+      "startMs": 378
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 15
+     },
+     {
+      "url": "/assets/WorldRoot-DV4nBY-o.css",
+      "type": "link",
+      "bytes": 4896,
+      "decoded": 19560,
+      "startMs": 378
+     },
+     {
+      "url": "/assets/WorldCanvas-p9h1Gf98.js",
+      "type": "script",
+      "bytes": 3978,
+      "decoded": 10160,
+      "startMs": 458
+     },
+     {
+      "url": "/assets/react-three-fiber.esm-mMdw811p.js",
+      "type": "script",
+      "bytes": 3185,
+      "decoded": 7070,
+      "startMs": 458
+     },
+     {
+      "url": "/assets/UnrealBloomPass-CISDrKwo.js",
+      "type": "script",
+      "bytes": 2903,
+      "decoded": 10027,
+      "startMs": 458
+     },
+     {
+      "url": "/assets/Perf-gruNC875.js",
+      "type": "script",
+      "bytes": 2208,
+      "decoded": 3850,
+      "startMs": 458
+     },
+     {
+      "url": "/assets/BufferGeometryUtils-DJl8_4I2.js",
+      "type": "script",
+      "bytes": 1430,
+      "decoded": 3838,
+      "startMs": 378
+     },
+     {
+      "url": "/assets/compileSafe-CAPkV0vv.js",
+      "type": "script",
+      "bytes": 1358,
+      "decoded": 2214,
+      "startMs": 378
+     },
+     {
+      "url": "/world/mark.svg",
+      "type": "fetch",
+      "bytes": 1167,
+      "decoded": 867,
+      "startMs": 817
+     },
+     {
+      "url": "/?q=high",
+      "type": "document",
+      "bytes": 899,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Button-CkNq6bU1.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 378
+     },
+     {
+      "url": "/assets/viewTransition-BBIVphQq.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 377
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 378
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 37,
+    "bytes": 3569169,
+    "files": [
+     {
+      "url": "/world/models/machine.glb",
+      "bytes": 1158104,
+      "startMs": 3252
+     },
+     {
+      "url": "/world/models/room.glb",
+      "bytes": 644332,
+      "startMs": 3032
+     },
+     {
+      "url": "/world/models/machine_body.glb",
+      "bytes": 397916,
+      "startMs": 3032
+     },
+     {
+      "url": "/world/models/bench.glb",
+      "bytes": 391924,
+      "startMs": 3032
+     },
+     {
+      "url": "/world/models/shelves.glb",
+      "bytes": 314000,
+      "startMs": 3032
+     },
+     {
+      "url": "/world/models/desk.glb",
+      "bytes": 179712,
+      "startMs": 3032
+     },
+     {
+      "url": "/world/models/pedestal.glb",
+      "bytes": 165708,
+      "startMs": 3032
+     },
+     {
+      "url": "/world/models/cartridge.glb",
+      "bytes": 127020,
+      "startMs": 3251
+     },
+     {
+      "url": "/assets/URDFLoader-e15dGrYm.js",
+      "bytes": 16937,
+      "startMs": 6898
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link1.stl",
+      "bytes": 15384,
+      "startMs": 7911
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link2.stl",
+      "bytes": 15384,
+      "startMs": 7912
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link3.stl",
+      "bytes": 15384,
+      "startMs": 7912
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link4.stl",
+      "bytes": 15384,
+      "startMs": 7912
+     },
+     {
+      "url": "/robots/franka_description/meshes/collision/link5.stl",
+      "bytes": 15384,
+      "startMs": 7912
+     },
+     {
+      "url": "/world/demo-episode.json",
+      "bytes": 15054,
+      "startMs": 6898
+     }
+    ]
+   },
+   "errors": []
+  },
+  {
+   "viewport": "phone",
+   "query": "",
+   "mode": "stills",
+   "readyMs": 434,
+   "lastBeforeReadyEndMs": 412,
+   "fcpMs": 520,
+   "wallMs": 447,
+   "beforeReady": {
+    "requests": 19,
+    "bytes": 639769,
+    "decoded": 1556704,
+    "js": 357835,
+    "jsDecoded": 1223688,
+    "external": [
+     {
+      "url": "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&family=Instrument+Serif:ita",
+      "bytes": 1412
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geist/v5/gyByhwUxId8gMEwcGFU.woff2",
+      "bytes": 29916
+     },
+     {
+      "url": "https://fonts.gstatic.com/s/geistmono/v6/or3nQ6H-1_WfwkMZI_qYFrcdmg.woff2",
+      "bytes": 23263
+     }
+    ],
+    "files": [
+     {
+      "url": "/assets/three.module-BYuLWGLq.js",
+      "type": "script",
+      "bytes": 176696,
+      "decoded": 684035,
+      "startMs": 298
+     },
+     {
+      "url": "/world/stills/descent.webp",
+      "type": "img",
+      "bytes": 117622,
+      "decoded": 117322,
+      "startMs": 401
+     },
+     {
+      "url": "/assets/index-BLi-NboZ.js",
+      "type": "script",
+      "bytes": 64488,
+      "decoded": 192295,
+      "startMs": 18
+     },
+     {
+      "url": "/world/stills/workshop.webp",
+      "type": "img",
+      "bytes": 55208,
+      "decoded": 54908,
+      "startMs": 401
+     },
+     {
+      "url": "/assets/WorldRoot-DVH506v9.js",
+      "type": "script",
+      "bytes": 47240,
+      "decoded": 138117,
+      "startMs": 298
+     },
+     {
+      "url": "/assets/events-776716bd.esm-DUslVwwg.js",
+      "type": "script",
+      "bytes": 42894,
+      "decoded": 129351,
+      "startMs": 298
+     },
+     {
+      "url": "/world/stills/machine.webp",
+      "type": "img",
+      "bytes": 32508,
+      "decoded": 32208,
+      "startMs": 401
+     },
+     {
+      "url": "/world/stills/workbench.webp",
+      "type": "img",
+      "bytes": 30092,
+      "decoded": 29792,
+      "startMs": 401
+     },
+     {
+      "url": "/assets/Gltf-2ysJZb8m.js",
+      "type": "script",
+      "bytes": 22125,
+      "decoded": 73134,
+      "startMs": 298
+     },
+     {
+      "url": "/world/stills/story.webp",
+      "type": "img",
+      "bytes": 17996,
+      "decoded": 17696,
+      "startMs": 401
+     },
+     {
+      "url": "/world/stills/zoom.webp",
+      "type": "img",
+      "bytes": 12502,
+      "decoded": 12202,
+      "startMs": 401
+     },
+     {
+      "url": "/assets/index-BLMrC2xn.css",
+      "type": "link",
+      "bytes": 10211,
+      "decoded": 48205,
+      "startMs": 18
+     },
+     {
+      "url": "/assets/WorldRoot-DV4nBY-o.css",
+      "type": "link",
+      "bytes": 4896,
+      "decoded": 19560,
+      "startMs": 299
+     },
+     {
+      "url": "/assets/BufferGeometryUtils-DJl8_4I2.js",
+      "type": "script",
+      "bytes": 1430,
+      "decoded": 3838,
+      "startMs": 298
+     },
+     {
+      "url": "/assets/compileSafe-CAPkV0vv.js",
+      "type": "script",
+      "bytes": 1358,
+      "decoded": 2214,
+      "startMs": 298
+     },
+     {
+      "url": "/",
+      "type": "document",
+      "bytes": 899,
+      "decoded": 1123,
+      "startMs": 0
+     },
+     {
+      "url": "/assets/Button-CkNq6bU1.js",
+      "type": "script",
+      "bytes": 727,
+      "decoded": 427,
+      "startMs": 298
+     },
+     {
+      "url": "/assets/viewTransition-BBIVphQq.js",
+      "type": "script",
+      "bytes": 518,
+      "decoded": 218,
+      "startMs": 298
+     },
+     {
+      "url": "/assets/client-da6qgxdd.js",
+      "type": "script",
+      "bytes": 359,
+      "decoded": 59,
+      "startMs": 298
+     }
+    ]
+   },
+   "after15s": {
+    "requests": 0,
+    "bytes": 0,
+    "files": []
+   },
+   "errors": []
+  }
+ ],
+ "frames": [
+  {
+   "viewport": "desktop",
+   "tier": "high",
+   "intro": {
+    "frames": 5,
+    "rafMedianMs": 1549.9,
+    "rafP95Ms": 3616.6,
+    "renderedPerSec": 0.7,
+    "renderedMedianMs": 1549.9,
+    "renderedP95Ms": 3616.6,
+    "drawsPerRenderedFrame": 19
+   },
+   "hubReachedMs": 30036,
+   "hub": {
+    "frames": 2,
+    "rafMedianMs": 2199.9,
+    "rafP95Ms": 2199.9,
+    "renderedPerSec": 0.7,
+    "renderedMedianMs": 2199.9,
+    "renderedP95Ms": 2199.9,
+    "drawsPerRenderedFrame": 54
+   },
+   "machine": {
+    "frames": 5,
+    "rafMedianMs": 1283.2,
+    "rafP95Ms": 1699.9,
+    "renderedPerSec": 1.1,
+    "renderedMedianMs": 1283.2,
+    "renderedP95Ms": 1699.9,
+    "drawsPerRenderedFrame": 79
+   },
+   "errors": []
+  },
+  {
+   "viewport": "desktop",
+   "tier": "low",
+   "intro": {
+    "frames": 26,
+    "rafMedianMs": 150,
+    "rafP95Ms": 300.1,
+    "renderedPerSec": 6.7,
+    "renderedMedianMs": 150,
+    "renderedP95Ms": 300.1,
+    "drawsPerRenderedFrame": 4
+   },
+   "hubReachedMs": 6419,
+   "hub": {
+    "frames": 10,
+    "rafMedianMs": 500,
+    "rafP95Ms": 933.3,
+    "renderedPerSec": 2.2,
+    "renderedMedianMs": 500,
+    "renderedP95Ms": 933.3,
+    "drawsPerRenderedFrame": 40
+   },
+   "machine": {
+    "frames": 18,
+    "rafMedianMs": 283.3,
+    "rafP95Ms": 333.2,
+    "renderedPerSec": 3.6,
+    "renderedMedianMs": 283.3,
+    "renderedP95Ms": 333.2,
+    "drawsPerRenderedFrame": 65
+   },
+   "errors": []
+  },
+  {
+   "viewport": "laptop",
+   "tier": "high",
+   "intro": {
+    "frames": 5,
+    "rafMedianMs": 783.3,
+    "rafP95Ms": 2933.2,
+    "renderedPerSec": 1.2,
+    "renderedMedianMs": 783.3,
+    "renderedP95Ms": 2933.2,
+    "drawsPerRenderedFrame": 19
+   },
+   "hubReachedMs": 16206,
+   "hub": {
+    "frames": 5,
+    "rafMedianMs": 1050,
+    "rafP95Ms": 1099.9,
+    "renderedPerSec": 1.1,
+    "renderedMedianMs": 1050,
+    "renderedP95Ms": 1099.9,
+    "drawsPerRenderedFrame": 54
+   },
+   "machine": {
+    "frames": 8,
+    "rafMedianMs": 616.7,
+    "rafP95Ms": 683.4,
+    "renderedPerSec": 1.8,
+    "renderedMedianMs": 616.7,
+    "renderedP95Ms": 683.4,
+    "drawsPerRenderedFrame": 79
+   },
+   "errors": []
+  },
+  {
+   "viewport": "laptop",
+   "tier": "low",
+   "intro": {
+    "frames": 45,
+    "rafMedianMs": 100,
+    "rafP95Ms": 183.3,
+    "renderedPerSec": 10.4,
+    "renderedMedianMs": 100,
+    "renderedP95Ms": 183.3,
+    "drawsPerRenderedFrame": 4
+   },
+   "hubReachedMs": 6037,
+   "hub": {
+    "frames": 14,
+    "rafMedianMs": 350,
+    "rafP95Ms": 366.7,
+    "renderedPerSec": 3.3,
+    "renderedMedianMs": 350,
+    "renderedP95Ms": 366.7,
+    "drawsPerRenderedFrame": 40
+   },
+   "machine": {
+    "frames": 23,
+    "rafMedianMs": 200,
+    "rafP95Ms": 466.6,
+    "renderedPerSec": 5,
+    "renderedMedianMs": 200,
+    "renderedP95Ms": 466.6,
+    "drawsPerRenderedFrame": 65
+   },
+   "errors": []
+  },
+  {
+   "viewport": "phone",
+   "tier": "high",
+   "intro": {
+    "frames": 7,
+    "rafMedianMs": 550,
+    "rafP95Ms": 2599.9,
+    "renderedPerSec": 1.5,
+    "renderedMedianMs": 550,
+    "renderedP95Ms": 2599.9,
+    "drawsPerRenderedFrame": 19
+   },
+   "hubReachedMs": 14146,
+   "hub": {
+    "frames": 7,
+    "rafMedianMs": 749.9,
+    "rafP95Ms": 883.3,
+    "renderedPerSec": 1.5,
+    "renderedMedianMs": 749.9,
+    "renderedP95Ms": 883.3,
+    "drawsPerRenderedFrame": 53
+   },
+   "machine": {
+    "frames": 9,
+    "rafMedianMs": 516.7,
+    "rafP95Ms": 1083.3,
+    "renderedPerSec": 2,
+    "renderedMedianMs": 516.7,
+    "renderedP95Ms": 1083.3,
+    "drawsPerRenderedFrame": 75
+   },
+   "errors": []
+  },
+  {
+   "viewport": "phone",
+   "tier": "low",
+   "intro": {
+    "frames": 109,
+    "rafMedianMs": 50,
+    "rafP95Ms": 83.3,
+    "renderedPerSec": 21.9,
+    "renderedMedianMs": 50,
+    "renderedP95Ms": 83.3,
+    "drawsPerRenderedFrame": 4
+   },
+   "hubReachedMs": 4522,
+   "hub": {
+    "frames": 33,
+    "rafMedianMs": 150,
+    "rafP95Ms": 316.6,
+    "renderedPerSec": 6.7,
+    "renderedMedianMs": 150,
+    "renderedP95Ms": 316.6,
+    "drawsPerRenderedFrame": 39
+   },
+   "machine": {
+    "frames": 42,
+    "rafMedianMs": 116.7,
+    "rafP95Ms": 216.7,
+    "renderedPerSec": 8.5,
+    "renderedMedianMs": 116.7,
+    "renderedP95Ms": 216.7,
+    "drawsPerRenderedFrame": 61
+   },
+   "errors": []
+  }
+ ],
+ "memory": {
+  "points": [
+   {
+    "label": "start /",
+    "heapMb": 10.31,
+    "nodes": 469,
+    "listeners": 611,
+    "documents": 1,
+    "gl": {
+     "created": 1,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "c1 /site/results",
+    "heapMb": 10.08,
+    "nodes": 1761,
+    "listeners": 606,
+    "documents": 2,
+    "gl": {
+     "created": 1,
+     "live": 0,
+     "detached": 0
+    }
+   },
+   {
+    "label": "c1 /review2",
+    "heapMb": 10.65,
+    "nodes": 1403,
+    "listeners": 744,
+    "documents": 2,
+    "gl": {
+     "created": 1,
+     "live": 0,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 1 /",
+    "heapMb": 11.43,
+    "nodes": 1224,
+    "listeners": 777,
+    "documents": 2,
+    "gl": {
+     "created": 2,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 2 /",
+    "heapMb": 11.73,
+    "nodes": 1225,
+    "listeners": 777,
+    "documents": 2,
+    "gl": {
+     "created": 3,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 3 /",
+    "heapMb": 11.96,
+    "nodes": 1225,
+    "listeners": 777,
+    "documents": 2,
+    "gl": {
+     "created": 4,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "cycle 4 /",
+    "heapMb": 12.08,
+    "nodes": 1225,
+    "listeners": 777,
+    "documents": 2,
+    "gl": {
+     "created": 5,
+     "live": 1,
+     "detached": 0
+    }
+   },
+   {
+    "label": "end /site/results",
+    "heapMb": 11.87,
+    "nodes": 2079,
+    "listeners": 769,
+    "documents": 2,
+    "gl": {
+     "created": 5,
+     "live": 0,
+     "detached": 0
+    }
+   }
+  ],
+  "growthPerCycleMb": 0.22,
+  "errors": [
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "requestfailed",
+    "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   },
+   {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "url": "http://localhost:4181/review2",
+    "backend": true
+   }
+  ]
+ },
+ "walk": {
+  "desktop": [
+   {
+    "route": "/",
+    "step": "intro",
+    "blank": false,
+    "text": 531,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/",
+    "step": "hub",
+    "blank": false,
+    "text": 429,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "shelf",
+    "blank": false,
+    "text": 634,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "machine",
+    "blank": false,
+    "text": 396,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "bench",
+    "blank": false,
+    "text": 338,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "story",
+    "blank": false,
+    "text": 640,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/site/results",
+    "blank": false,
+    "text": 6834,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/review2",
+    "blank": false,
+    "text": 2290,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/review",
+    "blank": false,
+    "text": 308,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/results",
+    "blank": false,
+    "text": 1083,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/results net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/dataset",
+    "blank": false,
+    "text": 479,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/robots",
+    "blank": false,
+    "text": 331,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/robots/setup",
+    "blank": false,
+    "text": 661,
+    "scrollWidth": 1920,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/robots net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     }
+    ]
+   }
+  ],
+  "laptop": [
+   {
+    "route": "/",
+    "step": "intro",
+    "blank": false,
+    "text": 531,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/",
+    "step": "hub",
+    "blank": false,
+    "text": 429,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "shelf",
+    "blank": false,
+    "text": 634,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "machine",
+    "blank": false,
+    "text": 396,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "bench",
+    "blank": false,
+    "text": 338,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "story",
+    "blank": false,
+    "text": 640,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/site/results",
+    "blank": false,
+    "text": 6832,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/review2",
+    "blank": false,
+    "text": 2290,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/review",
+    "blank": false,
+    "text": 308,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/results",
+    "blank": false,
+    "text": 1083,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/results net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/dataset",
+    "blank": false,
+    "text": 479,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/robots",
+    "blank": false,
+    "text": 331,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/robots/setup",
+    "blank": false,
+    "text": 661,
+    "scrollWidth": 1280,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/robots net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     }
+    ]
+   }
+  ],
+  "phone": [
+   {
+    "route": "/",
+    "step": "intro",
+    "blank": false,
+    "text": 377,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/",
+    "step": "hub",
+    "blank": false,
+    "text": 237,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "shelf",
+    "blank": false,
+    "text": 442,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "machine",
+    "blank": false,
+    "text": 241,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "bench",
+    "blank": false,
+    "text": 183,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/",
+    "step": "story",
+    "blank": false,
+    "text": 377,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": []
+   },
+   {
+    "route": "/site/results",
+    "blank": false,
+    "text": 6834,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/review2",
+    "blank": false,
+    "text": 2290,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/review2",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/review",
+    "blank": false,
+    "text": 272,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/review",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/results",
+    "blank": false,
+    "text": 1046,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/results net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/results",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/pm/dataset",
+    "blank": false,
+    "text": 443,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/demos net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/pm/dataset",
+      "backend": true
+     }
+    ]
+   },
+   {
+    "route": "/robots",
+    "blank": false,
+    "text": 205,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": []
+   },
+   {
+    "route": "/robots/setup",
+    "blank": false,
+    "text": 661,
+    "scrollWidth": 390,
+    "overflowX": false,
+    "offRight": [],
+    "errors": [
+     {
+      "type": "requestfailed",
+      "text": "http://localhost:8000/robots net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     },
+     {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED",
+      "url": "http://localhost:4181/robots/setup",
+      "backend": true
+     }
+    ]
+   }
+  ]
+ }
+}

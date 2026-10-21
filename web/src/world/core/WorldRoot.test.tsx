@@ -1,15 +1,17 @@
 // The world without WebGL (jsdom has none, and ?static forces it): the overlays, the journey rail,
 // the workshop's cartridge choice, the workbench branch and the handoff to a 2D route all work.
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MotionProvider } from "../../sant";
-import { INTRO_VH } from "../stations/intro/storyline";
-import { edgeStart, MARGIN, PLAN, sectionShown, SLANT } from "../ui/wipe";
+import { PROOF } from "../stations/intro/proof";
+import { beatSpan, INTRO_VH } from "../stations/intro/storyPlan";
 import WorldRoot from "./WorldRoot";
 
-/** The intro's length in viewport heights (the hero and its breaks); everything after it is offset by it. */
+/** The intro's length in viewport heights (the hero, its beats and the morph); everything after it is offset by it. */
 const INTRO = INTRO_VH;
+/** The room view: the intro, the descent (3) and the workshop's travel (1.4, the materialize). */
+const HUB = INTRO + 3 + 1.4 + 0.1;
 
 function renderWorld() {
   return render(
@@ -46,6 +48,17 @@ describe("WorldRoot (no WebGL)", () => {
     vi.useRealTimers();
   });
 
+  it("signs the page top left with the SANT lockup and its line, over the stills too", () => {
+    renderWorld();
+    const brand = document.querySelector<HTMLElement>(".world-brand")!;
+    expect(within(brand).getByRole("img", { name: "SANT" })).toBeTruthy();
+    expect(brand.querySelectorAll(".sant-logo__unit").length).toBe(4);
+    expect(brand.textContent).toContain("perfect, then multiply");
+    expect(brand.textContent).not.toContain("S·A·N·T");
+    // No WebGL here: the stills are the ground the brand sits on.
+    expect(document.querySelector(".world-stills")).toBeTruthy();
+  });
+
   it("opens on the intro, with the title, and a page as tall as the rail", () => {
     renderWorld();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Show a robot once. Get the data to teach it.");
@@ -54,26 +67,34 @@ describe("WorldRoot (no WebGL)", () => {
     expect(parseFloat(track.style.height)).toBeGreaterThan(window.innerHeight * 10);
   });
 
-  it("uncovers the intro's sections one at a time with the breaks, then hands the 3D back", () => {
+  it("tells the story beside the logo one beat at a time, then hands over to the descent", () => {
     renderWorld();
     const h = window.innerHeight;
-    const bands = () => [...document.querySelectorAll<HTMLElement>(".world-break")];
-    const shown = () => bands().flatMap((b, k) => (b.dataset.live === "true" ? [k] : []));
-    expect(bands()).toHaveLength(PLAN.sections);
-    expect(shown()).toEqual([]);
-    // Halfway up the first edge: the problem's slab is coming up, its text held in place.
-    scrollTo(h * (edgeStart(0) + PLAN.wipe / 2));
+    const beats = () => [...document.querySelectorAll<HTMLElement>(".intro-beat")];
+    const shown = () => beats().flatMap((b, k) => (parseFloat(b.style.opacity) > 0.5 ? [k] : []));
+    expect(beats()).toHaveLength(5);
+    // The hero, before any scroll.
     expect(shown()).toEqual([0]);
-    const y = 100 + MARGIN - 0.5 * (100 + SLANT + 2 * MARGIN);
-    expect(bands()[0].style.transform).toBe(`translate3d(0, ${y}vh, 0)`);
-    expect(bands()[0].querySelector<HTMLElement>(".world-break__box")!.style.transform).toBe(`translate3d(0, ${-y}vh, 0)`);
-    // S·A·N·T in full, its headline on.
-    scrollTo(h * (sectionShown(1) + PLAN.dwell / 2));
-    expect(shown()).toEqual([1]);
-    expect(bands()[1].dataset.on).toBe("true");
-    expect(bands()[1].textContent).toContain("Neaten");
-    expect(bands()[0].dataset.on).toBe("false");
-    // Past the last edge: the descent, clear.
+    const head = (k: number) => beats()[k].querySelector("h2")!.getAttribute("aria-label");
+    expect(head(0)).toBe("Show a robot once.");
+    // S·A·N·T in the middle of its span, alone.
+    const [a, b] = beatSpan(2);
+    scrollTo(h * ((a + b) / 2));
+    expect(shown()).toEqual([2]);
+    expect(head(2)).toBe("Simulate Augment Neaten Train");
+    // The proof, with the honest numbers.
+    const [c, d] = beatSpan(3);
+    scrollTo(h * ((c + d) / 2));
+    expect(shown()).toEqual([3]);
+    expect(head(3)).toBe("3/40 → 17/40");
+    expect(beats()[3].textContent).toContain("p = 0.0005");
+    // ... read from the Results page's data (site/results), so updating the results updates the story
+    expect(head(3)).toBe(`${PROOF.raw} → ${PROOF.multiplied}`);
+    expect(beats()[3].textContent).toContain(`${PROOF.webcam.passed} passed physics → ${PROOF.webcam.repaired} repaired → ${PROOF.webcam.copies} verified variants`);
+    expect(beats()[3].textContent).toContain(`Nemotron labels: ${PROOF.labels}`);
+    expect(beats()[1].textContent).toContain(`${PROOF.pressed.split("/")[0]} of our ${PROOF.webcam.demos} webcam demos`);
+    expect(beats()[1].textContent).toContain(PROOF.peak);
+    // Past the intro: the descent, no beat left on screen.
     scrollTo(h * (INTRO + 0.5));
     expect(shown()).toEqual([]);
     expect(current()).toBe("descent");
@@ -82,8 +103,8 @@ describe("WorldRoot (no WebGL)", () => {
   it("follows the scroll from station to station, and the journey rail marks where you are", () => {
     renderWorld();
     const h = window.innerHeight;
-    // intro, descent 2.5, workshop 1.1 (the dive) + its dwell, in viewport heights
-    scrollTo(h * (INTRO + 2.5 + 0.6 + 0.2));
+    // intro, descent 3, then into the workshop's travel (the materialize), in viewport heights
+    scrollTo(h * (INTRO + 3 + 1));
     expect(current()).toBe("workshop");
     const rail = screen.getByRole("navigation", { name: "Journey" });
     expect(within(rail).getByRole("button", { name: "Workshop" }).getAttribute("aria-current")).toBe("step");
@@ -92,8 +113,8 @@ describe("WorldRoot (no WebGL)", () => {
   it("sends a robot's cartridge from the workshop to the machine, then into the projection and Record", () => {
     renderWorld();
     const h = window.innerHeight;
-    // The workshop (the room view): intro, descent 2.5, the dive 1.1 viewport heights.
-    scrollTo(h * (INTRO + 3.7));
+    // The workshop (the room view).
+    scrollTo(h * HUB);
     expect(current()).toBe("workshop");
     vi.mocked(window.scrollTo).mockClear();
     fireEvent.click(screen.getByRole("button", { name: "PiPER" }));
@@ -116,7 +137,7 @@ describe("WorldRoot (no WebGL)", () => {
 
   it("opens the workbench as a branch, holds the page, and goes back on Escape", () => {
     renderWorld();
-    scrollTo(window.innerHeight * (INTRO + 3.8));
+    scrollTo(window.innerHeight * HUB);
     fireEvent.click(screen.getByRole("button", { name: "+ Add a cartridge" }));
     expect(current()).toBe("workbench");
     expect(document.documentElement.style.overflow).toBe("hidden");
@@ -126,12 +147,32 @@ describe("WorldRoot (no WebGL)", () => {
     expect(document.documentElement.style.overflow).toBe("");
   });
 
+  it("offers a skip-the-intro link first in the Tab order; it lands in the room view and focuses it", async () => {
+    renderWorld();
+    const link = screen.getByRole("link", { name: "Skip the intro" });
+    expect(document.querySelector(".world")!.querySelector("a[href], button, input, select, textarea")).toBe(link);
+    fireEvent.click(link);
+    expect(current()).toBe("workshop");
+    await waitFor(() => expect(document.activeElement?.getAttribute("data-station")).toBe("workshop"));
+  });
+
+  it("opens the robot wall's catalog from the room view, and goes back on Escape", () => {
+    renderWorld();
+    scrollTo(window.innerHeight * HUB);
+    fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Robots" }));
+    expect(current()).toBe("robots");
+    expect(document.activeElement?.getAttribute("data-station")).toBe("robots");
+    expect(screen.getByRole("heading", { level: 2, name: "The robots" })).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(current()).toBe("workshop");
+  });
+
   it("shows the current station's pre-rendered still in place of the canvas", () => {
     renderWorld();
     const on = () => document.querySelector<HTMLImageElement>('.world-stills__img[data-on="true"]')?.getAttribute("src");
     expect(document.querySelector(".world-canvas")).toBeNull();
     expect(on()).toMatch(/stills\/story\.webp$/);
-    scrollTo(window.innerHeight * (INTRO + 3.8));
+    scrollTo(window.innerHeight * HUB);
     expect(on()).toMatch(/stills\/workshop\.webp$/);
   });
 

@@ -2,7 +2,7 @@
 // tall scroll track that drives the camera rail, each station's DOM overlay in front, and the
 // journey rail to jump between stations. The canvas is released when the handoff leaves for a 2D
 // route, since app pages like Record share the GPU with Isaac Sim (AppShell).
-import { Component, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Component, lazy, Suspense, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { navigateWithTransition } from "../../sant/motion/viewTransition";
@@ -21,6 +21,8 @@ import type { ReactNode } from "react";
 import { WorldContext, type WorldApi } from "./WorldContext";
 import "./world.css";
 import "../ui/ui.css";
+import { Logo } from "../../sant/components/Logo";
+import { Contact } from "../ui/Contact";
 
 const WorldCanvas = lazy(() => import("./WorldCanvas"));
 
@@ -321,12 +323,33 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     el.classList.add("is-cut");
   }, []);
 
+  // Skip the intro: the room view at once (a cut behind the veil, not the iris: whoever skips wants to
+  // be there now), with the focus on the workshop, so Tab goes on to its four things to click.
+  const skipIntro = useCallback(
+    (e: ReactMouseEvent) => {
+      e.preventDefault();
+      const y = dwellStart(store.rail, "workshop");
+      if (y === null) return;
+      store.setBranch(null);
+      store.setOverride(null);
+      store.jump(y);
+      scrollToY(y, false);
+      onCut();
+      // The section shows once the store has moved there: focus it after this render.
+      requestAnimationFrame(() => document.querySelector<HTMLElement>('.world-station[data-station="workshop"]')?.focus({ preventScroll: true }));
+    },
+    [store, onCut],
+  );
+
   const at = coarse.branch ?? coarse.current;
   const atTitle = stations.find((s) => s.id === at)?.title ?? "";
 
   return (
     <WorldContext.Provider value={api}>
       <div className="sant world" data-mode="volt" data-branch={coarse.branch ?? undefined} data-motion-world={reduced ? "reduced" : "full"}>
+        <a className="world-skip world-u" href="#world-workshop" onClick={skipIntro}>
+          Skip the intro
+        </a>
         {run3D ? (
           <CanvasBoundary onFail={fail}>
             <Suspense fallback={<div className="world-ground" aria-hidden="true" />}>
@@ -342,16 +365,18 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
             if (!s.Overlay) return null;
             const current = coarse.branch ? s.id === coarse.branch : s.kind === "rail" && s.id === coarse.current;
             return (
-              <section key={s.id} className="world-station" data-station={s.id} data-current={current} aria-label={s.title} tabIndex={-1}>
+              <section key={s.id} id={`world-${s.id}`} className="world-station" data-station={s.id} data-current={current} aria-label={s.title} tabIndex={-1}>
                 <s.Overlay current={current} reduced={reduced} />
               </section>
             );
           })}
         </main>
         <div ref={iris} className="world-iris" aria-hidden="true" />
-        <p className="world-brand world-u" aria-hidden="true">
-          <b>S·A·N·T</b> &nbsp;perfect, then multiply
+        <p className="world-brand">
+          <Logo size="sm" lit="all" />
+          <span className="world-brand__line world-u">perfect, then multiply</span>
         </p>
+        <Contact />
         <JourneyRail stations={stations} at={at} goTo={jump} />
         {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />

@@ -14,6 +14,7 @@ import numpy as np
 from .schemas import Pose, SimSignals, Trajectory, VerificationResult
 
 _EPS = 1e-9
+COLLISION_FORCE_N = 5.0  # arm (incl. gripper) contact with the bin or table above this is a collision
 
 
 def _to_bin_frame(points: np.ndarray, bin_pose: Pose) -> np.ndarray:
@@ -52,7 +53,7 @@ def check_success(
     time_limit: float = 30.0,
     settle_speed: float = 0.01,
     settle_s: float = 0.5,
-    force_limit: float = 5.0,
+    force_limit: float = COLLISION_FORCE_N,
     tcp_error: np.ndarray | None = None,
     unreachable_tol: float = 0.02,
     unreachable_s: float = 1.0,

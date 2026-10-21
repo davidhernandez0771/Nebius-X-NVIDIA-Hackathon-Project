@@ -1,24 +1,33 @@
-// Workbench (T1, placeholder): a branch off the rail. "Add a cartridge" in the workshop flies the
-// camera to Blender's "Workbench edit" stop over the baked bench (in the workshop's room); the editor
-// will live in the overlay, and its live parts can come from workbench.glb. Back (or Escape) returns.
-import { Button } from "../../../sant/components/Button";
+// Workbench (T1): a branch off the room view. "Add a cartridge" (or a click on the bench) flies the
+// camera over the baked bench, where the editor (Editor.tsx) builds a new cartridge in five stages while
+// the bench in 3D follows (Scene.tsx). Each stage has its own shot (layout.ts shotFor), framed beside
+// the editor: the row of blanks, then the turntable, the robot's hologram, the label. Finish stands it
+// on the spiral; Back (or Escape) returns to the room view.
 import { still } from "../../core/layout";
-import { useWorld } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
 import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
+import { bench, type Stage } from "./draft";
+import { Editor } from "./Editor";
+import { FINALE } from "./finale";
+import { shotFor } from "./layout";
+import { WorkbenchScene } from "./Scene";
 
-function Overlay(_: StationOverlayProps) {
-  const { back } = useWorld();
-  return (
-    <div className="world-panel">
-      <h2 className="world-h">Workbench</h2>
-      <p className="world-lede">Placeholder: the cartridge editor goes here.</p>
-      <Button variant="secondary" size="sm" onClick={back}>
-        Back to the workshop
-      </Button>
-    </div>
-  );
+/**
+ * The stage's shot for this window, made again only when either changes. A save holds the name's close
+ * shot through the click, the light and the sparks, then pulls back as the cartridge leaves.
+ */
+let last: { stage: Stage; aspect: number; shot: { key: string; pose: ReturnType<typeof shotFor> } } | null = null;
+function shot() {
+  const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  const clicking = bench.stage === "done" && performance.now() - bench.savedAt < FINALE.flyAt * 1000;
+  const stage: Stage = clicking ? "name" : bench.stage;
+  if (!last || last.stage !== stage || last.aspect !== aspect) last = { stage, aspect, shot: { key: stage, pose: shotFor(stage, aspect) } };
+  return last.shot;
+}
+
+function Overlay({ current }: StationOverlayProps) {
+  return <Editor current={current} />;
 }
 
 const workbench: StationModule = {
@@ -31,6 +40,8 @@ const workbench: StationModule = {
   travel: 0,
   length: 0,
   camera: still(stopFrom(BENCH_PIVOT.position, "Workbench edit")),
+  shot,
+  Scene: WorkbenchScene,
   Overlay,
 };
 

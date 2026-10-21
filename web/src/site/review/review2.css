@@ -38,7 +38,7 @@
 .sant .rv2-picker a em {
   margin-left: 6px;
   font-style: normal;
-  color: #4f5965;
+  color: var(--sant-muted);
 }
 
 .sant .rv2-picker a:hover {
@@ -234,7 +234,7 @@
   padding-left: 4px;
   border-left: 1px solid var(--sant-line);
   color: var(--sant-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 20px;
   overflow: hidden;
   white-space: nowrap;
@@ -258,7 +258,7 @@
   position: relative;
   height: 14px;
   color: var(--sant-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .sant .rv2-axis span {

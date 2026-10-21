@@ -4,7 +4,7 @@
 // route isn't on this backend yet (FastAPI's bare 404 "Not Found", or 405).
 
 import { apiUrl } from "../api/client";
-import type { Demo, DemoReview, StoredDiagnosis } from "./types";
+import type { Demo, DemoReview, SceneDraft, SceneEntry, ScenePlanJson, StoredDiagnosis, TakeReview } from "./types";
 
 export type ErrorKind =
   | "unreachable"
@@ -90,6 +90,7 @@ export function describeError(err: unknown): string {
 
 const post = { method: "POST" } as const;
 
+
 export const pmApi = {
   listDemos: () => pmFetch<Demo[]>("/demos"),
   getDemo: (id: string) => pmFetch<Demo>(`/demos/${encodeURIComponent(id)}`),
@@ -113,6 +114,41 @@ export const pmApi = {
   },
   perfect: (id: string, diagnoser: "rules" | "nemotron") =>
     pmFetch<unknown>(`/demos/${encodeURIComponent(id)}/perfect?diagnoser=${diagnoser}`, post),
+  /** Throw a demo away: the backend moves its folder to demos/_discarded (never deletes it). */
+  discardDemo: (id: string) =>
+    pmFetch<{ id: string; discarded_to: string }>(`/demos/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  /** The take's webcam video and its timing (record/cameraTake.ts) -> demos/<id>/camera.webm + camera.json. A PUT
+   *  replaces both, so it is retried when the local connection drops (a reset can hit any localhost request). */
+  saveCameraVideo: async (id: string, video: Blob, timing: object, tries = 3) => {
+    for (let i = 1; ; i++) {
+      const body = new FormData();
+      body.append("video", video, "camera.webm");
+      body.append("timing", JSON.stringify(timing));
+      try {
+        // No Content-Type header: the browser sets multipart/form-data with its boundary.
+        return await pmFetch<{ id: string; video: string; bytes: number; frames: number }>(`/demos/${encodeURIComponent(id)}/camera`, { method: "PUT", body, headers: {} });
+      } catch (e) {
+        if (!(e instanceof PmApiError && e.kind === "unreachable") || i >= tries) throw e;
+      }
+    }
+  },
+  /** The coach for a saved take (rules unless phrasing is "nemotron"). A GET, so a dropped local connection is retried. */
+  takeReview: async (id: string, phrasing: "rules" | "nemotron" = "rules", tries = 3): Promise<TakeReview> => {
+    for (let i = 1; ; i++) {
+      try {
+        return await pmFetch<TakeReview>(`/demos/${encodeURIComponent(id)}/take-review?phrasing=${phrasing}`);
+      } catch (e) {
+        if (!(e instanceof PmApiError && e.kind === "unreachable") || i >= tries) throw e;
+      }
+    }
+  },
+  /** The scene picker's scenes: standard, the recording protocol's s1..s8, saved ones. */
+  listScenes: async (): Promise<SceneEntry[]> => (await pmFetch<{ scenes: SceneEntry[] }>("/scenes")).scenes,
+  /** "Describe a scene": Nemotron's plan (validated), not saved. */
+  createScene: (text: string) => pmFetch<SceneDraft>("/scenes/create", { method: "POST", body: JSON.stringify({ text }) }),
+  /** Save a plan as a scene the sink can load. */
+  saveScene: (name: string, plan: ScenePlanJson, description = "") =>
+    pmFetch<SceneEntry>("/scenes", { method: "POST", body: JSON.stringify({ name, description, plan }) }),
   getJob: (id: string) => pmFetch<unknown>(`/jobs/${encodeURIComponent(id)}`),
   exportDataset: () => pmFetch<unknown>("/export", post),
 };

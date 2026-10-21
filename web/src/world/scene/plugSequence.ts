@@ -3,16 +3,16 @@
 // left end, the slot lights, and the projector comes up (beam, wireframe arm, the Record screen).
 // One timeline u 0–1 drives all of it; pure, so every phase is tested. World coordinates.
 import * as THREE from "three";
-import { HELIX, MACHINE_PIVOT } from "./layout";
+import { MACHINE_PIVOT, slotAt } from "./layout";
 
 export const PLUG_S = 3.6;
 
 /** Phase boundaries on u. */
 export const PHASE = { pull: [0, 0.14], fly: [0.14, 0.58], insert: [0.58, 0.74], click: [0.74, 0.8], project: [0.8, 1] } as const;
 
-/** machine.glb's port and slot, in the machine's frame (its children already carry the 28° turn). */
-const PORT_LOCAL = new THREE.Vector3(-3.267, 0, 1.737);
-const SLOT_TOP_LOCAL = 4.91;
+/** The dock's slot (machine_v2.glb, machineV2.ts), in the machine's frame (the 28° turn baked in): its centre and its top. */
+export const PORT_LOCAL = new THREE.Vector3(-3.265, 0, 1.741);
+export const SLOT_TOP_LOCAL = 4.95;
 /** How much of the 2.5 m cartridge sinks into the port. */
 const DEPTH = 0.83;
 const HALF_H = 1.25;
@@ -22,6 +22,10 @@ const PORT = PIVOT.clone().add(PORT_LOCAL);
 /** The plugged-in cartridge's centre. */
 export const PLUGGED = new THREE.Vector3(PORT.x, PIVOT.y + SLOT_TOP_LOCAL - DEPTH + HALF_H, PORT.z);
 const ABOVE = PLUGGED.clone().setY(PLUGGED.y + DEPTH + 1.5);
+/** The middle of the port's opening, on the machine's top (where a drop target's light stands). */
+export const PORT_TOP: Readonly<THREE.Vector3> = PLUGGED.clone().setY(PIVOT.y + SLOT_TOP_LOCAL);
+/** Over the port, before it drops in: where a cartridge dragged onto the machine waits (held). */
+export const ABOVE_PORT: Readonly<THREE.Vector3> = ABOVE;
 /**
  * Plugged in: upright, its width along the slot (the machine's local z), its face toward the
  * machine's -x, the spiral's side: a quarter turn back from the machine's own turn.
@@ -49,7 +53,7 @@ export interface CartridgePose {
 }
 
 function slotPose(slot: number) {
-  const s = HELIX[slot];
+  const s = slotAt(slot);
   const q = new THREE.Quaternion(...s.quaternion);
   const p = new THREE.Vector3(...s.position);
   const out = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
@@ -59,8 +63,17 @@ function slotPose(slot: number) {
   return { p, q, pulled, tilted };
 }
 
-/** Where the cartridge from `slot` is at u (and how it is turned). */
-export function cartridgePose(slot: number, u: number, out: CartridgePose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }): CartridgePose {
+/**
+ * Where the cartridge from `slot` is at u (and how it is turned). `held`: it was dragged onto the
+ * machine and let go over the port, so it skips the pull and the flight and waits there, edge-on,
+ * until the insert, on the same beat as a click's (the camera's path and the slot light keep theirs).
+ */
+export function cartridgePose(slot: number, u: number, out: CartridgePose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }, held = false): CartridgePose {
+  if (held && u <= PHASE.fly[1]) {
+    out.position.copy(ABOVE);
+    out.quaternion.copy(PLUGGED_Q);
+    return out;
+  }
   const { p, q, pulled, tilted } = slotPose(slot);
   const a = span(u, PHASE.pull);
   const f = span(u, PHASE.fly);

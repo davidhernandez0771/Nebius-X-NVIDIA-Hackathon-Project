@@ -13,6 +13,19 @@ import { DEFAULT_CONTROL_REGION, type ControlRegion, type HandLandmark } from ".
 export const PALM_LANDMARKS = [0, 5, 9, 17] as const; // wrist, index MCP, middle MCP, pinky MCP
 export const TELEOP_CONTROL_STORAGE_KEY = "pm.teleop.region";
 
+/** "behind": you are the robot, standing behind it: your right is its right (the default). "facing": the robot
+ *  faces you like a mirror: your right is its left. Toward the camera reaches forward and up is up in both. */
+export type TeleopView = "behind" | "facing";
+export const TELEOP_VIEWS: readonly TeleopView[] = ["behind", "facing"];
+/** What closes the gripper: the pinch (thumb and index tips together), or the spacebar (press to toggle). */
+export type GripperInput = "pinch" | "space";
+/** Held to clutch (freeze the arm's target, like lifting a mouse off the desk); KeyboardEvent.key values. */
+export type ClutchKey = "Shift" | "Control" | "Alt";
+export const CLUTCH_KEYS: readonly ClutchKey[] = ["Shift", "Control", "Alt"];
+// Sensitivity: motion gain about the middle of the region (motionShaper.ts). 2 = half the hand motion.
+export const GAIN_MIN = 0.5;
+export const GAIN_MAX = 3;
+
 export interface TeleopControlSettings {
   enabled: boolean; // false: no control field is sent, the sim uses wrist_uv as before
   region: ControlRegion;
@@ -23,7 +36,12 @@ export interface TeleopControlSettings {
   invertY: boolean; // flips up-down
   // Hand v3 (pinch.ts). The sprint 8 branch's pinchCal used another normalizer, so a new name.
   showHandArt: boolean; // the display-only hand-art overlay on Record
-  reach3d: boolean; // reach from the image-vs-world scale fit (reach3d.ts); false: pixel palm width
+  reach3d: boolean; // reach from the image-vs-world scale fit (reach3d.ts); false: the pinch-stable size (depthSignal.ts)
+  view: TeleopView; // which way left/right goes (see TeleopView)
+  gain: number; // sensitivity, GAIN_MIN..GAIN_MAX (motionShaper.ts)
+  gripperInput: GripperInput;
+  clutchKey: ClutchKey;
+  saveVideo: boolean; // Camera mode: record the webcam with each take (record/cameraTake.ts); it stays on this machine
 }
 
 // SANT's default size (0.55), centered horizontally, lifted so the bottom edge sits at 0.70 of the
@@ -41,6 +59,11 @@ export const DEFAULT_TELEOP_CONTROL: TeleopControlSettings = {
   invertY: false,
   showHandArt: true,
   reach3d: false,
+  view: "behind",
+  gain: 1,
+  gripperInput: "pinch",
+  clutchKey: "Shift",
+  saveVideo: true,
 };
 
 export const REGION_SIZE_MIN = 0.15;
@@ -85,10 +108,13 @@ export function smoothDepth(raw: number, prev: number, dtMs: number): number {
   return prev + (1 - Math.exp(-dtMs / DEPTH_SMOOTHING_MS)) * (raw - prev);
 }
 
-/** HandPoseMsg.control for one hand: [u, v, depth], raw orientation, with the user's inversions applied. */
+/** HandPoseMsg.control for one hand: [u, v, depth], raw orientation, with the view and the user's inversions
+ *  applied. The sim mirrors u (to_ee_target), which makes "behind" its mapping as it is: the raw image's left (the
+ *  user's right) goes to the robot's right. "facing" flips u, so the robot moves like a mirror image. */
 export function toControl(lm: HandLandmark[], palmWidth: number, s: TeleopControlSettings): [number, number, number] {
   const [u, v] = regionFraction(palmCenter(lm), s.region);
-  return [s.invertX ? 1 - u : u, s.invertY ? 1 - v : v, depthFraction(palmWidth, s.depthFar, s.depthNear)];
+  const flipX = s.invertX !== (s.view === "facing");
+  return [flipX ? 1 - u : u, s.invertY ? 1 - v : v, depthFraction(palmWidth, s.depthFar, s.depthNear)];
 }
 
 /** Keeps the region inside the frame and its size in range. */
@@ -116,6 +142,7 @@ export function sanitizeTeleopControl(raw: unknown): TeleopControlSettings {
   });
   const depthOk = finite(o.depthFar) && finite(o.depthNear) && 0 < o.depthFar && o.depthFar < o.depthNear && o.depthNear < 1;
   const bool = (v: unknown, fallback: boolean) => (typeof v === "boolean" ? v : fallback);
+  const oneOf = <T,>(v: unknown, options: readonly T[], fallback: T): T => (options.includes(v as T) ? (v as T) : fallback);
   return {
     enabled: bool(o.enabled, d.enabled),
     region,
@@ -126,6 +153,11 @@ export function sanitizeTeleopControl(raw: unknown): TeleopControlSettings {
     invertY: bool(o.invertY, d.invertY),
     showHandArt: bool(o.showHandArt, d.showHandArt),
     reach3d: bool(o.reach3d, d.reach3d),
+    view: oneOf(o.view, TELEOP_VIEWS, d.view),
+    gain: finite(o.gain) ? clamp(o.gain, GAIN_MIN, GAIN_MAX) : d.gain,
+    gripperInput: oneOf<GripperInput>(o.gripperInput, ["pinch", "space"], d.gripperInput),
+    clutchKey: oneOf(o.clutchKey, CLUTCH_KEYS, d.clutchKey),
+    saveVideo: bool(o.saveVideo, d.saveVideo),
   };
 }
 

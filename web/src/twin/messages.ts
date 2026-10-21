@@ -1,13 +1,17 @@
 // The relay's robot-twin messages (src/app/routers/teleop.py, /ws/teleop?role=twin):
 //   {"type": "status", "sim_connected": bool}
 //   {"type": "sim_twin_scene", "robot", "joint_names", "base": pose7, "bin": pose7}   once per sim connection
-//   {"type": "sim_twin", "q", "gripper": 0 | 1, "cube": pose7}                         at most ~30 a second
+//   {"type": "sim_twin", "q", "gripper": 0 | 1, "cube": pose7, "floor"?, "contact"?}   at most ~30 a second
+// "floor": the soft floor holds the target up; "contact": {force_n, body, against}, the arm's push (./contact.ts).
 // where pose7 is [x, y, z, qw, qx, qy, qz] (sim_worker/teleop_session.py twin_scene() and twin()).
 
+import type { TwinContact } from "./contact";
 import type { TwinPose } from "./types";
 
-export type TwinScene = { robot: string; jointNames: string[]; base: TwinPose; bin: TwinPose };
-export type TwinFrame = { q: number[]; gripper: 0 | 1; cube: TwinPose };
+/** One object of a plan's scene (the scene picker): a cube (edge size) or a bin (inner sizes), its colour and pose. */
+export type TwinObject = { id: string; kind: "cube" | "bin"; color: string; size?: number; inner?: [number, number, number]; pose: TwinPose };
+export type TwinScene = { robot: string; jointNames: string[]; base: TwinPose; bin: TwinPose; objects?: TwinObject[] };
+export type TwinFrame = { q: number[]; gripper: 0 | 1; cube: TwinPose; floor?: boolean; contact?: TwinContact | null; cubes?: Record<string, TwinPose> };
 
 export type TwinMessage =
   | { kind: "status"; simConnected: boolean }
@@ -19,6 +23,28 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 export function pose7(v: unknown): TwinPose | null {
   if (!Array.isArray(v) || v.length !== 7 || !v.every(isNum)) return null;
   return { pos: [v[0], v[1], v[2]], quat: [v[3], v[4], v[5], v[6]] };
+}
+
+/** One of sim_twin_scene's objects; null if malformed (it alone is dropped). */
+function objectOf(v: unknown): TwinObject | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const pose = pose7(o.pose);
+  if (typeof o.id !== "string" || typeof o.color !== "string" || !pose) return null;
+  if (o.kind === "cube" && isNum(o.size) && o.size > 0) return { id: o.id, kind: "cube", color: o.color, size: o.size, pose };
+  const inner = o.inner;
+  if (o.kind === "bin" && Array.isArray(inner) && inner.length === 3 && inner.every(isNum))
+    return { id: o.id, kind: "bin", color: o.color, inner: inner as [number, number, number], pose };
+  return null;
+}
+
+/** sim_twin's contact, {force_n, body, against}; null if it's missing or malformed. */
+function contactOf(v: unknown): TwinContact | null {
+  if (!v || typeof v !== "object") return null;
+  const c = v as Record<string, unknown>;
+  if (!isNum(c.force_n) || c.force_n < 0) return null;
+  const against = c.against === "bin" || c.against === "table" ? c.against : null;
+  return { forceN: c.force_n, body: typeof c.body === "string" ? c.body : null, against };
 }
 
 export function parseTwinMessage(data: unknown): TwinMessage | null {
@@ -35,13 +61,25 @@ export function parseTwinMessage(data: unknown): TwinMessage | null {
     const bin = pose7(msg.bin);
     const names = msg.joint_names;
     if (typeof msg.robot !== "string" || !base || !bin || !Array.isArray(names) || !names.every((n) => typeof n === "string")) return null;
-    return { kind: "scene", scene: { robot: msg.robot, jointNames: names as string[], base, bin } };
+    const scene: TwinScene = { robot: msg.robot, jointNames: names as string[], base, bin };
+    if (Array.isArray(msg.objects)) scene.objects = msg.objects.map(objectOf).filter((o): o is TwinObject => o !== null);
+    return { kind: "scene", scene };
   }
   if (msg.type === "sim_twin") {
     const cube = pose7(msg.cube);
     const q = msg.q;
     if (!cube || !Array.isArray(q) || !q.every(isNum) || (msg.gripper !== 0 && msg.gripper !== 1)) return null;
-    return { kind: "frame", frame: { q: q as number[], gripper: msg.gripper, cube } };
+    const frame: TwinFrame = { q: q as number[], gripper: msg.gripper, cube };
+    if (typeof msg.floor === "boolean") frame.floor = msg.floor;
+    if ("contact" in msg) frame.contact = contactOf(msg.contact);
+    if (msg.cubes && typeof msg.cubes === "object") {
+      const cubes = Object.entries(msg.cubes as Record<string, unknown>).flatMap(([id, p]) => {
+        const pose = pose7(p);
+        return pose ? [[id, pose] as const] : [];
+      });
+      frame.cubes = Object.fromEntries(cubes);
+    }
+    return { kind: "frame", frame };
   }
   return null;
 }

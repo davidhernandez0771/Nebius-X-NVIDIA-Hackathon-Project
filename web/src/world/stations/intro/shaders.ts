@@ -1,39 +1,6 @@
-// The opening's shaders, ported from the prototype as they are (site-journey.html). Both clamp the
-// point size in the shader (5 px for the logo, 3.5 px for the dust, times the pixel ratio): unclamped
-// points near the camera stalled the prototype. The only changes: the logo's distance factor (uDist)
-// follows LOGO_SCALE, and the dust column's floor and height are uniforms instead of 0 and 34.
-
-export const logoVert = /* glsl */ `
-attribute vec3 aRoof; attribute vec4 aRand;
-uniform float uT, uIntro, uTime, uSize, uPR, uDist; uniform vec3 uColA, uColB, uColC;
-varying vec3 vC; varying float vA;
-void main(){
-  vec3 scatter = (aRand.yzw - .5) * vec3(44., 30., 22.);
-  float ie = clamp((uIntro - aRand.x * .45) / .55, 0., 1.); ie = ie * ie * (3. - 2. * ie);
-  vec3 p = mix(scatter, position, ie);
-  float d = clamp((uT - aRand.x * .3) / .7, 0., 1.); d = d * d * (3. - 2. * d);
-  vec3 q = mix(p, aRoof, d);
-  float arc = sin(d * 3.14159);
-  q += vec3(aRand.y - .5, .5 + aRand.z, aRand.w - .5) * arc * 5.5;
-  float t = uTime * .6 + aRand.x * 30.;
-  q += vec3(sin(t * 1.3 + aRand.y * 9.), cos(t * 1.1 + aRand.z * 9.), sin(t * .9 + aRand.w * 9.)) * (.035 + .25 * (1. - ie));
-  vec4 mv = modelViewMatrix * vec4(q, 1.);
-  gl_Position = projectionMatrix * mv;
-  gl_PointSize = min(uSize * uPR * (.45 + aRand.y) * (uDist / max(.5, -mv.z)), 5. * uPR);
-  vC = mix(mix(uColA, uColB, smoothstep(.2, .9, aRand.z * .7 + d * .6)), uColC, step(.965, aRand.w));
-  vA = (.16 + .36 * aRand.w) * (.25 + .75 * ie) * (1. + arc * .7) * (1. - .35 * d);
-}`;
-
-export const logoFrag = /* glsl */ `
-varying vec3 vC; varying float vA;
-void main(){
-  vec2 c = gl_PointCoord - .5; float r = dot(c, c) * 4.;
-  if (r > 1.) discard;
-  float a = (1. - r); a *= a;
-  gl_FragColor = vec4(vC, a * vA);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`;
+// The opening's shaders. The dust is the prototype's (site-journey.html), its point size clamped in
+// the shader (3.5 px times the pixel ratio: unclamped points near the camera stalled the prototype),
+// with the column's floor and height as uniforms. The backdrop is the dark space round the tesseract.
 
 export const dustVert = /* glsl */ `
 attribute vec4 aRand; uniform float uTime, uPR, uMix, uSize, uY0, uH; uniform vec3 uHigh, uLow, uWarm;
@@ -58,5 +25,28 @@ void main(){ vec2 c = gl_PointCoord - .5; float r = dot(c, c) * 4.; if (r > 1.) 
   #include <colorspace_fragment>
 }`;
 
-/** The prototype's logo point size per tier (fewer points get bigger ones). */
-export const logoPointSize = (n: number) => (n > 100000 ? 0.85 : n > 40000 ? 1.05 : 1.7);
+
+/** The dark space: a sphere round the logo, seen from inside. */
+export const backdropVert = /* glsl */ `
+varying vec3 vDir;
+void main(){
+  vDir = position;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.);
+}`;
+
+/**
+ * Near-black with a little lift toward the top, the teal light leak up and to the left (Active
+ * Theory's corner glow), and a soft glow behind the tesseract, which follows it where the hero places it.
+ */
+export const backdropFrag = /* glsl */ `
+uniform float uDim; uniform vec3 uBase, uLeak, uGlow;
+varying vec3 vDir;
+void main(){
+  vec3 d = normalize(vDir);
+  vec3 c = uBase * (.65 + .55 * smoothstep(-.6, .9, d.y));
+  c += uLeak * pow(max(0., dot(d, normalize(vec3(-.7, .55, .45)))), 7.) * .35;
+  // A soft glow behind the tesseract, wherever the hero has placed it (uGlow, Scene.tsx).
+  c += uLeak * .008 * smoothstep(.93, 1., dot(d, uGlow));
+  gl_FragColor = vec4(c * (1. - uDim), 1.);
+  #include <colorspace_fragment>
+}`;

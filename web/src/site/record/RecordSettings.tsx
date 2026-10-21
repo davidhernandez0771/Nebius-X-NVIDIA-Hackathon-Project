@@ -6,7 +6,7 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { DEPTH_GAP, DEPTH_MAX, DEPTH_MIN, SIZE_MIN, STEP_TEXT } from "../../record/controlSettings";
 import type { RecordSession } from "../../record/useRecordSession";
-import { DEFAULT_TELEOP_CONTROL, REGION_SIZE_MAX, clampRegion, type TeleopControlSettings } from "../../record/teleop/controlRegion";
+import { CLUTCH_KEYS, DEFAULT_TELEOP_CONTROL, REGION_SIZE_MAX, clampRegion, type ClutchKey, type GripperInput, type TeleopControlSettings } from "../../record/teleop/controlRegion";
 import { TRACE_SECONDS } from "../../record/teleop/debugTrace";
 
 const fmt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : v.toFixed(3));
@@ -41,14 +41,36 @@ function Slider({
   );
 }
 
-function Check({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
+function Check({ label, checked, disabled, title, onChange }: { label: string; checked: boolean; disabled?: boolean; title?: string; onChange: (v: boolean) => void }) {
   return (
-    <label className="rc-check">
+    <label className="rc-check" title={title}>
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span>{label}</span>
     </label>
   );
 }
+
+function Choice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: readonly [T, string][]; onChange: (v: T) => void }) {
+  return (
+    <label className="rc-field">
+      <span className="rc-field__row">
+        <span>{label}</span>
+      </span>
+      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value as T)}>
+        {options.map(([v, text]) => (
+          <option key={v} value={v}>
+            {text}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const GRIPPERS: readonly [GripperInput, string][] = [
+  ["pinch", "pinch"],
+  ["space", "spacebar (toggle)"],
+];
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -109,6 +131,19 @@ export function RecordSettings({ id, open, onClose, session }: { id: string; ope
           </button>
         </header>
 
+        <Group title="mapping">
+          <Check
+            label="Robot's view (behind the robot)"
+            title="On: your right is the robot's right, toward the camera reaches forward. Off: a mirror, the robot faces you."
+            checked={settings.view === "behind"}
+            onChange={(v) => set({ view: v ? "behind" : "facing" })}
+          />
+          <div className="rc-pair">
+            <Choice label="Gripper" value={settings.gripperInput} options={GRIPPERS} onChange={(v) => set({ gripperInput: v })} />
+            <Choice label="Clutch key" value={settings.clutchKey} options={CLUTCH_KEYS.map((k) => [k, `hold ${k}`] as [ClutchKey, string])} onChange={(v) => set({ clutchKey: v })} />
+          </div>
+        </Group>
+
         <Group title="control_region">
           <Check label="Use the control region" checked={settings.enabled} onChange={(v) => set({ enabled: v })} />
           <Slider
@@ -157,7 +192,7 @@ export function RecordSettings({ id, open, onClose, session }: { id: string; ope
           />
           <p className="rc-hint">
             now: palm <span data-testid="reach-2d">{fmt(tracked ? pose?.msg.palm_width : null)}</span> · 3D{" "}
-            <span data-testid="reach-3d">{fmt(tracked ? pose?.size3d : null)}</span> · uses {settings.reach3d ? "3D size" : "palm width"}
+            <span data-testid="reach-3d">{fmt(tracked ? pose?.size3d : null)}</span> · uses {settings.reach3d ? "3D size" : "hand size (pinch-steady)"}
           </p>
           <Check label="3D reach (turning the hand changes reach less)" checked={settings.reach3d} disabled={off} onChange={(v) => set({ reach3d: v })} />
           <div className="rc-line">
@@ -201,7 +236,14 @@ export function RecordSettings({ id, open, onClose, session }: { id: string; ope
           )}
         </Group>
 
-        <Group title="display">
+        {/* One group for the camera's extras, so the drawer still fits a 720 px window. */}
+        <Group title="camera">
+          <Check
+            label="Save camera video (stays on this machine)"
+            title="Records the webcam with each take, saved beside the demo as camera.webm with its timing (camera.json), for refining the hand path offline. Discarded takes save nothing."
+            checked={settings.saveVideo}
+            onChange={(v) => set({ saveVideo: v })}
+          />
           <Check label="Hand art over the camera (display only)" checked={settings.showHandArt} onChange={(v) => set({ showHandArt: v })} />
           <div className="rc-pair">
             <Check label="Invert up-down" checked={settings.invertY} onChange={(v) => set({ invertY: v })} />

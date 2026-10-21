@@ -22,6 +22,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(REPO / "src"), str(REPO)]  # this worktree's demo_pipeline first (the Isaac env has pm-t2's)
+from sim_worker.own_code import check_own_code  # noqa: E402
 
 from sim_eval.overnight import Config, plan, run_phases  # noqa: E402
 from sim_worker.gpulock import GpuLock  # noqa: E402
@@ -29,6 +30,7 @@ from sim_worker.keepawake import KeepAwake  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--smoke", action="store_true", help="tiny end-to-end run of the GPU parts; never the test seeds")
     p.add_argument("--dry-run", action="store_true", help="print the phases and what is already done, run nothing")

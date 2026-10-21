@@ -1,6 +1,7 @@
 // The Results page (Field Notes): the headline result with its CIs and limits, the 0 → 100 →
-// 300 copies chart replayed scene by scene, and the robot report card. Every number comes from
-// ./facts.ts and sits next to its note and line. Spec: docs/design/content-spec.md §4.
+// 300 copies chart replayed scene by scene, the other measured experiments, the robot report card,
+// and what is still pending. Every number comes from ./results.json (via ./data.ts and ./facts.ts)
+// and sits next to its note and line. Spec: docs/design/content-spec.md §4.
 import { ChartFrame } from "../../sant/components/ChartFrame";
 import { CountUpTiles } from "../../sant/components/CountUpTiles";
 import { SectionHeader } from "../../sant/components/SectionHeader";
@@ -8,11 +9,19 @@ import { formatStat } from "../../sant/motion/format";
 import { StoryShell } from "../../sant/shells/StoryShell";
 import { Cite } from "./Cite";
 import { CopiesChart } from "./CopiesChart";
+import { RESULTS, experiment } from "./data";
+import { ExperimentSection } from "./ExperimentSection";
 import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, PLATEAU, PROOF_SO_FAR, REPORT_CARDS, SCENES, VERIFIED, cite } from "./facts";
 import { ReportCard } from "./ReportCard";
 import "./results.css";
 
 const [RAW, X100] = ARMS;
+
+/** The real demos, from stores.json (scripts/build_site_results.py, read from the experiment stores). */
+const REAL = ["webcam", "repair_ab", "mouse"].map(experiment);
+/** results.json experiments the bespoke sections above don’t already show, measured or pending. */
+const MORE = ["grasp_fix", "nemotron"].map(experiment);
+const PENDING = RESULTS.experiments.filter((e) => e.pending);
 
 const LINKS = [{ to: "/site/results", label: "Results" }];
 const CTA = { label: "Try it", to: "/pm/record" };
@@ -117,6 +126,21 @@ function Limits() {
   );
 }
 
+function Real() {
+  return (
+    <section className="sant-results__section" aria-labelledby="results-real">
+      <SectionHeader
+        id="results-real"
+        title="Real demos"
+        lede="The result above is on scripted demos. These are a real person's: 10 webcam demos, the blind repair test on them, and tonight's 10 mouse demos. Every number is read from the experiment stores and links to its note."
+      />
+      {REAL.map((e) => (
+        <ExperimentSection key={e.id} e={e} />
+      ))}
+    </section>
+  );
+}
+
 function Copies() {
   const sources = `${cite({ note: "t3", lines: "1156, 1307, 1367–1371" })}`;
   return (
@@ -192,6 +216,31 @@ function Cards() {
   );
 }
 
+function More() {
+  return (
+    <>
+      {MORE.map((e) => (
+        <ExperimentSection key={e.id} e={e} />
+      ))}
+    </>
+  );
+}
+
+function Pending() {
+  return (
+    <section className="sant-results__section" aria-labelledby="results-pending">
+      <SectionHeader
+        id="results-pending"
+        title="Not measured yet"
+        lede="Designed and pre-registered, but not run. Nothing here is a result: every count says Pending until the run happens."
+      />
+      {PENDING.map((e) => (
+        <ExperimentSection key={e.id} e={e} />
+      ))}
+    </section>
+  );
+}
+
 function Sources() {
   return (
     <section className="sant-results__section sant-results__sources" aria-labelledby="results-sources">
@@ -199,7 +248,7 @@ function Sources() {
         id="results-sources"
         level={3}
         title="Where the numbers come from"
-        lede="Every number on this page cites a line in one of these notes. They are append-only, so the lines stay put."
+        lede={`Every number on this page comes from web/src/site/results/results.json (as of ${RESULTS.asOf}) or, for the real demos, stores.json, generated read-only from the experiment stores by scripts/build_site_results.py (newest store file ${RESULTS.storesAsOf ?? "unknown"}). Each cites a line in one of these notes, or the store file it was read from. The notes are append-only, so the lines stay put.`}
       />
       <ul>
         {Object.values(NOTES).map((n) => (
@@ -218,8 +267,12 @@ export function ResultsPage() {
       <div className="sant-results">
         <Headline />
         <Limits />
+        <Real />
         <Copies />
+        <More />
         <Cards />
+        <ExperimentSection e={experiment("byor")} />
+        <Pending />
         <Sources />
       </div>
     </StoryShell>

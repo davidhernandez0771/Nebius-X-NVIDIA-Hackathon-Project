@@ -1,32 +1,33 @@
-﻿import { lazy, Suspense, useEffect, useState } from "react";
+﻿import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { DashboardShell } from "./legacy/components";
-import Icon from "./legacy/components/Icon";
-import Home from "./legacy/pages/Home";
-import RoomView from "./legacy/pages/RoomView";
-import AddScan from "./legacy/pages/AddScan";
-import AddPhoto from "./legacy/pages/AddPhoto";
-import Review from "./legacy/pages/Review";
-import Inventory from "./legacy/pages/Inventory";
-import Organize from "./legacy/pages/Organize";
-import Chat from "./legacy/pages/Chat";
-import Settings from "./legacy/pages/Settings";
-import DatasetPage from "./legacy/pm/dataset/DatasetPage";
-import RecordPage from "./legacy/pm/record/RecordPage";
-import ReviewPage from "./legacy/pm/review/ReviewPage";
-import ResultsPage from "./legacy/pm/results/ResultsPage";
 import { HandArtPreviewRoute } from "./record/handArt";
 import { SantRoot } from "./sant/SantRoot";
-import { WorkShell } from "./work/WorkShell";
-import { useHandPointer } from "./hand/integration/useHandPointer";
-import { HandCursorOverlay } from "./hand/overlay/HandCursorOverlay";
-import { HandToggle } from "./hand/integration/HandToggle";
-import { CalibrationPanel } from "./hand/overlay/CalibrationPanel";
+
+// Every page loads lazily, so the first request of `/` carries only the router and the SANT shell
+// (firstLoad.test.ts keeps it that way).
 
 // The site is the world (docs/design/world-core.md): one continuous 3D journey from the logo down to
 // the workshop, where a cartridge plugs in and opens the work page. It loads lazily, so three.js is
 // fetched only there.
 const World = lazy(() => import("./world/core/WorldRoot"));
+// The work pages a cartridge opens (the old pm pages, in the journey's look) and their frame.
+const WorkShell = lazy(() => import("./work/WorkShell").then((m) => ({ default: m.WorkShell })));
+const ReviewPage = lazy(() => import("./legacy/pm/review/ReviewPage"));
+const DatasetPage = lazy(() => import("./legacy/pm/dataset/DatasetPage"));
+const ResultsPage = lazy(() => import("./legacy/pm/results/ResultsPage"));
+// The archived old site (/legacy/...): the dashboard, its pages, and its hand cursor.
+const DashboardShell = lazy(() => import("./legacy/components/DashboardShell"));
+const Home = lazy(() => import("./legacy/pages/Home"));
+const RoomView = lazy(() => import("./legacy/pages/RoomView"));
+const AddScan = lazy(() => import("./legacy/pages/AddScan"));
+const AddPhoto = lazy(() => import("./legacy/pages/AddPhoto"));
+const Review = lazy(() => import("./legacy/pages/Review"));
+const Inventory = lazy(() => import("./legacy/pages/Inventory"));
+const Organize = lazy(() => import("./legacy/pages/Organize"));
+const Chat = lazy(() => import("./legacy/pages/Chat"));
+const Settings = lazy(() => import("./legacy/pages/Settings"));
+const RecordPage = lazy(() => import("./legacy/pm/record/RecordPage"));
+const LegacyHand = lazy(() => import("./legacy/LegacyHand"));
 // Full-bleed 3D pages of the archive live outside the dashboard shell and load lazily.
 const Landing = lazy(() => import("./legacy/pages/Landing"));
 const Entry = lazy(() => import("./legacy/pages/Entry"));
@@ -40,6 +41,8 @@ const SetupPage = lazy(() => import("./site/setup/SetupPage"));
 const RecordConsole = lazy(() => import("./site/record/RecordConsole"));
 const SiteResultsPage = lazy(() => import("./site/results/ResultsPage").then((m) => ({ default: m.ResultsPage })));
 const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
+// The data showcase: real demos through SANT, in the twin and the sim's camera, and SANT working live.
+const DataPage = lazy(() => import("./site/data/DataPage"));
 
 const lazyPage = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
@@ -52,17 +55,10 @@ function ToRecord() {
 }
 
 export default function App() {
-  // Opt-in hand-controlled cursor for the /legacy pages: mounted once outside <Routes>
-  // so it survives navigation. See HAND_INTERACTION_PLAN.md. The work pages have their own, in WorkShell.
-  const hand = useHandPointer();
-  const [calibrationOpen, setCalibrationOpen] = useState(false);
-  // Only the archived old site (/legacy/...) has this hand cursor: its controls show there alone, and
-  // the camera turns off if it was left on, since no other page has a switch to turn it off.
+  // Only the archived old site (/legacy/...) has this hand cursor (LegacyHand): mounted outside
+  // <Routes> so it survives navigation there, and unmounted on leaving, which turns the camera off if it
+  // was left on. The work pages have their own, in WorkShell.
   const onLegacy = LEGACY.test(useLocation().pathname);
-  const { enabled: handOn, disable: handOff } = hand;
-  useEffect(() => {
-    if (!onLegacy && handOn) handOff();
-  }, [onLegacy, handOn, handOff]);
 
   return (
     <>
@@ -79,56 +75,43 @@ export default function App() {
           <Route path="/review2" element={lazyPage(<ReviewPage2 />)} />
           <Route path="/site/results" element={lazyPage(<SiteResultsPage />)} />
           <Route path="/robots" element={lazyPage(<RobotsPage />)} />
+          <Route path="/data" element={lazyPage(<DataPage />)} />
           <Route path="/robots/setup" element={lazyPage(<SetupPage />)} />
         </Route>
         {/* The work pages a cartridge opens, in the journey's look. Record is the hologram (/record). */}
-        <Route element={<WorkShell />}>
-          <Route path="/pm/review" element={<ReviewPage />} />
-          <Route path="/pm/dataset" element={<DatasetPage />} />
-          <Route path="/pm/results" element={<ResultsPage />} />
+        <Route element={lazyPage(<WorkShell />)}>
+          <Route path="/pm/review" element={lazyPage(<ReviewPage />)} />
+          <Route path="/pm/dataset" element={lazyPage(<DatasetPage />)} />
         </Route>
         {/* The archived old site (web/src/legacy): the 3D intro, then the dashboard and its pages. */}
         <Route path="/legacy">
           <Route index element={lazyPage(<Landing />)} />
           <Route path="enter" element={lazyPage(<Entry />)} />
-          <Route element={<DashboardShell />}>
-            <Route path="home" element={<Home />} />
-            <Route path="room" element={<RoomView />} />
-            <Route path="add/scan" element={<AddScan />} />
-            <Route path="add/photo" element={<AddPhoto />} />
-            <Route path="review" element={<Review />} />
-            <Route path="inventory" element={<Inventory />} />
-            <Route path="organize" element={<Organize />} />
-            <Route path="chat" element={<Chat />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="pm/record" element={<RecordPage />} />
-            <Route path="pm/review" element={<ReviewPage />} />
-            <Route path="pm/dataset" element={<DatasetPage />} />
-            <Route path="pm/results" element={<ResultsPage />} />
+          <Route element={lazyPage(<DashboardShell />)}>
+            <Route path="home" element={lazyPage(<Home />)} />
+            <Route path="room" element={lazyPage(<RoomView />)} />
+            <Route path="add/scan" element={lazyPage(<AddScan />)} />
+            <Route path="add/photo" element={lazyPage(<AddPhoto />)} />
+            <Route path="review" element={lazyPage(<Review />)} />
+            <Route path="inventory" element={lazyPage(<Inventory />)} />
+            <Route path="organize" element={lazyPage(<Organize />)} />
+            <Route path="chat" element={lazyPage(<Chat />)} />
+            <Route path="settings" element={lazyPage(<Settings />)} />
+            <Route path="pm/record" element={lazyPage(<RecordPage />)} />
+            <Route path="pm/review" element={lazyPage(<ReviewPage />)} />
+            <Route path="pm/dataset" element={lazyPage(<DatasetPage />)} />
+            <Route path="pm/results" element={lazyPage(<ResultsPage />)} />
           </Route>
         </Route>
         {/* The live test's and the cartridges' /pm/record open the new Record (the old one stays at
             /legacy/pm/record). */}
         <Route path="/pm/record" element={<ToRecord />} />
+        {/* Results is the Field Notes page with the measured numbers; the old sample-data page stays at /legacy/pm/results. */}
+        <Route path="/pm/results" element={<Navigate to="/site/results" replace />} />
         {/* Everything else (the old room pages, the old landings, /site) goes to the journey. */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      {onLegacy && (
-        <>
-          <button
-            type="button"
-            className="hand-calibration-trigger"
-            aria-label="Hand-control calibration"
-            aria-expanded={calibrationOpen}
-            onClick={() => setCalibrationOpen((open) => !open)}
-          >
-            <Icon name="settings" size={16} />
-          </button>
-          <CalibrationPanel api={hand} open={calibrationOpen} onClose={() => setCalibrationOpen(false)} />
-          <HandToggle enabled={hand.enabled} status={hand.status} onEnable={hand.enable} onDisable={hand.disable} />
-          <HandCursorOverlay api={hand} />
-        </>
-      )}
+      {onLegacy && lazyPage(<LegacyHand />)}
     </>
   );
 }

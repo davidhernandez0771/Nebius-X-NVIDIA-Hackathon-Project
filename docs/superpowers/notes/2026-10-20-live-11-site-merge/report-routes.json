@@ -1,0 +1,34 @@
+{
+  "routes": {
+    "/site/results": {
+      "url": "/site/results",
+      "text": "Skip to content SANT Results Effects Try it Multiplying 10 demos made the robot better. Tripling the copies didn't help more. On 40 held-out",
+      "errors": []
+    },
+    "/review2": {
+      "url": "/review2",
+      "text": "Skip to content SANT S Simulate A Augment N Neaten T Train Robots Record Review Dataset Effects Review s1_0002recorded example Recorded exam",
+      "errors": []
+    },
+    "/pm/review": {
+      "url": "/pm/review",
+      "text": "S·A·N·T PERFECT, THEN MULTIPLY 01 RECORD 02 REVIEW 03 DATASET 04 RESULTS ← WORKSHOP REVIEW WHAT THE MODEL FOUND IN EACH DEMO, WHAT CODE REPA",
+      "errors": []
+    },
+    "/pm/results": {
+      "url": "/pm/results",
+      "text": "S·A·N·T PERFECT, THEN MULTIPLY 01 RECORD 02 REVIEW 03 DATASET 04 RESULTS ← WORKSHOP RESULTS DOES PERFECTING WEBCAM DEMOS BEFORE MULTIPLYING ",
+      "errors": []
+    },
+    "/pm/dataset": {
+      "url": "/pm/dataset",
+      "text": "S·A·N·T PERFECT, THEN MULTIPLY 01 RECORD 02 REVIEW 03 DATASET 04 RESULTS ← WORKSHOP DATASET EVERY DEMO IN THE STORE, BY WHERE IT CAME FROM. ",
+      "errors": []
+    },
+    "/pm/record": {
+      "url": "/record",
+      "text": "⏏ workshop FRANKA Record S · show A · check N · neaten T · train keyboard : stopped relay : stopped sim : no relay record 00:00.0 Keyboard M",
+      "errors": []
+    }
+  }
+}

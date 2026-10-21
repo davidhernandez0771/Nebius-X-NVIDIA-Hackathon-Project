@@ -11,10 +11,13 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from app.sim_client import SimWorkerUnavailable
+from demo_pipeline.episode_io import EpisodeMeta, save_episode
 from demo_pipeline.intent import Label, ObjectRef, Step, Verdict
+from demo_pipeline.schemas import Demo
 from demo_pipeline.store import DemoStore
 from fake_sim_worker import FakeSim
 from lerobot_tools.assemble import Cell, build_manifest
@@ -24,7 +27,9 @@ from sim_worker.standin import standin_demo
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "run_human_demo_experiment.py"
 IDS = ["standin_00", "standin_01", "standin_02"]
 SMOKE = {"variants": 2, "steps": 2000, "save_freq": 2000, "eval_n": 5, "eval_seed0": 5020, "smoke": True,
-         "raw_arm": "all", "judge_copies": 1, "nemotron": True, "max_cost_usd": 0.1}
+         "raw_arm": "all", "judge_copies": 1, "nemotron": True, "max_cost_usd": 0.1,
+         "replay_path": "commanded"}  # stand-ins have no live episode: their trajectory is all there is
+HUMAN_9F47 = Path(__file__).parent / "data" / "human_9f47"
 
 
 @pytest.fixture(scope="module")
@@ -282,3 +287,326 @@ def test_cli_refuses_unknown_demo(hx, tmp_path, capsys):
     _user_store(tmp_path)
     rc = hx.main(["--name", "x", "--ids", "nope", "--data-dir", str(tmp_path), "--no-nemotron", "--smoke"])
     assert rc == 1 and "REFUSED" in capsys.readouterr().out
+
+
+def _store_with_9f47(root: Path) -> tuple[DemoStore, Demo, dict]:
+    """The user's store as the live sink left it: demo.json (commanded targets) + the live episode (achieved)."""
+    store = DemoStore(root)
+    demo = Demo.model_validate_json((HUMAN_9F47 / "demo.json").read_text(encoding="utf-8"))
+    live = {k: np.asarray(v) for k, v in json.loads((HUMAN_9F47 / "live.json").read_text(encoding="utf-8")).items()
+            if k != "source"}
+    n = len(demo.trajectory.t)
+    store.save_demo(demo)
+    save_episode(store.episode_dir(demo.id), EpisodeMeta(demo_id=demo.id, robot="franka", task_text="t", fps=50,
+                                                         n_steps=n),
+                 {"joint_pos": np.zeros((n, 9)), "action": np.zeros((n, 9)), "ee_pos": live["ee_pos"],
+                  "ee_quat": live["ee_quat"], "gripper": np.asarray(demo.trajectory.gripper, dtype=np.int8)})
+    return store, demo, live
+
+
+def test_achieved_path_is_what_the_experiment_replays_and_the_users_demo_is_untouched(hx, tmp_path):
+    _, demo, live = _store_with_9f47(tmp_path)
+    before = _hashes(tmp_path)
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=[demo.id], tag=None, settings={**SMOKE, "replay_path": "achieved"})
+    exp.run(until="sim", sim_until="physics")
+
+    assert _hashes(tmp_path) == before  # the user's demo.json and episode are read, never written
+    copy = exp.store.get_demo(demo.id)
+    assert np.allclose(copy.trajectory.to_arrays()["ee_pos"], live["ee_pos"])
+    assert copy.commanded == demo.trajectory  # the hand targets stay, for diagnostics
+    assert np.allclose(sim.requests[0].trajectory.to_arrays()["ee_pos"], live["ee_pos"])  # physics replays it
+    root = tmp_path / "human_exp" / "smoke1"
+    note = json.loads((root / "store" / "demos" / demo.id / "replay_path.json").read_text(encoding="utf-8"))
+    assert note["replay_path"] == "achieved" and "lag" in note["why"] and note["steps_sha256"]
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    assert config["replay_path"] == "achieved" and config["steps_sha256"][demo.id] == note["steps_sha256"]
+    assert "achieved" in (root / "preregistration.md").read_text(encoding="utf-8")
+
+
+def test_achieved_path_refuses_a_demo_without_a_live_episode(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)  # stand-ins: no episode
+    with pytest.raises(hx.Refused, match="episode"):
+        exp.select(ids=IDS[:1], tag=None, settings={**SMOKE, "replay_path": "achieved"})
+
+
+def test_sim_until_stops_before_multiply_and_a_later_run_carries_on(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    exp.run(until="grid", sim_until="align")
+    root = tmp_path / "human_exp" / "smoke1"
+    names = [r.out_name for r in sim.requests]
+    assert sum(n.endswith("_home") for n in names) == 6 and not any("_m3" in n for n in names)
+    assert not (root / "stages" / "sim.json").exists() and not (root / "grid.json").exists()
+    assert not list((root / "stages").glob("multiply/*.json"))
+    exp.run(until="grid")  # the default goes on to multiply and the grid, redoing nothing
+    names = [r.out_name for r in sim.requests]
+    assert sum(n.endswith("_home") for n in names) == 6 and sum("_m3" in n for n in names) == 6
+    assert (root / "grid.json").is_file()
+
+
+def test_sim_worker_tracks_with_the_frozen_lookahead(hx):
+    cmd = hx.sim_worker_cmd(8770, lookahead=1)
+    assert cmd[cmd.index("--lookahead") + 1] == "1" and "--cameras" in cmd and cmd[cmd.index("--port") + 1] == "8770"
+
+
+def test_replay_lookahead_is_frozen_and_defaults_to_0(hx, tmp_path):
+    # Measured on live test #10 (human10a vs human10b): at lookahead 0 the replayed tool path best matches the live
+    # one with no time shift (4.9-6.4 mm); lookahead 1 leads it by a step (9.6-12 mm) and reproduced 2/10 live
+    # outcomes against 3/10. So 0 is the default; another value is a frozen, stated setting.
+    _store_with_9f47(tmp_path)
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=["human_20261019185258_9f47"], tag=None, settings={**SMOKE, "replay_path": "achieved"})
+    assert exp.config["replay_lookahead"] == 0
+    assert "lookahead 0" in (tmp_path / "human_exp" / "smoke1" / "preregistration.md").read_text(encoding="utf-8")
+    with pytest.raises(hx.Refused, match="replay_lookahead"):
+        exp.select(ids=["human_20261019185258_9f47"], tag=None,
+                   settings={**SMOKE, "replay_path": "achieved", "replay_lookahead": 1})
+
+
+def test_an_empty_cell_is_refused_cleanly_not_a_traceback(hx, tmp_path, capsys):
+    from fake_sim_worker import verification
+
+    sim = FakeSim(tmp_path, results=[verification(False)] * 200)  # nothing verifies: no repaired demo to multiply
+    exp, _, _ = _exp(hx, tmp_path, sim=sim)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    with pytest.raises(hx.Refused, match="empty cell"):
+        exp.run(until="grid")
+    assert not (tmp_path / "human_exp" / "smoke1" / "grid.json").exists()
+
+
+def test_select_can_take_only_one_input_and_freezes_it(hx, tmp_path):
+    user = _user_store(tmp_path)
+    for i, id in enumerate(IDS):
+        demo = user.get_demo(id)
+        user.save_demo(demo.model_copy(update={"input": "keyboard" if i < 2 else "camera"}))
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", input="keyboard", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert config["ids"] == IDS[:2] and config["input"] == "keyboard"
+    exp.select(ids=None, tag=None, settings=SMOKE)  # a resume keeps the frozen selection and its input
+
+
+def test_a_config_frozen_without_input_still_resumes(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert "input" not in config  # unchanged for runs that don't filter
+
+
+def test_a_config_frozen_before_the_repairer_flag_resumes_with_the_default_repairer(hx, tmp_path):
+    # Configs have carried "repair": "rules" since the script's first commit (b489476), so the CLI now passing
+    # repair="rules" (the --repairer default) changes no frozen setting: human10c's resume is not refused.
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)  # as the CLI froze it before --repairer existed
+    path = tmp_path / "human_exp" / "smoke1" / "config.json"
+    before = json.loads(path.read_text(encoding="utf-8"))
+    assert before["repair"] == "rules"
+    exp.select(ids=None, tag=None, settings={**SMOKE, "repair": "rules"})  # today's CLI default: not refused
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert after == before  # nothing re-frozen, frozen_at kept
+
+
+def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "nemotron-edits"})
+    exp.run(until="grid", sim_until="repair")
+    root = tmp_path / "human_exp" / "smoke1"
+    marks = [json.loads(p.read_text()) for p in sorted((root / "stages" / "repair").glob("*.json"))]
+    assert marks and all(m["diagnoser"] == "nemotron-edits" for m in marks)
+    assert all(m["output_demo_id"].endswith("_edits") for m in marks if m["status"] == "kept")
+    assert json.loads((root / "config.json").read_text())["repair"] == "nemotron-edits"
+    assert "repaired with Nemotron's trajectory edits" in (root / "preregistration.md").read_text(encoding="utf-8")
+    with pytest.raises(hx.Refused, match="repair must be one of"):
+        _exp(hx, tmp_path, name="other")[0].select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "magic"})
+
+
+def test_repairer_hybrid_routes_the_repair_step(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "hybrid"})
+    exp.run(until="grid", sim_until="repair")
+    root = tmp_path / "human_exp" / "smoke1"
+    marks = [json.loads(p.read_text()) for p in sorted((root / "stages" / "repair").glob("*.json"))]
+    assert marks and all(m["diagnoser"] == "hybrid" and m["stage"] == "rules" for m in marks)  # the fakes pass
+    assert "rules first; Nemotron's trajectory edits for a demo the rules discard" in (
+        root / "preregistration.md").read_text(encoding="utf-8")
+
+
+def test_multiplied_only_trains_and_evals_one_cell_and_reports_it_alone(hx, tmp_path):
+    exp, _, stages = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "multiplied_only": True})
+    exp.run()
+    root = tmp_path / "human_exp" / "smoke1"
+
+    assert [c.name for c in load_grid(root / "grid.json").cells] == ["perfected_multiply_3"]
+    assert stages == ["human-exp:smoke1:sim", "human-exp:smoke1:train", "human-exp:smoke1:eval"]
+    train_cmd, eval_cmd = exp.deps.run.cmds
+    assert eval_cmd[eval_cmd.index("--cells") + 1] == "perfected_multiply_3"
+    assert eval_cmd[eval_cmd.index("--start-state") + 1].endswith("perfected_multiply_3")
+    res = json.loads((root / "results.json").read_text(encoding="utf-8"))
+    head = res["experiment"]["headline"]
+    assert "raw" not in head and "fisher_p" not in head
+    assert head["multiplied"]["successes"] == 3 and head["multiplied"]["n"] == 5
+    assert head["multiplied"]["ci"] == pytest.approx([0.2307, 0.8824], abs=1e-3)
+    assert head["multiplied"]["successful_seeds"] == [5020, 5022, 5023]
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "Absolute test" in prereg and "Fisher" not in prereg and "raw_3" not in prereg
+    with pytest.raises(hx.Refused, match="one arm"):
+        exp.results(publish=True)
+
+
+def test_multiplied_only_is_left_out_of_the_config_unless_set(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    assert "multiplied_only" not in json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    with pytest.raises(hx.Refused, match="multiplied_only"):
+        exp.select(ids=None, tag=None, settings={**SMOKE, "multiplied_only": True})
+
+
+def test_min_demos_refuses_a_short_selection_and_writes_nothing(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    with pytest.raises(hx.Refused, match="3 demos.*at least 5"):
+        exp.select(ids=None, tag="standin_*", settings={**SMOKE, "min_demos": 5})
+    assert not (tmp_path / "human_exp" / "smoke1" / "config.json").exists()
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "min_demos": 3})  # enough: frozen with the rule
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert config["min_demos"] == 3
+
+
+def test_soft_floor_assist_is_frozen_and_reported_not_filtered(hx, tmp_path):
+    from demo_pipeline.schemas import Assist
+
+    user = _user_store(tmp_path)
+    for i, id in enumerate(IDS[:2]):
+        user.save_demo(user.get_demo(id).model_copy(update={"assist": Assist(soft_floor=i == 0,
+                                                                            soft_floor_steps=40 if i == 0 else 0)}))
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    root = tmp_path / "human_exp" / "smoke1"
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
+    assert config["ids"] == IDS  # nothing filtered out
+    assert config["assist"] == {"standin_00": {"soft_floor": True, "soft_floor_steps": 40},
+                                "standin_01": {"soft_floor": False, "soft_floor_steps": 0}, "standin_02": None}
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "1 of 3 demos were recorded with the soft floor holding" in prereg and "`standin_00` (40 steps)" in prereg
+
+
+def test_no_assist_key_for_demos_recorded_before_it(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
+    assert "assist" not in config and "min_demos" not in config
+
+
+def test_the_data_fixes_are_frozen_only_when_set_and_reach_the_repair_and_the_variants(hx, tmp_path):
+    from sim_worker.homeset import find_hover
+
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    assert not {"yaw_wrap", "grasp_retime", "approach_offset_m"} & set(config)  # older configs resume unchanged
+
+    exp, _, _ = _exp(hx, tmp_path, name="fixes")
+    fixes = {"yaw_wrap": True, "grasp_retime": True, "approach_offset_m": 0.04}
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, **fixes})
+    exp.run(until="grid")
+    root = tmp_path / "human_exp" / "fixes"
+    config = json.loads((root / "config.json").read_text())
+    assert {k: config[k] for k in fixes} == fixes
+    retimed = []
+    for id in IDS:
+        rep = json.loads((root / "stages" / "repair" / f"{id}.json").read_text())
+        retimed.append("retime_grasp" in [r["op"] for r in rep["repairs"]])
+        # the repaired demo has the retimed grasp's hover exactly when the rules retimed it
+        assert (find_hover(exp.store.get_demo(rep["output_demo_id"]).trajectory) is not None) == retimed[-1], id
+        mult = json.loads((root / "stages" / "multiply" / f"{id}.json").read_text())
+        assert mult["attempts"] and all(a["centred"] == retimed[-1] for a in mult["attempts"])
+    assert any(retimed)  # the stand-ins swoop: the retime really ran
+
+
+@pytest.mark.parametrize("bad", ["0", "-0.01", "0.2"])
+def test_the_approach_offset_must_be_a_small_radius(hx, bad):
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--approach-offset", bad])
+
+
+def test_the_preregistration_states_the_data_fixes_only_when_used(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text()))
+    assert "Data fixes" not in plain and hx.data_fixes_text({}) == ""
+    exp, _, _ = _exp(hx, tmp_path, name="fixes")
+    exp.select(ids=IDS[:2], tag=None, settings={**SMOKE, "yaw_wrap": True, "grasp_retime": True,
+                                                "approach_offset_m": 0.04})
+    config = json.loads((tmp_path / "human_exp" / "fixes" / "config.json").read_text())
+    text = hx.preregistration(config)
+    assert "**Data fixes**" in text and "grasp retime" in text and "yaw wrap" in text and "up to 4 cm" in text
+    assert "**Data fixes**" in hx.preregistration({**config, "multiplied_only": True})
+
+
+# --- the improved recipe (2026-10-20 research note, Stage 1): training options, checkpoint selection, inference -------
+
+RECIPE = {"augment": "shift", "dilation": True, "select_steps": [1000, 2000], "practice_seed0": 5300, "practice_n": 5,
+          "inference": {"binarize_gripper": True, "n_action_steps": 20, "temporal_ensemble_coeff": None}}
+
+
+def test_the_recipe_is_frozen_only_when_set_and_reaches_training_and_the_eval(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    assert not set(RECIPE) & set(config)  # older configs resume unchanged
+
+    exp, _, _ = _exp(hx, tmp_path, name="recipe")
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "save_freq": 1000, **RECIPE})
+    exp.run()
+    config = json.loads((tmp_path / "human_exp" / "recipe" / "config.json").read_text())
+    assert {k: config[k] for k in RECIPE} == RECIPE
+    train_cmd, eval_cmd = exp.deps.run.cmds
+    assert train_cmd[train_cmd.index("--augment") + 1] == "shift" and "--dilation" in train_cmd
+    i = eval_cmd.index("--select-steps")
+    assert eval_cmd[i + 1:i + 3] == ["1000", "2000"]
+    assert eval_cmd[eval_cmd.index("--practice-seed0") + 1] == "5300"
+    assert eval_cmd[eval_cmd.index("--practice-n") + 1] == "5"
+    assert "--binarize-gripper" in eval_cmd and eval_cmd[eval_cmd.index("--n-action-steps") + 1] == "20"
+    assert "--temporal-ensemble" not in eval_cmd
+
+
+def test_the_default_recipe_adds_no_flags(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=None, tag="standin_*", settings=SMOKE)
+    exp.run()
+    train_cmd, eval_cmd = exp.deps.run.cmds
+    assert not {"--augment", "--dilation"} & set(train_cmd)
+    assert not {"--select-steps", "--binarize-gripper", "--n-action-steps", "--temporal-ensemble"} & set(eval_cmd)
+
+
+@pytest.mark.parametrize("bad", [
+    ["--select-steps", "1500", "--save-freq", "1000", "--steps", "2000"],  # 1500 is never saved
+    ["--select-steps", "4000", "--save-freq", "1000", "--steps", "2000"],  # past the end of training
+    ["--select-steps", "2000", "--save-freq", "1000", "--steps", "2000", "--practice-seed0", "5030"],  # overlaps 5020-5059
+    ["--steps", "100001"],
+    ["--temporal-ensemble", "0.01", "--n-action-steps", "20"],
+])
+def test_the_cli_refuses_an_impossible_recipe(hx, bad):
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--no-nemotron", *bad])
+
+
+def test_the_cli_allows_80k_steps_with_selection_at_40_60_80k(hx, tmp_path):
+    # refused only because the store is empty: the recipe itself passed the checks
+    rc = hx.main(["--name", "x", "--tag", "standin_*", "--no-nemotron", "--data-dir", str(tmp_path), "--steps", "80000",
+                  "--save-freq", "10000", "--select-steps", "40000", "60000", "80000", "--augment", "shift",
+                  "--dilation", "--binarize-gripper", "--n-action-steps", "20"])
+    assert rc == 1
+
+
+def test_the_preregistration_states_the_recipe_only_when_used(hx, tmp_path):
+    exp, _, _ = _exp(hx, tmp_path)
+    exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
+    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text()))
+    assert "Training and evaluation recipe" not in plain and hx.recipe_text({}) == ""
+    text = hx.recipe_text({**SMOKE, "save_freq": 1000, **RECIPE})
+    assert "**Training and evaluation recipe**" in text
+    assert "shift augmentation" in text and "dilation" in text
+    assert "1000, 2000" in text and "5300-5304" in text
+    assert "binarized gripper" in text and "every 20 steps" in text

@@ -1,16 +1,48 @@
 """Rules detector (spec 8.4): code-only diagnosis, the baseline Nemotron is compared against.
 
-It only finds timing/smoothness problems (pause, jitter, idle_start_end). It never emits the
-semantic issues (grasp_off_center, wrong_object, rim_contact, bad_release); that gap is what
-the ablation measures.
+From the trajectory alone it only finds timing/smoothness problems (pause, jitter, idle_start_end).
+
+Given the failed replay's verdict, signals and scene (detect_rules' keyword arguments), it also names the two
+failures webcam teleop demos had in live test #10, from measurements, never from the images:
+- rim_contact -> release_above_bin: the verdict has "collision" and the arm or gripper pressed on the bin or table
+  (the success check's own predicate) after the final grasp, i.e. while placing.
+- grasp_off_center -> recenter_grasp: the verdict has "dropped", or "not_in_bin" with the cube never lifted, and a close came more
+  than the IK tracking error off the cube's centre while the cube still sat where the scene put it.
+Without them (the Nemotron ablation's rules baseline) the output is exactly as before.
+
+With retime_grasp=True (off by default, so earlier runs keep their rules), a "swoop" grasp (grasp_retime.is_swoop:
+closing faster than 5 cm/s, or fewer than 10 frames within 3 cm of the grasp point) -> swoop_grasp -> retime_grasp,
+when grasp_retime can rewrite it within the repair budget and the jitter rule; otherwise only the issue, saying why.
+That check runs on the demo as the ops before retime_grasp in REPAIR_ORDER will leave it (trim, remove_pause,
+recenter_grasp, smooth), so an emitted retime_grasp applies: a failed op would discard the whole demo.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from .grasp_retime import GraspRetimeError, grasp_stats, is_swoop
+from .grasp_retime import retime_grasp as _retime_grasp
 from .measure import gripper_events, position_noise, smoothed_speed, speed_profile
-from .schemas import Diagnosis, Discard, Issue, MetricsWindow, RemovePause, Segment, Smooth, Trajectory, Trim
+from .repair import apply_repairs
+from .schemas import (
+    REPAIR_ORDER,
+    Diagnosis,
+    Discard,
+    Issue,
+    MetricsWindow,
+    RecenterGrasp,
+    ReleaseAboveBin,
+    RemovePause,
+    RetimeGrasp,
+    Scene,
+    Segment,
+    SimSignals,
+    Smooth,
+    Trajectory,
+    Trim,
+)
+from .success import COLLISION_FORCE_N
 
 TASK_TEXT = "pick up the red cube and place it in the blue bin"
 
@@ -28,6 +60,11 @@ STILL_SIGMA_S = 0.2  # Gaussian smoothing of the path for noisy demos
 STILL_SPEED_NOISY = 0.02  # m/s on the smoothed path; tremor alone gives p99 0.004 / 0.007 / 0.014 at 1 / 2 / 4 mm
 STILL_WIDEN_S = 0.2  # smoothing shrinks a stop by about this much at each moving edge, so the run is widened back
 _TOL = 1e-9
+# Off-centre only beyond the IK tracking error at the close (3.3 mm after the joint-velocity feedforward fix, spec
+# Changes 2026-10-16; app.ai.diagnose.GRASP_CENTERED_MM): below it, "off-centre" is noise.
+GRASP_CENTERED_M = 0.0033
+CUBE_MOVED_M = 0.01  # recenter_grasp aims at the scene's cube pose: only closes on a cube still within this of it
+LIFTED_M = 0.02  # the cube was grasped if it rose this far while in the gripper
 
 StillRun = tuple[int, int, float, float]
 
@@ -98,7 +135,66 @@ def _jitter_spans(windows: list[MetricsWindow]) -> list[tuple[float, float]]:
     return spans
 
 
-def detect_rules(traj: Trajectory, windows: list[MetricsWindow], task_text: str = TASK_TEXT) -> Diagnosis:
+def _replay_findings(traj: Trajectory, reasons: list[str], signals: SimSignals | None,
+                     scene: Scene | None) -> tuple[list[Issue], list]:
+    """The issues and repairs the failed replay's verdict and signals show (see the module docstring)."""
+    if signals is None or scene is None or signals.n_steps != len(traj.t):
+        return [], []
+    t, g, p = np.asarray(traj.t), np.asarray(traj.gripper), np.asarray(traj.ee_pos)
+    closes = np.flatnonzero((g[1:] == 1) & (g[:-1] == 0)) + 1
+    opens = np.flatnonzero((g[1:] == 0) & (g[:-1] == 1)) + 1
+    issues, repairs = [], []
+
+    if "collision" in reasons and opens.size:
+        k_open = int(opens[-1])
+        k_place = int(closes[closes < k_open][-1]) if np.any(closes < k_open) else 0
+        hit = (signals.contact_arm_bin | signals.contact_arm_table) & (signals.max_contact_force > COLLISION_FORCE_N)
+        k_hit = k_place + np.flatnonzero(hit[k_place:])
+        if k_hit.size:
+            evidence = (f"{k_hit.size} steps of arm contact with the bin or table above {COLLISION_FORCE_N:g} N after "
+                        f"the final grasp (peak {signals.max_contact_force[k_hit].max():.0f} N)")
+            a, b = float(t[k_hit[0]]), float(t[k_hit[-1]])
+            issues.append(Issue(type="rim_contact", t0=a, t1=b, evidence=evidence) if b > a
+                          else Issue(type="rim_contact", t=a, evidence=evidence))
+            repairs.append(ReleaseAboveBin(op="release_above_bin", t=float(t[k_open])))
+
+    rest = np.asarray(scene.cube_pose.pos, dtype=float)
+    lifted = bool(np.any((g == 1) & signals.contact_gripper_cube & (signals.cube_pos[:, 2] > rest[2] + LIFTED_M)))
+    if "dropped" in reasons or ("not_in_bin" in reasons and not lifted):  # it slipped, or it was never picked up
+        for k in closes:
+            cube = signals.cube_pos[k - 1, :2]  # where the cube sat as the fingers started to close
+            if np.linalg.norm(cube - rest[:2]) > CUBE_MOVED_M:
+                continue
+            off = float(np.linalg.norm(p[k, :2] - cube))
+            if off > GRASP_CENTERED_M:
+                issues.append(Issue(type="grasp_off_center", t=float(t[k]),
+                                    evidence=f"closed {off * 1000:.1f} mm from the cube's centre"))
+                repairs.append(RecenterGrasp(op="recenter_grasp", t=float(t[k])))
+    return issues, repairs
+
+
+def _swoop_findings(traj: Trajectory, t_close: float, earlier: list, scene: Scene | None) -> tuple[list[Issue], list]:
+    """A swoop grasp at the first close, and its retime when it fits on the demo the `earlier` repairs leave (see
+    the module docstring)."""
+    s = grasp_stats(traj, t_close)
+    if s is None or not is_swoop(s):
+        return [], []
+    lift = "never lifts" if s.frames_to_lift is None else f"lifts {s.frames_to_lift} frames later"
+    evidence = (f"closes at {s.close_speed:.2f} m/s after {s.frames_near} frames within 3 cm of the grasp point; "
+                f"{lift}")
+    before = [r for r in earlier if REPAIR_ORDER.index(r.op) < REPAIR_ORDER.index("retime_grasp")]
+    try:
+        # bin_rim_z only matters to replan_transit, which the rules never emit
+        prepared = apply_repairs(traj, before, scene, bin_rim_z=0.0) if before else traj
+        _retime_grasp(prepared, grasp_stats(prepared).close_t)
+    except GraspRetimeError as e:
+        return [Issue(type="swoop_grasp", t=s.close_t, evidence=f"{evidence}; not retimed: {e}")], []
+    return [Issue(type="swoop_grasp", t=s.close_t, evidence=evidence)], [RetimeGrasp(op="retime_grasp", t=s.close_t)]
+
+
+def detect_rules(traj: Trajectory, windows: list[MetricsWindow], task_text: str = TASK_TEXT, *,
+                 reasons: list[str] | None = None, signals: SimSignals | None = None,
+                 scene: Scene | None = None, retime_grasp: bool = False) -> Diagnosis:
     t = np.asarray(traj.t)
     g = np.asarray(traj.gripper)
     start, end = float(t[0]), float(t[-1])
@@ -144,6 +240,14 @@ def detect_rules(traj: Trajectory, windows: list[MetricsWindow], task_text: str 
         issues.append(Issue(type="jitter", t0=t0, t1=t1,
                             evidence=f"jerk_rms above {JITTER_MIN_JERK:g} m/s^3 over [{t0:.2f}, {t1:.2f}] s"))
         repairs.append(Smooth(op="smooth", t0=t0, t1=t1, strength="med"))
+
+    found, fixes = _replay_findings(traj, list(reasons or []), signals, scene)
+    issues += found
+    repairs += fixes
+    if retime_grasp:
+        found, fixes = _swoop_findings(traj, t_close, repairs, scene)
+        issues += found
+        repairs += fixes
 
     issues.sort(key=lambda i: i.t0 if i.t0 is not None else i.t)
     return Diagnosis(

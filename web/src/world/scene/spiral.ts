@@ -12,6 +12,7 @@ import * as THREE from "three";
 import type { Cartridge } from "../core/types";
 import { HELIX } from "./layout";
 import { ITEMS, TAG_SHELL, type TagId } from "./items";
+import { MAX_SAVED, savedSlot } from "./saved";
 
 export const N_ITEMS = ITEMS.length;
 /** The highest slot a job takes: the top of its cartridge stays under the 14.4 m ceiling. */
@@ -20,6 +21,16 @@ export const ITEM_TOP = HELIX.length - 4;
 export const stepSlot = (d: number) => ITEM_TOP - d;
 /** The robots' slots: the ones the jobs don't take. */
 export const ROBOT_SLOTS = HELIX.map((s) => s.index).filter((i) => i > ITEM_TOP || i <= ITEM_TOP - N_ITEMS);
+
+/** The cartridges on the spiral, as instances: the jobs (instance i is job i), the robots in ROBOT_SLOTS order, then the bench's saved ones by place. */
+export const SAVED0 = N_ITEMS + ROBOT_SLOTS.length;
+export const N_INSTANCES = SAVED0 + MAX_SAVED;
+
+/** The spiral slot an instance stands in (a job: the one it is going to; a saved one: its empty place, layout.ts slotAt). */
+export function instanceSlot(k: number): number {
+  if (k < N_ITEMS) return slotOfItem(k);
+  return k < SAVED0 ? ROBOT_SLOTS[k - N_ITEMS] : savedSlot(k - SAVED0);
+}
 
 export const spiral = {
   filter: null as TagId | null,

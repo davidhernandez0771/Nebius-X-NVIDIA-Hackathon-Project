@@ -13,7 +13,22 @@ export interface CameraPose {
   fov: number;
 }
 
-export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench";
+/**
+ * A held shot on a path (the shelf: the spiral's steps). The rig glides `at` along `pose` toward the
+ * newest value instead of flying straight to each new shot, so it passes everything in between.
+ */
+export interface ShotTrack {
+  id: string;
+  at: number;
+  pose: (at: number) => CameraPose;
+}
+
+/** A shot the camera holds instead of the rail, optionally on a track. */
+export interface HeldShot extends CameraPose {
+  track?: ShotTrack;
+}
+
+export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | "workbench" | "robots";
 
 /**
  * The scroll rail, top to bottom: the story ends in the workshop, and the scroll ends there too. In
@@ -21,7 +36,7 @@ export type StationId = "intro" | "descent" | "workshop" | "machine" | "zoom" | 
  * a click (goTo), never by scrolling.
  */
 export const RAIL_ORDER = ["intro", "descent", "workshop"] as const satisfies readonly StationId[];
-export const BRANCHES = ["machine", "zoom", "workbench"] as const satisfies readonly StationId[];
+export const BRANCHES = ["machine", "zoom", "workbench", "robots"] as const satisfies readonly StationId[];
 
 /**
  * A station's progress, updated in place every rendered frame (never through React state). Read it
@@ -104,6 +119,11 @@ export interface StationModule {
    * camera(0.5)) and its t is 1.
    */
   duration?: number;
+  /**
+   * A held branch whose shot changes as it goes (the workbench, stage by stage): the shot now, local
+   * to `anchor`, read every frame. A new key tweens the camera to it (a cut with reduced motion).
+   */
+  shot?: () => { key: string; pose: CameraPose };
   /** A pre-rendered still of the station, shown instead of the canvas when there is no usable GPU. */
   still?: string;
 }

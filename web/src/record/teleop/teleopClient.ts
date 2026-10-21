@@ -73,8 +73,17 @@ export class TeleopClient {
   push(frame: HandFrame, grip?: 0 | 1): void {
     const t = frame.timestamp;
     if (this.lastSentAt !== null && t - this.lastSentAt < MIN_INTERVAL_MS - JITTER_MS) return;
+    this.sendMsg(toHandPoseMsg(pickHand(frame.hands), frame, this.last, this.control), grip);
+  }
 
-    const msg = toHandPoseMsg(pickHand(frame.hands), frame, this.last, this.control);
+  /** A message made by the page itself (keyboard and mouse driving, drive.ts), through the same throttle. */
+  send(msg: HandPoseMsg, grip?: 0 | 1): void {
+    if (this.lastSentAt !== null && msg.t_ms - this.lastSentAt < MIN_INTERVAL_MS - JITTER_MS) return;
+    this.sendMsg({ ...msg }, grip);
+  }
+
+  private sendMsg(msg: HandPoseMsg, grip?: 0 | 1): void {
+    const t = msg.t_ms;
     delete msg.grip; // a lost hand's message copies the last one, grip included
     if (grip !== undefined) msg.grip = grip;
     if (!msg.tracking_ok && this.lastLostSentAt !== null && t - this.lastLostSentAt < LOST_INTERVAL_MS) return;

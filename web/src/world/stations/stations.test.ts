@@ -5,7 +5,9 @@ import { layoutRail, poseAt, stationPose } from "../core/rail";
 import { checkStations } from "../core/registry";
 import { RAIL_ORDER, type StationModule } from "../core/types";
 import { STATIONS } from ".";
-import { spiral } from "./descent";
+import { HUB_FAR } from "./descent/path";
+import { HERO_LIFT, HERO_VIEW } from "./intro/layout";
+import { PORTAL_VIEW } from "./intro/path";
 import { CLOSE } from "./zoom";
 
 const rails = RAIL_ORDER.map((id) => STATIONS.find((s) => s.id === id)!);
@@ -28,15 +30,11 @@ describe("the registered stations", () => {
     }
   });
 
-  it("descend: the spiral goes down the whole way and turns once", () => {
-    let y = Infinity;
-    for (let t = 0; t <= 1; t += 0.05) {
-      const p = spiral(t);
-      expect(p.position[1]).toBeLessThan(y);
-      y = p.position[1];
-    }
-    expect(spiral(1).position[0]).toBeCloseTo(spiral(0).position[0], 6);
-    expect(spiral(1).position[2]).toBeCloseTo(spiral(0).position[2], 6);
+  it("end the story on the ring and the descent just behind the room view", () => {
+    const at = (id: string, t: number) => stationPose(STATIONS.find((s) => s.id === id)!, t);
+    expect(at("intro", 1)).toEqual(PORTAL_VIEW);
+    expect(at("descent", 0)).toEqual(PORTAL_VIEW);
+    expect(at("descent", 1)).toEqual(HUB_FAR);
   });
 
   it("hand the machine's last view to the zoom", () => {
@@ -70,9 +68,12 @@ describe("the registered stations", () => {
       p.position.forEach((v, i) => expect(v).toBeCloseTo(s.position[i], 6));
       p.target.forEach((v, i) => expect(v).toBeCloseTo(s.target[i], 6));
     };
-    same("intro", 0, "Title");
-    same("intro", 1, "Descent");
-    same("descent", 0, "Descent");
+    // The hero is Blender's Title framing, raised above the room by HERO_LIFT so the story's places
+    // (the forest, the rock, the reactor) stack between it and the workshop.
+    const title = stop("Title");
+    expect(at("intro", 0)).toEqual(HERO_VIEW);
+    HERO_VIEW.position.forEach((v, i) => expect(v).toBeCloseTo(title.position[i] + (i === 1 ? HERO_LIFT : 0), 6));
+    HERO_VIEW.target.forEach((v, i) => expect(v).toBeCloseTo(title.target[i] + (i === 1 ? HERO_LIFT : 0), 6));
     same("workshop", 0, "Workshop intro");
 
     same("machine", 0, "Tutorial 2 · machine");

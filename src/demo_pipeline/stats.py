@@ -4,6 +4,7 @@
   fisher_exact(a, na, b, nb)    two-sided Fisher exact p for a/na vs b/nb
   n_per_arm(p1, p2)             episodes per arm to tell p1 from p2 (normal approximation, Fleiss)
   fisher_power(p1, p2, n)       exact power of fisher_exact with n episodes per arm
+  mcnemar_exact(b, c)           two-sided exact McNemar p for paired outcomes (b, c = the two discordant counts)
 
 Fisher works on integer hypergeometric weights (math.comb), so ties between tables compare exactly instead of
 through a floating-point tolerance.
@@ -103,3 +104,15 @@ def fisher_power(p1: float, p2: float, n: int, alpha: float = 0.05) -> float:
     pa, pb = _binom_pmf(n, p1), _binom_pmf(n, p2)
     reject = _rejection_sets(n, n, alpha)
     return sum(pa[a] * pb[m - a] for m, rejected in reject.items() for a in rejected)
+
+
+def mcnemar_exact(b: int, c: int) -> float:
+    """Two-sided exact McNemar p: the same items under two conditions, b passing only under the first, c only under
+    the second. Under the null each discordant item is a fair coin: 2 * P(Binomial(b + c, 1/2) <= min(b, c)), capped
+    at 1; 1.0 with no discordant item."""
+    if b < 0 or c < 0:
+        raise ValueError(f"need non-negative counts, got b={b}, c={c}")
+    n = b + c
+    if n == 0:
+        return 1.0
+    return min(1.0, 2 * sum(math.comb(n, k) for k in range(min(b, c) + 1)) / 2 ** n)

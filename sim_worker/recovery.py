@@ -49,7 +49,7 @@ ON_TOP_Z = 0.015
 EMPTY_FINGERS = 0.005  # m; mean finger joint position below this = shut on nothing (the cube holds them at 0.025)
 MIN_HOVER_STEPS, ON_TOP_DELAY, EMPTY_DELAY = 10, 5, 25
 MAX_TILT_DEG, MAX_CUBE_Z_ERR, MAX_CUBE_SPEED = 5.0, 0.005, 0.02
-TCP_SPEED = {"hover": 0.03, "descent": 0.3, "on_top": 0.15, "empty_closed": 0.1}
+TCP_SPEED = {"hover": 0.03, "descent": 0.3, "on_top": 0.15, "empty_closed": 0.1, "rewind": 0.15}  # rewind: sim_worker.corrections
 FAR_REALIGN = 0.06  # m; a re-approach longer than this moves at the expert's SPEED, a shorter one is a slow centering
 BIN_FOOTPRINT_HALF = 0.12  # the bin's 0.20 m inner square + 2 cm: a cube there is in or on the bin
 
@@ -114,22 +114,13 @@ def _runs(mask: np.ndarray) -> list[tuple[int, int]]:
     return list(zip(np.flatnonzero(edges == 1).tolist(), np.flatnonzero(edges == -1).tolist()))
 
 
-def find_recovery_states(trace: dict, scene: Scene, *, source: str, fps: int = 50) -> list[RecoveryState]:
-    if "cube_quat_wxyz" not in trace:
-        raise ValueError("the trace has no cube_quat_wxyz (traces from before sim_eval c181547 can't be restored)")
-    q, tcp, tq = np.asarray(trace["joint_pos"]), np.asarray(trace["tcp_pos"]), np.asarray(trace["tcp_quat_wxyz"])
-    cube, cq = np.asarray(trace["cube_pos"]), np.asarray(trace["cube_quat_wxyz"])
-    grip, con = np.asarray(trace["gripper"]).astype(int), np.asarray(trace["contact_gripper_cube"]).astype(bool)
-    n = len(grip)
+def _restorer(trace: dict, scene: Scene, fps: int = 50) -> Callable[[int, str], bool]:
+    """restorable(k, family): the state after trace step k can be restored with zero velocities. The cube flat on a
+    face, resting on the table (not in the hand, not in or on the bin) and nearly still; the hand slower than
+    TCP_SPEED[family]. Shared by find_recovery_states and sim_worker.corrections (rewind before a failure)."""
+    tcp, cube, cq = np.asarray(trace["tcp_pos"]), np.asarray(trace["cube_pos"]), np.asarray(trace["cube_quat_wxyz"])
+    n = len(tcp)
     tcp_v, cube_v = _speed(tcp, fps), _speed(cube, fps)
-    rel_z = tcp[:, 2] - cube[:, 2]
-    off_mm = np.linalg.norm(tcp[:, :2] - cube[:, :2], axis=1) * 1000
-    yaw_err = np.array([abs(math.degrees(_mod90(_hand_yaw(a) - _face_yaw(b)))) for a, b in zip(tq, cq)])
-    misaligned = (off_mm > MISALIGN_MM) | (yaw_err > MISALIGN_DEG)
-    fingers = q[:, 7:9].mean(axis=1)
-    first_contact = int(np.argmax(con)) if con.any() else n
-    before_contact = np.arange(n) < first_contact
-    is_open = grip == 0
     bw, bx, by, bz = scene.bin_pose.quat_wxyz
     bin_yaw = math.atan2(2 * (bw * bz + bx * by), 1 - 2 * (by * by + bz * bz))
     c, s = math.cos(-bin_yaw), math.sin(-bin_yaw)
@@ -143,6 +134,40 @@ def find_recovery_states(trace: dict, scene: Scene, *, source: str, fps: int = 5
             return False
         dx, dy = cube[k, 0] - scene.bin_pose.pos[0], cube[k, 1] - scene.bin_pose.pos[1]
         return not (abs(c * dx - s * dy) <= BIN_FOOTPRINT_HALF and abs(s * dx + c * dy) <= BIN_FOOTPRINT_HALF)
+
+    return restorable
+
+
+def state_at(trace: dict, scene: Scene, k: int, *, name: str, mode: str, source: str, fps: int = 50) -> RecoveryState:
+    """The restorable state after trace step k (joint_pos[k + 1], the TCP and cube of row k)."""
+    q, tcp, tq = np.asarray(trace["joint_pos"]), np.asarray(trace["tcp_pos"]), np.asarray(trace["tcp_quat_wxyz"])
+    cube, cq = np.asarray(trace["cube_pos"]), np.asarray(trace["cube_quat_wxyz"])
+    off = float(np.linalg.norm(tcp[k, :2] - cube[k, :2]) * 1000)
+    yaw_err = abs(math.degrees(_mod90(_hand_yaw(tq[k]) - _face_yaw(cq[k]))))
+    return RecoveryState(
+        name=name, seed=scene.seed, mode=mode, source=source, k=k, t=k / fps, joint_pos=[float(x) for x in q[k + 1]],
+        tcp_pos=[float(x) for x in tcp[k]], tcp_quat_wxyz=[float(x) for x in tq[k]], gripper=int(trace["gripper"][k]),
+        cube_pos=[float(x) for x in cube[k]], cube_quat_wxyz=[float(x) for x in cq[k]], offset_mm=off,
+        yaw_err_deg=float(yaw_err))
+
+
+def find_recovery_states(trace: dict, scene: Scene, *, source: str, fps: int = 50) -> list[RecoveryState]:
+    if "cube_quat_wxyz" not in trace:
+        raise ValueError("the trace has no cube_quat_wxyz (traces from before sim_eval c181547 can't be restored)")
+    q, tcp, tq = np.asarray(trace["joint_pos"]), np.asarray(trace["tcp_pos"]), np.asarray(trace["tcp_quat_wxyz"])
+    cube, cq = np.asarray(trace["cube_pos"]), np.asarray(trace["cube_quat_wxyz"])
+    grip, con = np.asarray(trace["gripper"]).astype(int), np.asarray(trace["contact_gripper_cube"]).astype(bool)
+    n = len(grip)
+    tcp_v = _speed(tcp, fps)
+    rel_z = tcp[:, 2] - cube[:, 2]
+    off_mm = np.linalg.norm(tcp[:, :2] - cube[:, :2], axis=1) * 1000
+    yaw_err = np.array([abs(math.degrees(_mod90(_hand_yaw(a) - _face_yaw(b)))) for a, b in zip(tq, cq)])
+    misaligned = (off_mm > MISALIGN_MM) | (yaw_err > MISALIGN_DEG)
+    fingers = q[:, 7:9].mean(axis=1)
+    first_contact = int(np.argmax(con)) if con.any() else n
+    before_contact = np.arange(n) < first_contact
+    is_open = grip == 0
+    restorable = _restorer(trace, scene, fps)
 
     picks: dict[str, int] = {}
     hover = is_open & before_contact & (rel_z >= HOVER_BAND[0]) & (rel_z <= HOVER_BAND[1]) & (tcp_v < TCP_SPEED["hover"])

@@ -37,3 +37,40 @@ describe("job tiles", () => {
     });
   });
 });
+
+describe("saved cartridge tiles", () => {
+  it("print each saved cartridge in its place, and a blank where none is", async () => {
+    const { ITEM_TILE0, SAVED_TILE0, draftArt } = await import("./labels");
+    const { ITEMS } = await import("./items");
+    const { MAX_SAVED, resetSaved, saveCartridge } = await import("./saved");
+    localStorage.clear();
+    resetSaved();
+    // The jobs' tiles end where the saved ones begin.
+    expect(SAVED_TILE0).toBe(ITEM_TILE0 + ITEMS.length);
+    expect(SAVED_TILE0 + MAX_SAVED).toBeLessThanOrEqual(TILE_COUNT);
+    expect(labelArt(SAVED_TILE0).code).toBe("+");
+    saveCartridge({ name: "Kitchen arm", finish: "matte", color: "#e2ddd0", robot: "PPR" });
+    const art = labelArt(SAVED_TILE0);
+    expect(art).toMatchObject({ code: "KITCHEN ARM", line: "AGILEX PIPER · 6-DOF · DESKTOP ARM", serial: "MINE-001" });
+    expect(labelArt(SAVED_TILE0 + 1).code).toBe("+");
+    // A draft with no name yet is the render's blank, with the robot chosen so far.
+    expect(draftArt({ name: " ", robot: "FR3" })).toMatchObject({ code: "+", line: "NAME YOUR ROBOT  ·  FRANKA FR3", serial: "MINE-NEW" });
+    localStorage.clear();
+    resetSaved();
+  });
+});
+
+
+describe("the bench's draft tile", () => {
+  it("has its own tile after the saved ones, printing the draft it was last given", async () => {
+    const { DRAFT_TILE, SAVED_TILE0, draftArt, setDraftTileArt } = await import("./labels");
+    const { MAX_SAVED } = await import("./saved");
+    expect(DRAFT_TILE).toBeGreaterThanOrEqual(SAVED_TILE0 + MAX_SAVED);
+    expect(DRAFT_TILE).toBeLessThan(TILE_COUNT);
+    expect(labelArt(DRAFT_TILE)).toMatchObject({ code: "+", serial: "MINE-NEW" });
+    setDraftTileArt(draftArt({ name: "desk arm", robot: "FR3" }));
+    expect(labelArt(DRAFT_TILE).code).toBe("DESK ARM");
+    setDraftTileArt(null);
+    expect(labelArt(DRAFT_TILE).code).toBe("+");
+  });
+});

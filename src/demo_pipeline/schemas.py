@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Literal, Union
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
 Vec3 = tuple[float, float, float]
 Quat = tuple[float, float, float, float]  # (w, x, y, z)
@@ -91,14 +91,55 @@ class Scene(_Model):
     seed: int
 
 
+InputMode = Literal["camera", "keyboard", "mouse"]  # how a human demo was driven on the Record page
+INPUT_MODES: tuple[str, ...] = ("camera", "keyboard", "mouse")
+
+
+class ScenePlanRef(_Model):
+    """The scene a teleop demo was recorded in (demo_pipeline.scene_library): its entry id and name, and the hash of
+    its plan (plan_hash), so the exact plan can be checked later. The plan itself is in the episode's plan.json."""
+
+    id: str
+    hash: str = Field(pattern=r"^[0-9a-f]{16}$")
+    name: str = ""
+
+
+class Assist(_Model):
+    """Help the sim gave while a human demo was recorded (demo_pipeline.soft_floor), so assisted demos stay labelled."""
+
+    soft_floor: bool  # the soft floor was on for (part of) the take
+    soft_floor_steps: int = Field(default=0, ge=0)  # recorded steps where it held the target up
+    # separate holds (runs of held recorded steps); None: recorded before the sim counted them
+    soft_floor_dips: int | None = Field(default=None, ge=0)
+    # The assist zones that were active (soft_floor.AssistZones.to_dict(): the source, every zone's footprint, floor and
+    # speed cap); None while the soft floor was off, or for demos from before the zones.
+    zones: dict | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_fields(self, handler):
+        """Leave "soft_floor_dips" and "zones" out while they are None, so older labels serialize byte for byte as
+        before. One serializer: pydantic keeps only the last one a class defines."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("soft_floor_dips", "zones"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
+
+
 class Demo(_Model):
     id: str = Field(min_length=1)
     source: Literal["human", "repaired", "variant"]
     parent_id: str | None = None
-    trajectory: Trajectory
+    trajectory: Trajectory  # what the tool did: for teleop, the pose the arm reached each step (what replay drives)
+    # teleop only, for diagnostics: the hand target sent each step. The arm lags it, so replaying it is another motion.
+    commanded: Trajectory | None = None
     scene: Scene
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     human_seconds: float = Field(ge=0)  # wall-clock human time; 0 for derived demos
+    input: InputMode | None = None  # how it was driven (the Record page's input switch); None: not recorded (older)
+    assist: Assist | None = None  # record-time help (the soft floor); None: none recorded (older, or not teleop)
+    scene_plan: ScenePlanRef | None = None  # the Record page's scene (None: today's, before the picker)
 
     @model_validator(mode="after")
     def _lineage(self) -> "Demo":
@@ -106,7 +147,21 @@ class Demo(_Model):
             raise ValueError("a human demo has no parent_id")
         if self.source != "human" and not self.parent_id:
             raise ValueError(f"a {self.source} demo needs a parent_id")
+        if self.commanded is not None and self.commanded.t != self.trajectory.t:
+            raise ValueError("commanded needs one target per trajectory step, at the same times")
         return self
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_fields(self, handler):
+        """Leave "commanded", "input", "assist" and "scene_plan" out while they are None, so a demo without them serializes byte for byte as
+        before the fields existed (frozen sets and experiments hash demo.json). One serializer: pydantic keeps only the
+        last one a class defines."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("commanded", "input", "assist", "scene_plan"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
 
 
 @dataclass(frozen=True)
@@ -153,6 +208,7 @@ SegmentName = Literal["approach", "grasp", "lift", "carry", "release", "retreat"
 IssueType = Literal[
     "pause", "jitter", "slow", "grasp_off_center", "wrong_object",
     "rim_contact", "bad_release", "drop", "idle_start_end", "other",
+    "swoop_grasp",  # rules only (rules.detect_rules(retime_grasp=True)); never in Nemotron's prompts
 ]
 
 
@@ -216,17 +272,38 @@ class ReplanTransit(_TimeRange):
     op: Literal["replan_transit"]
 
 
+class ReleaseAboveBin(_Model):
+    """Place from above: stop over the bin's inside with the held cube clear of the rim, open there, lift away.
+    t is the release (the last open)."""
+
+    op: Literal["release_above_bin"]
+    t: float = Field(ge=0)
+
+
+class RetimeGrasp(_Model):
+    """Rewrite a swoop grasp in the scripted expert's style: hover, slow last 4 cm, stop, close, hold, lift straight
+    (demo_pipeline.grasp_retime). t is the grasp (the close). Rules only."""
+
+    op: Literal["retime_grasp"]
+    t: float = Field(ge=0)
+
+
 class Discard(_Model):
     op: Literal["discard"]
 
 
 RepairOp = Annotated[
-    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, Discard],
+    Union[Trim, RemovePause, Smooth, Retime, RecenterGrasp, ReplanTransit, ReleaseAboveBin, RetimeGrasp, Discard],
     Field(discriminator="op"),
 ]
 
-# Spec 8.4: repairs always run in this order, whatever order they were listed in.
-REPAIR_ORDER: tuple[str, ...] = ("trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime")
+# Spec 8.4: repairs always run in this order, whatever order they were listed in. release_above_bin rewrites
+# everything from the place onwards, so it runs last, on the timeline the other ops left. retime_grasp rewrites the
+# grasp around the (recentred) close, after the timing ops have settled the path into it.
+REPAIR_ORDER: tuple[str, ...] = (
+    "trim", "remove_pause", "recenter_grasp", "replan_transit", "smooth", "retime", "retime_grasp",
+    "release_above_bin",
+)
 
 
 def _times(obj) -> list[float]:

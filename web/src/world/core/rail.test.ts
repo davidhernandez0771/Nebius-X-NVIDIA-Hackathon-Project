@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillFrames, layoutRail, locate, mixPose, poseAt, reducedPoseAt, restIndexAt, smoother, through, type RailStation } from "./rail";
+import { arcPose, fillFrames, layoutRail, locate, mixPose, poseAt, reducedPoseAt, restIndexAt, smoother, through, type RailStation } from "./rail";
 import type { CameraPose, StationFrame } from "./types";
 
 const pose = (x: number): CameraPose => ({ position: [x, 0, 10], target: [x, 0, 0], fov: 40 });
@@ -122,5 +122,37 @@ describe("reducedPoseAt", () => {
     const rail = layoutRail([a, b], 100);
     expect(reducedPoseAt([a, b], rail, 50).pose.position[0]).toBe(9);
     expect(reducedPoseAt([a, b], rail, 200).pose.position[0]).toBeCloseTo(10.5, 6);
+  });
+});
+
+describe("arcPose", () => {
+  const at = (deg: number, r: number, y: number): CameraPose => {
+    const a = (deg * Math.PI) / 180;
+    return { position: [r * Math.cos(a), y, r * Math.sin(a)], target: [0, y, 0], fov: 40 };
+  };
+
+  it("goes round the axis the short way, keeping its distance, where mixPose cuts across", () => {
+    const from = at(-80, 10, 12);
+    const to = at(80, 10, 10);
+    const mid = arcPose(from, to, 0.5);
+    expect(Math.hypot(mid.position[0], mid.position[2])).toBeCloseTo(10, 9);
+    expect(Math.atan2(mid.position[2], mid.position[0])).toBeCloseTo(0, 9);
+    expect(mid.position[1]).toBeCloseTo(11, 9);
+    const straight = mixPose(from, to, 0.5);
+    expect(Math.hypot(straight.position[0], straight.position[2])).toBeLessThan(2);
+    // Across +-180 degrees it still takes the short way.
+    const wrap = arcPose(at(170, 10, 0), at(-170, 10, 0), 0.5);
+    expect(wrap.position[0]).toBeCloseTo(-10, 9);
+  });
+
+  it("ends exactly on its two poses, round any axis", () => {
+    const a = at(30, 8, 1);
+    const b = at(120, 6, 3);
+    for (const axis of [[0, 0], [1, -2]] as const) {
+      const p0 = arcPose(a, b, 0, axis);
+      const p1 = arcPose(a, b, 1, axis);
+      p0.position.forEach((v, i) => expect(v).toBeCloseTo(a.position[i], 9));
+      p1.position.forEach((v, i) => expect(v).toBeCloseTo(b.position[i], 9));
+    }
   });
 });

@@ -20,6 +20,9 @@ import numpy as np
 from isaaclab.app import add_launcher_args, launch_simulation
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 from sim_worker.tracking import add_tracking_args, options_from_args  # noqa: E402
 
@@ -57,6 +60,7 @@ def _jobs():
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     opts = options_from_args(args_cli)
     out: Path = args_cli.out
     out.mkdir(parents=True, exist_ok=True)

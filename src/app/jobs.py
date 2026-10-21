@@ -21,6 +21,7 @@ trajectory failing in the sim, so it is a failed verification of this demo.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -34,7 +35,7 @@ from typing import Any, Callable, Literal
 import numpy as np
 from pydantic import BaseModel, Field
 
-from demo_pipeline import PIPELINE_VERSION
+from demo_pipeline import PIPELINE_VERSION, scene_geometry
 from demo_pipeline.episode_io import EpisodeMeta, load_episode, load_signals
 from demo_pipeline.process import perfect_demo
 from demo_pipeline.refine import refine_diagnosis
@@ -60,6 +61,7 @@ from demo_pipeline.store import DemoStore, write_atomic
 from nebius_llm.config import get_vision_model
 
 from .ai.diagnose import DIAGNOSE_TIER, diagnose_gated, diagnose_hybrid, select_frames
+from .ai.nemotron_repair import RepairResult, repair_with_nemotron
 from .sim_client import SimWorkerBusy, SimWorkerClient, SimWorkerError
 
 log = logging.getLogger(__name__)
@@ -69,9 +71,8 @@ MODEL_DIAGNOSERS = ("nemotron", "hybrid")  # need camera frames and a model call
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 FRONT, WRIST = "front", "wrist"
 
-# Rim height above the bin origin: BIN_WALL (0.01) + inner height (0.08) in sim_worker/scene_cfg.py,
-# which imports Isaac and so cannot be imported here.
-BIN_RIM_HEIGHT = 0.09
+# Rim height above the bin origin: BIN_WALL (0.01) + inner height (0.08), the numbers the Isaac scene is built from.
+BIN_RIM_HEIGHT = scene_geometry.BIN_RIM_HEIGHT
 
 
 def _now() -> datetime:
@@ -346,11 +347,14 @@ def perfect_stored_demo(
     sleep: Callable[[float], None] = time.sleep,
     diagnose: Callable[..., tuple[Diagnosis, list[str]]] | None = None,
     before_model_call: Callable[[], None] | None = None,
+    retime_grasp: bool = False,
 ) -> dict:
     """Perfect one stored human demo; returns a JSON-able summary. `diagnose` replaces diagnose_gated (same
     arguments). `before_model_call` runs before each model call (nemotron or hybrid), e.g. a budget check; a
-    PipelineAbort from either fails the job. Raises SimWorkerError when the worker cannot do the job (see the
-    module docstring), ValueError for a demo that is not human."""
+    PipelineAbort from either fails the job. retime_grasp: the rules also retime a swoop grasp
+    (rules.detect_rules(retime_grasp=True); off by default, so earlier runs keep their rules). Raises
+    SimWorkerError when the worker cannot do the job (see the module docstring), ValueError for a demo that is not
+    human."""
     diagnose = diagnose or diagnose_gated
     demo = store.get_demo(demo_id)
     if demo.source != "human":
@@ -411,7 +415,11 @@ def perfect_stored_demo(
                 notes.append(f"round {len(rounds) + 1}: {diagnoser} failed ({type(e).__name__}: {e}); "
                              f"used the rules detector")
         if diag is None:
-            diag = detect_rules(d.trajectory, windows)
+            # perfect_demo's first round has no reasons yet; the rules take the raw replay's verdict, which
+            # state["signals"] come from (the model's first round stays as it always was)
+            seen = reasons if rounds else list(raw.verification.reasons)
+            diag = detect_rules(d.trajectory, windows, reasons=seen, signals=state["signals"], scene=d.scene,
+                                retime_grasp=retime_grasp)
         refined = refine_diagnosis(diag, d.trajectory)
         record.update(decision=refined.decision, repairs=list(refined.repairs))
         rounds.append(record)
@@ -478,4 +486,171 @@ def perfect_stored_demo(
         "rounds": [{**r, "repairs": [op.model_dump() for op in r["repairs"]]} for r in rounds],
         "replays": replays,
         "notes": notes,
+    }
+
+
+# --- the alternative repairer: Nemotron's trajectory edits ------------------------------------------
+
+EDITS_REPAIRER = "nemotron-edits"
+
+
+def edits_output_id(demo_id: str) -> str:
+    return f"{demo_id}_edits"
+
+
+def perfect_stored_demo_edits(
+    store: DemoStore,
+    client: SimWorkerClient,
+    demo_id: str,
+    *,
+    raw: ReplayResponse | None = None,
+    record_cameras: bool = True,
+    busy_retries: int = 60,
+    busy_wait_s: float = 10.0,
+    sleep: Callable[[float], None] = time.sleep,
+    repair: Callable[..., RepairResult] | None = None,
+    before_model_call: Callable[[], None] | None = None,
+) -> dict:
+    """perfect_stored_demo's alternative: Nemotron edits the trajectory (app.ai.nemotron_repair) and each edit is
+    verified by the worker's /replay ("<id>_edits_v<k>"), i.e. Isaac and the unchanged check_success. A raw replay
+    that already passes is kept, without a model call. A verified edit becomes the demo "<id>_edits" (source
+    "repaired") with its Passport (repairs_applied stays []: the edits are not menu ops) and edit_plan.json; the
+    human demo gets edit_repair.json either way. `repair` replaces repair_with_nemotron (same arguments). Raises
+    SimWorkerError when the worker cannot do the job; a sim_error on an edited demo discards it."""
+    repair = repair or repair_with_nemotron
+    demo = store.get_demo(demo_id)
+    if demo.source != "human":
+        raise ValueError(f"demo {demo_id!r} is {demo.source!r}; only human demos are perfected")
+    out_id = edits_output_id(demo_id)
+    notes: list[str] = []
+    replays: list[dict] = []
+    if raw is None:
+        raw = record_raw(store, client, demo, record_cameras=record_cameras, busy_retries=busy_retries,
+                         busy_wait_s=busy_wait_s, sleep=sleep)
+        replays.append(_replay_summary(ReplayRequest(trajectory=demo.trajectory, scene=demo.scene,
+                                                     record_cameras=record_cameras, out_name=f"{demo_id}_raw"), raw))
+    state: dict[str, Any] = {"ep_dir": raw.ep_dir}
+
+    def verify(traj: Trajectory) -> tuple[VerificationResult, SimSignals]:
+        req = ReplayRequest(trajectory=traj, scene=demo.scene, record_cameras=record_cameras,
+                            out_name=f"{out_id}_v{sum(r['out_name'] != f'{demo_id}_raw' for r in replays) + 1}")
+        resp = replay_with_retry(client, req, busy_retries=busy_retries, busy_wait_s=busy_wait_s, sleep=sleep)
+        replays.append(_replay_summary(req, resp))
+        state["ep_dir"] = resp.ep_dir
+        return resp.verification, align_signals(resp.signals.to_signals(), traj.t)
+
+    result: RepairResult | None = None
+    if raw.verification.success:
+        status, traj, verification = "kept", demo.trajectory, raw.verification
+    else:
+        try:
+            result = repair(demo, raw.verification, align_signals(raw.signals.to_signals(), demo.trajectory.t),
+                            verify, before_call=before_model_call)
+        except SimWorkerError as e:
+            if is_infrastructure(e):
+                raise
+            notes.append(f"the sim failed on an edited demo ({e}); discarded")
+        if result is not None and result.status == "repaired":
+            status, traj, verification = "perfected", result.trajectory, result.verification
+        else:
+            status, traj = "discarded", None
+            verification = None if result is None else result.verification
+            if result is not None:
+                notes.append(f"Nemotron's edits: {result.status} after {result.calls} call(s)")
+    summary_extra = {} if result is None else result.summary()
+    write_atomic(store.root / "demos" / demo_id / "edit_repair.json",
+                 json.dumps({"repairer": EDITS_REPAIRER, **summary_extra, "edits_status": summary_extra.get("status"),
+                            "status": status}, indent=1, default=str))
+
+    if traj is not None:
+        store.save_demo(Demo(id=out_id, source="repaired", parent_id=demo_id, trajectory=traj, scene=demo.scene,
+                             human_seconds=0.0))
+        passport = Passport(demo_id=out_id, lineage=store.lineage(out_id), repairs_applied=[],
+                            diagnosis_source="none" if result is None else "nemotron",
+                            model_id=None if result is None else result.model, robot=demo.scene.robot,
+                            verification=verification, pipeline_version=PIPELINE_VERSION)
+        store.save_passport(out_id, passport)
+        write_atomic(store.root / "demos" / out_id / "edit_plan.json",
+                     json.dumps({"parent": demo_id, **summary_extra}, indent=1, default=str))
+        _copy_episode(state["ep_dir"], store.episode_dir(out_id), notes, passport)  # the last, successful replay
+    elif store.has_demo(out_id):
+        notes.append(f"an older output {out_id!r} from an earlier run is still stored")
+
+    edits = [] if result is None or result.plan is None or status != "perfected" else result.plan.edits
+    return {
+        "demo_id": demo_id,
+        "diagnoser": EDITS_REPAIRER,
+        "status": status,
+        "output_demo_id": out_id if traj is not None else None,
+        "diagnosis_source": "none" if result is None else "nemotron",
+        "model_id": None if result is None else result.model,
+        "attempts": sum(r["out_name"] != f"{demo_id}_raw" for r in replays),
+        "repairs": [e.model_dump() for e in edits],
+        "report": None if result is None or result.report is None else result.report.model_dump(),
+        "why": None if result is None or result.plan is None else result.plan.why,
+        "calls": 0 if result is None else result.calls,
+        "rescues": [] if result is None else list(result.rescues),
+        "cost_usd": 0.0 if result is None else round(result.cost_usd, 5),
+        "verification": None if verification is None else verification.model_dump(),
+        "raw_verification": raw.verification.model_dump(),
+        "rounds": [] if result is None else summary_extra["rounds"],
+        "replays": replays,
+        "notes": notes,
+    }
+
+
+# --- the hybrid repairer: the rules first, Nemotron's edits for what they discard -------------------
+
+HYBRID_REPAIRER = "hybrid"
+PASSED = ("perfected", "kept")
+
+
+def perfect_stored_demo_hybrid(
+    store: DemoStore,
+    client: SimWorkerClient,
+    demo_id: str,
+    *,
+    raw: ReplayResponse | None = None,
+    record_cameras: bool = True,
+    busy_retries: int = 60,
+    busy_wait_s: float = 10.0,
+    sleep: Callable[[float], None] = time.sleep,
+    repair: Callable[..., RepairResult] | None = None,
+    before_model_call: Callable[[], None] | None = None,
+    retime_grasp: bool = False,
+) -> dict:
+    """The product candidate: perfect_stored_demo(..., "rules") first (retime_grasp: as there); only if the rules discard the demo,
+    perfect_stored_demo_edits on the same raw replay. The edits stay blind: their prompt comes from the raw replay
+    alone, never from the rules' diagnosis or attempts (so never from release_above_bin). The output is the
+    winning stage's demo ("<id>_rules" or "<id>_edits"); the summary keeps both stages'."""
+    retry = {"busy_retries": busy_retries, "busy_wait_s": busy_wait_s, "sleep": sleep}
+    if raw is None:
+        raw = record_raw(store, client, store.get_demo(demo_id), record_cameras=record_cameras, **retry)
+    rules = perfect_stored_demo(store, client, demo_id, "rules", raw=raw, record_cameras=record_cameras,
+                                retime_grasp=retime_grasp, **retry)
+    edits = None
+    if rules["status"] not in PASSED:
+        edits = perfect_stored_demo_edits(store, client, demo_id, raw=raw, record_cameras=record_cameras,
+                                          repair=repair, before_model_call=before_model_call, **retry)
+    stage, winner = next(((s, out) for s, out in (("rules", rules), (EDITS_REPAIRER, edits))
+                          if out is not None and out["status"] in PASSED), (None, None))
+    last = edits or rules
+    return {
+        "demo_id": demo_id,
+        "diagnoser": HYBRID_REPAIRER,
+        "status": "discarded" if winner is None else winner["status"],
+        "stage": stage,  # which stage's output is kept; None when both discarded
+        "output_demo_id": None if winner is None else winner["output_demo_id"],
+        "attempts": rules["attempts"] + (0 if edits is None else edits["attempts"]),
+        "repairs": [] if winner is None else winner["repairs"],
+        "diagnosis_source": None if winner is None else winner["diagnosis_source"],
+        "model_id": None if edits is None else edits["model_id"],
+        "calls": 0 if edits is None else edits["calls"],
+        "cost_usd": 0.0 if edits is None else edits["cost_usd"],
+        "rescues": [] if edits is None else edits["rescues"],
+        "verification": (winner or last)["verification"],
+        "raw_verification": raw.verification.model_dump(),
+        "rules": rules,
+        EDITS_REPAIRER: edits,
+        "notes": rules["notes"] + ([] if edits is None else edits["notes"]),
     }

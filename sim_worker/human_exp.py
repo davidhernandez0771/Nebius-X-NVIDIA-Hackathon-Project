@@ -9,6 +9,10 @@ home-start variants, so the variants start at home too and never at home moved w
 
 Variant seeds: source i, variant k -> 3100 + 100 i + k (k < 100), all below the eval scenes (5000+).
 
+The 2026-10-20 data fixes (research note), each off unless asked for: wrap_yaw (the multiplier turns the hand only to
+the cube's nearest face) and approach (offset, yaw): the centered approach at the retimed grasp's hover
+(homeset.center_from_hover); a variant whose source has no hover (its grasp was not retimed) is left as it was.
+
 The statistics: headline() counts only the pre-registered eval seeds (an episode that ended in sim_error or
 policy_error says nothing about the policy and is reported as missing); compare() is the two-sided Fisher exact
 test and Wilson 95% CIs from demo_pipeline.stats.
@@ -19,11 +23,13 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 
+import numpy as np
+
 from demo_pipeline.multiply import transform_trajectory
-from demo_pipeline.schemas import Scene, Trajectory
+from demo_pipeline.schemas import INPUT_MODES, Demo, Scene, Trajectory
 from demo_pipeline.stats import fisher_exact, wilson_ci
 from demo_pipeline.store import DemoStore
-from sim_worker.homeset import EVAL_SEED_MIN, rehome
+from sim_worker.homeset import EVAL_SEED_MIN, center_from_hover, rehome
 
 VARIANT_SEED0 = 3100
 VARIANTS_MAX = 100  # variants per source: one block of 100 seeds each
@@ -32,28 +38,53 @@ INFRA_ENDINGS = ("sim_error", "policy_error")
 RAW_CONDITION, MULT_CONDITION = "raw", "perfected_multiply"
 
 
-def select_ids(store: DemoStore, ids: list[str] | None = None, tag: str | None = None) -> list[str]:
+def select_ids(store: DemoStore, ids: list[str] | None = None, tag: str | None = None,
+               input: str | None = None) -> list[str]:
     """The human demos to use: `ids` as given (in that order), or every human demo whose id matches the fnmatch
-    pattern `tag`, sorted. ValueError for a missing or derived demo, or a tag that matches nothing."""
+    pattern `tag`, sorted. With `input` ("camera" | "keyboard" | "mouse"), only demos recorded with that input
+    (Demo.input; strict, so older demos without one never match). ValueError for a missing or derived demo, an
+    id recorded with another input, or a tag that matches nothing."""
     if (ids is None) == (tag is None):
         raise ValueError("give exactly one of ids or tag")
+    if input is not None and input not in INPUT_MODES:
+        raise ValueError(f"input must be one of {INPUT_MODES}, got {input!r}")
     if ids is not None:
         for id in ids:
             if not store.has_demo(id):
                 raise ValueError(f"demo {id!r} not found in {store.root}")
             if store.get_demo(id).source != "human":
                 raise ValueError(f"demo {id!r} is not a human demo ({store.get_demo(id).source})")
+            if input is not None and store.get_demo(id).input != input:
+                raise ValueError(f"demo {id!r} was recorded with input {store.get_demo(id).input!r}, not {input!r}")
         if len(set(ids)) != len(ids):
             raise ValueError("a demo id is listed twice")
         return list(ids)
-    found = sorted(d.id for d in store.list_demos(source="human") if fnmatch.fnmatchcase(d.id, tag))
+    found = sorted(d.id for d in store.list_demos(source="human")
+                   if fnmatch.fnmatchcase(d.id, tag) and (input is None or d.input == input))
     if not found:
-        raise ValueError(f"no human demo in {store.root} matches {tag!r}")
+        raise ValueError(f"no human demo in {store.root} matches {tag!r}" + (f" with input {input!r}" if input else ""))
     return found
 
 
 def demo_sha256(store: DemoStore, id: str) -> str:
     return hashlib.sha256((store.root / "demos" / id / "demo.json").read_bytes()).hexdigest()
+
+
+def achieved_demo(demo: Demo, ee_pos, ee_quat) -> Demo:
+    """The demo with its trajectory replaced by the tool pose the arm reached each step (the live episode's
+    steps.npz ee_pos / ee_quat, recorded at the same 50 Hz), and the old trajectory kept as `commanded`.
+
+    Teleop demos recorded before Demo.commanded existed hold the hand targets, which the arm lagged by 2.5-5 cm
+    (live test #10): replaying them is another motion (0/10 in the bin on replay, 10/10 live). A demo that already
+    has `commanded` already holds the achieved path and comes back unchanged."""
+    if demo.commanded is not None:
+        return demo
+    a = demo.trajectory.to_arrays()
+    pos, quat = np.asarray(ee_pos, dtype=np.float64), np.asarray(ee_quat, dtype=np.float64)
+    if pos.shape != a["ee_pos"].shape or quat.shape != a["ee_quat"].shape:
+        raise ValueError(f"{demo.id}: the live episode has {len(pos)} steps but the demo has {len(a['t'])}")
+    achieved = Trajectory.from_arrays(a["t"], pos, quat / np.linalg.norm(quat, axis=1, keepdims=True), a["gripper"])
+    return demo.model_copy(update={"trajectory": achieved, "commanded": demo.trajectory})
 
 
 def align_home(traj: Trajectory) -> tuple[Trajectory, int]:
@@ -62,8 +93,15 @@ def align_home(traj: Trajectory) -> tuple[Trajectory, int]:
     return aligned, len(aligned.t) - len(traj.t)
 
 
-def variant_trajectory(aligned: Trajectory, k: int, src: Scene, dst: Scene) -> Trajectory:
-    return rehome(transform_trajectory(aligned, src, dst), k)
+def variant_trajectory(aligned: Trajectory, k: int, src: Scene, dst: Scene, *, wrap_yaw: bool = False,
+                       approach: tuple | None = None) -> Trajectory:
+    """The variant in dst; with the data fixes asked for (see the module docstring)."""
+    variant = rehome(transform_trajectory(aligned, src, dst, wrap_yaw=wrap_yaw), k)
+    if approach is not None:
+        centred = center_from_hover(variant, *approach)
+        if centred is not None:
+            variant = centred
+    return variant
 
 
 def variant_seed(i: int, k: int) -> int:

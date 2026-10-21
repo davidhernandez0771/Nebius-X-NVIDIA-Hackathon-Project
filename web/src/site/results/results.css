@@ -13,6 +13,10 @@
 .sant-results [data-arm="raw"] { --arm: var(--arm-raw); }
 .sant-results [data-arm="x100"],
 .sant-results [data-arm="x300"] { --arm: var(--arm-mult); }
+/* The other experiments: the arm being tested in teal, its baseline grey, and a pending arm hollow. */
+.sant-results [data-arm="base"] { --arm: var(--arm-raw); }
+.sant-results [data-arm="ours"] { --arm: var(--arm-mult); }
+.sant-results [data-arm="pending"] { --arm: transparent; }
 
 .sant-cite {
   display: block;
@@ -113,7 +117,13 @@
   vertical-align: -1px;
 }
 
-.sant-results__ledger tbody tr[data-arm="x100"] td {
+.sant-results__ledger tbody tr[data-arm="pending"] th::before {
+  outline: 1px dashed var(--sant-control);
+  outline-offset: -1px;
+}
+
+.sant-results__ledger tbody tr[data-arm="x100"] td,
+.sant-results__ledger tbody tr[data-arm="ours"] td {
   font-weight: 600;
 }
 
@@ -122,6 +132,54 @@
   text-align: left;
   color: var(--sant-muted);
   font-size: var(--sant-fs-caption);
+}
+
+.sant-results__caption {
+  caption-side: top;
+  padding-bottom: var(--sant-space-2);
+  text-align: left;
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant-results__detail {
+  display: block;
+  padding-left: calc(10px + var(--sant-space-2));
+  font-size: var(--sant-fs-caption);
+  color: var(--sant-muted);
+}
+
+.sant-results__ledger td.sant-results__pending {
+  color: var(--sant-muted);
+  font-style: italic;
+}
+
+.sant-results__finding {
+  max-width: var(--sant-measure);
+  font-size: var(--sant-fs-body);
+  line-height: 1.5;
+}
+
+.sant-results__facts {
+  display: grid;
+  gap: var(--sant-space-1);
+  margin: 0;
+}
+
+.sant-results__facts dt {
+  color: var(--sant-muted);
+  font-size: var(--sant-fs-caption);
+}
+
+.sant-results__facts dd {
+  margin: 0 0 var(--sant-space-2);
+}
+
+.sant-results__facts ul {
+  display: grid;
+  gap: var(--sant-space-1);
+  margin: 0;
+  padding-left: 1.1em;
 }
 
 /* ---------------------------------------------------------------- limits */
@@ -528,4 +586,9 @@
     left: calc(50% + 11px);
     font-size: var(--sant-fs-caption);
   }
+}
+
+/* A store file path has no spaces: let it break anywhere, so it never widens the page (390 px). */
+.sant-cite--file {
+  overflow-wrap: anywhere;
 }

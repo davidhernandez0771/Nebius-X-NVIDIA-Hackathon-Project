@@ -3,7 +3,7 @@
 // step facing that cartridge from outside the spiral, like a turntable you walk round. The scroll
 // snaps to whole steps (stepper.ts); between them the camera glides round the helix.
 import * as THREE from "three";
-import { mixPose, smoother } from "../../core/rail";
+import { arcPose, mixPose, smoother } from "../../core/rail";
 import type { CameraPose } from "../../core/types";
 import { stop } from "../../scene/layout";
 import { N_ITEMS, stepPose } from "../../scene/spiral";
@@ -52,8 +52,18 @@ function view(d: number, dist: number, rise: number, side = 0): CameraPose {
   };
 }
 
-/** Browsing: the cartridge at step d, with its neighbours in view. */
-export const stepView = (d: number) => view(d, DIST, 0.5);
+const browse = (d: number) => view(d, DIST, 0.5);
+
+/**
+ * Browsing: the cartridge at step d, with its neighbours in view. Between two steps the camera goes
+ * round the spiral (arcPose), not across it: at the helix's gap (steps 3 to 4) two neighbours are 161
+ * degrees apart, and a straight line between them passes 3 m from the spiral's axis.
+ */
+export function stepView(d: number): CameraPose {
+  const c = Math.min(N_ITEMS - 1, Math.max(0, d));
+  const i = Math.floor(c);
+  return c === i ? browse(i) : arcPose(browse(i), browse(i + 1), c - i);
+}
 /** The detail view: close on the cartridge at step d. */
 export const detailView = (d: number) => view(d, DETAIL_DIST, 0.15, DETAIL_SIDE);
 

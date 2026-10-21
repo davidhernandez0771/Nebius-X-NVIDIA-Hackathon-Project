@@ -249,3 +249,97 @@ def test_idle_at_the_ends_under_strong_tremor_is_idle_not_a_pause():
         for p in _issues(_detect(tr), "pause"):
             inside = sum(max(0.0, min(p.t1, b) - max(p.t0, a)) for a, b in idle)
             assert inside < 0.5 * (p.t1 - p.t0), (seed, p, idle)
+
+
+# --- the two failures live test #10's human demos had -------------------------------------------------------
+
+SCENE = Scene(cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=IDENTITY),
+              bin_pose=Pose(pos=(0.5, 0.3, 0.0), quat_wxyz=IDENTITY), robot="franka", seed=0)
+
+
+def _signals(tr: Trajectory, *, cube=(0.5, 0.0, 0.025), carried=True, collide_at=()) -> SimSignals:
+    """Replay signals on tr's steps: the cube rides with the tool from the close to the open (if carried), else
+    stays put; arm-vs-bin contact at 40 N on the steps in collide_at."""
+    n = len(tr.t)
+    g, p = np.asarray(tr.gripper), np.asarray(tr.ee_pos)
+    cube_pos = np.tile(np.asarray(cube, dtype=float), (n, 1))
+    if carried:
+        held = np.flatnonzero(g == 1)
+        cube_pos[held] = p[held]
+        cube_pos[held[-1] + 1:] = p[held[-1]]
+    hit = np.zeros(n, bool)
+    hit[list(collide_at)] = True
+    return SimSignals(cube_pos, (g == 1) & carried, hit, np.zeros(n, bool), np.where(hit, 40.0, 0.0))
+
+
+def _detect_with(tr, reasons, sig, scene=SCENE):
+    return detect_rules(tr, compute_windows(tr, _sim(len(tr.t))), reasons=reasons, signals=sig, scene=scene)
+
+
+def test_collision_while_placing_gets_release_above_bin_at_the_release():
+    tr = _traj(*_clean_arrays())
+    _, t_open = gripper_events(tr)
+    k_open = round(t_open / DT)
+    diag = _detect_with(tr, ["collision"], _signals(tr, collide_at=range(k_open - 10, k_open)))
+    (op,) = _repairs(diag, "release_above_bin")
+    assert op.t == pytest.approx(t_open)
+    assert _issues(diag, "rim_contact") and diag.decision == "repair"
+    diag.check_times(tr.t[-1])
+
+
+def test_collision_before_the_final_grasp_is_not_a_placing_problem():
+    tr = _traj(*_clean_arrays())
+    t_close, _ = gripper_events(tr)
+    k_close = round(t_close / DT)
+    diag = _detect_with(tr, ["collision"], _signals(tr, collide_at=range(k_close - 20, k_close - 5)))
+    assert not _repairs(diag, "release_above_bin")
+
+
+def test_collision_in_the_signals_but_not_in_the_verdict_changes_nothing():
+    tr = _traj(*_clean_arrays())
+    _, t_open = gripper_events(tr)
+    k_open = round(t_open / DT)
+    diag = _detect_with(tr, [], _signals(tr, collide_at=range(k_open - 10, k_open)))
+    assert not _repairs(diag, "release_above_bin")
+
+
+@pytest.mark.parametrize("reasons,carried", [(["not_in_bin"], False), (["dropped", "not_in_bin"], True)])
+def test_an_off_centre_grasp_that_failed_gets_recentred(reasons, carried):
+    tr = _traj(*_clean_arrays())  # closes at x = 0.50
+    scene = SCENE.model_copy(update={"cube_pose": Pose(pos=(0.52, 0.0, 0.025), quat_wxyz=IDENTITY)})
+    t_close, _ = gripper_events(tr)
+    diag = _detect_with(tr, reasons, _signals(tr, cube=(0.52, 0.0, 0.025), carried=carried), scene)
+    (op,) = _repairs(diag, "recenter_grasp")
+    assert op.t == pytest.approx(t_close)
+    assert _issues(diag, "grasp_off_center")
+    diag.check_times(tr.t[-1])
+
+
+def test_a_centred_grasp_or_a_held_cube_is_not_recentred():
+    tr = _traj(*_clean_arrays())
+    # centred (2 mm < the 3.3 mm tracking error) and failed: nothing to recentre
+    near = SCENE.model_copy(update={"cube_pose": Pose(pos=(0.502, 0.0, 0.025), quat_wxyz=IDENTITY)})
+    assert not _repairs(_detect_with(tr, ["not_in_bin"], _signals(tr, cube=(0.502, 0.0, 0.025), carried=False),
+                                     near), "recenter_grasp")
+    # off-centre but the grasp held and nothing dropped: not the failure
+    off = SCENE.model_copy(update={"cube_pose": Pose(pos=(0.52, 0.0, 0.025), quat_wxyz=IDENTITY)})
+    assert not _repairs(_detect_with(tr, ["collision"], _signals(tr, cube=(0.52, 0.0, 0.025)), off),
+                        "recenter_grasp")
+
+
+def test_a_close_after_the_cube_was_pushed_away_is_not_recentred_onto_where_it_was():
+    tr = _traj(*_clean_arrays())
+    # the replay pushed the cube 4 cm before the close: recenter_grasp aims at the scene's cube pose, so skip it
+    diag = _detect_with(tr, ["not_in_bin"], _signals(tr, cube=(0.54, 0.0, 0.025), carried=False))
+    assert not _repairs(diag, "recenter_grasp")
+
+
+def test_the_new_rules_need_the_replay_signals_and_the_scene():
+    tr = _traj(*_clean_arrays())
+    _, t_open = gripper_events(tr)
+    k_open = round(t_open / DT)
+    sig = _signals(tr, collide_at=range(k_open - 10, k_open))
+    assert not _repairs(detect_rules(tr, compute_windows(tr, _sim(len(tr.t))), reasons=["collision"], signals=sig),
+                        "release_above_bin")  # no scene
+    assert not _repairs(detect_rules(tr, compute_windows(tr, _sim(len(tr.t))), reasons=["collision"], scene=SCENE),
+                        "release_above_bin")  # no signals

@@ -22,3 +22,5 @@ export { useReplayTwin, useVerifiedCopies, type ReplayTwin } from "./useReplayTw
 export { twinSocketUrl, type LiveStatus, type LiveTwin } from "./live";
 export type { Episode, EpisodeSummary } from "./replay";
 export type { TwinPose, TwinState } from "./types";
+export type { TwinObject } from "./messages";
+export { COLLISION_MARK, COLLISION_N, barFraction, contactLevel, contactText, type TwinContact } from "./contact";

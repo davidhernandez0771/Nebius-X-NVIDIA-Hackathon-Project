@@ -27,6 +27,9 @@ if not args_cli.no_cameras:
     args_cli.enable_cameras = True  # cameras need the rendering extensions in headless launches
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 from demo_pipeline.episode_io import load_signals  # noqa: E402
 from demo_pipeline.schemas import Pose, Scene  # noqa: E402
@@ -35,6 +38,7 @@ from sim_worker.scripted import scripted_expert  # noqa: E402
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     t0 = time.time()
     scene = Scene(
         cube_pose=Pose(pos=(0.5, 0.0, 0.025), quat_wxyz=(1.0, 0.0, 0.0, 0.0)),

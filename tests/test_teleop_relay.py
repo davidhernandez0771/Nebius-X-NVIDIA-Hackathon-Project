@@ -134,13 +134,33 @@ def _sim_status(**over) -> dict:
     return status
 
 
-@pytest.mark.parametrize("action", ["record_start", "record_stop", "reset_scene"])
+@pytest.mark.parametrize("action", ["record_start", "record_stop", "record_discard", "reset_scene"])
 def test_control_message_is_forwarded_to_sim(client, action):
     with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
         browser.receive_json()
         browser.send_json(_control(action))
 
         assert sim.receive_json() == _control(action)
+
+
+@pytest.mark.parametrize("mode", ["camera", "keyboard", "mouse"])
+def test_set_input_is_forwarded_with_its_input(client, mode):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json({"type": "control", "action": "set_input", "input": mode})
+        assert sim.receive_json() == {"type": "control", "action": "set_input", "input": mode}
+
+
+def test_set_input_needs_a_known_input_and_only_set_input_takes_one(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        for bad in ({"type": "control", "action": "set_input"},
+                    {"type": "control", "action": "set_input", "input": "joystick"},
+                    {"type": "control", "action": "record_start", "input": "keyboard"}):
+            browser.send_json(bad)
+            assert browser.receive_json()["type"] == "error"
+        browser.send_json(_control("record_stop"))
+        assert sim.receive_json() == _control("record_stop")  # nothing invalid got through
 
 
 def test_invalid_control_is_rejected_and_not_forwarded(client):
@@ -274,3 +294,79 @@ def test_a_traced_message_is_still_validated(client):
 
         assert error["type"] == "error" and "wrist_uv" in error["detail"]
         assert sim.receive_text() == _msg_text(2000.0)
+
+
+# --- the soft floor and the contact glow (pm/record-contact) -------------------------------
+
+@pytest.mark.parametrize("on", [True, False])
+def test_set_assist_is_forwarded_with_its_soft_floor(client, on):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json({"type": "control", "action": "set_assist", "soft_floor": on})
+        assert sim.receive_json() == {"type": "control", "action": "set_assist", "soft_floor": on}
+
+
+def test_set_assist_needs_a_bool_and_only_set_assist_takes_one(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        for bad in ({"type": "control", "action": "set_assist"},
+                    {"type": "control", "action": "set_assist", "soft_floor": "yes"},
+                    {"type": "control", "action": "set_assist", "soft_floor": 1},
+                    {"type": "control", "action": "record_start", "soft_floor": True}):
+            browser.send_json(bad)
+            assert browser.receive_json()["type"] == "error"
+        browser.send_json(_control("record_stop"))
+        assert sim.receive_json() == _control("record_stop")
+
+
+def test_sim_status_carries_the_soft_floor_and_the_takes_peak_force(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        status = _sim_status(soft_floor=True, contact_peak_n=312.0)
+        sim.send_json(status)
+        assert browser.receive_json() == {**status, "paused": False}
+        sim.send_json(_sim_status(contact_peak_n=-1))
+        assert sim.receive_json()["type"] == "error"
+
+
+def test_an_older_sims_status_is_forwarded_without_the_new_fields(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        sim.send_json(_sim_status())
+        got = browser.receive_json()
+        assert "soft_floor" not in got and "contact_peak_n" not in got
+
+
+# --- the scene picker (pm/record-scenes) -------------------------------------------------------
+
+def test_set_scene_is_forwarded_with_its_scene_id(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        browser.send_json({"type": "control", "action": "set_scene", "scene": "s7"})
+        assert sim.receive_json() == {"type": "control", "action": "set_scene", "scene": "s7"}
+
+
+def test_set_scene_needs_a_safe_id_and_only_set_scene_takes_one(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        for bad in ({"type": "control", "action": "set_scene"},
+                    {"type": "control", "action": "set_scene", "scene": "../etc"},
+                    {"type": "control", "action": "set_scene", "scene": 7},
+                    {"type": "control", "action": "record_start", "scene": "s1"}):
+            browser.send_json(bad)
+            assert browser.receive_json()["type"] == "error"
+        browser.send_json(_control("record_stop"))
+        assert sim.receive_json() == _control("record_stop")
+
+
+def test_sim_status_carries_the_scene(client):
+    with client.websocket_connect(SIM) as sim, client.websocket_connect(BROWSER) as browser:
+        browser.receive_json()
+        scene = {"id": "s8", "name": "S8 Taller bin", "hash": "0123456789abcdef",
+                 "settle": {"ok": False, "errors": ["cube moved 2 cm"]}, "switching": None,
+                 "playlist": {"index": 2, "of": 12, "take": 1, "takes_per_scene": 2}}
+        status = _sim_status(scene=scene)
+        sim.send_json(status)
+        assert browser.receive_json() == {**status, "paused": False}
+        sim.send_json(_sim_status())
+        assert "scene" not in browser.receive_json()  # an older sim: as before

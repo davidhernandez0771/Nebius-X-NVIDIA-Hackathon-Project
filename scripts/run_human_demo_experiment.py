@@ -1,20 +1,33 @@
 """One command for the whole human-demo experiment: saved demos in, a results JSON the Results page reads out.
 
     uv run --with pillow python scripts/run_human_demo_experiment.py --name <name> --tag "human_2026*" ^
-        [--data-dir <DATA_DIR>] [--ids a,b,c] [--smoke] [--until <stage>] [--no-nemotron] [--publish-results]
+        [--data-dir <DATA_DIR>] [--ids a,b,c] [--smoke] [--until <stage>] [--sim-until <step>] ^
+        [--replay-path achieved|commanded] [--repairer rules|nemotron-edits] [--no-nemotron] [--publish-results]
 
 Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stages/ and a re-run resumes:
-  select    the demos (--ids, or --tag: an fnmatch pattern over human demo ids), frozen with each demo.json's
+  select    the demos (--ids, or --tag: an fnmatch pattern over human demo ids; --input keyboard|mouse|camera keeps only
+            demos recorded with that input), frozen with each demo.json's
             SHA-256 in config.json together with every setting; preregistration.md is written from it, before
             anything is trained. Only demo.json is copied into the experiment's own DemoStore (<exp>/store):
             the user's store, its live episodes and diagnoses are never written.
+            --replay-path achieved (the default; commanded with --smoke): the copy replays the tool pose the
+            arm reached (the live episode's steps.npz, 50 Hz), with the hand targets kept as Demo.commanded and
+            a replay_path.json saying why. Demos recorded before Demo.commanded hold the targets, which the arm
+            lagged: replaying them was another motion (live test #10: 0/10 in the bin on replay, 10/10 live).
+            A demo without a live episode is refused; stand-ins need --replay-path commanded.
   sim       one sim worker (Isaac, cameras, Franka), started and stopped here, under the GPU lock:
               physics   replay every demo as recorded: Isaac's verdict on what the person did;
-              repair    perfect it with the rules (app.jobs.perfect_stored_demo -> "<id>_rules", verified);
+              repair    perfect it with the rules (app.jobs.perfect_stored_demo -> "<id>_rules", verified), or,
+                        with --repairer nemotron-edits, with Nemotron's trajectory edits, each verified the same way
+                        (app.jobs.perfect_stored_demo_edits -> "<id>_edits"; the hand-written ops are not used),
+                        or, with --repairer hybrid, the rules first and the edits only for a demo they discard
+                        (app.jobs.perfect_stored_demo_hybrid -> the winning stage's "<id>_rules" or "<id>_edits");
               align     start every training episode at home (sim_worker.human_exp.align_home): "<id>_home"
                         (raw arm, no repairs) and "<id>_rules_home" (the repaired one);
               multiply  --variants new scenes per repaired demo, rehomed like sprint 6's home-start variants,
                         each replayed and kept only if it verifies ("<id>_rules_home_m<seed>").
+            --sim-until physics|repair|align stops after that step (the stages after sim don't run either);
+            a later run without it carries on from the markers.
   grid      raw_<n> and perfected_multiply_<n> for lerobot_tools.experiments (checked with build_manifest).
   nemotron  T3's labeler and judge (app.ai.intent, demo_pipeline.intent.review_verdict): a label per human
             demo, a match for --judge-copies verified copies each; a ReviewVerdict card next to each passport in
@@ -27,6 +40,10 @@ Stages, in order. Each writes a done-marker under DATA_DIR/human_exp/<name>/stag
             <exp>/results.json in the shape web/src/pm/results/results.ts reads (plus an "experiment" block).
             --publish-results also copies it to DATA_DIR/results/results.json (the old one is kept as .bak).
 
+--multiplied-only: an absolute test of the perfected+multiplied cell alone (when the raw arm would only be failed
+replays): the grid, training and eval take that cell only, it starts from its own dataset's start state, and the
+results are its successes with a Wilson 95% CI (no Fisher test; --publish-results refuses: the page wants two arms).
+
 --smoke: 2000 ACT steps and 5 eval seeds unless given, and "sample": true in the results, so the page shows it as
 sample data: a smoke run proves the stages work, it measures nothing.
 
@@ -37,6 +54,7 @@ Exit: 0 done (or stopped at --until), 1 refused, 2 stopped (a worker or child pr
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -55,7 +73,9 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))  # sim_worker, lerobot_tools
 
-from app.jobs import _copy_episode, is_infrastructure, perfect_stored_demo, record_raw, stored_raw  # noqa: E402
+from app.jobs import (EDITS_REPAIRER, HYBRID_REPAIRER, _copy_episode, is_infrastructure,  # noqa: E402
+                      perfect_stored_demo, perfect_stored_demo_edits, perfect_stored_demo_hybrid, record_raw,
+                      stored_raw)
 from app.sim_client import SimWorkerClient, SimWorkerError  # noqa: E402
 from demo_pipeline import PIPELINE_VERSION  # noqa: E402
 from demo_pipeline.multiply import sample_scene  # noqa: E402
@@ -63,8 +83,12 @@ from demo_pipeline.results import build_results  # noqa: E402
 from demo_pipeline.schemas import Demo, Passport, Trajectory, VerificationResult  # noqa: E402
 from demo_pipeline.sim_protocol import ReplayRequest  # noqa: E402
 from demo_pipeline.store import DemoStore, write_atomic  # noqa: E402
-from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, align_home, cells, compare, config_diff,  # noqa: E402
-                                  demo_sha256, headline, select_ids, variant_seed, variant_trajectory)
+from sim_worker.human_exp import (MULT_CONDITION, RAW_CONDITION, _arm, achieved_demo, align_home, cells,  # noqa: E402
+                                  compare, config_diff, demo_sha256, headline, select_ids, variant_seed,
+                                  variant_trajectory)
+from sim_worker.homeset import approach_misalignment, find_hover  # noqa: E402
+from lerobot_tools.inference import InferenceOptions, add_inference_args  # noqa: E402
+from lerobot_tools.train import MAX_STEPS  # noqa: E402
 
 ISAAC_PY = Path(r"C:\isaac\env_isaaclab\Scripts\python.exe")
 LEROBOT_PY = Path(r"C:\venvs\lerobot\Scripts\python.exe")
@@ -72,6 +96,11 @@ STAGES = ("select", "sim", "grid", "nemotron", "train", "eval", "results")
 ROBOT = "franka"
 BATCH = 8
 DEFAULTS = {"variants": 10, "steps": 30_000, "save_freq": 2500, "eval_n": 40, "eval_seed0": 5020}
+SIM_STEPS = ("physics", "repair", "align", "multiply")
+REPLAY_PATHS = ("achieved", "commanded")
+REPAIRERS = ("rules", EDITS_REPAIRER, HYBRID_REPAIRER)
+REPAIR_TEXT = {EDITS_REPAIRER: "repaired with Nemotron's trajectory edits",
+               HYBRID_REPAIRER: "repaired: rules first; Nemotron's trajectory edits for a demo the rules discard"}
 SMOKE = {"steps": 2000, "save_freq": 2000, "eval_n": 5}
 LABEL_FRAMES, JUDGE_FRAMES, MODEL_SIZE = 8, 4, 256  # as T3's pre-registered test (scripts/intent_eval.py)
 
@@ -149,6 +178,14 @@ class Experiment:
         n = self.config["n_human"]
         return f"{RAW_CONDITION}_{n}", f"{MULT_CONDITION}_{n}"
 
+    @property
+    def multiplied_only(self) -> bool:
+        return bool(self.config.get("multiplied_only"))
+
+    def trained_cells(self) -> tuple[str, ...]:
+        """The cells this run trains and evaluates: both, or the multiplied one with --multiplied-only."""
+        return self.cell_names()[1:] if self.multiplied_only else self.cell_names()
+
     def has_episode(self, id: str) -> bool:
         return self.store.has_demo(id) and (self.store.episode_dir(id) / "episode.json").is_file()
 
@@ -158,15 +195,21 @@ class Experiment:
 
     # --- select -------------------------------------------------------------------------------------
 
-    def select(self, *, ids: list[str] | None, tag: str | None, settings: dict, force_config: bool = False) -> None:
+    def select(self, *, ids: list[str] | None, tag: str | None, settings: dict, force_config: bool = False,
+               input: str | None = None) -> None:
         path = self.root / "config.json"
         old = _read_json(path)
         if old is not None and ids is None and tag is None:  # a resume: the frozen selection
-            chosen, tag = old["ids"], old.get("tag")
+            chosen, tag, input = old["ids"], old.get("tag"), old.get("input")
         else:
-            chosen = select_ids(self.deps.user_store, ids=ids, tag=tag)
+            chosen = select_ids(self.deps.user_store, ids=ids, tag=tag, input=input)
+        min_n = settings.get("min_demos")
+        if min_n and len(chosen) < min_n:  # pre-registered: too few demos refuses, nothing is frozen
+            raise Refused(f"{len(chosen)} demos selected ({tag or ','.join(chosen)}"
+                          f"{f', input {input}' if input else ''}); this run needs at least {min_n} (--min-demos)")
         config = {
             "name": self.name, "ids": chosen, "n_human": len(chosen), "tag": tag,
+            **({"input": input} if input is not None else {}),  # only when filtered: older frozen configs still match
             "demo_sha256": {id: demo_sha256(self.deps.user_store, id) for id in chosen},
             "robot": ROBOT, "repair": "rules", "batch_size": BATCH, "policy": "act",
             "start_alignment": "every training episode starts at home: sim_worker.human_exp.align_home",
@@ -175,6 +218,21 @@ class Experiment:
             "test": "fisher_exact_two_sided", "alpha": 0.05, "ci": "wilson_95",
             "pipeline_version": PIPELINE_VERSION, **settings,
         }
+        assists = {id: a.model_dump() if (a := self.deps.user_store.get_demo(id).assist) else None for id in chosen}
+        if any(a is not None for a in assists.values()):  # reported, never filtered; absent for older demos
+            config["assist"] = assists
+        if config["repair"] not in REPAIRERS:
+            raise Refused(f"repair must be one of {REPAIRERS}, got {config['repair']!r}")
+        config["replay_path"] = settings.get("replay_path", "achieved")
+        if config["replay_path"] not in REPLAY_PATHS:
+            raise Refused(f"replay_path must be one of {REPLAY_PATHS}, got {config['replay_path']!r}")
+        # Frozen, so a run states how it tracked. Measured on live test #10's demos: lookahead 0 replays the achieved
+        # path with no time shift (4.9-6.4 mm); 1 leads it by a step (9.6-12 mm) and reproduced fewer live outcomes.
+        config["replay_lookahead"] = int(settings.get("replay_lookahead", 0))
+        if config["replay_lookahead"] < 0:
+            raise Refused(f"replay_lookahead must be >= 0, got {config['replay_lookahead']}")
+        if config["replay_path"] == "achieved":
+            config["steps_sha256"] = {id: self._live_steps_sha256(id) for id in chosen}
         if old is not None:
             diff = [k for k in config_diff(old, config) if k != "frozen_at"]
             if diff and not force_config:
@@ -188,28 +246,59 @@ class Experiment:
         (self.root / "preregistration.md").write_text(preregistration(config), encoding="utf-8")
         for id in chosen:  # demo.json only: the user's episode, passport and diagnosis stay where they are
             dst = self.root / "store" / "demos" / id / "demo.json"
-            if not dst.is_file():
-                dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.is_file():
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if config["replay_path"] == "commanded":
                 shutil.copyfile(self.deps.user_store.root / "demos" / id / "demo.json", dst)
+                continue
+            user_demo = self.deps.user_store.get_demo(id)
+            with np.load(self._live_steps(id)) as steps:
+                demo = achieved_demo(user_demo, steps["ee_pos"], steps["ee_quat"])
+            self.store.save_demo(demo)
+            _write_json(dst.parent / "replay_path.json", {
+                "replay_path": "achieved",
+                "why": ("the user's demo.json holds the hand targets the arm lagged (2.5-5 cm in live test #10), and "
+                        "replaying them was another motion (0/10 in the bin on replay, 10/10 live); this copy "
+                        "replays the tool pose the arm reached, and keeps the targets as `commanded`"
+                        if user_demo.commanded is None else "the user's demo.json already holds the achieved path"),
+                "from": str(self._live_steps(id)), "steps_sha256": config["steps_sha256"][id],
+                "user_demo_sha256": config["demo_sha256"][id], "at": _now()})
         _write_json(self.marker("select"), {"ids": chosen, "at": _now()})
-        self.log(f"select: {len(chosen)} demos: {', '.join(chosen)}")
+        self.log(f"select: {len(chosen)} demos: {', '.join(chosen)} (replaying the {config['replay_path']} path)")
+
+    def _live_steps(self, id: str) -> Path:
+        return self.deps.user_store.episode_dir(id) / "steps.npz"
+
+    def _live_steps_sha256(self, id: str) -> str:
+        path = self._live_steps(id)
+        if not path.is_file():
+            raise Refused(f"{id}: no live episode ({path}) to take the achieved path from; a demo without one "
+                          f"(a stand-in) needs --replay-path commanded")
+        return hashlib.sha256(path.read_bytes()).hexdigest()
 
     # --- sim: physics, repair, align, multiply --------------------------------------------------------
 
-    def sim(self) -> None:
+    def sim(self, until: str = "multiply") -> bool:
+        """physics, repair, align, multiply, stopping after `until`. True once all four are done."""
         if self.marker("sim").is_file():
             self.log("sim: done earlier")
-            return
+            return True
+        steps = (self.physics, self.repair, self.align, self.multiply)
         with self.deps.sim_session() as client:
             health = client.health()
             if not (health.ok and health.cameras and ROBOT in health.robots):
                 raise Stop(f"the sim worker can't record {ROBOT} camera episodes: {health}")
-            for step in (self.physics, self.repair, self.align, self.multiply):
+            for step in steps[: SIM_STEPS.index(until) + 1]:
                 try:
                     step(client)
                 except SimWorkerError as e:
                     raise Stop(f"{step.__name__}: the sim worker failed ({e}); re-run to resume") from e
+        if until != SIM_STEPS[-1]:
+            self.log(f"sim: stopped after {until} (--sim-until); nothing after it ran")
+            return False
         _write_json(self.marker("sim"), {"at": _now(), **self.sim_summary()})
+        return True
 
     def physics(self, client) -> None:
         for id in self.ids:
@@ -228,7 +317,14 @@ class Experiment:
             if self.marker("repair", id).is_file():
                 continue
             raw = stored_raw(self.store, id, need_cameras=True)
-            summary = perfect_stored_demo(self.store, client, id, "rules", raw=raw, record_cameras=True)
+            if self.config.get("repair", "rules") == EDITS_REPAIRER:
+                summary = perfect_stored_demo_edits(self.store, client, id, raw=raw, record_cameras=True)
+            elif self.config.get("repair") == HYBRID_REPAIRER:
+                summary = perfect_stored_demo_hybrid(self.store, client, id, raw=raw, record_cameras=True,
+                                                     retime_grasp=bool(self.config.get("grasp_retime")))
+            else:
+                summary = perfect_stored_demo(self.store, client, id, "rules", raw=raw, record_cameras=True,
+                                              retime_grasp=bool(self.config.get("grasp_retime")))
             _write_json(self.marker("repair", id), summary)
             self.log(f"repair {id}: {summary['status']} ({len(summary['repairs'])} repairs, "
                      f"{summary['attempts']} verification(s))")
@@ -301,8 +397,11 @@ class Experiment:
                     continue
                 dst = sample_scene(np.random.default_rng(seed), ROBOT, seed)
                 vid = f"{src_id}_m{seed:04d}"
+                offset = self.config.get("approach_offset_m")
                 try:
-                    vt = variant_trajectory(src.trajectory, k, src.scene, dst)
+                    vt = variant_trajectory(src.trajectory, k, src.scene, dst,
+                                            wrap_yaw=bool(self.config.get("yaw_wrap")),
+                                            approach=approach_misalignment(seed, offset) if offset else None)
                 except ValueError as e:
                     mark["error"] = str(e)
                     break
@@ -310,6 +409,8 @@ class Experiment:
                     v = self._replay_into_store(client, vid, src_id, vt, dst, source="variant", variant_seed=seed)
                     row = {"seed": seed, "id": vid if v.success else None, "success": v.success,
                            "reasons": v.reasons}
+                    if offset:  # whether the centered approach applied (a source with no hover keeps its own)
+                        row["centred"] = find_hover(src.trajectory) is not None
                 except SimWorkerError as e:
                     if is_infrastructure(e):
                         _write_json(path, mark)
@@ -360,7 +461,14 @@ class Experiment:
                 mult_dirs += [str(self.store.episode_dir(a["id"])) for a in mark["attempts"] if a["success"]]
             else:
                 notes.append(f"{id}: nothing in the multiplied arm (repair {((_read_json(self.marker('repair', id)) or {}).get('status'))})")
-        grid = {"name": self.grid_name, "cells": cells(raw_dirs, mult_dirs, self.config["n_human"])}
+        try:
+            grid = {"name": self.grid_name, "cells": cells(raw_dirs, mult_dirs, self.config["n_human"])}
+        except ValueError as e:  # nothing verified for one arm: nothing to train, and not a crash
+            for note in notes:
+                self.log(f"grid: {note}")
+            raise Refused(f"empty cell: {e} (each demo's stage markers are under {self.stages})") from e
+        if self.multiplied_only:
+            grid["cells"] = [c for c in grid["cells"] if c["condition"] == MULT_CONDITION]
         from lerobot_tools.assemble import Cell, build_manifest
 
         manifests = {}
@@ -369,8 +477,8 @@ class Experiment:
             manifests[c["condition"]] = {k: m[k] for k in ("n_episodes", "n_frames", "human_roots")}
         _write_json(path, grid)
         _write_json(self.marker("grid"), {"grid": str(path), "cells": manifests, "notes": notes, "at": _now()})
-        self.log(f"grid: raw {manifests[RAW_CONDITION]['n_episodes']} episodes, multiplied "
-                 f"{manifests[MULT_CONDITION]['n_episodes']} episodes" + (f"; {len(notes)} notes" if notes else ""))
+        self.log("grid: " + ", ".join(f"{k} {m['n_episodes']} episodes" for k, m in manifests.items())
+                 + (f"; {len(notes)} notes" if notes else ""))
         return path
 
     # --- nemotron ------------------------------------------------------------------------------------
@@ -440,6 +548,10 @@ class Experiment:
         cmd = [str(LEROBOT_PY), "-m", "lerobot_tools.experiments", "--grid", str(self.root / "grid.json"),
                "--steps", str(self.config["steps"]), "--batch-size", str(BATCH),
                "--save-freq", str(min(self.config["save_freq"], self.config["steps"]))]
+        if self.config.get("augment"):  # the improved recipe's options, only when frozen in the config
+            cmd += ["--augment", self.config["augment"]]
+        if self.config.get("dilation"):
+            cmd += ["--dilation"]
         self.log(f"train: {' '.join(cmd)}")
         with self.deps.gpu_stage(f"human-exp:{self.name}:train"):
             rc = self.deps.run(cmd, self.root / "logs" / "train.log")
@@ -450,7 +562,7 @@ class Experiment:
             raise Stop(f"training wrote no registry row (exit {rc}); see {self.root / 'logs' / 'train.log'}")
         run_id = run_ids[-1]
         rows = {r["cell"]["name"]: r for r in rows if r["run_id"] == run_id}
-        ok = rc == 0 and all(rows.get(c, {}).get("status") == "ok" for c in self.cell_names())
+        ok = rc == 0 and all(rows.get(c, {}).get("status") == "ok" for c in self.trained_cells())
         done = {"run_id": run_id, "exit": rc, "ok": ok, "at": _now(),
                 "cells": {c: {k: r.get(k) for k in ("status", "checkpoint", "dataset", "n_episodes", "n_frames",
                                                     "final_loss", "train_time_s", "error")} for c, r in rows.items()}}
@@ -462,22 +574,30 @@ class Experiment:
 
     def eval(self) -> dict:
         train = _read_json(self.marker("train"))
-        raw_cell, _ = self.cell_names()
+        cells = self.trained_cells()
         run_id, seed0, n = train["run_id"], self.config["eval_seed0"], self.config["eval_n"]
-        start_state = train["cells"][raw_cell]["dataset"]
+        start_state = train["cells"][cells[0]]["dataset"]  # the raw dataset's, or the one cell's own
         evals = self.data / "evals" / run_id
-        if all(self._eval_headline(evals, c)["complete"] for c in self.cell_names()):
+        if all(self._eval_headline(evals, c)["complete"] for c in cells):
             self.log("eval: done earlier")
         else:
             cmd = [str(ISAAC_PY), str(REPO / "sim_eval" / "scripts" / "eval_cells.py"), "--run-id", run_id,
                    "--n", str(n), "--seed0", str(seed0), "--start-state", str(start_state), "--start-pose", "dataset",
                    "--registry", str(self.data / "results" / "registry.jsonl")]
+            if self.multiplied_only:
+                cmd += ["--cells", *cells]
+            if self.config.get("select_steps"):
+                cmd += ["--select-steps", *map(str, self.config["select_steps"]),
+                        "--practice-seed0", str(self.config["practice_seed0"]),
+                        "--practice-n", str(self.config["practice_n"])]
+            if self.config.get("inference"):
+                cmd += InferenceOptions(**self.config["inference"]).run_eval_args()
             self.log(f"eval: {' '.join(cmd)}")
             with self.deps.gpu_stage(f"human-exp:{self.name}:eval"):
                 rc = self.deps.run(cmd, self.root / "logs" / "eval.log")
             if rc != 0:
                 self.log(f"eval: eval_cells exit {rc}; see {self.root / 'logs' / 'eval.log'}")
-        heads = {c: self._eval_headline(evals, c) for c in self.cell_names()}
+        heads = {c: self._eval_headline(evals, c) for c in cells}
         out = {"run_id": run_id, "seed0": seed0, "n": n, "start_state": str(start_state), "cells": heads, "at": _now()}
         _write_json(self.marker("eval"), out)
         if not all(h["complete"] for h in heads.values()):
@@ -496,6 +616,8 @@ class Experiment:
         ev = _read_json(self.marker("eval"))
         train = _read_json(self.marker("train"))
         sim = _read_json(self.marker("sim")) or {}
+        if self.multiplied_only:
+            return self._results_one_arm(ev, train, sim, publish)
         raw_cell, mult_cell = self.cell_names()
         cmp = compare(ev["cells"][raw_cell], ev["cells"][mult_cell])
         registry = [(f"{self.data / 'results' / 'registry.jsonl'}#L{i + 1}", r)
@@ -541,13 +663,44 @@ class Experiment:
             self.log(f"results: published to {dst}")
         return out
 
+    def _results_one_arm(self, ev: dict, train: dict, sim: dict, publish: bool) -> dict:
+        """--multiplied-only: the one cell's successes on the registered seeds, with a Wilson 95% CI."""
+        if publish:
+            raise Refused("--publish-results refuses a --multiplied-only run: the Results page compares two arms, "
+                          "and this run has one arm")
+        _, mult_cell = self.cell_names()
+        head = ev["cells"][mult_cell]
+        smoke = self.config["smoke"]
+        out = {"sample": smoke,
+               "note": ("SMOKE TEST: proves every stage runs; not a result. " if smoke else "")
+               + f"Human-demo experiment {self.name!r}: absolute test of {mult_cell} alone, pre-registered seeds "
+               f"{ev['seed0']}-{ev['seed0'] + ev['n'] - 1}, Wilson 95% CI; no comparison arm.",
+               "experiment": {
+                   "name": self.name, "smoke": smoke, "config": self.config, "run_id": train["run_id"],
+                   "headline": {"multiplied": {**head, **_arm(head)}, "ci": "wilson_95"},
+                   "train": train["cells"],
+                   "data": {k: sim.get(k) for k in ("physics_verified", "repair", "multiply")},
+                   "grid": _read_json(self.marker("grid")),
+                   "nemotron": _read_json(self.marker("nemotron")),
+                   "preregistration": str(self.root / "preregistration.md"),
+               }}
+        _write_json(self.root / "results.json", out)
+        a = out["experiment"]["headline"]["multiplied"]
+        self.log(f"results: {mult_cell} {a['successes']}/{a['n']}, Wilson 95% CI [{a['ci'][0]:.3f}, {a['ci'][1]:.3f}]"
+                 + (" (SMOKE: not a result)" if smoke else "") + f" -> {self.root / 'results.json'}")
+        return out
+
     # --- the run -------------------------------------------------------------------------------------
 
-    def run(self, *, until: str = "results", publish: bool = False) -> None:
-        steps = {"sim": self.sim, "grid": self.grid, "nemotron": self.nemotron, "train": self.train,
+    def run(self, *, until: str = "results", publish: bool = False, sim_until: str = "multiply") -> None:
+        steps = {"grid": self.grid, "nemotron": self.nemotron, "train": self.train,
                  "eval": self.eval, "results": lambda: self.results(publish)}
         for stage in STAGES[1: STAGES.index(until) + 1]:
-            steps[stage]()
+            if stage == "sim":
+                if not self.sim(sim_until):
+                    return
+            else:
+                steps[stage]()
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -569,7 +722,9 @@ def nemotron_summary(cards: dict) -> dict:
 def preregistration(config: dict) -> str:
     """The pre-registration, filled from the frozen config. Written at select, before any training."""
     n, s0, ne = config["n_human"], config["eval_seed0"], config["eval_n"]
-    ids = "\n".join(f"  - `{id}` sha256 `{config['demo_sha256'][id]}`" for id in config["ids"])
+    ids = "\n".join(f"  - `{id}` sha256 `{config['demo_sha256'][id]}`" for id in config["ids"]) + assist_text(config)
+    if config.get("multiplied_only"):
+        return preregistration_one_arm(config, ids)
     return f"""# Pre-registration: human-demo experiment `{config['name']}`
 
 Frozen at {config['frozen_at']} (UTC), before any training or evaluation, from `config.json`.{'''
@@ -582,15 +737,17 @@ trained on the same {n} demos as recorded?
 **Demos** ({n}, frozen by content hash):
 {ids}
 
+**What is replayed** (`replay_path = {config.get('replay_path', 'commanded')}`): {"the tool pose the arm reached each step, from each demo's live episode (steps.npz, 50 Hz, hashes in config.json); the hand targets the arm lagged are kept as `commanded`, for diagnostics only." if config.get('replay_path') == 'achieved' else "each demo's stored trajectory, as is."} Every replay in this experiment (physics, repair, alignment, variants) tracks with lookahead {config.get('replay_lookahead', 0)} (the sim worker's `--lookahead`).
+
 **Arms.** Both arms use ACT, {config['steps']} steps, batch {config['batch_size']}, the same recipe and seed.
 - **raw_{n}:** every demo as recorded, start-aligned
   (`raw_arm = {config['raw_arm']}`{': all demos, whether or not physics verified them' if config['raw_arm'] == 'all' else ': only the demos physics verified'}).
 - **perfected_multiply_{n}:** each demo
-  - rules-repaired, then verified in Isaac;
+  - {REPAIR_TEXT.get(config.get('repair', 'rules'), "rules-repaired")}, then verified in Isaac;
   - start-aligned;
   - plus {config['variants']} variants in new scenes, each kept only if it verifies.
 
-  A demo whose repair does not verify contributes nothing to this arm.
+  A demo whose repair does not verify contributes nothing to this arm.{data_fixes_text(config)}{recipe_text(config)}
 - **Start alignment** (both arms): a min-jerk move from the home pose to the demo's first pose is put in front
   of every training episode.
 
@@ -611,6 +768,107 @@ trained on the same {n} demos as recorded?
 - the physics verdicts and repair outcomes;
 - the multiply yield;
 - Nemotron's labels and matches (shown, never deciding).
+"""
+
+
+def assist_text(config: dict) -> str:
+    """The soft floor's help, per demo (Demo.assist): reported in the pre-registration, never a filter."""
+    assist = config.get("assist")
+    if not assist:
+        return ""
+    held = [(id, a["soft_floor_steps"]) for id, a in assist.items() if a and a["soft_floor"] and a["soft_floor_steps"]]
+    idle = sum(bool(a and a["soft_floor"] and not a["soft_floor_steps"]) for a in assist.values())
+    unknown = sum(a is None for a in assist.values())
+    return (f"\n\n**Assist (reported, not filtered).** {len(held)} of {len(assist)} demos were recorded with the soft floor "
+            f"holding the target up" + (": " + ", ".join(f"`{id}` ({n} steps)" for id, n in held) if held else "")
+            + f". {idle} more had it on without it engaging; {unknown} carry no assist record. Both arms use every "
+            f"selected demo either way, and the per-demo record is in config.json.")
+
+
+def recipe_text(config: dict) -> str:
+    """The improved training and evaluation recipe this run uses (--augment, --dilation, --select-steps, the inference
+    options); nothing when none, so older pre-registrations read as before."""
+    items = []
+    if config.get("augment") == "shift":
+        items.append("**shift augmentation** (training): random affine (translate 5%, +-5 degrees) plus mild "
+                     "brightness/contrast, at most 2 per frame (lerobot_tools.experiments --augment shift)")
+    if config.get("dilation"):
+        items.append("**dilation** (training): ResNet-18's final stride replaced by dilation, 8x8 image tokens at "
+                     "128 px instead of 4x4")
+    if config.get("select_steps"):
+        s0, n = config["practice_seed0"], config["practice_n"]
+        items.append(f"**checkpoint selection** (eval): each arm's checkpoints at steps "
+                     f"{', '.join(map(str, config['select_steps']))} on practice seeds {s0}-{s0 + n - 1} (n = {n}); "
+                     "the most successes wins, a tie goes to the later step; only that checkpoint is evaluated on the "
+                     "final seeds, and practice results are never reported as results")
+    inf = config.get("inference") or {}
+    parts = []
+    if inf.get("binarize_gripper"):
+        parts.append("binarized gripper (fingers fully open or closed at the 20 mm label midpoint)")
+    if inf.get("temporal_ensemble_coeff") is not None:
+        parts.append(f"ACT temporal ensembling, coefficient {inf['temporal_ensemble_coeff']:g}, re-querying every step")
+    elif inf.get("n_action_steps") is not None:
+        parts.append(f"re-planning every {inf['n_action_steps']} steps instead of every 100")
+    if parts:
+        items.append("**inference** (eval, both arms): " + "; ".join(parts))
+    if not items:
+        return ""
+    return ("\n\n**Training and evaluation recipe** (2026-10-20 research note; the same for both arms):\n"
+            + "\n".join(f"- {i};" for i in items))
+
+
+def data_fixes_text(config: dict) -> str:
+    """The 2026-10-20 data fixes this run uses (--yaw-wrap, --grasp-retime, --approach-offset); nothing when none."""
+    fixes = []
+    if config.get("grasp_retime"):
+        fixes.append("**grasp retime** (repair): the rules also rewrite a swoop grasp (closing faster than 5 cm/s, or "
+                     "fewer than 10 frames within 3 cm of the grasp point) into hover, a slow last 4 cm (at most 5 cm/s), "
+                     "stop, close, 0.4 s closed and still, a straight lift; within the 5 cm repair budget "
+                     "(demo_pipeline.grasp_retime)")
+    if config.get("yaw_wrap"):
+        fixes.append("**yaw wrap** (variants): the hand turns with the cube only to its nearest face, at most 45 degrees, "
+                     "as the scripted expert does")
+    if config.get("approach_offset_m"):
+        fixes.append(f"**centered approach** (variants): at a retimed grasp's hover, each variant arrives off by up to "
+                     f"{config['approach_offset_m'] * 100:g} cm and turned up to 35 degrees (seeded per variant), then "
+                     "centers and aligns before the descent; a variant whose source was not retimed has no hover and "
+                     "keeps its own approach")
+    if not fixes:
+        return ""
+    return "\n\n**Data fixes** (2026-10-20 research note; the same for every seed):\n" + "\n".join(f"- {f};" for f in fixes)
+
+
+def preregistration_one_arm(config: dict, ids: str) -> str:
+    """--multiplied-only: an absolute test of the perfected+multiplied cell, with no comparison arm."""
+    n, s0, ne = config["n_human"], config["eval_seed0"], config["eval_n"]
+    return f"""# Pre-registration: human-demo experiment `{config['name']}` (one arm)
+
+Frozen at {config['frozen_at']} (UTC), before any training or evaluation, from `config.json`.{'''
+
+**SMOKE TEST.** This run proves that every stage works. It measures nothing, and no number from it is a result.''' if config['smoke'] else ''}
+
+**Absolute test, one arm.** How often does a policy trained on what SANT made from the {n} human demos (perfected,
+then multiplied) succeed? There is no comparison arm, so no claim that it beats anything.
+
+**Demos** ({n}, frozen by content hash):
+{ids}
+
+**What is replayed** (`replay_path = {config.get('replay_path', 'commanded')}`, lookahead {config.get('replay_lookahead', 0)}): as in the
+two-arm design; hashes in config.json.
+
+**The arm.** `perfected_multiply_{n}`: ACT, {config['steps']} steps, batch {config['batch_size']}. Each demo rules-repaired and
+verified in Isaac, start-aligned, plus {config['variants']} variants in new scenes, each kept only if it verifies.
+A demo whose repair does not verify contributes nothing.{data_fixes_text(config)}{recipe_text(config)}
+
+**Primary endpoint.** Successes out of {ne}, as the eval's physics check decides, on the unseen scenes with seeds
+**{s0}–{s0 + ne - 1}**.
+- Serial eval (`eval_cells.py --cells perfected_multiply_{n}`), from this cell's own dataset start state.
+- 30 s limit, front and wrist cameras.
+- Reported with a Wilson 95% CI. No hypothesis test, no interim looks, no other endpoints; n is fixed.
+- An episode that ends in `sim_error` / `policy_error` is re-run (`eval_cells` resume). It is never counted as a
+  failure.
+
+**Reported whatever it says:** the count, rate and CI; the physics verdicts, repair outcomes and multiply yield.
 """
 
 
@@ -667,7 +925,14 @@ def make_gpu_stage(log: Callable[[str], None], *, poll_s: float = 300, max_wait_
     return stage
 
 
-def make_sim_session(data: Path, name: str, gpu_stage, log: Callable[[str], None], port: int, logs: Path):
+def sim_worker_cmd(port: int, *, lookahead: int) -> list[str]:
+    """The sim worker for this experiment: Franka, cameras, tracking with the frozen replay_lookahead."""
+    return [str(ISAAC_PY), "-m", "sim_worker.server", "--port", str(port), "--robot", ROBOT, "--cameras",
+            "--lookahead", str(lookahead)]
+
+
+def make_sim_session(data: Path, name: str, gpu_stage, log: Callable[[str], None], port: int, logs: Path, *,
+                     lookahead: int):
     @contextmanager
     def session() -> Iterator[SimWorkerClient]:
         with gpu_stage(f"human-exp:{name}:sim"):
@@ -680,7 +945,7 @@ def make_sim_session(data: Path, name: str, gpu_stage, log: Callable[[str], None
                 pass
             logs.mkdir(parents=True, exist_ok=True)
             f = (logs / "sim_worker.log").open("a", encoding="utf-8")
-            cmd = [str(ISAAC_PY), "-m", "sim_worker.server", "--port", str(port), "--robot", ROBOT, "--cameras"]
+            cmd = sim_worker_cmd(port, lookahead=lookahead)
             log(f"sim: starting {' '.join(cmd)} (DATA_DIR={data})")
             proc = subprocess.Popen(cmd, cwd=REPO, env=child_env(data), stdout=f, stderr=subprocess.STDOUT)
             try:
@@ -760,8 +1025,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--name", required=True, help="experiment name: DATA_DIR/human_exp/<name>")
     p.add_argument("--ids", help="comma-separated human demo ids (in this order)")
     p.add_argument("--tag", help='fnmatch pattern over human demo ids, e.g. "human_20261019*"')
+    p.add_argument("--input", choices=("camera", "keyboard", "mouse"),
+                   help="only demos recorded with this input (the Record page's switch; older demos have none)")
     p.add_argument("--data-dir", type=Path, default=None, help="DATA_DIR (default: the DATA_DIR env var, or data/)")
     p.add_argument("--smoke", action="store_true", help="2000 steps, 5 eval seeds, results marked sample")
+    p.add_argument("--min-demos", type=int, default=None,
+                   help="refuse at select (nothing frozen) if fewer human demos match; frozen in config.json")
     p.add_argument("--variants", type=int)
     p.add_argument("--steps", type=int)
     p.add_argument("--save-freq", type=int)
@@ -771,7 +1040,32 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--judge-copies", type=int, default=1)
     p.add_argument("--max-cost-usd", type=float, default=0.10, help="Nemotron spend cap for this run")
     p.add_argument("--no-nemotron", action="store_true")
+    p.add_argument("--multiplied-only", action="store_true",
+                   help="an absolute test: train and evaluate the perfected+multiply cell alone (no raw arm)")
     p.add_argument("--until", choices=STAGES, default="results", help="stop after this stage")
+    p.add_argument("--sim-until", choices=SIM_STEPS, default="multiply",
+                   help="stop the sim stage after this step (and the run with it)")
+    p.add_argument("--replay-path", choices=REPLAY_PATHS, default=None,
+                   help="achieved: the pose the arm reached (live episode); commanded: demo.json as stored "
+                        "(default: achieved, or commanded with --smoke)")
+    p.add_argument("--replay-lookahead", type=int, default=None,
+                   help="the sim worker's --lookahead for every replay (default 0: measured best on live test #10)")
+    p.add_argument("--repairer", choices=REPAIRERS, default="rules",
+                   help="the repair step: the rules (hand-written ops), Nemotron's trajectory edits, or hybrid "
+                        "(the rules, then the edits for a demo the rules discard)")
+    p.add_argument("--yaw-wrap", action="store_true",
+                   help="multiply: turn the hand only to the cube's nearest face (+-45 deg), as the scripted expert")
+    p.add_argument("--grasp-retime", action="store_true",
+                   help="repair: the rules also retime a swoop grasp (hover, slow last 4 cm, stop, close, hold, lift)")
+    p.add_argument("--approach-offset", type=float, default=None, metavar="M",
+                   help="multiply: the centered approach at the retimed grasp's hover, offsets up to M m (0.04)")
+    p.add_argument("--augment", choices=("off", "shift"), default=None, help="training image augmentation (default off)")
+    p.add_argument("--dilation", action="store_true", help="training: replace ResNet's final stride with dilation")
+    p.add_argument("--select-steps", type=int, nargs="+", default=None, metavar="STEP",
+                   help="choose each arm's checkpoint among these steps on practice seeds before the final eval")
+    p.add_argument("--practice-seed0", type=int, default=5300, help="first practice seed (with --select-steps)")
+    p.add_argument("--practice-n", type=int, default=30, help="practice seeds per candidate (with --select-steps)")
+    add_inference_args(p)
     p.add_argument("--publish-results", action="store_true", help="also write DATA_DIR/results/results.json")
     p.add_argument("--force-config", action="store_true", help="accept changed settings for an existing --name")
     p.add_argument("--sim-port", type=int, default=8770)
@@ -781,10 +1075,47 @@ def main(argv: list[str] | None = None) -> int:
     settings = {k: getattr(args, k) if getattr(args, k) is not None else (SMOKE if args.smoke else {}).get(k, v)
                 for k, v in DEFAULTS.items()}
     settings.update(smoke=args.smoke, raw_arm=args.raw_arm, judge_copies=args.judge_copies,
-                    nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd)
-    if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= 30_000 and settings["eval_n"] > 0
+                    nemotron=not args.no_nemotron, max_cost_usd=args.max_cost_usd,
+                    replay_path=args.replay_path or ("commanded" if args.smoke else "achieved"), repair=args.repairer)
+    settings["replay_lookahead"] = args.replay_lookahead if args.replay_lookahead is not None else 0
+    if args.multiplied_only:  # only when set: configs frozen before the flag existed resume unchanged
+        settings["multiplied_only"] = True
+    if args.min_demos is not None:  # likewise
+        settings["min_demos"] = args.min_demos
+    # The 2026-10-20 data fixes (research note), likewise only when set
+    if args.yaw_wrap:
+        settings["yaw_wrap"] = True
+    if args.grasp_retime:
+        settings["grasp_retime"] = True
+    if args.approach_offset is not None:
+        if not 0 < args.approach_offset <= 0.05:
+            p.error("--approach-offset is a radius in m, 0 < r <= 0.05 (the note suggests 0.04)")
+        settings["approach_offset_m"] = args.approach_offset
+    # The improved recipe (research note Stage 1), likewise only when set
+    if args.augment and args.augment != "off":
+        settings["augment"] = args.augment
+    if args.dilation:
+        settings["dilation"] = True
+    try:
+        inference = InferenceOptions.from_args(args)
+    except ValueError as e:
+        p.error(str(e))
+    if not inference.is_default:
+        settings["inference"] = inference.record()
+    if not (1 <= settings["variants"] <= 99 and 0 < settings["steps"] <= MAX_STEPS and settings["eval_n"] > 0
             and settings["eval_seed0"] >= 5000):
-        p.error("need 1-99 variants, 1-30000 steps, eval n > 0 and eval seeds >= 5000")
+        p.error(f"need 1-99 variants, 1-{MAX_STEPS} steps, eval n > 0 and eval seeds >= 5000")
+    if args.select_steps:
+        steps, freq = settings["steps"], min(settings["save_freq"], settings["steps"])
+        unsaved = [s for s in args.select_steps if not (0 < s <= steps and (s % freq == 0 or s == steps))]
+        if unsaved:
+            p.error(f"--select-steps {unsaved}: training saves a checkpoint every {freq} steps up to {steps}")
+        lo = max(args.practice_seed0, settings["eval_seed0"])
+        hi = min(args.practice_seed0 + args.practice_n, settings["eval_seed0"] + settings["eval_n"])
+        if lo < hi or args.practice_seed0 < 5000 or args.practice_n < 1:
+            p.error("practice seeds must be >= 5000 and must not overlap the final eval seeds")
+        settings.update(select_steps=sorted(args.select_steps), practice_seed0=args.practice_seed0,
+                        practice_n=args.practice_n)
 
     if args.data_dir is not None:
         os.environ["DATA_DIR"] = str(args.data_dir)
@@ -815,14 +1146,15 @@ def main(argv: list[str] | None = None) -> int:
         clip = episode_clip
     exp = Experiment(data, args.name, Deps(
         user_store=DemoStore(data), gpu_stage=gpu_stage, run=make_runner(data, log), judge=judge, clip=clip, log=log,
-        sim_session=make_sim_session(data, args.name, gpu_stage, log, args.sim_port, data / "human_exp" / args.name / "logs")))
+        sim_session=make_sim_session(data, args.name, gpu_stage, log, args.sim_port, data / "human_exp" / args.name / "logs",
+                                     lookahead=settings["replay_lookahead"])))
     try:
         try:
             exp.select(ids=args.ids.split(",") if args.ids else None, tag=args.tag, settings=settings,
-                       force_config=args.force_config)
+                       force_config=args.force_config, input=args.input)
         except ValueError as e:  # select_ids: a missing, derived or unmatched demo
             raise Refused(str(e)) from e
-        exp.run(until=args.until, publish=args.publish_results)
+        exp.run(until=args.until, publish=args.publish_results, sim_until=args.sim_until)
     except Refused as e:
         exp.log(f"REFUSED: {e}")
         return 1

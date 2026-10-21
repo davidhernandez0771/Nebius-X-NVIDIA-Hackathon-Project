@@ -45,8 +45,9 @@ class Fakes:
         return out
 
     def train(self, dataset: Path, out_dir: Path, steps: int, batch_size: int, log_path: Path,
-              save_freq: int | None = None) -> TrainResult:
+              save_freq: int | None = None, options=None) -> TrainResult:
         self.trained.append((dataset.name, steps, batch_size))
+        self.options = getattr(self, "options", []) + [options]
         self.save_freqs = getattr(self, "save_freqs", []) + [save_freq]
         if dataset.name in self.fail_train:
             return TrainResult(exit_code=1, checkpoint=None, train_time_s=1.5, final_loss=None,
@@ -133,7 +134,7 @@ def test_dry_run_writes_nothing_and_reports_invalid_cells(grid_file, tmp_path, c
 
 def test_budget_is_enforced_before_any_work(grid_file):
     with pytest.raises(SystemExit):
-        main(["--grid", str(grid_file), "--steps", "60001", "--dry-run"])
+        main(["--grid", str(grid_file), "--steps", "100001", "--dry-run"])
     with pytest.raises(SystemExit):
         main(["--grid", str(grid_file), "--steps", "1000", "--save-freq", "0", "--dry-run"])
 
@@ -180,3 +181,65 @@ def test_real_two_cell_grid_200_steps(tmp_path):
 def test_grasp_fix_run2_budget_allows_60k_steps(grid_file, capsys):
     assert main(["--grid", str(grid_file), "--steps", "60000", "--save-freq", "5000", "--dry-run"]) == 0
     assert json.loads(capsys.readouterr().out)["steps"] == 60000
+
+
+# --- training options (2026-10-20 research note, Part 3 (c) Stage 1); the defaults are today's recipe ---------------
+
+def test_the_default_train_options_add_nothing():
+    from lerobot_tools.experiments import TrainOptions
+
+    assert TrainOptions().lerobot_args() == []
+    assert TrainOptions().record() == {"augment": "off", "dilation": False}
+
+
+def test_shift_augmentation_turns_on_affine_shift_and_mild_colour_only():
+    from lerobot_tools.experiments import TrainOptions
+
+    args = TrainOptions(augment="shift").lerobot_args()
+    assert "--dataset.image_transforms.enable=true" in args
+    assert "--dataset.image_transforms.max_num_transforms=2" in args
+    tfs = json.loads(next(a for a in args if a.startswith("--dataset.image_transforms.tfs=")).split("=", 1)[1])
+    assert set(tfs) == {"brightness", "contrast", "affine"}  # no hue / saturation / sharpness
+    assert tfs["affine"] == {"weight": 1.0, "type": "RandomAffine",
+                             "kwargs": {"degrees": [-5.0, 5.0], "translate": [0.05, 0.05]}}
+
+
+def test_dilation_gives_finer_image_tokens():
+    from lerobot_tools.experiments import TrainOptions
+
+    assert TrainOptions(dilation=True).lerobot_args() == ["--policy.replace_final_stride_with_dilation=true"]
+    with pytest.raises(ValueError):
+        TrainOptions(augment="everything")
+
+
+def test_the_train_command_carries_the_options(tmp_path):
+    from lerobot_tools.experiments import TrainOptions, train_command
+
+    manifest = {"repo_id": "local/x"}
+    plain = train_command(manifest, tmp_path / "ds", tmp_path / "out", steps=80000, batch_size=8, save_freq=10000)
+    assert "--steps=80000" in plain and "--save_freq=10000" in plain
+    assert not any("image_transforms" in a or "dilation" in a for a in plain)
+    tuned = train_command(manifest, tmp_path / "ds", tmp_path / "out", steps=80000, batch_size=8, save_freq=10000,
+                          options=TrainOptions(augment="shift", dilation=True))
+    assert tuned[:len(plain)] == plain and "--policy.replace_final_stride_with_dilation=true" in tuned
+
+
+def test_rows_record_the_train_options(grid_file, tmp_path):
+    from lerobot_tools.experiments import TrainOptions
+
+    fakes, registry = Fakes(), tmp_path / "registry.jsonl"
+    opts = TrainOptions(augment="shift", dilation=True)
+    run_grid(load_grid(grid_file), steps=200, batch_size=8, runs_root=tmp_path / "exp", registry=registry,
+             assemble_fn=fakes.assemble, train_fn=fakes.train, train_options=opts)
+    assert fakes.options == [opts, opts]
+    assert all(r["train_options"] == {"augment": "shift", "dilation": True} for r in _rows(registry))
+    run_grid(load_grid(grid_file), steps=200, batch_size=8, runs_root=tmp_path / "exp2", registry=tmp_path / "r2.jsonl",
+             assemble_fn=fakes.assemble, train_fn=fakes.train)
+    assert all(r["train_options"] == {"augment": "off", "dilation": False} for r in _rows(tmp_path / "r2.jsonl"))
+
+
+def test_the_cli_takes_the_options_and_80k_steps(grid_file, capsys):
+    assert main(["--grid", str(grid_file), "--steps", "80000", "--save-freq", "10000", "--augment", "shift",
+                 "--dilation", "--dry-run"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["steps"] == 80000 and plan["train_options"] == {"augment": "shift", "dilation": True}

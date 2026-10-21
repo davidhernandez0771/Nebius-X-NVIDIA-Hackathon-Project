@@ -72,3 +72,51 @@ describe("the live twin's state", () => {
     expect(twinSocketUrl("https://sant.example")).toBe("wss://sant.example/ws/teleop?role=twin");
   });
 });
+
+describe("sim_twin's contact and floor (the contact glow, the soft floor)", () => {
+  const frame = { type: "sim_twin", q: [0.1], gripper: 0, cube: [0.5, 0, 0.025, 1, 0, 0, 0] };
+  const parse = (extra: object) => parseTwinMessage(JSON.stringify({ ...frame, ...extra }));
+
+  it("reads the push, the link and what it pushes, and the floor", () => {
+    expect(parse({ floor: true, contact: { force_n: 7.3, body: "panda_hand", against: "bin" } })).toEqual({
+      kind: "frame",
+      frame: { q: [0.1], gripper: 0, cube: { pos: [0.5, 0, 0.025], quat: [1, 0, 0, 0] }, floor: true, contact: { forceN: 7.3, body: "panda_hand", against: "bin" } },
+    });
+  });
+
+  it("an older sim's frame has neither; a malformed contact is dropped, not the frame", () => {
+    const old = parse({});
+    expect(old?.kind === "frame" && "contact" in old.frame).toBe(false);
+    const bad = parse({ contact: { force_n: -2, body: "panda_hand" } });
+    expect(bad?.kind === "frame" && bad.frame.contact).toBeNull();
+    const odd = parse({ contact: { force_n: 3, body: 7, against: "floor" } });
+    expect(odd?.kind === "frame" && odd.frame.contact).toEqual({ forceN: 3, body: null, against: null });
+  });
+});
+
+describe("a plan's scene: every object, every cube's pose (the scene picker)", () => {
+  const objects = [
+    { id: "cube", kind: "cube", color: "red", size: 0.05, pose: [0.5, 0, 0.025, 1, 0, 0, 0] },
+    { id: "distractor", kind: "cube", color: "yellow", size: 0.04, pose: [0.5, -0.085, 0.02, 1, 0, 0, 0] },
+    { id: "bin", kind: "bin", color: "blue", inner: [0.2, 0.2, 0.11], pose: [0.5, 0.3, 0, 1, 0, 0, 0] },
+  ];
+
+  it("reads the objects from the scene message and moves the cubes with each frame", () => {
+    const s = run(
+      { kind: "open" },
+      { kind: "message", msg: msg({ ...SCENE, objects }) },
+      { kind: "message", msg: msg({ ...FRAME, cubes: { cube: [0.52, 0.01, 0.1, 1, 0, 0, 0], distractor: [0.5, -0.085, 0.02, 1, 0, 0, 0] } }) },
+    );
+    const twin = liveTwin(s);
+    expect(twin.objects?.map((o) => [o.id, o.kind, o.color])).toEqual([["cube", "cube", "red"], ["distractor", "cube", "yellow"], ["bin", "bin", "blue"]]);
+    expect(twin.objects?.find((o) => o.id === "cube")?.pose.pos).toEqual([0.52, 0.01, 0.1]); // the frame's pose
+    expect(twin.objects?.find((o) => o.id === "distractor")?.size).toBe(0.04);
+    expect(twin.objects?.find((o) => o.id === "bin")?.inner).toEqual([0.2, 0.2, 0.11]);
+  });
+
+  it("today's scene has no objects list; a malformed object drops only itself", () => {
+    expect(liveTwin(run({ kind: "open" }, { kind: "message", msg: msg(SCENE) }, { kind: "message", msg: msg(FRAME) })).objects).toBeNull();
+    const parsed = parseTwinMessage(JSON.stringify({ ...SCENE, objects: [...objects, { id: "x", kind: "sphere", pose: [0, 0, 0, 1, 0, 0, 0] }] }));
+    expect(parsed?.kind === "scene" && parsed.scene.objects?.length).toBe(3);
+  });
+});

@@ -19,8 +19,10 @@ describe("the shelf (the spiral browsed in place)", () => {
     scrollToStep(store, 4);
     expect(shelf.open).toBe(true);
     expect(shelf.step).toBe(4);
-    expect(store.getCoarse().override).toEqual(stepView(4));
-    expect(shelfView()).toEqual(stepView(4));
+    // The shot facing it, on the shelf's track (the camera glides along it, shelfScroll.test.ts).
+    expect(store.getCoarse().override).toMatchObject({ ...stepView(4), track: { id: "shelf", at: 4 } });
+    expect(store.getCoarse().override?.track?.pose(4)).toEqual(stepView(4));
+    expect(shelfView()).toMatchObject(stepView(4));
     closeShelf(store);
     expect(shelf.open).toBe(false);
     expect(store.getCoarse().override).toBeNull();

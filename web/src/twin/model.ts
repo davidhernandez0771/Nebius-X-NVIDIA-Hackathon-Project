@@ -39,9 +39,9 @@ export const TABLE = { size: [0.85, 1.2, 0.05] as Vec3, center: [0.575, 0.0, -0.
 
 export type Box = { name: string; size: Vec3; center: Vec3 };
 
-/** The open-top bin's floor and four walls, around the bin's origin (scene_cfg.py BIN_PARTS). */
-export function binParts(): Box[] {
-  const [ix, iy, iz] = BIN_INNER;
+/** The open-top bin's floor and four walls, around the bin's origin (scene_cfg.py BIN_PARTS); inner: a plan's own bin. */
+export function binParts(inner: Vec3 = BIN_INNER): Box[] {
+  const [ix, iy, iz] = inner;
   const w = BIN_WALL;
   const [ox, oy] = [ix + 2 * w, iy + 2 * w];
   const wallZ = w + iz / 2;

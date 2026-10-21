@@ -1,10 +1,16 @@
 /* The dock: bottom left, the prototype's filters and Ask SANT. */
+/* The dock floats over the 3D (a white cartridge can be right behind it): a dark glass backing keeps
+   its text AA over anything the scene draws. */
 .world-dock {
   position: fixed;
-  left: 24px;
-  bottom: 24px;
+  left: 16px;
+  bottom: 16px;
   z-index: 6;
-  width: min(340px, calc(100vw - 48px));
+  width: min(356px, calc(100vw - 32px));
+  padding: 14px 16px 12px;
+  border-radius: 14px;
+  background: rgba(5, 9, 10, 0.8);
+  backdrop-filter: blur(8px);
   font-family: var(--w-mono);
   color: var(--w-ink);
   opacity: 0;
@@ -64,7 +70,7 @@
   flex-wrap: wrap;
   gap: 4px 12px;
   margin-bottom: 14px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--w-dim);
 }
 
@@ -102,12 +108,17 @@
 }
 
 /* The detail view (after a cartridge click). */
+/* Over the 3D like the dock: a dark glass backing for AA text. */
 .world-detail {
   position: fixed;
-  left: 24px;
-  bottom: 24px;
+  left: 16px;
+  bottom: 16px;
   z-index: 7;
-  width: min(380px, calc(100vw - 48px));
+  width: min(396px, calc(100vw - 32px));
+  padding: 14px 16px 12px;
+  border-radius: 14px;
+  background: rgba(5, 9, 10, 0.82);
+  backdrop-filter: blur(8px);
   font-family: var(--w-mono);
   color: var(--w-ink);
   opacity: 0;
@@ -201,7 +212,7 @@
 }
 
 .world-ask__line {
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   line-height: 1.5;
   color: var(--w-dim);
@@ -217,7 +228,7 @@
 
 .world-ask__privacy {
   margin: 0 0 8px;
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--w-dim);
   opacity: 0;
   transform: translateY(4px);
@@ -253,7 +264,7 @@
   background: none;
   color: var(--w-ink);
   font-family: var(--w-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .world-ask__pill input::placeholder {
@@ -262,7 +273,7 @@
 
 .world-ask__k {
   color: var(--w-dim);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 /* The tour's caption. */
@@ -301,7 +312,7 @@
 
 .world-dock__keys {
   margin: -6px 0 12px;
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--w-dim);
 }
 
@@ -312,7 +323,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
-  font-size: 10px;
+  font-size: 12px;
   max-height: 22vh;
   overflow: auto;
 }
@@ -322,20 +333,37 @@
 }
 
 /* The room view: a tag over each thing to click (HubTags), and the controls bar. */
+/* The tags' layer (hubTagLayer.ts): over the canvas, under the rest of the workshop's overlay. */
+.world-hubtags {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* A hidden tag is out of the Tab order and the accessibility tree too (visibility), after its fade. */
 .world-hubtag {
   position: relative;
   display: grid;
   justify-items: center;
   opacity: 0;
+  visibility: hidden;
   transform: translateY(8px);
-  transition: opacity 0.45s, transform 0.45s;
+  transition: opacity 0.45s, transform 0.45s, visibility 0s linear 0.45s;
   pointer-events: none;
   font-family: var(--w-mono);
 }
 .world-hubtag[data-on="true"] {
   opacity: 1;
+  visibility: visible;
   transform: none;
+  transition: opacity 0.45s, transform 0.45s, visibility 0s;
   pointer-events: auto;
+}
+/* A cartridge in the hand: the tags step back so the machine's port stays in view. */
+.world-hubtag[data-on="true"][data-drag="true"] {
+  opacity: 0.08;
+  transition-duration: 0.2s;
+  pointer-events: none;
 }
 .world-hubtag button {
   display: grid;
@@ -358,10 +386,13 @@
   border-color: var(--w-teal);
   background: rgba(6, 22, 20, 0.85);
   transform: translateY(-2px);
-  outline: none;
+}
+.world-hubtag button:focus-visible {
+  outline: 2px solid var(--w-teal);
+  outline-offset: 3px;
 }
 .world-hubtag__n {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.18em;
   color: var(--w-teal);
 }
@@ -372,13 +403,13 @@
   text-transform: uppercase;
 }
 .world-hubtag__l {
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   color: #9dbdb5;
 }
 .world-hubtag__start {
   margin-top: 4px;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--w-amber);
@@ -411,7 +442,8 @@
   border-radius: 999px;
   background: rgba(6, 12, 14, 0.66);
   color: var(--w-dim);
-  font-size: 10.5px;
+  font-size: 12px;
+  white-space: nowrap;
   transform: translate(-50%, 10px);
   opacity: 0;
   pointer-events: none;
@@ -431,6 +463,14 @@
   border: 0;
   cursor: pointer;
 }
+/* The three things to click, as buttons: only where their tags can't all be seen (below). */
+.world-hubbar__go {
+  display: none;
+  gap: 14px;
+}
+.world-hubbar__go button {
+  color: var(--w-ink);
+}
 
 .world-panel__row {
   display: flex;
@@ -440,10 +480,16 @@
   pointer-events: auto;
 }
 
+/* Narrower desktops keep the bar on one line: the drag and Escape stay, the clicks go (the tags say them).
+   With the robot wall in the list, the whole hint is ~1060 px wide and only clears the brand (top left) from 1600 px. */
+@media (max-width: 1599px) {
+  .world-hubbar__more { display: none; }
+}
 @media (max-width: 700px) {
   .world-hubtag button { min-width: 11rem; }
   .world-hubtag__l { display: none; }
-  .world-hubbar span { display: none; }
+  .world-hubbar__hint { display: none; }
+  .world-hubbar__go { display: flex; }
 }
 @media (prefers-reduced-motion: reduce) {
   .world-hubtag, .world-hubbar { transition: none; }
@@ -453,4 +499,45 @@
 /* The room view keeps only Ask SANT in the dock; the filters and robots come with the shelf. */
 .world-dock[data-view="hub"] > :not(.world-ask) {
   display: none;
+}
+/* There the Ask pill is its own glass: no backing round it. */
+.world-dock[data-view="hub"] {
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+}
+
+/* The tags as holographic labels (HubHolograms): the HTML buttons stay, see-through and sized to each
+   label (the 3D draws it), standing up from its bottom-left corner as the label does, so the clicks,
+   the focus and the names are the same. The label lights and unfolds on hover and focus; a thin
+   outline marks keyboard focus too. */
+.world-hubtag[data-holo="true"] {
+  display: block;
+  transform: translateY(-100%);
+}
+.world-hubtag[data-holo="true"][data-on="true"] {
+  transform: translateY(-100%);
+}
+.world-hubtag[data-holo="true"] button {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+  animation: none;
+}
+.world-hubtag[data-holo="true"] button:hover {
+  border-color: transparent;
+  background: transparent;
+}
+.world-hubtag[data-holo="true"] button:focus-visible {
+  outline: 1px solid rgba(25, 245, 194, 0.55);
+  outline-offset: 4px;
+}
+.world-hubtag[data-holo="true"] button > span,
+.world-hubtag[data-holo="true"] .world-hubtag__stem {
+  visibility: hidden;
 }

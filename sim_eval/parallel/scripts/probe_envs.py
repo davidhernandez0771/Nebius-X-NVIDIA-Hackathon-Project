@@ -12,6 +12,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path[:0] = [str(REPO / "src"), str(REPO)]
+from sim_worker.own_code import check_own_code  # noqa: E402
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
@@ -35,6 +36,7 @@ from sim_worker.replay import make_sim_cfg  # noqa: E402
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     pose = None
     if args_cli.reset_pose_from:
         pose = json.loads(args_cli.reset_pose_from.read_text(encoding="utf-8"))["run"]["start_check"]["reset_pose"]

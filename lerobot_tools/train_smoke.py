@@ -23,8 +23,12 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode
-from lerobot_tools.export import export_episodes
+from sim_worker.own_code import check_own_code, put_own_code_first
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
+
+from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode  # noqa: E402
+from lerobot_tools.export import export_episodes  # noqa: E402
 
 TASK = "pick up the red cube and place it in the blue bin"
 REPO_ID = "local/t3_act_smoke"
@@ -190,6 +194,7 @@ def reload_and_act(checkpoint: Path, dataset_root: Path) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--work-dir", type=Path, default=None, help="default: data/runs/t3_act_smoke_<timestamp>")
     p.add_argument("--steps", type=int, default=MAX_STEPS)

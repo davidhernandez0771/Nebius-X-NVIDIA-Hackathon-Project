@@ -1,0 +1,82 @@
+{
+ "version": 1,
+ "robot": "franka",
+ "objects": [
+  {
+   "id": "red",
+   "kind": "cube",
+   "color": "red",
+   "size": 0.05,
+   "pose": {
+    "x": 0.45,
+    "y": -0.1,
+    "yaw_deg": 0.0
+   },
+   "on": null
+  },
+  {
+   "id": "green",
+   "kind": "cube",
+   "color": "green",
+   "size": 0.04,
+   "pose": null,
+   "on": "red"
+  },
+  {
+   "id": "blue",
+   "kind": "cube",
+   "color": "blue",
+   "size": 0.06,
+   "pose": {
+    "x": 0.55,
+    "y": 0.05,
+    "yaw_deg": 30.0
+   },
+   "on": null
+  },
+  {
+   "id": "left_bin",
+   "kind": "bin",
+   "color": "yellow",
+   "inner": [
+    0.22,
+    0.18,
+    0.06
+   ],
+   "pose": {
+    "x": 0.5,
+    "y": 0.28,
+    "yaw_deg": 90.0
+   }
+  },
+  {
+   "id": "right_bin",
+   "kind": "bin",
+   "color": "purple",
+   "inner": [
+    0.2,
+    0.2,
+    0.08
+   ],
+   "pose": {
+    "x": 0.5,
+    "y": -0.28,
+    "yaw_deg": 0.0
+   }
+  }
+ ],
+ "goals": [
+  {
+   "object": "green",
+   "bin": "left_bin"
+  },
+  {
+   "object": "red",
+   "bin": "right_bin"
+  },
+  {
+   "object": "blue",
+   "bin": "left_bin"
+  }
+ ]
+}

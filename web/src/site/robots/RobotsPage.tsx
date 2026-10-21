@@ -1,6 +1,7 @@
 // My robots (/robots): the shelf from docs/design/prototypes/robot-shelf.html, in production React.
 // WebGL + full motion → the 3D spiral with the select HUD. Reduced motion, effects off or no WebGL → a flat shelf.
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Logo } from "../../sant/components/Logo";
 import { Vector2 } from "three";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { COPIES, ROBOTS } from "./robots";
@@ -178,7 +179,9 @@ export function RobotsPage() {
         {three && probe && <PerfOverlay probe={probe} />}
         {!three && <FlatShelf selected={selected} onPick={pick} />}
         <div className="robots-top">
-          <span className="robots-mark">SANT</span>
+          <span className="robots-mark">
+            <Logo size="sm" lit="all" />
+          </span>
           <span>robots@sant · copies {COPIES.verified}/{COPIES.total} verified</span>
         </div>
         <nav className="robots-list" aria-label="Robots">

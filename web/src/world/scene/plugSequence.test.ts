@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { OBB } from "three/examples/jsm/math/OBB.js";
 import { HELIX, MACHINE_PIVOT } from "./layout";
-import { PHASE, PLUGGED, PLUGGED_Q, PLUG_S, cartridgePose, projection, scrollU, slotGlow, timeU } from "./plugSequence";
+import { ABOVE_PORT, PHASE, PLUGGED, PLUGGED_Q, PLUG_S, cartridgePose, projection, scrollU, slotGlow, timeU } from "./plugSequence";
 
 describe("the plug-in", () => {
   it("starts in the slot and ends seated in the port, edge-on along the slot", () => {
@@ -33,13 +33,19 @@ describe("the plug-in", () => {
   it("clears the desk, the machine, the port and every other cartridge from any slot", () => {
     const half = new THREE.Vector3(1.15, 1.25, 0.17);
     const box = (p: THREE.Vector3, q: THREE.Quaternion, h = half) => new OBB(p.clone(), h.clone(), new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(q)));
-    // The machine's furniture in its own unturned frame (x along its length), from machine.glb's
-    // nodes and the baked bounds: the desk, the body under the shroud, the port at its left end.
+    // The machine's furniture in its own unturned frame (x along its length), from machine_v2.glb and
+    // the desk: the desk, the card under the shroud, the dock tower at its left end (its top 4.98 m in
+    // the machine's frame, 4.38 m here), the lens barrel at its right.
     const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), MACHINE_PIVOT.yaw);
     const pivot = new THREE.Vector3(...MACHINE_PIVOT.position);
     const local = (x: number, z: number, y0: number, y1: number, hx: number, hz: number) =>
       box(pivot.clone().add(new THREE.Vector3(x, 0, z).applyQuaternion(yaw)).setY((y0 + y1) / 2), yaw, new THREE.Vector3(hx, (y1 - y0) / 2, hz));
-    const furniture = { desk: local(0, 0, -0.6, 2.69, 4, 2.1), body: local(0, 0, 2.69, 4.45, 3.1, 1.25), port: local(-3.7, 0, 2.69, 4.29, 0.6, 1.08) };
+    const furniture = {
+      desk: local(0, 0, -0.6, 2.69, 4, 2.1),
+      body: local(0, 0, 2.69, 4.45, 3.1, 1.25),
+      dock: local(-3.7, 0, 2.69, 4.4, 0.6, 1.08),
+      lens: local(3.6, 0, 2.69, 3.15, 0.35, 0.35),
+    };
     const others = HELIX.map((s) => box(new THREE.Vector3(...s.position), new THREE.Quaternion(...s.quaternion)));
     for (const s of HELIX) {
       for (let u = PHASE.pull[1] * 0.5; u <= PHASE.fly[1]; u += 0.004) {
@@ -71,5 +77,20 @@ describe("the plug-in", () => {
     expect(timeU(10, 10 + PLUG_S / 2, false)).toBeCloseTo(0.5, 6);
     expect(timeU(10, 10 + PLUG_S * 2, false)).toBe(1);
     expect(timeU(10, 10, true)).toBe(1);
+  });
+
+  it("held (a drag dropped it over the port): waits above the port, then drops in on the click's beat", () => {
+    for (const slot of [0, 11, 30]) {
+      for (const u of [0, 0.2, PHASE.fly[1]]) {
+        const held = cartridgePose(slot, u, undefined, true);
+        expect(held.position.distanceTo(ABOVE_PORT)).toBeLessThan(1e-9);
+        expect(held.quaternion.angleTo(PLUGGED_Q)).toBeLessThan(1e-6);
+      }
+      // From the insert on it is a click's, so the camera, the slot and the projector keep their timing.
+      for (const u of [PHASE.insert[0] + 0.01, PHASE.click[0], 1]) {
+        expect(cartridgePose(slot, u, undefined, true).position.distanceTo(cartridgePose(slot, u).position)).toBeLessThan(1e-9);
+      }
+      expect(cartridgePose(slot, 1, undefined, true).position.distanceTo(PLUGGED)).toBeLessThan(1e-6);
+    }
   });
 });

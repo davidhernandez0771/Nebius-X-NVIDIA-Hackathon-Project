@@ -3,8 +3,9 @@
   --rb-void: #000;
   --rb-ink: #ededea;
   --rb-ink-2: #a2a29e;
-  --rb-ink-3: #5a5a57;
-  --rb-ink-4: #3e3e3c;
+  /* AA as small text on the black stage: 6.0:1 and 4.7:1 (were 3.0 and 2.0). */
+  --rb-ink-3: #8c8c87;
+  --rb-ink-4: #77776f;
   --rb-needle: #ff5a1f;
   color-scheme: dark;
   box-sizing: border-box;
@@ -14,7 +15,7 @@
   padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
   background: var(--rb-void);
   color: var(--rb-ink);
-  font: 11px/1.45 var(--sant-font-ui, system-ui, sans-serif);
+  font: 12px/1.45 var(--sant-font-ui, system-ui, sans-serif);
 }
 .robots-page *,
 .robots-page *::before,
@@ -58,10 +59,14 @@
   pointer-events: none;
 }
 .robots-mark {
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.06em;
+  display: inline-flex;
   color: var(--rb-ink);
+}
+
+.robots-mark .sant-logo {
+  --logo-ink: var(--rb-ink);
+  --logo-accent: #19f5c2;
+  font-size: 14px;
 }
 
 .robots-list {
@@ -221,12 +226,12 @@
   min-height: 34px;
   justify-items: center;
   color: #c9c9c5;
-  font-size: 9.5px;
+  font-size: 12px;
 }
 .flat-shelf__title strong {
   color: var(--rb-ink);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
 }
 @media (max-width: 640px) {
   .flat-shelf {
@@ -251,6 +256,6 @@
   padding: 8px 10px;
   background: rgba(0, 0, 0, 0.72);
   color: var(--rb-ink-2);
-  font: 10px/1.4 var(--sant-font-data, ui-monospace, monospace);
+  font: 12px/1.4 var(--sant-font-data, ui-monospace, monospace);
   pointer-events: none;
 }

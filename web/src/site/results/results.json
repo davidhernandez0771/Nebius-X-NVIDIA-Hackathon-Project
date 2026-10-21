@@ -1,0 +1,220 @@
+{
+  "as_of": "2026-10-19",
+  "note": "Measured results, copied by hand from the notes and lines cited next to each one. A count or p of null is not measured yet, and the page says Pending. CIs are the Wilson 95% intervals the notes print; p is the notes' two-sided p.",
+  "notes": {
+    "t2": { "name": "T2 status note", "path": "docs/superpowers/notes/2026-10-15-t2-status.md" },
+    "t3": { "name": "T3 status note", "path": "docs/superpowers/notes/2026-10-15-t3-status.md" },
+    "web": { "name": "Web pages note", "path": "docs/superpowers/notes/2026-10-16-web-pages.md" },
+    "grasp": { "name": "Grasp-fix note", "path": "docs/superpowers/notes/2026-10-18-t3-grasp-fix.md" },
+    "judge": { "name": "Nemotron judge note", "path": "docs/superpowers/notes/2026-10-18-nemotron-judge.md" },
+    "byor": { "name": "Bring-your-own-robot note", "path": "docs/superpowers/notes/2026-10-18-byor-backend.md" }
+  },
+  "experiments": [
+    {
+      "id": "multiply",
+      "title": "Does multiplying the demos help?",
+      "question": "ACT trained on 10 demos alone, against the same 10 demos plus physics-verified multiplied copies of them.",
+      "setup": "One task (a 5 cm cube into a bin), a simulated Franka in Isaac Lab, ACT, 30k training steps per arm. The 10 source demos came from a scripted expert, not a person, and no repair ran: this tests multiplying, not perfecting.",
+      "seeds": "5020–5059: 40 unseen scenes per arm, run after the pair was chosen and never used to choose anything.",
+      "test": "Two-sided Fisher exact, Wilson 95% CIs.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Policy success on 40 unseen scenes",
+          "arms": [
+            {
+              "key": "raw_10_30k",
+              "label": "The 10 demos alone",
+              "k": 3,
+              "n": 40,
+              "ci": [0.026, 0.199],
+              "source": { "note": "t3", "lines": "1156" },
+              "outcomes": "0000000000001000000000000000000000010001",
+              "outcomesSource": { "note": "t3", "lines": "1369" },
+              "passes": 49,
+              "passesSource": { "note": "t3", "lines": "1167" },
+              "drops": { "k": 15, "of": 37, "source": { "note": "t3", "lines": "1179" } }
+            },
+            {
+              "key": "raw_multiply_10_30k",
+              "label": "+ 100 verified copies",
+              "k": 17,
+              "n": 40,
+              "ci": [0.285, 0.578],
+              "highlight": true,
+              "source": { "note": "t3", "lines": "1156" },
+              "outcomes": "0010100110110010010101001011001111000000",
+              "outcomesSource": { "note": "t3", "lines": "1370" },
+              "passes": 4.5,
+              "passesSource": { "note": "t3", "lines": "1167" },
+              "drops": { "k": 22, "of": 23, "source": { "note": "t3", "lines": "1176" } }
+            },
+            {
+              "key": "raw_multiply_10x30",
+              "label": "+ 300 verified copies",
+              "k": 16,
+              "n": 40,
+              "ci": [0.263, 0.554],
+              "source": { "note": "t3", "lines": "1307" },
+              "outcomes": "0100110100110000100001100101010100111000",
+              "outcomesSource": { "note": "t3", "lines": "1371" },
+              "passes": 1.6,
+              "passesSource": { "note": "t3", "lines": "1257" },
+              "drops": { "k": 23, "of": 24, "source": { "note": "t3", "lines": "1325" } }
+            }
+          ],
+          "comparisons": [
+            { "a": "raw_10_30k", "b": "raw_multiply_10_30k", "p": 0.0005, "verdict": "significant", "source": { "note": "t3", "lines": "1131, 1156" } },
+            { "a": "raw_10_30k", "b": "raw_multiply_10x30", "p": 0.0012, "verdict": "significant", "source": { "note": "t3", "lines": "1313" } },
+            { "a": "raw_multiply_10_30k", "b": "raw_multiply_10x30", "p": 1, "verdict": "no detectable difference", "source": { "note": "t3", "lines": "1314" } }
+          ]
+        }
+      ],
+      "finding": "Multiplying helped: 3/40 became 17/40, and 16/40 again with an independent set of 300 copies. Tripling the copies did not help further.",
+      "caveats": [
+        "One training run per arm, so training-seed variance is not measured.",
+        "Equal training steps, not equal epochs.",
+        "The multiplied policy still drops the cube: 22 of its 23 failures.",
+        "At n = 40, a gap like 42% to 60% would usually go undetected."
+      ],
+      "sources": [
+        { "note": "t3", "lines": "1112–1114, 1156, 1160–1161" },
+        { "note": "t3", "lines": "1307, 1313–1314, 1321–1323" }
+      ]
+    },
+    {
+      "id": "copies",
+      "title": "Do the multiplied copies pass the physics check?",
+      "question": "Each copy is a demo re-planned for a new cube and bin position, replayed in Isaac Lab, and kept only if the physics check passes.",
+      "setup": "Scripted-expert source demos.",
+      "seeds": "Training copies: scenes 3100–3399, all below the test scenes (5000 and up). Per robot: scenes 100–129, the same 30 for every robot.",
+      "test": "A count of copies that pass; no statistical test.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Copies in the training sets",
+          "arms": [
+            { "key": "copies_10x10", "label": "10 × 10 set", "k": 100, "n": 100, "source": { "note": "t2", "lines": "892, 898" } },
+            { "key": "copies_10x30", "label": "10 × 30 set", "k": 300, "n": 300, "source": { "note": "t2", "lines": "1109, 1119" } }
+          ]
+        },
+        {
+          "label": "Copies of one source demo across 30 scenes, by robot (built-in path)",
+          "arms": [
+            { "key": "franka_first", "label": "Franka, first run", "k": 27, "n": 30, "source": { "note": "t2", "lines": "513" } },
+            { "key": "franka_fixed", "label": "Franka, after the handover fix", "k": 30, "n": 30, "highlight": true, "source": { "note": "t2", "lines": "639–640" } },
+            { "key": "openarm", "label": "OpenArm", "k": 0, "n": 30, "source": { "note": "t2", "lines": "310–311, 513" } },
+            { "key": "flexiv", "label": "Flexiv Rizon 4s", "k": 9, "n": 30, "source": { "note": "t2", "lines": "513, 592" } }
+          ]
+        }
+      ],
+      "finding": null,
+      "caveats": [],
+      "sources": [{ "note": "t2", "lines": "513, 639–640, 892, 898, 1109, 1119" }]
+    },
+    {
+      "id": "grasp_fix",
+      "title": "Does a centered approach stop the drops?",
+      "question": "The multiplied policy's drops start at the approach: it arrives 2–3 cm off and turned, and never corrects. The fix gives every demo a centered, aligned approach in the Neaten step; every copy still passes the unchanged physics check.",
+      "setup": "The same 10 × 10 data and the same ACT recipe, 30k steps, one training run. Diagnosed on separate practice seeds 5200–5219, so the fix was not tuned on the test.",
+      "seeds": "5020–5059, n = 40, the same scenes as the multiply result.",
+      "test": "Pre-registered two-sided Fisher exact against 17/40, α = 0.05. \"Improved\" needed at least 27/40.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Policy success on 40 unseen scenes",
+          "arms": [
+            { "key": "centered_10x10", "label": "10 × 10, centered approach", "k": 20, "n": 40, "ci": [0.352, 0.648], "highlight": true, "source": { "note": "grasp", "lines": "301–310" } },
+            { "key": "raw_multiply_10_30k", "label": "10 × 10, as before", "k": 17, "n": 40, "ci": [0.285, 0.578], "source": { "note": "t3", "lines": "1156" } }
+          ],
+          "comparisons": [
+            { "a": "centered_10x10", "b": "raw_multiply_10_30k", "p": 0.65, "verdict": "no detectable difference", "source": { "note": "grasp", "lines": "312–318" } }
+          ]
+        }
+      ],
+      "finding": "20/40 against 17/40 is not an improvement by the pre-registered rule. The policy learned to fix its wrist angle but hardly its position; drops fell from 22 to 14, and 3 release collisions appeared.",
+      "caveats": ["One training run.", "The 3-point gain could be noise: each scene is close to a coin flip for this policy."],
+      "sources": [{ "note": "grasp", "lines": "5–11, 93, 231–233, 301–318, 343" }]
+    },
+    {
+      "id": "nemotron",
+      "title": "Can Nemotron label and judge demos?",
+      "question": "Nemotron 3.5 Super VL against a hand-written code baseline that sees the same frames and trajectory summary. As labeler it says what was done (cube colour, destination, steps); as judge it says whether a physics-checked copy still does what the demo did.",
+      "setup": "The demos are synthetic: the scripted expert with tremor, pauses and slowness added. Half the items are deliberately altered: a recoloured cube, a reversed clip, or (judge only) a failed copy labelled \"physics check: passed\".",
+      "seeds": "Fixed item sets built before any Nemotron call: 40 clips and 60 pairs (sets.json, sha256 78ead6a2…).",
+      "test": "Pre-registered exact two-sided sign test (McNemar) on the items where the two disagree, Wilson 95% CIs.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Labeler, 40 clips: cube colour and destination both right",
+          "arms": [
+            { "key": "labeler_nemotron", "label": "Nemotron", "k": 40, "n": 40, "ci": [0.912, 1], "highlight": true, "source": { "note": "judge", "lines": "162" } },
+            { "key": "labeler_code", "label": "Code baseline", "k": 39, "n": 40, "ci": [0.871, 0.996], "source": { "note": "judge", "lines": "162" } }
+          ],
+          "comparisons": [
+            { "a": "labeler_nemotron", "b": "labeler_code", "p": 1, "verdict": "no detectable difference", "source": { "note": "judge", "lines": "162" } }
+          ]
+        },
+        {
+          "label": "Judge, 60 pairs: match or not",
+          "arms": [
+            { "key": "judge_nemotron", "label": "Nemotron", "k": 59, "n": 60, "ci": [0.911, 0.997], "highlight": true, "source": { "note": "judge", "lines": "183" } },
+            { "key": "judge_code", "label": "Code baseline", "k": 60, "n": 60, "ci": [0.94, 1], "source": { "note": "judge", "lines": "183" } }
+          ],
+          "comparisons": [
+            { "a": "judge_nemotron", "b": "judge_code", "p": 1, "verdict": "no detectable difference", "source": { "note": "judge", "lines": "208–210" } }
+          ]
+        }
+      ],
+      "finding": "Neither beats the other. Nemotron's one miss was a hallucinated success: it trusted the \"physics check: passed\" label over frames that showed a failure, with confidence 0.95. Physics decides whether a demo works; Nemotron says what was done.",
+      "caveats": [
+        "The code rules were written by someone who knew the scene and the three kinds of wrong case, and would not transfer as they are to a webcam scene.",
+        "The items are not fully independent, so the CIs are somewhat optimistic."
+      ],
+      "sources": [{ "note": "judge", "lines": "17–24, 101, 111, 119, 162, 183, 200–210" }]
+    },
+    {
+      "id": "byor",
+      "title": "Does the pipeline work on another robot?",
+      "question": "Upload a robot's URDF and the pipeline replays the pick-and-place on it in Isaac Lab; the physics check counts the scenes it completes.",
+      "setup": "Isaac Lab 3.0, the generic bring-your-own-robot path, the Franka's scenes for every robot.",
+      "seeds": "Scene seeds 100–129: the same 30 scenes for every robot.",
+      "test": "A count per robot, not a comparison, so no statistical test.",
+      "pending": null,
+      "groups": [
+        {
+          "label": "Pick-and-place, 30 scenes",
+          "arms": [
+            { "key": "franka", "label": "Franka", "detail": "matches the built-in Franka run, 30/30 on the same seeds", "k": 30, "n": 30, "highlight": true, "source": { "note": "byor", "lines": "63, 65" } },
+            { "key": "openarm", "label": "OpenArm", "detail": "its ±45° wrist is at its limit in 30 of 30 scenes; verdict not_ready", "k": 0, "n": 30, "source": { "note": "byor", "lines": "67, 84–87, 93" } }
+          ]
+        }
+      ],
+      "finding": "The generic path reproduces the built-in Franka and the OpenArm's known wrist limit. Its reach map was optimistic for the OpenArm: a pose exists for about 60% of the grasp cells, yet the replay reached none.",
+      "caveats": ["Tracking is 1.7 mm worse on average than the built-in Franka path."],
+      "sources": [{ "note": "byor", "lines": "25, 55–68, 75, 84–97" }]
+    },
+    {
+      "id": "grasp_fix_run2",
+      "title": "Grasp fix, run 2: recovery copies and longer training",
+      "question": "Teach the policy to recover after a bad approach (recovery copies from traced failures) and train it to 60k steps instead of 30k.",
+      "setup": "Both changes in one run, so a difference can't be split between them. One training run.",
+      "seeds": "Step count chosen on practice seeds 5250–5279; the official test runs once, on 5020–5059 (n = 40).",
+      "test": "Pre-registered two-sided Fisher exact against 20/40, α = 0.05. \"Improved\" needs at least 30/40.",
+      "pending": "The code and the pre-registration are committed; the GPU run hasn't happened.",
+      "groups": [
+        {
+          "label": "Policy success on 40 unseen scenes",
+          "arms": [
+            { "key": "recovery_60k", "label": "+ recovery copies, 60k", "k": null, "n": 40, "highlight": true },
+            { "key": "centered_10x10", "label": "Centered approach, 30k (run 1)", "k": 20, "n": 40, "ci": [0.352, 0.648], "source": { "note": "grasp", "lines": "301–310" } }
+          ],
+          "comparisons": [{ "a": "recovery_60k", "b": "centered_10x10", "p": null, "verdict": null }]
+        }
+      ],
+      "finding": null,
+      "caveats": [],
+      "sources": [{ "note": "grasp", "lines": "386, 428, 466–482, 498" }]
+    }
+  ]
+}
