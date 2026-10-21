@@ -540,11 +540,11 @@ The plan above applies to it.
 - **The replayability check on non-gate seeds 7000–7031:**
   - in the env: 32/32;
   - SANT's replay verify: 32/32 (Wilson 0.89–1.00).
-  - Outputs: `datal\eval6c2_replaycheck_7000` (`in_env.json`: 32 successes; `verify.json`: 32 of 32 agree with
+  - Outputs: `data\rl\eval\v6c2_replaycheck_7000` (`in_env.json`: 32 successes; `verify.json`: 32 of 32 agree with
     the in-env verdict).
 
 **Gate attempt 2 was launched once**, on `model_2098`, seeds 5350–5399, with `rl_eval_teacher` + `rl_verify_teacher`
-(part (a)). Outputs: `datal\eval6c2_gate2`. The results are added here when they arrive. Part (b), T6's in-env
+(part (a)). Outputs: `data\rl\eval\v6c2_gate2`. The results are added here when they arrive. Part (b), T6's in-env
 gate on 4000–4049, is still required.
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
