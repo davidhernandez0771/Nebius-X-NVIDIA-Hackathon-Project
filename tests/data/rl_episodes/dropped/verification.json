@@ -1,0 +1,11 @@
+{
+ "success": false,
+ "reasons": [
+  "not_in_bin",
+  "dropped"
+ ],
+ "duration": 10.6,
+ "path_length": 3.6725734921878823,
+ "max_contact_force": 0.0,
+ "settle_time": 5.04
+}
