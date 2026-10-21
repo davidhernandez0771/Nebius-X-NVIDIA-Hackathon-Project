@@ -153,3 +153,11 @@ def layout_for_scene(scene: Scene) -> SceneLayout:
                 _vec(scene.cube_pose.pos), tuple(scene.cube_pose.quat_wxyz), "cube_contact", "fingers")
     bp = Pose(pos=_vec(scene.bin_pose.pos), quat_wxyz=tuple(scene.bin_pose.quat_wxyz))
     return SceneLayout((cube, *_bin_bodies("bin", bp, BIN_INNER, P.BLUE, legacy=True)), True, (("bin", bp, BIN_INNER),))
+
+
+def body_key(layout: SceneLayout) -> tuple:
+    """What Isaac builds for a layout, without where it puts it: every body's name, prim, kind, size, colour, mass and
+    contact sensor (spawn points and placed poses left out). Two layouts with the same key are the same scene config,
+    so one built sim can switch between them by placing the bodies again; a different key needs a new sim."""
+    return tuple((b.name, b.prim, b.object_id, b.kind, b.size, b.color, b.mass, b.contact, b.contact_filter)
+                 for b in layout.bodies)

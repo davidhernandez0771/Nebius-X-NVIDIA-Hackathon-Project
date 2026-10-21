@@ -52,7 +52,9 @@ export const ART_MORPH_MS = 400;
 export const ART_COOLDOWN_MS = 400;
 const RESET_TOAST_MS = 2500; // how long "Reset fired" stays up after each fire (frame time)
 
-export const SINK_COMMAND = "C:\\isaac\\env_isaaclab\\Scripts\\python.exe sim_worker\\scripts\\teleop_sink.py --viz kit";
+// The restart loop around teleop_sink.py: with no scene arguments it is the same sink, and it can bring the sink back
+// in a scene with other bodies (the scene picker; sim_worker/scripts/teleop_sink_loop.py).
+export const SINK_COMMAND = "C:\\isaac\\env_isaaclab\\Scripts\\python.exe sim_worker\\scripts\\teleop_sink_loop.py --viz kit";
 export const STEP_S = 0.02; // the sim records at 50 Hz (sim_worker/teleop_session.py TELEOP_DT)
 
 export type Phase = { state: "idle" } | { state: "starting" } | { state: "streaming" } | { state: "error"; message: string };
@@ -484,6 +486,11 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     setPhase({ state: "idle" });
   }
 
+  /** The scene picker: ask the sim for another scene (set_scene). False when there is no link to send it on. */
+  function setScene(sceneId: string): boolean {
+    return session.current?.link?.sendScene(sceneId) ?? false;
+  }
+
   /** Re-pick the hand: drop the lock; the next hand held still for 0.3 s drives the arm. */
   function repickHand() {
     handLockRef.current?.reset();
@@ -559,6 +566,7 @@ export function useRecordSession({ palette, inputs = false }: { palette?: StageP
     cancelCalibration,
     startTrace,
     repickHand,
+    setScene,
     updateDrive,
     requestMouse,
   };

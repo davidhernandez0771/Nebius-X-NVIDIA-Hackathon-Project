@@ -1516,3 +1516,152 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* The wrist's turn in the twin pane's header (WristDial.tsx) */
+.rg-wrist {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--rg-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.rg-wrist svg {
+  color: var(--rg-live);
+}
+
+/* The scene picker (ScenePicker.tsx): the top bar's button, the list, the top-down preview */
+.rg-scene-btn {
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rg-scene-btn__busy {
+  color: var(--rg-hold);
+}
+
+.rg .rg-scenes {
+  overflow-y: auto;
+}
+
+.rg-scenes__list {
+  margin-left: 8px;
+  color: var(--rg-ink-3);
+}
+
+.rg-scenes__items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rg-scenes__item {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 7px;
+  font: 400 11px var(--rg-mono);
+  color: var(--rg-ink-2);
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--rg-hair);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.rg-scenes__item b {
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rg-scenes__item[aria-pressed="true"] {
+  border-color: var(--rg-live);
+}
+
+.rg-scenes__item[data-live] b::before {
+  content: "● ";
+  color: var(--rg-live);
+}
+
+.rg-scenes__tag {
+  flex: none;
+  font-size: 10px;
+  color: var(--rg-hold);
+}
+
+.rg-scenes__chosen,
+.rg-scenes__describe {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rg-scenes__describe textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: 400 12px var(--rg-mono);
+  color: var(--rg-ink);
+  background: rgba(8, 12, 13, 0.9);
+  border: 1px solid var(--rg-hair-hi);
+  border-radius: 2px;
+  resize: vertical;
+}
+
+.rg-plan {
+  width: 100%;
+  max-height: 210px;
+  background: rgba(8, 12, 13, 0.6);
+  border: 1px solid var(--rg-hair);
+}
+
+.rg-plan__reach {
+  fill: none;
+  stroke: var(--rg-live);
+  stroke-opacity: 0.35;
+  stroke-dasharray: 8 6;
+  stroke-width: 2;
+}
+
+.rg-plan__bin {
+  fill: rgba(47, 91, 200, 0.18);
+  stroke: var(--rg-hold);
+  stroke-width: 3;
+}
+
+.rg-plan__bin-in {
+  fill: none;
+  stroke: var(--rg-hold);
+  stroke-opacity: 0.4;
+  stroke-width: 1.5;
+}
+
+.rg-plan__cube {
+  stroke: #fff;
+  stroke-opacity: 0.6;
+  stroke-width: 2;
+}
+
+.rg-plan__goal {
+  stroke: var(--rg-live);
+  stroke-width: 3;
+  stroke-dasharray: 10 6;
+}
+
+.rg-plan__arrow {
+  fill: var(--rg-live);
+}
+
+.rg-plan__label {
+  font: 400 22px var(--rg-mono);
+  fill: var(--rg-ink-3);
+}

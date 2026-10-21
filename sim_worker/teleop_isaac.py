@@ -44,11 +44,16 @@ from contextlib import nullcontext
 import numpy as np
 import torch
 
+from demo_pipeline.scene_library import STANDARD_SCENE
+from demo_pipeline.scene_plan import ScenePlan
 from demo_pipeline.schemas import Pose, Scene
 
 from . import replay as _replay
 from .replay import CAMERA_WARMUP_STEPS, CONTACT_N, PHYSICS_DT
+from .plan_layout import SceneLayout, body_key, layout_for_plan, layout_for_scene
+from .plan_scene import read_cube_poses
 from .scene_cfg import ARM_CONTACT_SENSORS
+from .settle import SETTLE_S, settle_errors
 from .teleop_render import SubstepSim
 from .teleop_session import TELEOP_DT, ContactReading, StepState, TwinState, peak_contact
 from .teleop_trace import Sections
@@ -68,10 +73,15 @@ MAX_FF_STEP_M = 0.02  # 1 m/s at 50 Hz; a hand moves ~0.3 m/s, so anything faste
 
 class IsaacTeleopDriver:
     def __init__(self, *, record_cameras: bool, robot: str = "franka", vel_ff: bool = True,
-                 render: str = "legacy", sections: Sections | None = None) -> None:
+                 render: str = "legacy", sections: Sections | None = None, plan: ScenePlan | None = None) -> None:
         if render not in RENDER_MODES:
             raise ValueError(f"render must be one of {RENDER_MODES}, got {render!r}")
-        self.s = _replay._session(record_cameras, robot)
+        # plan: build its cubes and bins (replay's plan scene, one per process) instead of today's cube and bin.
+        # Without one every name below is today's ("cube", "cube_contact", scene_cfg.ARM_CONTACT_SENSORS).
+        self.s = _replay._session(record_cameras, robot, plan=plan)
+        self.plan = plan
+        self.layout: SceneLayout | None = layout_for_plan(plan) if plan is not None else None
+        self._names_from(self.layout, plan)
         self.record_cameras = record_cameras
         self.render = render
         self.vel_ff = vel_ff
@@ -101,11 +111,39 @@ class IsaacTeleopDriver:
         every_substep = self._cameras_on and self.render == "fast"
         self._stepper.sim.render_every = 1 if every_substep else _replay.DECIMATION
 
-    def reset(self, scene: Scene) -> None:
-        """Place the scene, then hold the robot's default joint pose for a few control steps, so the
-        robot data is fresh (and the cameras warm) before the session reads the start tool pose."""
+    def _names_from(self, layout: SceneLayout | None, plan: ScenePlan | None, primary_id: str | None = None) -> None:
+        """The scene entities to read: the first goal's cube (today's "cube") and its finger sensor, every cube of a
+        plan, and the arm's collision sensors."""
+        if layout is None:
+            self._cube, self._cube_contact, self._arm_sensors = "cube", "cube_contact", ARM_CONTACT_SENSORS
+            self._cubes: dict[str, tuple[str, str]] = {}
+        else:
+            primary = layout.cube(plan.goals[0].object if plan is not None else primary_id)
+            self._cube, self._cube_contact = primary.name, primary.contact
+            self._arm_sensors = layout.arm_contact_sensors()
+            self._cubes = {c: (layout.cube(c).name, layout.cube(c).contact) for c in layout.cube_ids()}
+
+    @property
+    def body_key(self) -> tuple:
+        """What this sim was built with (plan_layout.body_key): a plan with the same key can be placed in it."""
+        return body_key(self.layout if self.layout is not None else layout_for_scene(STANDARD_SCENE))
+
+    def reset(self, scene: Scene, layout: SceneLayout | None = None) -> None:
+        """Place the scene (a plan's layout when given: one with this sim's bodies), then hold the robot's default
+        joint pose for a few control steps, so the robot data is fresh (and the cameras warm) before the session
+        reads the start tool pose."""
         s = self.s
-        _replay._place_scene(s, scene)
+        if layout is not None:
+            if body_key(layout) != self.body_key:
+                raise ValueError("this sim was built for other bodies; the sink must restart in that scene")
+            self.layout = layout
+            # the goal cube is the one at scene.cube_pose (teleop_scenes.scene_for_plan): read every cube from now on
+            goal = min(layout.cube_ids(),
+                       key=lambda c: float(np.linalg.norm(np.subtract(layout.cube(c).pos, scene.cube_pose.pos))))
+            self._names_from(layout, None, goal)
+            _replay._place_scene(s, scene, layout=layout)
+        else:
+            _replay._place_scene(s, scene)
         robot = s.scene["robot"]
         default = robot.data.default_joint_pos.torch.clone()
         zeros = torch.zeros_like(default)
@@ -155,11 +193,33 @@ class IsaacTeleopDriver:
         """Joints and cube pose for the robot twin: one small GPU-to-CPU copy, no contacts or cameras."""
         with self._time("twin"):
             s = self.s
-            cube = s.scene["cube"].data.root_pose_w.torch[0]  # pos + quat (x, y, z, w), world frame
+            cube = s.scene[self._cube].data.root_pose_w.torch[0]  # pos + quat (x, y, z, w), world frame
             row = torch.cat([s.scene["robot"].data.joint_pos.torch[0], cube[0:3] - s.scene.env_origins[0], cube[3:7]])
             v = row.cpu().numpy().astype(np.float64)
+            cubes = None
+            if self._cubes:
+                origin = s.scene.env_origins[0]
+                rows = torch.stack([torch.cat([s.scene[name].data.root_pose_w.torch[0][0:3] - origin,
+                                               s.scene[name].data.root_pose_w.torch[0][3:7]])
+                                    for name, _ in self._cubes.values()]).cpu().numpy().astype(np.float64)
+                cubes = {c: np.concatenate([r[0:3], _replay._wxyz(r[3:7])]) for c, r in zip(self._cubes, rows)}
         n = v.shape[0] - 7
-        return TwinState(joint_pos=v[:n], cube_pose=np.concatenate([v[n:n + 3], _replay._wxyz(v[n + 3:])]))
+        return TwinState(joint_pos=v[:n], cube_pose=np.concatenate([v[n:n + 3], _replay._wxyz(v[n + 3:])]), cubes=cubes)
+
+    def settle_check(self, plan: ScenePlan) -> list[str]:
+        """The settle check (sim_worker.settle) in this sim, right after a reset: hold the robot still for SETTLE_S
+        with nothing touching the scene, then report every cube that moved, fell or tipped ([] = it stands)."""
+        s = self.s
+        lay = self.layout if self.layout is not None else layout_for_plan(plan)
+        before = {c: (lay.cube(c).pos, lay.cube(c).quat_wxyz) for c in lay.cube_ids()}
+        robot = s.scene["robot"]
+        hold = robot.data.default_joint_pos.torch.clone()
+        for _ in range(int(round(SETTLE_S / PHYSICS_DT))):
+            robot.set_joint_position_target_index(target=hold)
+            s.scene.write_data_to_sim()
+            s.sim.step()
+            s.scene.update(PHYSICS_DT)
+        return settle_errors(plan, before, read_cube_poses(s.scene, lay))
 
     def read_contact(self) -> ContactReading:
         """The arm's hardest push on the bin or table over the last control step, and which body: the success
@@ -169,7 +229,7 @@ class IsaacTeleopDriver:
             s = self.s
             forces: dict[str, list[np.ndarray]] = {}
             bodies: list[str] | None = None
-            for group, sensors in ARM_CONTACT_SENSORS.items():
+            for group, sensors in self._arm_sensors.items():
                 for name in sensors:
                     sensor = s.scene[name]
                     hist = sensor.data.normal_force_matrix_w_history
@@ -178,16 +238,23 @@ class IsaacTeleopDriver:
                     bodies = bodies or [p.rsplit("/", 1)[-1] for p in sensor.cfg.filter_prim_paths_expr]
         return peak_contact(forces, bodies or [])
 
+    def _read_objects(self) -> dict[str, tuple[np.ndarray, bool]]:
+        """Every cube of a plan's scene: position (env frame) and finger contact, as replay.py records them."""
+        s = self.s
+        return {c: ((s.scene[name].data.root_pos_w.torch[0] - s.scene.env_origins[0]).cpu().numpy(),
+                    _replay._max_pair_force(s.scene[contact]) > CONTACT_N)
+                for c, (name, contact) in self._cubes.items()}
+
     def read_state(self) -> StepState:
         with self._time("read"):
             return self._read_state()
 
     def _read_state(self) -> StepState:
         s = self.s
-        robot, cube = s.scene["robot"], s.scene["cube"]
+        robot, cube = s.scene["robot"], s.scene[self._cube]
         tcp, quat = _replay._tcp_pose(s)
         forces = {group: max(_replay._max_pair_force(s.scene[name]) for name in sensors)
-                  for group, sensors in ARM_CONTACT_SENSORS.items()}
+                  for group, sensors in self._arm_sensors.items()}
         frames = {}
         if self.record_cameras and self._cameras_on:
             for cam in ("front", "wrist"):
@@ -198,9 +265,10 @@ class IsaacTeleopDriver:
             ee_pos=np.asarray(tcp, dtype=np.float64),
             ee_quat=np.asarray(quat, dtype=np.float64),
             cube_pos=(cube.data.root_pos_w.torch[0] - s.scene.env_origins[0]).cpu().numpy(),
-            contact_gripper_cube=_replay._max_pair_force(s.scene["cube_contact"]) > CONTACT_N,
+            contact_gripper_cube=_replay._max_pair_force(s.scene[self._cube_contact]) > CONTACT_N,
             contact_arm_bin=forces["bin"] > CONTACT_N,
             contact_arm_table=forces["table"] > CONTACT_N,
             max_contact_force=float(max(forces.values())),
             frames=frames,
+            objects=self._read_objects() if self._cubes else None,
         )

@@ -42,11 +42,12 @@ Pure: numpy + pydantic + demo_pipeline only (no torch, no Isaac), so it tests an
 from __future__ import annotations
 
 import json
+import math
 import queue
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Literal, Protocol
 
@@ -55,13 +56,19 @@ from pydantic import ValidationError
 
 from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
 from demo_pipeline.rules import TASK_TEXT
-from demo_pipeline.schemas import INPUT_MODES, Assist, Demo, Pose, Scene, SimSignals, Trajectory
+from demo_pipeline.assist_rules import rules_fallback, zones_from_rules
+from demo_pipeline.goals import check_goals, goals_from_plan
+from demo_pipeline.scene_plan import ScenePlan, resolve
+from demo_pipeline.schemas import INPUT_MODES, Assist, Demo, Pose, Scene, ScenePlanRef, SimSignals, Trajectory
 from demo_pipeline.soft_floor import AssistZones, zones_for_scene
 from demo_pipeline.store import DemoStore
 from demo_pipeline.success import check_success
 from demo_pipeline.teleop import Calibration, GripperLatch, HandPoseMsg, to_ee_target
 
+from .object_record import ObjectRecorder, save_scene_signals
+from .plan_layout import SceneLayout, layout_for_plan
 from .robots import ROBOTS
+from .teleop_scenes import scene_for_plan
 from .teleop_trace import LatencyTrace, coalesce_hands, now_ms, split_trace
 
 TELEOP_DT = 0.02  # s per control step; equals sim_worker.tracking.CONTROL_DT (that module imports torch)
@@ -81,7 +88,7 @@ KIT_CAMERA_TARGET = (0.42, 0.0, 0.08)
 KIT_CAMERA_EYE = (KIT_CAMERA_TARGET[0] - 0.8, KIT_CAMERA_TARGET[1] - 0.5, KIT_CAMERA_TARGET[2] + 1.25)
 
 State = Literal["idle", "recording", "saving"]
-ACTIONS = ("record_start", "record_stop", "record_discard", "reset_scene", "set_input", "set_assist")
+ACTIONS = ("record_start", "record_stop", "record_discard", "reset_scene", "set_input", "set_assist", "set_scene")
 CONTACT_DECIMALS = 1  # N, in the twin's contact reading
 
 
@@ -98,6 +105,8 @@ class StepState:
     contact_arm_bin: bool
     contact_arm_table: bool
     max_contact_force: float  # N, arm vs bin/table
+    # A plan's scene: every cube, id -> (position, env frame; in gripper contact). None in today's one-cube scene.
+    objects: dict[str, tuple[np.ndarray, bool]] | None = None
     frames: dict[str, np.ndarray] = field(default_factory=dict)  # camera -> HxWx3 uint8
 
 
@@ -130,6 +139,7 @@ class TwinState:
 
     joint_pos: np.ndarray  # [J] all robot joints, in the driver's joint_names order
     cube_pose: np.ndarray  # [7] position (env frame) + orientation (w, x, y, z)
+    cubes: dict[str, np.ndarray] | None = None  # a plan's scene: every cube's [7] pose, by id
 
 
 class TeleopDriver(Protocol):
@@ -152,9 +162,21 @@ class TeleopDriver(Protocol):
 class Recording:
     demo: Demo
     states: list[StepState]  # one per trajectory step
+    plan: ScenePlan | None = None  # the scene's plan (None: today's one cube and bin)
+    layout: SceneLayout | None = None  # its bodies (plan_layout), for recording every cube
 
 
 SaveFn = Callable[[Recording], str]  # returns one human-readable line for the Record page
+
+
+def _gripper_yaw(q_wxyz) -> float:
+    """The yaw of to_ee_target's gripper-down orientation (0, cos(y/2), sin(y/2), 0)."""
+    return 2.0 * math.atan2(float(q_wxyz[2]), float(q_wxyz[1]))
+
+
+def _yaw_wxyz(deg: float) -> tuple[float, float, float, float]:
+    h = math.radians(deg) / 2
+    return (math.cos(h), 0.0, 0.0, math.sin(h))
 
 
 def _rounded(values) -> list[float]:
@@ -172,11 +194,21 @@ class TeleopSession:
         clock: Callable[[], float] = time.monotonic,
         new_id: Callable[[], str] = lambda: DemoStore.new_id("human"),
         zones: AssistZones | None = None,
+        plan: ScenePlan | None = None,
+        scene_ref: ScenePlanRef | None = None,
     ) -> None:
         self.driver, self.scene, self.save_fn = driver, scene, save_fn
-        # The soft floor's zones (demo_pipeline.soft_floor): today's scene's one bin unless a plan's are given
-        # (demo_pipeline.assist_rules: geometry plus Nemotron's or the rules' targets, keep-outs and speed caps).
-        self.zones = zones if zones is not None else zones_for_scene(scene)
+        # The scene picker (teleop_scenes): a ScenePlan's bodies instead of today's cube and bin, every cube recorded,
+        # the goals' verdict; scene_ref (the library entry) labels each demo and the status. None: today's scene.
+        self.plan, self.scene_ref = plan, scene_ref
+        self.layout: SceneLayout | None = layout_for_plan(plan) if plan is not None else None
+        self.scene_switcher = None  # teleop_scenes.SceneSwitcher, set by the sink when it can change scenes
+        self.switching: str | None = None  # the scene a requested sim restart will bring up
+        self.settle: dict | None = None  # the Isaac settle check of this scene ({"ok", "errors"}), when the sim ran it
+        # The soft floor's zones (demo_pipeline.soft_floor): today's scene's one bin, a plan's bins with the rules'
+        # floor always on (assist_rules.rules_fallback), or the zones given (Nemotron's rules over the rules' floor).
+        self._zones_given = zones is not None
+        self.zones = zones if zones is not None else self._zones_for(plan, scene)
         self.calib, self.clock, self.new_id = calib, clock, new_id
         self.state: State = "idle"
         self.last_result: str | None = None
@@ -197,10 +229,38 @@ class TeleopSession:
         if msg.tracking_ok:
             self._last_good_at = self.clock()
 
-    def on_control(self, action: str, input: str | None = None, soft_floor: bool | None = None) -> None:
+    @staticmethod
+    def _zones_for(plan: ScenePlan | None, scene: Scene) -> AssistZones:
+        if plan is None:
+            return zones_for_scene(scene)
+        return zones_from_rules(plan, rules_fallback(plan), "rules")
+
+    def set_plan(self, plan: ScenePlan, ref: ScenePlanRef | None) -> None:
+        """Another plan with the same bodies, in the same sim (teleop_scenes): place them again (a scene reset)."""
+        if self.state == "recording":
+            raise RuntimeError("stop recording first, then change the scene")
+        self.plan, self.scene_ref, self.layout = plan, ref, layout_for_plan(plan)
+        self.scene = scene_for_plan(plan, seed=self.scene.seed)
+        if not self._zones_given:
+            self.zones = self._zones_for(plan, self.scene)
+        self.switching, self.settle = None, None
+        self._reset()
+
+    def on_control(self, action: str, input: str | None = None, soft_floor: bool | None = None,
+                   scene: str | None = None) -> None:
         if action not in ACTIONS:
             raise ValueError(f"unknown control action {action!r}; expected one of {ACTIONS}")
-        if action == "set_assist":
+        if action == "set_scene":
+            if not isinstance(scene, str) or not scene:
+                raise ValueError(f"set_scene needs a scene id; got {scene!r}")
+            if self.state == "recording":
+                self.last_result = "stop recording first, then change the scene"
+                return
+            if self.scene_switcher is None:
+                self.last_result = "this sim can't change scenes; restart the sink with --scene"
+                return
+            self.last_result = self.scene_switcher.switch(scene)
+        elif action == "set_assist":
             if not isinstance(soft_floor, bool):
                 raise ValueError(f"set_assist needs soft_floor true or false; got {soft_floor!r}")
             self.soft_floor = soft_floor
@@ -210,6 +270,7 @@ class TeleopSession:
                 raise ValueError(f"set_input needs an input, one of {INPUT_MODES}; got {input!r}")
             if input != self.input:
                 self._smooth = (np.asarray(self._cmd.pos, dtype=float), np.zeros(3))  # from where the arm is told to be
+                self._smooth_yaw = (_gripper_yaw(self._cmd.quat_wxyz), 0.0)
             self.input = input
             self.last_result = f"input: {input}"
         elif action == "record_start":
@@ -313,7 +374,32 @@ class TeleopSession:
             "paused": self.paused,
             "soft_floor": self.soft_floor,
             "contact_peak_n": None if self.contact_peak is None else round(self.contact_peak),
-        }
+        } | self._scene_status()
+
+    def _scene_status(self) -> dict:
+        """The scene picker's part of the status, only with a scene from the library (today's sink sends none)."""
+        if self.scene_ref is None:
+            return {}
+        return {"scene": {"id": self.scene_ref.id, "name": self.scene_ref.name, "hash": self.scene_ref.hash,
+                          "settle": self.settle, "switching": self.switching, "playlist": self._playlist_status()}}
+
+    def _playlist_status(self) -> dict | None:
+        playlist = getattr(self.scene_switcher, "playlist", None)
+        return None if playlist is None else playlist.status()
+
+    def _objects(self) -> list[dict]:
+        """A plan's every cube and bin for the twin: id, kind, colour, size (cube edge) or inner (bin), pose7."""
+        placed = resolve(self.plan)
+        out = []
+        for o in self.plan.objects:
+            p = placed[o.id]
+            pose = _rounded([*p.pos, *_yaw_wxyz(p.yaw_deg)])
+            if o.kind == "cube":
+                out.append({"id": o.id, "kind": "cube", "color": o.color, "size": float(o.size), "pose": pose})
+            else:
+                out.append({"id": o.id, "kind": "bin", "color": o.color, "inner": [float(v) for v in o.inner],
+                            "pose": pose})
+        return out
 
     @property
     def has_twin(self) -> bool:
@@ -332,7 +418,7 @@ class TeleopSession:
             "joint_names": [str(n) for n in self.driver.joint_names],
             "base": _rounded([*base, 1.0, 0.0, 0.0, 0.0]),
             "bin": _rounded([*self.scene.bin_pose.pos, *self.scene.bin_pose.quat_wxyz]),
-        }
+        } | ({"objects": self._objects()} if self.plan is not None else {})
 
     def twin(self) -> dict | None:
         """The relay's SimTwinMsg: the robot's joints now (joint_names order), the gripper sent (0 open, 1 closed),
@@ -349,6 +435,8 @@ class TeleopSession:
             "cube": _rounded(state.cube_pose),
             "floor": self.floored,
         }
+        if self.plan is not None and state.cubes is not None:
+            msg["cubes"] = {c: _rounded(p) for c, p in state.cubes.items()}
         read_contact = getattr(self.driver, "read_contact", None)
         if callable(read_contact):
             c: ContactReading = read_contact()
@@ -358,20 +446,33 @@ class TeleopSession:
     # --- internals ----------------------------------------------------------------------
 
     def _smoothed(self, target: Pose) -> Pose:
-        """One TELEOP_DT step of a critically damped filter toward the target's position (orientation as is)."""
+        """One TELEOP_DT step of a critically damped filter toward the target's position and its wrist yaw (the
+        keyboard's and mouse's Q/E, Shift+wheel): the page's messages arrive as a staircase in both."""
         pos, vel = self._smooth
         w = 1.0 / SMOOTH_TAU_S
         vel = vel + TELEOP_DT * (w * w * (np.asarray(target.pos) - pos) - 2.0 * w * vel)
         pos = pos + TELEOP_DT * vel
         self._smooth = (pos, vel)
-        return Pose(pos=tuple(float(v) for v in pos), quat_wxyz=target.quat_wxyz)
+        q = target.quat_wxyz
+        if abs(q[0]) > 1e-6 or abs(q[3]) > 1e-6:  # not to_ee_target's gripper-down form (the start pose): as is
+            self._smooth_yaw = (_gripper_yaw(q), 0.0)
+            return Pose(pos=tuple(float(v) for v in pos), quat_wxyz=q)
+        yaw, rate = self._smooth_yaw
+        rate = rate + TELEOP_DT * (w * w * (_gripper_yaw(target.quat_wxyz) - yaw) - 2.0 * w * rate)
+        yaw = yaw + TELEOP_DT * rate
+        self._smooth_yaw = (yaw, rate)
+        return Pose(pos=tuple(float(v) for v in pos), quat_wxyz=(0.0, math.cos(yaw / 2), math.sin(yaw / 2), 0.0))
 
     def _reset(self) -> None:
-        self.driver.reset(self.scene)
+        if self.layout is not None:
+            self.driver.reset(self.scene, layout=self.layout)
+        else:
+            self.driver.reset(self.scene)
         start = self.driver.read_state()
         self._target = Pose(pos=tuple(float(v) for v in start.ee_pos), quat_wxyz=tuple(float(v) for v in start.ee_quat))
         self._cmd = self._target  # what the robot is told (the target, smoothed for keyboard and mouse)
         self._smooth = (np.asarray(self._target.pos, dtype=float), np.zeros(3))
+        self._smooth_yaw = (_gripper_yaw(self._target.quat_wxyz), 0.0)
         self._gripper = 0
         self._latch = GripperLatch()
         self._latest: HandPoseMsg | None = None
@@ -398,14 +499,25 @@ class TeleopSession:
                         human_seconds=human_seconds, input=self.input,
                         assist=Assist(soft_floor=self._assist["on"], soft_floor_steps=self._assist["steps"],
                                       soft_floor_dips=self._assist["dips"],
-                                      zones=self.zones.to_dict() if self._assist["on"] else None))
-            self.last_result = self.save_fn(Recording(demo=demo, states=list(rec["states"])))
+                                      zones=self.zones.to_dict() if self._assist["on"] else None),
+                        scene_plan=self.scene_ref)
+            self.last_result = self.save_fn(Recording(demo=demo, states=list(rec["states"]), plan=self.plan,
+                                                      layout=self.layout))
             self.last_demo_id = demo.id
         except Exception as e:  # a failed save must not wedge the session
             self.last_result = f"save failed: {type(e).__name__}: {e}"
         finally:
             self.state = "idle"
             self._tell_driver_recording(False)
+        # A scene list (the sink's --scene-list) moves on after each saved take; a switch that fails is reported, not
+        # taken for a failed save.
+        if self.last_demo_id is not None and self.scene_switcher is not None:
+            try:
+                note = self.scene_switcher.after_save()
+            except Exception as e:
+                note = f"the next scene failed: {type(e).__name__}: {e}"
+            if note:
+                self.last_result = f"{self.last_result}; next: {note}"
 
     def _discard(self) -> None:
         n = self._steps
@@ -450,7 +562,7 @@ def _dispatch_data(session: TeleopSession, data, text: str) -> str | None:
         return None
     try:
         if kind == "control":
-            session.on_control(str(data.get("action")), data.get("input"), data.get("soft_floor"))
+            session.on_control(str(data.get("action")), data.get("input"), data.get("soft_floor"), data.get("scene"))
         else:
             session.on_hand(HandPoseMsg.model_validate(split_trace(data)[0] if isinstance(data, dict) else data))
     except (ValueError, ValidationError) as e:
@@ -686,11 +798,30 @@ def make_store_saver(
     def save(rec: Recording) -> str:
         demo, states = rec.demo, rec.states
         n = len(states)
-        signals = episode_signals(states)
         reached = np.asarray([s.ee_pos for s in states], dtype=np.float64)
         target = demo.commanded if demo.commanded is not None else demo.trajectory
         residual = np.linalg.norm(reached - np.asarray(target.ee_pos), axis=1)
-        result = check_success(demo.trajectory, signals, demo.scene.bin_pose, bin_inner=bin_inner, tcp_error=residual)
+        scene_signals = goals_report = None
+        if rec.plan is None:
+            signals = episode_signals(states)
+            result = check_success(demo.trajectory, signals, demo.scene.bin_pose, bin_inner=bin_inner,
+                                   tcp_error=residual)
+        else:
+            # A plan's scene, as replay.py judges it: every cube recorded; the numbers from check_success on the first
+            # goal's cube and bin, the verdict from every goal (demo_pipeline.goals). Its signals.npz is the first
+            # goal's cube, as today's.
+            objects = ObjectRecorder(rec.layout)
+            for s in states:
+                objects.add(s.objects, arm_bin=s.contact_arm_bin, arm_table=s.contact_arm_table,
+                            force=s.max_contact_force)
+            first = rec.plan.goals[0]
+            signals = objects.sim_signals(first.object)
+            box = rec.layout.containers()[first.bin]
+            base = check_success(demo.trajectory, signals, box.pose, bin_inner=box.inner, tcp_error=residual)
+            arr = demo.trajectory.to_arrays()
+            scene_signals = objects.scene_signals(arr["t"], arr["ee_pos"], arr["gripper"], tcp_error=residual)
+            goals_report = check_goals(goals_from_plan(rec.plan), scene_signals)
+            result = base.model_copy(update={"success": goals_report.success, "reasons": list(goals_report.reasons)})
 
         store.save_demo(demo)
         ep_dir = store.episode_dir(demo.id)
@@ -705,6 +836,10 @@ def make_store_saver(
             "gripper": np.asarray(demo.trajectory.gripper, dtype=np.int8),
         })
         save_signals(ep_dir, signals)
+        if goals_report is not None:
+            save_scene_signals(ep_dir, scene_signals)
+            (Path(ep_dir) / "goals.json").write_text(json.dumps(asdict(goals_report), indent=1), encoding="utf-8")
+            (Path(ep_dir) / "plan.json").write_text(rec.plan.model_dump_json(indent=1), encoding="utf-8")
         if cameras:
             _write_frames(Path(ep_dir), states, cameras)
 

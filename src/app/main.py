@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
-from .routers import ask, candidates, chat, demos, items, organize, phone_scans, photos, results, review, robots, rooms, scans, showcase, teleop, twin
+from .routers import ask, candidates, chat, demos, items, organize, phone_scans, photos, results, review, robots, rooms, scans, scenes, showcase, teleop, twin
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(results.router)
 app.include_router(robots.router)
 app.include_router(twin.router)
 app.include_router(showcase.router)
+app.include_router(scenes.router)
 
 
 @app.get("/api/health")
