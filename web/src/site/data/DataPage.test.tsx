@@ -93,6 +93,17 @@ afterEach(() => {
 });
 
 describe("the data page", () => {
+  it("sits in the holo frame, at the end of the path Record › Pipeline › Data", async () => {
+    page();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("The data");
+    const path = screen.getByRole("navigation", { name: "Pages" });
+    expect(within(path).getByRole("link", { name: "Data" }).getAttribute("aria-current")).toBe("page");
+    expect(within(path).getByRole("link", { name: "Pipeline" }).getAttribute("href")).toBe("/pipeline");
+    // The panes are holo panels, their state from the physics verdict.
+    const panes = await screen.findAllByRole("region", { name: /Live|Repaired/ });
+    expect(panes.map((p) => [p.classList.contains("holo-panel"), p.dataset.holoState])).toEqual([[true, undefined], [true, "pass"]]);
+  });
+
   it("opens on tonight's mouse demos, the human's take next to what SANT repaired", async () => {
     page();
     expect(await screen.findByText(/1 mouse demos · 1\/1 passed the physics replay · 1 repaired · 2\/2 variants verified/)).toBeTruthy();

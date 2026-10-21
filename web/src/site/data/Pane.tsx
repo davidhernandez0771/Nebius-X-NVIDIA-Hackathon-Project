@@ -36,7 +36,12 @@ export function Pane({
   const twin = ep ? stateAt(ep, step) : null;
   const id = `data-pane-${side}`;
   return (
-    <section className="data-pane" aria-labelledby={`${id}-title`} data-kind={view.kind}>
+    <section
+      className="holo-panel data-pane"
+      aria-labelledby={`${id}-title`}
+      data-kind={view.kind}
+      data-holo-state={view.verdict ? (view.verdict.pass ? "pass" : "fail") : undefined}
+    >
       <header className="data-pane__head">
         <h3 id={`${id}-title`} className="data-pane__title">
           {view.label}

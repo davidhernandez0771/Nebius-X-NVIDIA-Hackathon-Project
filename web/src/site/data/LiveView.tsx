@@ -6,6 +6,7 @@ import { FootageView } from "./FootageView";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { useAsync, useClock, useLiveFeed } from "./hooks";
 import { STAGES, type FeedState, type FeedVariant } from "./liveFeed";
+import { HoloTrace } from "../holo/Holo";
 import { VerdictBadge } from "./Pane";
 import { demoName, reasonText, verdictOf } from "./model";
 
@@ -14,7 +15,7 @@ const VARIANTS_SHOWN = 24;
 function LiveVariant({ name, v, t, fetchImpl }: { name: string; v: FeedVariant; t: number; fetchImpl?: Fetch }) {
   const footage = useAsync(`${name}:${v.id}`, () => fetchFootage(name, { id: v.id, live: false }, "front", fetchImpl));
   return (
-    <li className="data-variant data-variant--live">
+    <li className="holo-panel data-variant data-variant--live" data-holo-state={v.success ? "pass" : "fail"}>
       <FootageView footage={footage.state === "ok" ? footage.value : null} t={t} label={`Isaac Sim front camera, variant ${v.seed ?? v.id}`} />
       <span className="data-variant__name">
         {demoName(v.source)} · variant {v.seed ?? "?"}
@@ -32,6 +33,7 @@ function Stages({ feed }: { feed: FeedState }) {
           <span className="data-stage__dot" aria-hidden="true" />
           <span className="data-stage__label">{s.label}</span>
           <span className="data-stage__status">{feed.stages[s.id] === "done" ? "done" : feed.stages[s.id] === "running" ? "running" : "waiting"}</span>
+          {feed.stages[s.id] === "running" && <HoloTrace className="data-stage__trace" />}
         </li>
       ))}
     </ol>
