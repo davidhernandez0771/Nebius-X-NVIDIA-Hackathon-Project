@@ -560,6 +560,30 @@ The plan above applies to it.
 **Part (b) is still required** before any distillation: T6's in-env gate on 4000–4049, at ≥ 45/50. T6 runs the smoke
 test first, then part (b). Round 0 at 300 teacher runs starts only after that, on the lead's go.
 
+**T6's smoke test PASSED** (code `2168db0`, 14:39:14 → 15:07:45):
+- 4/4 teacher rollouts passed `check_success` in the camera env.
+- The speed cap binds in Isaac: every target step is ≤ 1.00 cm.
+- `label_last` and `label_first` differ by ≤ 0.007 rad.
+- The replay pairing (`351e737`'s row convention) is confirmed.
+- A student trained for 200 steps scored 0/2 on 5300–5301, which shows the path runs end to end.
+  - This smoke student is not a candidate, and nothing is chosen from it. It is logged because 5300–5301 are
+    selection seeds.
+
+**Gate attempt 2, part (b) started** at 15:08:04 (PID 55104), on 4000–4049 (≥ 45/50). Its result is added here.
+
+**The round-0 mix.** With no DAgger source in round 0, the code renormalises the pre-registered weights, human
+0.25 and teacher 0.5, to 1/3 : 2/3. That is the rule above ("DAgger 0.25, absent in round 0"), now written down.
+
+**A run-enabling fix, approved by the lead: fractional repeats.**
+- **What:** each source is repeated a whole number of times, plus an evenly spaced, deterministic subset of its
+  episodes.
+- **Why:** with whole-number repeats only, the realised human share swings between 26% and 41%. With fractional
+  repeats it lands within about 0.5 points of 1/3 : 2/3.
+- **Unchanged:** the weights themselves. The fix makes the pre-registered shares come out as written.
+- T6's commit is added here when T6 sends it.
+
+**Round 0's estimate:** about 3.5 h (3–4.3 h). The export was measured at 27.9 s per 1,000 frames.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
