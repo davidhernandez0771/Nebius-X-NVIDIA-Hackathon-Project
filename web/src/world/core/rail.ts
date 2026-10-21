@@ -80,6 +80,27 @@ export function mixPose(a: CameraPose, b: CameraPose, u: number): CameraPose {
   return { position: lerp3(a.position, b.position, u), target: lerp3(a.target, b.target, u), fov: a.fov + (b.fov - a.fov) * u };
 }
 
+/** Round the vertical axis through (ax, az): azimuth the short way, distance from the axis and height lerped. */
+function arc3(a: Vec3, b: Vec3, u: number, ax: number, az: number): Vec3 {
+  const ra = Math.hypot(a[0] - ax, a[2] - az);
+  const rb = Math.hypot(b[0] - ax, b[2] - az);
+  const pa = Math.atan2(a[2] - az, a[0] - ax);
+  let turn = Math.atan2(b[2] - az, b[0] - ax) - pa;
+  turn = ((turn + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
+  const r = ra + (rb - ra) * u;
+  const p = pa + turn * u;
+  return [ax + r * Math.cos(p), a[1] + (b[1] - a[1]) * u, az + r * Math.sin(p)];
+}
+
+/**
+ * Like mixPose, but round the vertical axis through `axis` (x, z) instead of straight across: the way
+ * between two shots facing the spiral from outside keeps its distance from the spiral.
+ */
+export function arcPose(a: CameraPose, b: CameraPose, u: number, axis: readonly [number, number] = [0, 0]): CameraPose {
+  const [ax, az] = axis;
+  return { position: arc3(a.position, b.position, u, ax, az), target: arc3(a.target, b.target, u, ax, az), fov: a.fov + (b.fov - a.fov) * u };
+}
+
 export function toWorld(anchor: Vec3, p: CameraPose): CameraPose {
   return { position: add(anchor, p.position), target: add(anchor, p.target), fov: p.fov };
 }
