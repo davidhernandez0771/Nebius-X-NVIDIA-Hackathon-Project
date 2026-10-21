@@ -5,9 +5,9 @@
 // example run (stub.ts).
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { AppShell } from "../../sant/shells/AppShell";
 import { useAsync } from "../data/hooks";
 import "../data/data.css";
+import { HoloPage } from "../holo/Holo";
 import { cancelRun, fetchRuns, resumeRun, type Fetch } from "./api";
 import { useRun } from "./hooks";
 import { barOf, stagesFor, type RunState, type StageId } from "./model";
@@ -17,21 +17,15 @@ import { StartRun } from "./StartRun";
 import { EXAMPLE_RUN_ID } from "./stub";
 import "./pipeline.css";
 
-const LINKS = [
-  { to: "/record", label: "Record" },
-  { to: "/pipeline", label: "Pipeline" },
-  { to: "/data", label: "Data" },
-  { to: "/robots", label: "Robots" },
-];
-
 type Source = Parameters<typeof useRun>[1];
 
 export default function PipelinePage({ fetchImpl, Source }: { fetchImpl?: Fetch; Source?: Source }) {
   const { run, stage } = useParams();
   return (
-    <AppShell title="The pipeline" active={null} links={LINKS}>
+    // The work pages' shared frame (T1's site/holo): Record › Pipeline › Data, inside the machine.
+    <HoloPage title="The pipeline" here="pipeline">
       <div className="pipe-page">{run ? <RunView id={run} stage={stage} Source={Source} fetchImpl={fetchImpl} /> : <Runs fetchImpl={fetchImpl} />}</div>
-    </AppShell>
+    </HoloPage>
   );
 }
 
@@ -66,7 +60,7 @@ function Runs({ fetchImpl }: { fetchImpl?: Fetch }) {
           <ul className="pipe-runs__list">
             {runs.value.map((r) => (
               <li key={r.id}>
-                <Link className="pipe-run" to={`/pipeline/${encodeURIComponent(r.id)}`}>
+                <Link className="pipe-run" data-status={r.status} to={`/pipeline/${encodeURIComponent(r.id)}`}>
                   <span className="pipe-run__name">{r.name || r.id}</span>
                   <span className="pipe-run__meta">
                     {r.kind === "teacher" ? "teacher" : `${r.demos} demos`} · {r.status === "running" && r.stage ? `at ${r.stage}` : r.status}
@@ -109,7 +103,8 @@ function RunView({ id, stage, Source, fetchImpl }: { id: string; stage?: string;
           <Link to={`/pipeline/${encodeURIComponent(run.id)}/export${search}`}>Your data is ready: download it →</Link>
         </p>
       )}
-      <StageView run={run} stage={shown} fetchImpl={fetchImpl} />
+      {/* a new stage mounts a new panel, which draws in (pipeline.css) */}
+      <StageView key={shown} run={run} stage={shown} fetchImpl={fetchImpl} />
     </>
   );
 }

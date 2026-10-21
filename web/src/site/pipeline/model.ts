@@ -440,6 +440,23 @@ export function evalCells(r: RunState): { cell: string; label: string; k: number
 }
 
 /** The loss curve as an SVG path in a w x h box: steps along x, log(loss) down y (high loss at the top). */
+/** The loss curve's latest point in the same box as lossPath (the trace's glowing head), or null before any loss. */
+export function lossHead(points: readonly [number, number][], w: number, h: number): [number, number] | null {
+  const d = lossPath(points, w, h);
+  const m = /([\d.]+),([\d.]+)$/.exec(d);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+
+/**
+ * How full the stage conduit is (0–1): each stage done counts whole, the running (or stopped) one its share. A real
+ * run's skipped stage (a DAgger round nobody asked for) lets the flow through; a dry run plans every stage and runs none.
+ */
+export function conduitOf(r: RunState): number {
+  const stages = stagesFor(r.kind).map((s) => stageOf(r, s.id));
+  const work = stages.reduce((sum, s) => sum + (s.status === "done" || (s.status === "skipped" && r.plan_s === null) ? 1 : s.status === "running" || s.status === "failed" ? s.progress : 0), 0);
+  return r.plan_s !== null ? 0 : Math.min(1, work / stages.length);
+}
+
 export function lossPath(points: readonly [number, number][], w: number, h: number): string {
   const p = points.filter(([, l]) => l > 0);
   if (p.length === 0) return "";

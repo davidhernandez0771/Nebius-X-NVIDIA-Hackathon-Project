@@ -1,15 +1,69 @@
-/* The pipeline (/pipeline), in /data's Volt style (data.css): the pipeline bar, the stage pages, the run list and
-   the start form. Every rule sits under .sant .pipe-*. Tokens: web/src/sant/tokens.css. */
+/* The pipeline (/pipeline), inside the SANT machine: Record's hologram language (record-hologram.css) carried on.
+   See-through glass panels with teal hairlines and corner ticks, small mono caps labels, the stages on one lit
+   conduit that fills as they complete, a stage's panel drawing in with one scanline, the loss as a glowing trace,
+   the downloads as cartridge cards. Restraint: no big glows, no WebGL; animation is transform / opacity /
+   clip-path only, and none of it under reduced motion. Every rule sits under .sant .pipe-*; the data-* pieces it
+   reuses (badges, buttons, notes, tables) are /data's (data.css). The frame, the corner ticks (.holo-panel) and the
+   tokens are T1's shared site/holo (HoloPage); the fallbacks are the same values, Record's --rg-*. */
 
-.sant .pipe-page { display: grid; gap: var(--sant-space-5); min-width: 0; }
+.sant .pipe-page {
+  --pipe-teal: var(--holo-teal, #19f5c2);
+  --pipe-hair: var(--holo-line-dim, rgba(25, 245, 194, 0.14));
+  --pipe-hair-hi: var(--holo-line-hi, rgba(25, 245, 194, 0.55));
+  --pipe-glass: var(--holo-glass, rgba(14, 22, 24, 0.72));
+  --pipe-void: var(--holo-void, #040607);
+  --pipe-ink: var(--holo-ink, #e6eeec);
+  /* text is ink or ink-2; the frame's ink-3 is for decoration only (3.3:1) */
+  --pipe-ink-2: var(--holo-ink-2, #8fa3a0);
+  --pipe-amber: var(--holo-amber, #ffb000);
+  --pipe-mono: var(--holo-mono, var(--sant-font-data));
+  --pipe-node: 11px;
+
+  display: grid;
+  gap: var(--sant-space-5);
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ the panels */
+
+/* The bar, a stage's page and the start form are .holo-panel (glass, a hairline, corner ticks on ::before); the run
+   rows and the download cards are the same glass without the ticks. */
+.sant .pipe-run,
+.sant .pipe-file {
+  position: relative;
+  border: 1px solid var(--pipe-hair);
+  border-radius: 0;
+  background: var(--pipe-glass);
+}
+
+/* A panel's small caps label: "STAGE 02 OF 06", after a short lit tick. */
+.sant .pipe-eyebrow {
+  display: flex;
+  gap: var(--sant-space-2);
+  align-items: center;
+  margin: 0;
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.sant .pipe-eyebrow::before {
+  content: "";
+  width: 14px;
+  height: 1px;
+  background: var(--pipe-teal);
+}
 
 .sant .pipe-example {
+  justify-self: start;
   margin: 0;
-  padding: var(--sant-space-2) var(--sant-space-3);
-  border: 1px dashed var(--sant-line);
-  border-radius: var(--sant-radius-sm);
-  color: var(--sant-muted);
-  font-size: var(--sant-fs-small);
+  padding: var(--sant-space-1) var(--sant-space-3);
+  border: 1px dashed var(--pipe-hair-hi);
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: var(--sant-fs-caption);
 }
 
 /* ------------------------------------------------------------ the bar */
@@ -20,31 +74,42 @@
   z-index: 2;
   display: grid;
   gap: var(--sant-space-3);
-  padding: var(--sant-space-3) var(--sant-space-4);
-  border: 1px solid var(--sant-line);
-  border-radius: var(--sant-radius-md);
-  background: var(--sant-surface);
+  padding: var(--sant-space-3) var(--sant-space-4) var(--sant-space-2);
+  /* sticky: the page scrolls under it, so its glass is nearly solid */
+  background: rgba(6, 10, 11, 0.94);
 }
 
 .sant .pipe-bar__head { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: baseline; justify-content: space-between; }
-.sant .pipe-bar__name { margin: 0; font-size: var(--sant-fs-5); font-weight: 600; }
-.sant .pipe-bar__time { display: flex; gap: var(--sant-space-3); margin: 0; font-family: var(--sant-font-data); font-size: var(--sant-fs-small); color: var(--sant-muted); }
-.sant .pipe-bar__conn { color: var(--sant-accent); }
+.sant .pipe-bar__name { margin: 0; color: var(--pipe-ink); font-family: var(--sant-font-display); font-size: var(--sant-fs-4); font-weight: 400; line-height: 1.1; }
+.sant .pipe-bar__time {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-3);
+  margin: 0;
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sant .pipe-bar__conn { color: var(--pipe-teal); }
 
 .sant .pipe-bar__wait {
   display: flex;
   gap: var(--sant-space-2);
   align-items: center;
   margin: 0;
-  color: var(--sant-text);
-  font-size: var(--sant-fs-small);
+  color: var(--pipe-ink);
+  font-family: var(--pipe-mono);
+  font-size: var(--sant-fs-caption);
 }
 
 .sant .pipe-dot {
-  width: 8px;
-  height: 8px;
+  flex: none;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--sant-accent);
+  background: var(--pipe-teal);
   animation: pipe-pulse 1.2s ease-in-out infinite;
 }
 
@@ -52,85 +117,255 @@
   50% { opacity: 0.3; }
 }
 
+/* The conduit: a hairline through one node per stage, lit from the left as far as the work has got. The light
+   reaches a stage's node when it starts and runs on toward the next as it goes (conduitOf + half a stage), and
+   out of the strip's right edge when the run is done. */
+.sant .pipe-stages {
+  --pipe-track-y: calc(var(--sant-space-2) + var(--pipe-node) / 2);
+  position: relative;
+}
+.sant .pipe-stages::before,
+.sant .pipe-stages::after {
+  content: "";
+  position: absolute;
+  top: var(--pipe-track-y);
+  left: 0;
+  right: 0;
+  height: 1px;
+  pointer-events: none;
+}
+.sant .pipe-stages::before { background: var(--pipe-hair); }
+.sant .pipe-stages::after {
+  background: var(--pipe-teal);
+  box-shadow: 0 0 6px rgba(25, 245, 194, 0.55);
+  transform-origin: left center;
+  transform: scaleX(min(1, calc(var(--pipe-fill, 0) + 0.5 / var(--pipe-n, 6))));
+  transition: transform var(--sant-dur-story) var(--sant-ease-out);
+}
+
 .sant .pipe-stages ol {
+  position: relative;
+  z-index: 1;
   display: grid;
   /* one column per stage: six for a demos run, five for a teacher run */
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  gap: var(--sant-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .sant .pipe-stage {
+  position: relative;
   display: grid;
-  gap: 4px;
-  padding: var(--sant-space-2) var(--sant-space-3);
-  border: 1px solid var(--sant-line);
-  border-radius: var(--sant-radius-sm);
-  color: var(--sant-muted);
+  justify-items: center;
+  gap: 6px;
+  padding: var(--sant-space-2) var(--sant-space-1) var(--sant-space-2);
+  color: var(--pipe-ink-2);
+  text-align: center;
   text-decoration: none;
 }
 
-.sant .pipe-stage[aria-current="page"] { border-color: var(--sant-text); }
-.sant .pipe-stage__label { font-weight: 600; font-size: var(--sant-fs-small); }
-.sant .pipe-stage__state { font-family: var(--sant-font-data); font-size: var(--sant-fs-caption); }
-.sant .pipe-stage__meter { height: 2px; background: var(--sant-line); }
-.sant .pipe-stage__meter i { display: block; height: 100%; background: var(--sant-accent); transition: width var(--sant-dur-2) var(--sant-ease-out); }
-.sant .pipe-stage[data-status="running"] { color: var(--sant-text); border-color: var(--sant-accent); }
-.sant .pipe-stage[data-status="done"] { color: var(--sant-accent); }
-.sant .pipe-stage[data-status="failed"] { color: var(--sant-issue); border-color: var(--sant-issue); }
+.sant .pipe-stage__node {
+  box-sizing: border-box;
+  width: var(--pipe-node);
+  height: var(--pipe-node);
+  border: 1px solid var(--pipe-hair-hi);
+  border-radius: 50%;
+  background: var(--pipe-void);
+}
+.sant .pipe-stage__label {
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sant .pipe-stage__state { font-family: var(--pipe-mono); font-size: 11px; }
 
-/* ------------------------------------------------------------ a stage's page */
+.sant .pipe-stage[data-status="done"] .pipe-stage__node { border-color: var(--pipe-teal); background: var(--pipe-teal); box-shadow: 0 0 6px rgba(25, 245, 194, 0.6); }
+.sant .pipe-stage[data-status="done"] .pipe-stage__state { color: var(--pipe-ink-2); }
+/* the running stage: its node ringed by its progress */
+.sant .pipe-stage[data-status="running"] .pipe-stage__node {
+  border-color: var(--pipe-teal);
+  background: conic-gradient(var(--pipe-teal) calc(var(--pipe-p, 0) * 1turn), rgba(25, 245, 194, 0.12) 0);
+  box-shadow: inset 0 0 0 2px var(--pipe-void), 0 0 8px rgba(25, 245, 194, 0.5);
+}
+.sant .pipe-stage[data-status="running"] .pipe-stage__label,
+.sant .pipe-stage[data-status="running"] .pipe-stage__state { color: var(--pipe-teal); }
+.sant .pipe-stage[data-status="failed"] .pipe-stage__node { border-color: var(--pipe-amber); background: var(--pipe-amber); }
+.sant .pipe-stage[data-status="failed"] .pipe-stage__label,
+.sant .pipe-stage[data-status="failed"] .pipe-stage__state { color: var(--pipe-amber); }
+.sant .pipe-stage[data-status="skipped"] .pipe-stage__node { border-style: dashed; }
 
-.sant .pipe-stage-page { display: grid; gap: var(--sant-space-4); min-width: 0; }
+/* the stage on screen: corner brackets round it, as on the workbench's selection frame */
+.sant .pipe-stage[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 6px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) top left / 8px 1px no-repeat,
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) top left / 1px 8px no-repeat,
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) top right / 8px 1px no-repeat,
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) top right / 1px 8px no-repeat,
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) bottom left / 8px 1px no-repeat,
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) bottom left / 1px 8px no-repeat,
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) bottom right / 8px 1px no-repeat,
+    linear-gradient(var(--pipe-teal), var(--pipe-teal)) bottom right / 1px 8px no-repeat;
+}
+.sant .pipe-stage[aria-current="page"] .pipe-stage__label { color: var(--pipe-ink); }
+.sant .pipe-stage:hover .pipe-stage__label { color: var(--pipe-teal); }
+.sant .pipe-stage:focus-visible { outline: 1px solid var(--pipe-hair-hi); outline-offset: 2px; }
+
+/* ------------------------------------------------------------ a stage's panel */
+
+.sant .pipe-stage-page {
+  display: grid;
+  gap: var(--sant-space-4);
+  min-width: 0;
+  padding: var(--sant-space-5);
+  /* a new stage's panel draws in from the top, then one scanline runs down it (PipelinePage keys it per stage) */
+  animation: pipe-on var(--sant-dur-4) var(--sant-ease-out) backwards;
+}
+.sant .pipe-stage-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to bottom, transparent 82%, rgba(25, 245, 194, 0.06) 96%, rgba(25, 245, 194, 0.32) 100%);
+  animation: pipe-sweep 0.8s var(--sant-ease-move) 0.1s;
+}
+
+@keyframes pipe-on {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+@keyframes pipe-sweep {
+  from { opacity: 1; transform: translateY(-100%); }
+  85% { opacity: 1; }
+  to { opacity: 0; transform: translateY(0); }
+}
+
 .sant .pipe-head { display: grid; gap: var(--sant-space-2); }
 .sant .pipe-head .data-lede,
 .sant .pipe-head p { margin: 0; }
-.sant .pipe-head__state { font-family: var(--sant-font-data); font-size: var(--sant-fs-small); }
-.sant .pipe-head__state[data-status="running"] { color: var(--sant-accent); }
-.sant .pipe-head__basis { color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+.sant .pipe-head .data-h2 { font-family: var(--sant-font-display); font-weight: 400; }
+.sant .pipe-head__state { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
+.sant .pipe-head__state[data-status="running"] { color: var(--pipe-teal); }
+.sant .pipe-head__state[data-status="failed"] { color: var(--pipe-amber); }
+.sant .pipe-head__basis { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: 11px; }
 
-.sant .pipe-rows { display: grid; gap: var(--sant-space-1); margin: 0; padding: 0; list-style: none; }
-.sant .pipe-row { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; padding: var(--sant-space-2) 0; border-bottom: 1px solid var(--sant-line); }
-.sant .pipe-row__name { min-width: 11rem; font-family: var(--sant-font-data); font-size: var(--sant-fs-small); }
-.sant .pipe-row__meta { color: var(--sant-muted); font-family: var(--sant-font-data); font-size: var(--sant-fs-caption); }
+.sant .pipe-rows { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--pipe-hair); }
+.sant .pipe-row { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; padding: var(--sant-space-2) 0; border-bottom: 1px solid var(--pipe-hair); }
+.sant .pipe-row__name { min-width: 11rem; color: var(--pipe-ink); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
+.sant .pipe-row__meta { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: 11px; }
 
 .sant .pipe-repairs { display: grid; gap: var(--sant-space-5); }
 .sant .pipe-repair { display: grid; gap: var(--sant-space-2); }
 
+/* The loss: a glowing trace on a faint grid, its head lit. */
 .sant .pipe-loss { margin: 0; display: grid; gap: var(--sant-space-2); max-width: 46rem; }
-.sant .pipe-loss svg { width: 100%; height: auto; border: 1px solid var(--sant-line); border-radius: var(--sant-radius-sm); background: var(--sant-bg); }
-.sant .pipe-loss__line { fill: none; stroke: var(--sant-accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.sant .pipe-loss figcaption { color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+.sant .pipe-loss svg { width: 100%; height: auto; overflow: visible; border: 1px solid var(--pipe-hair); background: rgba(4, 6, 7, 0.6); }
+.sant .pipe-loss__grid { stroke: rgba(25, 245, 194, 0.08); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.sant .pipe-loss__glow { fill: none; stroke: var(--pipe-teal); stroke-opacity: 0.18; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.sant .pipe-loss__line { fill: none; stroke: var(--pipe-teal); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.sant .pipe-loss__head { fill: var(--pipe-teal); stroke: rgba(25, 245, 194, 0.3); stroke-width: 6; }
+.sant .pipe-loss figcaption { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: 11px; }
 
+/* Seeds as small holo tags: lit if the robot did it, amber if not. */
 .sant .pipe-seeds { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.4rem, 1fr)); gap: 4px; margin: 0; padding: 0; list-style: none; }
 .sant .pipe-seed {
   padding: 4px 0;
-  border: 1px solid var(--sant-issue);
-  border-radius: var(--sant-radius-xs);
-  color: var(--sant-issue);
-  font-family: var(--sant-font-data);
-  font-size: var(--sant-fs-caption);
+  border: 1px solid rgba(255, 176, 0, 0.45);
+  color: var(--pipe-amber);
+  font-family: var(--pipe-mono);
+  font-size: 11px;
   text-align: center;
 }
-.sant .pipe-seed[data-ok="true"] { border-color: var(--sant-accent); color: var(--sant-accent); }
+.sant .pipe-seed[data-ok="true"] { border-color: var(--pipe-hair-hi); background: rgba(25, 245, 194, 0.07); color: var(--pipe-teal); }
 
-.sant .pipe-files { display: grid; gap: var(--sant-space-2); margin: 0; padding: 0; list-style: none; }
+/* The teacher's gate: the score as a lit bar, a line at the threshold. */
+.sant .pipe-gate {
+  position: relative;
+  max-width: 46rem;
+  height: 6px;
+  border: 1px solid var(--pipe-hair);
+  background: rgba(4, 6, 7, 0.6);
+}
+.sant .pipe-gate__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--pipe-teal);
+  box-shadow: 0 0 6px rgba(25, 245, 194, 0.5);
+  transform-origin: left center;
+  transform: scaleX(var(--pipe-score, 0));
+  transition: transform var(--sant-dur-story) var(--sant-ease-out);
+}
+.sant .pipe-gate[data-passed="false"] .pipe-gate__fill { background: var(--pipe-amber); box-shadow: none; }
+.sant .pipe-gate__min {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  left: calc(var(--pipe-min, 0) * 100%);
+  width: 1px;
+  background: var(--pipe-ink);
+}
+
+/* A round's phases: the bar's conduit in small. */
+.sant .pipe-phases { display: flex; flex-wrap: wrap; gap: 0; align-items: center; margin: 0; padding: 0; list-style: none; }
+.sant .pipe-phases li {
+  display: flex;
+  align-items: center;
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sant .pipe-phases li + li::before { content: ""; width: 22px; height: 1px; margin: 0 var(--sant-space-2); background: var(--pipe-hair); }
+.sant .pipe-phases li[data-state="done"] { color: var(--pipe-ink-2); }
+.sant .pipe-phases li[data-state="done"] + li::before,
+.sant .pipe-phases li[data-state="done"]::before { background: var(--pipe-teal); }
+.sant .pipe-phases li[data-state="now"] { color: var(--pipe-teal); }
+
+/* The downloads: cartridges, a cut corner and a lit label strip, the file's kind on it. */
+.sant .pipe-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--sant-space-3); margin: 0; padding: 0; list-style: none; }
 .sant .pipe-file {
   display: grid;
-  grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr) auto;
-  gap: var(--sant-space-1) var(--sant-space-3);
-  align-items: baseline;
-  padding: var(--sant-space-3);
-  border: 1px solid var(--sant-line);
-  border-radius: var(--sant-radius-sm);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sant-space-2) var(--sant-space-3);
+  align-content: start;
+  padding: var(--sant-space-4) var(--sant-space-4) var(--sant-space-3);
+  border-top: 2px solid var(--pipe-hair-hi);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
 }
-.sant .pipe-file__kind { color: var(--sant-muted); font-size: var(--sant-fs-small); }
-.sant .pipe-file__link { min-width: 0; overflow-wrap: anywhere; color: var(--sant-accent); font-family: var(--sant-font-data); }
-.sant .pipe-file__size { font-family: var(--sant-font-data); font-size: var(--sant-fs-small); }
-.sant .pipe-file__note { grid-column: 2 / -1; color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+/* the cut corner's own hairline */
+.sant .pipe-file::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: -3px;
+  width: 20px;
+  height: 1px;
+  background: var(--pipe-hair-hi);
+  transform: rotate(45deg);
+}
+.sant .pipe-file[data-kind="dataset"] { border-top-color: var(--pipe-teal); }
+.sant .pipe-file__kind {
+  grid-column: 1 / -1;
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sant .pipe-file__link { min-width: 0; overflow-wrap: anywhere; color: var(--pipe-teal); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
+.sant a.pipe-file__link::after { content: " ↓"; }
+.sant .pipe-file__size { color: var(--pipe-ink); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
+.sant .pipe-file__note { grid-column: 1 / -1; color: var(--pipe-ink-2); font-size: var(--sant-fs-caption); }
+.sant .pipe-file:hover { border-color: var(--pipe-hair-hi); }
 
 /* ------------------------------------------------------------ runs and the start form */
 
@@ -139,68 +374,101 @@
 .sant .pipe-run {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sant-space-3);
+  gap: var(--sant-space-2) var(--sant-space-3);
+  align-items: center;
   justify-content: space-between;
-  padding: var(--sant-space-3);
-  border: 1px solid var(--sant-line);
-  border-radius: var(--sant-radius-sm);
-  color: var(--sant-text);
+  padding: var(--sant-space-3) var(--sant-space-4) var(--sant-space-3) calc(var(--sant-space-4) + 14px);
+  color: var(--pipe-ink);
   text-decoration: none;
 }
-.sant .pipe-run:hover { border-color: var(--sant-accent); }
-.sant .pipe-run__meta { color: var(--sant-muted); font-family: var(--sant-font-data); font-size: var(--sant-fs-small); }
+/* the run's state as a node at its left: lit while it runs or once done, amber if it stopped */
+.sant .pipe-run::before {
+  content: "";
+  position: absolute;
+  top: calc(50% - 3.5px);
+  left: var(--sant-space-3);
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border: 1px solid var(--pipe-hair-hi);
+  border-radius: 50%;
+}
+.sant .pipe-run[data-status="running"]::before,
+.sant .pipe-run[data-status="done"]::before { border-color: var(--pipe-teal); background: var(--pipe-teal); }
+.sant .pipe-run[data-status="running"]::before { box-shadow: 0 0 6px rgba(25, 245, 194, 0.6); }
+.sant .pipe-run[data-status="failed"]::before,
+.sant .pipe-run[data-status="cancelled"]::before { border-color: var(--pipe-amber); }
+.sant .pipe-run:hover,
+.sant .pipe-run:focus-visible { border-color: var(--pipe-hair-hi); }
+.sant .pipe-run__meta { color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: 11px; }
 
-.sant .pipe-start { display: grid; gap: var(--sant-space-3); padding: var(--sant-space-4); border: 1px solid var(--sant-line); border-radius: var(--sant-radius-md); }
+.sant .pipe-start { display: grid; gap: var(--sant-space-3); padding: var(--sant-space-5); }
 .sant .pipe-start__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--sant-space-3); align-items: end; }
-.sant .pipe-start label { display: grid; gap: 4px; min-width: 0; color: var(--sant-muted); font-size: var(--sant-fs-caption); }
+.sant .pipe-start label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 .sant .pipe-start input,
 .sant .pipe-start select {
   padding: var(--sant-space-1) var(--sant-space-2);
-  border: 1px solid var(--sant-line);
-  border-radius: var(--sant-radius-sm);
-  background: var(--sant-bg);
-  color: var(--sant-text);
+  border: 1px solid var(--pipe-hair);
+  border-radius: 0;
+  background: rgba(4, 6, 7, 0.7);
+  color: var(--pipe-ink);
   font: inherit;
+  font-family: var(--pipe-mono);
   font-size: var(--sant-fs-small);
+  letter-spacing: 0;
+  text-transform: none;
   /* one height for every field, and the server's longer preset labels stay in their column */
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   height: 2.25rem;
+  min-height: 0; /* the app's global text inputs are 44 px tall */
 }
+.sant .pipe-start input:focus-visible,
+.sant .pipe-start select:focus-visible { border-color: var(--pipe-teal); outline: 1px solid var(--pipe-hair-hi); outline-offset: 1px; }
 .sant .pipe-start label.pipe-start__check input,
-.sant .pipe-start__kind input { width: auto; height: auto; }
-.sant .pipe-start__kind { display: flex; flex-wrap: wrap; gap: var(--sant-space-2) var(--sant-space-4); margin: 0; padding: 0; border: 0; }
-.sant .pipe-start__kind legend { padding: 0; margin-bottom: var(--sant-space-1); color: var(--sant-muted); font-size: var(--sant-fs-caption); }
-.sant .pipe-start__kind label { display: flex; gap: var(--sant-space-2); align-items: center; color: var(--sant-text); font-size: var(--sant-fs-small); }
-.sant .pipe-start label.pipe-start__check { display: flex; gap: var(--sant-space-2); align-items: center; }
-.sant .pipe-start__demos { margin: 0; font-family: var(--sant-font-data); }
+.sant .pipe-start__kind input { width: auto; height: auto; accent-color: var(--pipe-teal); }
+/* the recipe switch: two holo tabs, the chosen one lit */
+.sant .pipe-start__kind { display: flex; flex-wrap: wrap; gap: var(--sant-space-2); margin: 0; padding: 0; border: 0; }
+.sant .pipe-start__kind legend {
+  width: 100%;
+  padding: 0;
+  margin-bottom: var(--sant-space-1);
+  color: var(--pipe-ink-2);
+  font-family: var(--pipe-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.sant .pipe-start__kind label {
+  display: flex;
+  gap: var(--sant-space-2);
+  align-items: center;
+  padding: var(--sant-space-1) var(--sant-space-3);
+  border: 1px solid var(--pipe-hair);
+  color: var(--pipe-ink-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+.sant .pipe-start__kind label:has(input:checked) { border-color: var(--pipe-teal); color: var(--pipe-teal); background: rgba(25, 245, 194, 0.07); }
+.sant .pipe-start label.pipe-start__check { display: flex; gap: var(--sant-space-2); align-items: center; height: 2.25rem; }
+.sant .pipe-start__demos { margin: 0; color: var(--pipe-ink-2); font-family: var(--pipe-mono); font-size: var(--sant-fs-small); }
 .sant .pipe-start__go { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; }
-
-@media (prefers-reduced-motion: reduce) {
-  .sant .pipe-dot { animation: none; }
-  .sant .pipe-stage__meter i { transition: none; }
-}
-
-@media (max-width: 760px) {
-  .sant .pipe-stages ol { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .sant .pipe-file { grid-template-columns: minmax(0, 1fr) auto; }
-  .sant .pipe-file__kind,
-  .sant .pipe-file__note { grid-column: 1 / -1; }
-}
-
-/* Phones: two stages a row so a duration stays on one line, and the bar scrolls away (sticky, it would cover a
-   third of the screen). */
-@media (max-width: 480px) {
-  .sant .pipe-bar { position: static; }
-  .sant .pipe-stages ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sant .pipe-stage__state { white-space: nowrap; }
-}
 
 /* ------------------------------------------------------------ the run's state, Cancel / Resume, the downloads link */
 
+.sant .pipe-run-status:empty { display: none; }
 .sant .pipe-run-status { display: flex; flex-wrap: wrap; gap: var(--sant-space-3); align-items: center; justify-content: space-between; }
-.sant .pipe-run-status > .data-note { margin: 0; flex: 1 1 18rem; }
+.sant .pipe-run-status > .data-note { margin: 0; flex: 1 1 18rem; font-family: var(--pipe-mono); font-size: var(--sant-fs-caption); }
 .sant .pipe-controls { display: flex; flex-wrap: wrap; gap: var(--sant-space-2); align-items: center; }
 .sant .pipe-controls__ask {
   display: flex;
@@ -208,18 +476,79 @@
   gap: var(--sant-space-2);
   align-items: center;
   margin: 0;
-  color: var(--sant-muted);
+  color: var(--pipe-ink-2);
   font-size: var(--sant-fs-small);
 }
 .sant .pipe-controls .data-note--error { flex-basis: 100%; margin: 0; }
-.sant .pipe-ready { margin: 0; }
-.sant .pipe-ready a {
+.sant .pipe-ready,
+.sant .pipe-next { margin: 0; }
+.sant .pipe-ready a,
+.sant .pipe-next a {
   display: inline-block;
-  padding: var(--sant-space-2) var(--sant-space-3);
-  border: 1px solid var(--sant-line);
-  border-radius: var(--sant-radius-sm);
-  color: inherit;
+  padding: var(--sant-space-2) var(--sant-space-4);
+  border: 1px solid var(--pipe-teal);
+  background: rgba(25, 245, 194, 0.07);
+  color: var(--pipe-teal);
+  font-family: var(--pipe-mono);
+  font-size: var(--sant-fs-small);
   text-decoration: none;
 }
 .sant .pipe-ready a:hover,
-.sant .pipe-ready a:focus-visible { border-color: currentColor; }
+.sant .pipe-ready a:focus-visible,
+.sant .pipe-next a:hover,
+.sant .pipe-next a:focus-visible { background: rgba(25, 245, 194, 0.14); box-shadow: 0 0 10px rgba(25, 245, 194, 0.25); }
+
+/* ------------------------------------------------------------ reduced motion: all of it static */
+
+[data-motion="reduced"] .sant .pipe-dot,
+[data-motion="reduced"] .sant .pipe-stage-page,
+[data-motion="reduced"] .sant .pipe-stage-page::after { animation: none; }
+[data-motion="reduced"] .sant .pipe-stages::after,
+[data-motion="reduced"] .sant .pipe-gate__fill { transition: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sant .pipe-dot,
+  .sant .pipe-stage-page,
+  .sant .pipe-stage-page::after { animation: none; }
+  .sant .pipe-stages::after,
+  .sant .pipe-gate__fill { transition: none; }
+}
+
+/* ------------------------------------------------------------ narrow screens */
+
+/* Under 760 px the conduit turns down the left: one stage a row (node, name, state), and the bar scrolls away
+   (sticky, it would cover a third of the screen). The light fills down it by the same measure. */
+@media (max-width: 760px) {
+  .sant .pipe-bar { position: static; }
+  .sant .pipe-stages { --pipe-track-x: calc(var(--sant-space-2) + var(--pipe-node) / 2); }
+  .sant .pipe-stages::before,
+  .sant .pipe-stages::after {
+    top: 0;
+    bottom: 0;
+    left: var(--pipe-track-x);
+    right: auto;
+    width: 1px;
+    height: auto;
+  }
+  .sant .pipe-stages::after {
+    transform-origin: center top;
+    transform: scaleY(min(1, calc(var(--pipe-fill, 0) + 0.5 / var(--pipe-n, 6))));
+  }
+  .sant .pipe-stages ol { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); }
+  .sant .pipe-stage {
+    grid-template-columns: var(--pipe-node) minmax(0, 1fr) auto;
+    justify-items: start;
+    align-items: center;
+    gap: var(--sant-space-3);
+    padding: 7px var(--sant-space-2);
+    text-align: left;
+  }
+  .sant .pipe-stage__state { white-space: nowrap; }
+  .sant .pipe-stage[aria-current="page"]::before { inset: 0; }
+  .sant .pipe-stage-page { padding: var(--sant-space-4); }
+  .sant .pipe-start { padding: var(--sant-space-4); }
+}
+
+@media (max-width: 480px) {
+  .sant .pipe-files { grid-template-columns: minmax(0, 1fr); }
+}
