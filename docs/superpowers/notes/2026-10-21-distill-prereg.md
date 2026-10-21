@@ -289,5 +289,61 @@ gated.
 It keeps the ×50 reward scale, a grace of 10 and an initial std of 0.6. The unchanged list under Amendment 1 still
 holds. T3 will send the commit and the exact command, and they are added here.
 
-The gate and everything after it apply to the teacher from `demo_v5`, or from a later run logged here. T3's final
+`demo_v5`'s mixed starts are `uniform_share` = 0.5, from T3's `7e12dde` (11:28, off by default). `cb7ce10` (11:28)
+is T3's note on `demo_v4`'s collapse and `demo_v5`'s settings.
+
+**`demo_v5` failed:** started at 11:28:08 (`gpu.lock`) and stopped at about 11:40 by the lead, under the plan the user
+approved. Exploration stayed alive (std 0.86), but grasp and lift stayed flat at about 1%, and `check_success` was 0.06
+at iteration 300. No rollout or student used it, and it was never gated.
+
+## Amendment 2 (2026-10-21, directed by the user, decided before any teacher passed the gate)
+
+It changes only the teacher's training reward, and replaces Amendment 1's ×50 scale.
+
+**The new reward:** `demo_v6` trains with the reward preset `--reward lift` on the task
+`SANT-PickPlace-Franka-RL-Lift-v0`, from `d9cf2a7` (11:45) on `pm/rl-teacher`. The preset is off by default, and
+the task registered in `sim_worker/rl_register.py`. It is modelled on Isaac Lab's stock lift reward, plus SANT's
+terms. Weights are as the lead sent them.
+- **Stock Isaac Lab lift terms:**
+  - reach: tanh, std 0.1, weight 1;
+  - lifted: 0.04 m, weight 15, counted only while the cube is held;
+  - goal tracking: std 0.3 at weight 16, plus fine tracking std 0.05 at weight 5, with the goal over the bin centre;
+  - `action_rate` and `joint_vel`: −1e-4, rising to −0.1 by curriculum.
+- **SANT terms:**
+  - placed: weight 38;
+  - fouls: contact above 5 N (5), a drop (50) and a high release (50). Each foul forfeits the bonus;
+  - a one-time bonus of 400 + 42.9 × the steps left, paid when `check_success`'s conditions are met.
+- **No ×50 scale.**
+
+**Calibration** (T3, on 196 recorded episodes):
+- the bonus agrees with `check_success` on 196/196;
+- the lowest return of a verified episode (11,516) is above the highest of a failed one (7,412);
+- in 170/170 cases, hovering for a full episode earns less than succeeding.
+
+**Kept from `demo_v5`:**
+- grace 10;
+- curriculum 24000;
+- `uniform_share` 0.5;
+- initial std 0.6 and `std_range` [0.3, 1.0];
+- entropy 0.005;
+- deadband 0.25.
+
+**Unchanged:** the same list as Amendment 1:
+- the success definition and `check_success`;
+- the gate;
+- the seeds;
+- the selection rule;
+- the data mix's weights;
+- the test command.
+
+Only the training signal changes. The gate and the test still measure `check_success` alone.
+
+**Open item:** in `demo_v5`'s training, the monitor showed the bonus agreeing with `check_success` on only 0.85–0.91
+of episodes, against 196/196 on the recorded ones. T3 is investigating. Its explanation, and any fix, is added here
+before `demo_v6`'s teacher is gated. A fix to the bonus would be logged as a run-enabling fix if it only makes the
+bonus match `check_success`.
+
+The exact `demo_v6` command, and its start time from `gpu.lock`, are added when T3 sends them.
+
+The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. T3's final
 commit is added here after the gate, as the lead will send it.
