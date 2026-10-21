@@ -165,3 +165,38 @@ starts; `rl_train.py --no-demos`). Its purpose is to measure what the human demo
 
 If round 0 at 300 passes selection, the test can run tonight. The longest path (600 and then round 1) runs into
 2026-10-22.
+
+## Code log: run-enabling fixes, not amendments (appended 2026-10-21 morning)
+
+Each was decided and committed **before any teacher passed the gate and before any distillation rollout, training or
+selection ran**. None changes:
+- the reward's success definition;
+- the teacher gate (≥ 90%, the two checks);
+- the seed ranges;
+- the selection rule;
+- the mixing weights;
+- `check_success`;
+- the test command.
+
+**`pm/distill-dagger` (T6), from `1a47223`:**
+
+| Commit | Fix | Why it is run-enabling |
+|---|---|---|
+| `185612f` | Teacher commands are executed as in T3's RL env (`sim_eval/teacher_ik.py`): IK re-solved at both substeps plus SANT's velocity feed-forward. Round 0 at a larger `--teacher-n` keeps the earlier rollouts, adds the new seeds and retrains and reselects into per-size records (grid `distill_mouse_r0_t300` / `_t600`, `r0\round_t300.json`, `r0\selection_t300.json` / `_t600`). `r0\selection.json` is always the latest selection; DAgger round 1 starts from it. | At `1a47223`, re-running round 0 with `--teacher-n 600` would have skipped grid, train and select as "done". That is the 300→600 rule as written above, now executable. The execution change makes the teacher behave as it was trained. |
+| `351e737` | **Round-0 labels follow replay exactly** (the lead's decision "B"): a teacher row pairs the observation *after* step k with step k's last-substep arm target plus fingers, which is what `replay._physics_step` records. The rollout's last step is dropped. DAgger relabels stay one DLS step from the observation *before* the step, the documented approximation. Both targets are saved per step in `teacher.npz`. | It keeps teacher episodes in the same row convention as every replayed SANT episode in the mix. Its suite: 2610 passed, 28 skipped. |
+| `bd01176` | `round.json`, the selection files and `rollouts_done.json` record the code they ran from (commit, branch, dirty flag). | The record this pre-registration asks for. No behaviour change. |
+
+The lead named `351e737` as T6's final run-enabling fix; `bd01176` (provenance only) came 1 minute later. T6 will also
+merge T3's final `pm/rl-teacher` commit into `pm/distill-dagger` locally so the teacher imports, so each run records
+one commit.
+
+**`pm/rl-teacher` (T3), from `8a234b7`:**
+
+| Commit | Fix | Why it is run-enabling |
+|---|---|---|
+| `f0beb24` | UTF-8 for the trainer and the wrapper's echo (cp1252 crashed both in the smoke). The IK controller names the robot spec's joint-limit gain explicitly (Franka 0: unchanged). | The smoke run crashed. No behaviour change. |
+| `827a5fb` | **A deviation from the action as written in T3's note, logged openly:** the teacher's action is now a bounded step from the current tool pose (≤ 2 cm and 0.1 rad per step), made absolute, as Isaac Lab's IK-Rel lift task. It was an absolute tool target in the workspace box. Eval step 1 also takes `gpu.lock` + KeepAwake. | **`demo_v1` failed and is discarded:** with absolute actions, the untrained policy threw the arm across the workspace on every first step, so the demo starts were lost and nothing was learned in 300 iterations. `make()` still hands T6 an absolute tool target, so the distillation interface is unchanged. |
+
+**Recorded as a failed attempt:** `demo_v1`, T3's first teacher training run with absolute actions. It did not learn,
+was never gated, and no rollout or student used it. The gate and everything after it apply to the teacher trained
+after `827a5fb`. T3's final commit is added here after the gate, as the lead will send it.
