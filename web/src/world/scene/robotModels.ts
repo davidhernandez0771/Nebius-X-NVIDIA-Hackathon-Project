@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { assets } from "../core/assets";
 import { connectedPieces, subGeometry } from "./meshPieces";
 
 const BASE = `${import.meta.env.BASE_URL}world/`;
@@ -69,8 +70,8 @@ export function parseRobotModel(buf: ArrayBuffer): Promise<THREE.BufferGeometry>
   });
 }
 
-/** Fetches and parses one robot's model. */
-export async function loadRobotModel(id: string, fetchImpl: typeof fetch = fetch): Promise<THREE.BufferGeometry> {
+/** Fetches (through the background streamer: one download, shared with the forest and the bench) and parses one robot's model. */
+export async function loadRobotModel(id: string, fetchImpl: (url: string) => Promise<Response> = (url) => assets.fetch(url)): Promise<THREE.BufferGeometry> {
   const res = await fetchImpl(robotModelUrl(id));
   if (!res.ok) throw new Error(`world: ${robotModelUrl(id)}: HTTP ${res.status}`);
   return parseRobotModel(await res.arrayBuffer());

@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { QualityTier } from "../../core/quality";
 import { makeCrack } from "./Crack";
+import { assets } from "../../core/assets";
 import { buildForest, FOREST_TIERS, MOON, type ForestPiece } from "./forestGeometry";
 import { fireflies, fireflyCount } from "./fireflyPlan";
 import { makeFireflies } from "./fireflies";
@@ -370,7 +371,7 @@ export function useForest(quality: QualityTier): ForestHandle {
     }
 
     // The low tier keeps the procedural crack (Crack.tsx: the model is ~27k triangles).
-    const crack = makeCrack(u, glow, fetch, tier !== "low");
+    const crack = makeCrack(u, glow, (url) => assets.fetch(url), tier !== "low");
     group.add(crack.group);
 
     // Dust drifting everywhere along the walk; spores, fewer and brighter, rising slowly.

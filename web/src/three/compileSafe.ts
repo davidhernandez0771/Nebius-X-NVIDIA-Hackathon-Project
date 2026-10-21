@@ -3,7 +3,8 @@
 // that poll waits has no program any more, so the poll throws "Cannot read properties of undefined
 // (reading 'isReady')" inside a timer: an uncaught error, and a promise that never settles. This polls
 // the same way, drops a material that lost its program (nothing left to wait for), and gives up after
-// `capMs` (a lost context never reports a program ready).
+// `capMs` (a lost context never reports a program ready). `onProgress` hears how many programs are linked
+// of how many, as they link (the loader's shader count).
 import type { Camera, Material, Object3D, WebGLRenderer } from "three";
 
 type Program = { isReady(): boolean | null };
@@ -14,7 +15,7 @@ type Renderer = Pick<WebGLRenderer, "compile"> & {
 
 const POLL_MS = 10;
 
-export function compileSafe(gl: Renderer, scene: Object3D, camera: Camera, capMs = 10000): Promise<void> {
+export function compileSafe(gl: Renderer, scene: Object3D, camera: Camera, capMs = 10000, onProgress?: (linked: number, total: number) => void): Promise<void> {
   let materials: Set<Material>;
   try {
     materials = gl.compile(scene, camera) as Set<Material>;
@@ -23,6 +24,15 @@ export function compileSafe(gl: Renderer, scene: Object3D, camera: Camera, capMs
   }
   // The cap counts the poll's own waits, not the clock.
   let waited = 0;
+  const total = materials.size;
+  let told = -1;
+  const tell = () => {
+    const linked = total - materials.size;
+    if (linked === told) return;
+    told = linked;
+    onProgress?.(linked, total);
+  };
+  tell();
   return new Promise((resolve) => {
     const wait = () => {
       waited += POLL_MS;
@@ -33,6 +43,7 @@ export function compileSafe(gl: Renderer, scene: Object3D, camera: Camera, capMs
         const program = (gl.properties.get(m) as { currentProgram?: Program }).currentProgram;
         if (!program || program.isReady()) materials.delete(m);
       });
+      tell();
       if (materials.size === 0 || waited >= capMs) resolve();
       else wait();
     };

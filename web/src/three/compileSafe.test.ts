@@ -54,6 +54,23 @@ describe("compileSafe", () => {
     expect(done).toHaveBeenCalled();
   });
 
+  it("reports each program as it links: how many of how many", async () => {
+    const ready = new Map<string, boolean>([["a", false], ["b", false], ["c", false]]);
+    const programs = new Map<Material, { isReady(): boolean | null }>([...ready.keys()].map((k) => [mat(k), { isReady: () => ready.get(k)! }]));
+    const seen: [number, number][] = [];
+    const done = vi.fn();
+    compileSafe(fakeGl(programs), scene, camera, 10000, (n, total) => seen.push([n, total])).then(done);
+    expect(seen[0]).toEqual([0, 3]);
+    ready.set("b", true);
+    await vi.advanceTimersByTimeAsync(20);
+    ready.set("a", true);
+    ready.set("c", true);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(done).toHaveBeenCalled();
+    expect(seen.map((s) => s[0])).toEqual([0, 1, 3]);
+    expect(seen.every((s) => s[1] === 3)).toBe(true);
+  });
+
   it("rejects when compile itself throws", async () => {
     const gl = { ...fakeGl(new Map()), compile: () => { throw new Error("no context"); } };
     await expect(compileSafe(gl, scene, camera)).rejects.toThrow("no context");

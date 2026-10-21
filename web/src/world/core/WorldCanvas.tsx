@@ -2,9 +2,10 @@
 // rig asks for frames while the camera moves, the scroll asks for one per scroll event, and an idle
 // world draws nothing. Each station's Scene sits in its own group, Suspense and error boundary, so
 // one module loading or failing never blanks the others.
-import { Component, Suspense, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Component, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { Group } from "three";
+import { assets } from "./assets";
 import { CameraRig } from "./CameraRig";
 import { WORLD_BG } from "./layout";
 import { AutoTune, HudProbe, Pause, Resolution, WarmUp } from "./Perf";
@@ -12,7 +13,9 @@ import { PostFX } from "./PostFX";
 import type { QualityTier, TierName } from "./quality";
 import { targetDpr } from "./resolution";
 import type { WorldStore } from "./store";
+import { markStanding } from "./standing";
 import type { StationFrame, StationModule } from "./types";
+import { stationFiles } from "./waiting";
 
 class StationBoundary extends Component<{ id: string; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -27,6 +30,12 @@ class StationBoundary extends Component<{ id: string; children: ReactNode }, { f
   }
 }
 
+/** Rendered past the station's Suspense: its scene stands (ui/Wait.tsx lifts on it). */
+function Standing({ id }: { id: string }) {
+  useEffect(() => markStanding(id), [id]);
+  return null;
+}
+
 function StationGroup({ station, frame, quality, reduced }: { station: StationModule; frame: StationFrame; quality: QualityTier; reduced: boolean }) {
   const ref = useRef<Group>(null);
   useFrame(() => {
@@ -38,6 +47,7 @@ function StationGroup({ station, frame, quality, reduced }: { station: StationMo
       <StationBoundary id={station.id}>
         <Suspense fallback={null}>
           <Scene frame={frame} quality={quality} reduced={reduced} />
+          <Standing id={station.id} />
         </Suspense>
       </StationBoundary>
     </group>
@@ -45,16 +55,21 @@ function StationGroup({ station, frame, quality, reduced }: { station: StationMo
 }
 
 /**
- * The stations' Scenes. Until the loader is done only the first rail station (the intro) is mounted,
- * so its shaders compile under the loader and the workshop's files stream in after the first frame.
+ * The stations' Scenes. Until the loader is done only the first rail station (the intro) is mounted, so
+ * its shaders compile under the loader. After it, each station mounts once its files have streamed in
+ * (core/assets.ts, in the journey's order): its loaders then find them in three's cache, with no second
+ * download, and the stations come in one by one rather than all at once on the hero's way in.
  */
 function Stations({ store, stations, quality, reduced }: { store: WorldStore; stations: readonly StationModule[]; quality: QualityTier; reduced: boolean }) {
   const ready = useSyncExternalStore(store.subscribe, () => store.getCoarse().ready);
   const first = store.rails[0].id;
+  const files = useMemo(() => new Map(stations.map((s) => [s.id, stationFiles(s.id, quality.name)])), [stations, quality.name]);
+  // Which stations' files are all in (or failed: their scenes fall back as they always have).
+  const arrived = useSyncExternalStore(assets.subscribe, () => stations.map((s) => (assets.progress(files.get(s.id) ?? []).done ? "1" : "0")).join(""));
   return (
     <>
       {stations
-        .filter((s) => s.Scene && (ready || s.id === first))
+        .filter((s, i) => s.Scene && (s.id === first || (ready && arrived[i] === "1")))
         .map((s) => (
           <StationGroup key={s.id} station={s} frame={store.frames[s.id]} quality={quality} reduced={reduced} />
         ))}

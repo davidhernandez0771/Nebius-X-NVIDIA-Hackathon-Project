@@ -5,6 +5,7 @@
 // the camera gets there, so the first drop doesn't hitch. Nothing here with reduced motion: the camera
 // holds the hero then (index.tsx rest).
 import { useEffect } from "react";
+import { markStanding } from "../../core/standing";
 import { useFrame, useThree } from "@react-three/fiber";
 import type * as THREE from "three";
 import { compileSafe } from "../../../three/compileSafe";
@@ -36,6 +37,7 @@ function warm(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera,
 }
 
 export default function Places({ quality, reduced }: { quality: QualityTier; reduced: boolean }) {
+  useEffect(() => markStanding("intro:places"), []);
   const { store } = useWorld();
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);

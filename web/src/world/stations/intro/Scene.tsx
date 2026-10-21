@@ -5,14 +5,16 @@
 // (Story.tsx); then the camera sinks below it (path.ts) and the hero goes out into the dark. Below are the places
 // the story descends through, the forest and the reactor (Places.tsx), loaded once the loader is done; the
 // reactor's top ring is THE RING the descent bursts. Reduced motion holds the flat mark's pose. It is also the
-// loader's real work: the tesseract built for the tier and every shader compiled before the loader lets go
-// (progress.ts).
+// loader's real work (progress.ts): the engine up, the tesseract built for the tier, every shader compiled
+// (counted as each links) and a few steady frames drawn before the loader lets go. The forest and the reactor
+// mount once the loader is done and the forest's files have streamed in (core/assets.ts).
 import { lazy, Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { ambient } from "../../core/activity";
+import { assets } from "../../core/assets";
+import { forestFiles } from "../../core/waiting";
 import { fitFov } from "../../core/fov";
 import { compileSafe } from "../../../three/compileSafe";
 import type { QualityTier } from "../../core/quality";
@@ -22,7 +24,7 @@ import { onPointer, pointer } from "../../ui/pointer";
 import { heroSlot, type Box } from "./heroSlot";
 import { DUST, HERO_VIEW, LOGO, LOGO_R } from "./layout";
 import { dustBuffers } from "./particles";
-import { load } from "./progress";
+import { FRAMES, frameGate, load } from "./progress";
 import { backdropFrag, backdropVert, dustFrag, dustVert } from "./shaders";
 import { INTRO_VH, logoPose, placeLights } from "./storyPlan";
 import { CHROME_ENV, makeTesseract, TESSERACT_LOOK, type TesseractHandle } from "./Tesseract";
@@ -190,7 +192,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   const backdrop = useMemo(() => makeBackdrop(), []);
   // Sparse: a third of the tier's dust, so the space reads empty and deep.
   const dust = useMemo(() => makeDust(Math.round(quality.dustParticles / 3)), [quality.dustParticles]);
-  const st = useRef({ readyAt: null as number | null, mx: 0, my: 0, spin: 0, spin4: 0 });
+  const st = useRef({ readyAt: null as number | null, mx: 0, my: 0, spin: 0, spin4: 0, frames: null as number[] | null });
   const slot = useRef<Placement>({ position: new THREE.Vector3(...LOGO), scale: 1, glow: new THREE.Vector3(0, 0, -1) });
 
   // Placed clear of the page's type: on load, as the fonts and the hero's words settle, and on every resize.
@@ -210,31 +212,29 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     };
   }, [gl, quality.name, invalidate]);
 
-  useEffect(() => {
-    load.set("canvas", 1);
-    // Whatever three's loading manager fetches for the intro counts toward the loader.
-    const report = ({ loaded, total, active }: { loaded: number; total: number; active: boolean }) => {
-      if (total > 0) load.set("assets", active ? loaded / total : 1);
-    };
-    report(useProgress.getState());
-    return useProgress.subscribe(report);
-  }, []);
+  // The engine is up: this chunk arrived and the context works.
+  useEffect(() => load.set("engine", 1), []);
+
+  // The forest and the reactor wait for the forest's files (the crack, the robots), streamed in the background.
+  const forest = useMemo(() => forestFiles(quality.name), [quality.name]);
+  const forestIn = useSyncExternalStore(assets.subscribe, () => assets.progress(forest).done);
   useEffect(() => () => backdrop.dispose(), [backdrop]);
   useEffect(() => () => dust.geometry.dispose(), [dust]);
   useEffect(() => () => logo.dispose(), [logo]);
   useEffect(() => onPointer(() => (store.frames.intro.near ? invalidate() : undefined)), [store, invalidate]);
 
-  // Built for the tier, then every shader on screen compiled before the loader lets go.
+  // Built for the tier, then every shader on screen compiled, each counted as it links, before the
+  // loader goes on to the steady frames.
   useEffect(() => {
-    load.set("assets", 1);
     load.set("build", 1);
     let live = true;
     const done = () => {
       if (!live) return;
-      load.set("compile", 1);
+      load.set("shaders", 1);
+      st.current.frames = [];
       invalidate();
     };
-    compileSafe(gl, scene, camera).then(done, done);
+    compileSafe(gl, scene, camera, 10000, (n, total) => live && load.count("shaders", n, total)).then(done, done);
     return () => {
       live = false;
     };
@@ -243,6 +243,16 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   useFrame(({ clock }, delta) => {
     const s = st.current;
     const now = clock.elapsedTime;
+    // The loader's last step: frames drawn back to back at a steady time (frameGate). The first one after
+    // the compile is skipped (its delta is the wait, not a frame).
+    if (s.frames && !load.done()) {
+      const first = s.frames.length === 0 && delta > 0.5;
+      if (!first) s.frames.push(delta);
+      const gate = frameGate(s.frames);
+      load.count("frames", gate.done ? FRAMES : gate.steady, FRAMES);
+      if (!gate.done) invalidate();
+      else s.frames = null;
+    }
     const dt = Math.min(delta, 1 / 30);
     const ready = store.getCoarse().ready;
     if (ready && s.readyAt === null) s.readyAt = now;
@@ -296,7 +306,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
       <primitive object={backdrop.mesh} />
       <primitive object={logo.group} />
       <primitive object={dust} />
-      {loaded && !reduced ? (
+      {loaded && forestIn && !reduced ? (
         <Suspense fallback={null}>
           <Places quality={quality} reduced={reduced} />
         </Suspense>
