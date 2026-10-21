@@ -569,7 +569,7 @@ test first, then part (b). Round 0 at 300 teacher runs starts only after that, o
   - This smoke student is not a candidate, and nothing is chosen from it. It is logged because 5300–5301 are
     selection seeds. The lead ruled it a disclosed note, not a deviation.
 
-**Gate attempt 2, part (b) started** at 15:08:04 (PID 55104), on 4000–4049 (≥ 45/50). Its result is added here.
+**Gate attempt 2, part (b) started** at 15:08:04 (PID 55104), on 4000–4049 (≥ 45/50).
 
 **The round-0 mix.** With no DAgger source in round 0, the code renormalises the pre-registered weights, human
 0.25 and teacher 0.5, to 1/3 : 2/3. That is the rule above ("DAgger 0.25, absent in round 0"), now written down.
@@ -580,9 +580,29 @@ test first, then part (b). Round 0 at 300 teacher runs starts only after that, o
 - **Why:** with whole-number repeats only, the realised human share swings between 26% and 41%. With fractional
   repeats it lands within about 0.5 points of 1/3 : 2/3.
 - **Unchanged:** the weights themselves. The fix makes the pre-registered shares come out as written.
-- T6's commit is added here when T6 sends it.
+- **The commit is `1d0aaf8`** (T6, 15:22, on `pm/distill-dagger`), with tests. On the real data the shares come out
+  as human 0.3332 and teacher 0.6668.
 
 **Round 0's estimate:** about 3.5 h (3–4.3 h). The export was measured at 27.9 s per 1,000 frames.
+
+**Gate attempt 2, part (b): PASSED, 49/50** on 4000–4049 (Wilson 95% 0.90–1.00). The threshold is ≥ 45/50.
+- **The one failure:** seed 4022, which hit the time limit.
+- **The run:** 14.1 min (15:08:04 → 15:22:12), on code `2168db0`, with a clean tree.
+- **Checked here:** `data\distill\distill_mouse\r0\rollouts_done.json` (in `C:\dev\pm-t6`) has 49 successes in
+  50 attempts on seeds 4000–4049, ended by success 49 and time limit 1. It records the teacher as `demo_v6c2`'s
+  exported `policy.pt`, β 0, and the code as `2168db0` on `pm/distill-dagger`, with `dirty: false`. There are 49
+  episodes, with 6,676 frames.
+- These 49 episodes are round 0's first teacher episodes, as the gate's design intends: part (b) is round 0's own
+  rollout step, stopped after 50 runs.
+
+**The teacher gate is passed:** part (a) was 50/50 in replay on 5350–5399, and part (b) 49/50 in the env on
+4000–4049.
+
+**Export speed-ups were declined.** The export stays serial, because writing the images in parallel changed the bytes
+of `meta/stats.json`.
+
+**Round 0 with `--teacher-n 300` was launched** on the lead's go. Its start time and PID are added here when T6 sends
+them. The revised estimate is 2.7–3.9 h. T6's notes for the smoke, part (b) and the timings are `da19c2a` (15:27).
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
