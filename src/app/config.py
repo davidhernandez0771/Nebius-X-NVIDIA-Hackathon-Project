@@ -30,3 +30,9 @@ def photos_dir() -> Path:
 
 def scans_dir() -> Path:
     return upload_dir() / "scans"
+
+
+def pipeline_enabled() -> bool:
+    """Whether the site may start, cancel or resume pipeline runs (app/routers/pipeline.py): off unless SANT_PIPELINE=1,
+    so a public deployment can't start GPU jobs. Reading runs and downloading their artifacts is always allowed."""
+    return os.environ.get("SANT_PIPELINE", "").strip().lower() in ("1", "true", "yes", "on")
