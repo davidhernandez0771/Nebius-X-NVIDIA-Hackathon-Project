@@ -10,7 +10,8 @@ import { useMotion } from "../../sant/motion/MotionProvider";
 import { handingOff, handoffArrive, handoffStart } from "./handoff";
 import "./holo.css";
 
-export type HoloPageId = "record" | "pipeline" | "data";
+/** The pages on the path, and the ones off it (in the More nav) that use the frame too. */
+export type HoloPageId = "record" | "pipeline" | "data" | "test-track";
 
 /** The path the work pages share, in the order the visitor goes. */
 export const PATH: { id: HoloPageId; to: string; label: string }[] = [
@@ -19,9 +20,11 @@ export const PATH: { id: HoloPageId; to: string; label: string }[] = [
   { id: "data", to: "/data", label: "Data" },
 ];
 
-const MORE = [
+const MORE: { id?: HoloPageId; to: string; label: string }[] = [
   { to: "/robots", label: "Robots" },
   { to: "/site/results", label: "Results" },
+  // A viewer of finished runs (T5's /test-track), not a step on the path.
+  { id: "test-track", to: "/test-track", label: "Test track" },
 ];
 
 const MAIN_ID = "holo-main";
@@ -81,7 +84,7 @@ export function HoloPage({ title, here, actions, children }: { title: string; he
           {actions && <div className="holo-top__actions">{actions}</div>}
           <nav className="holo-more" aria-label="More">
             {MORE.map((m) => (
-              <Link key={m.to} to={m.to}>
+              <Link key={m.to} to={m.to} aria-current={m.id && m.id === here ? "page" : undefined}>
                 {m.label}
               </Link>
             ))}
