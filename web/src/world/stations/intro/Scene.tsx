@@ -13,18 +13,20 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { ambient } from "../../core/activity";
+import { fitFov } from "../../core/fov";
 import { compileSafe } from "../../../three/compileSafe";
 import type { QualityTier } from "../../core/quality";
 import { useWorld } from "../../core/WorldContext";
 import type { StationSceneProps } from "../../core/types";
 import { onPointer, pointer } from "../../ui/pointer";
-import { DUST, LOGO, LOGO_R } from "./layout";
+import { heroSlot, type Box } from "./heroSlot";
+import { DUST, HERO_VIEW, LOGO, LOGO_R } from "./layout";
 import { dustBuffers } from "./particles";
 import { load } from "./progress";
 import { backdropFrag, backdropVert, dustFrag, dustVert } from "./shaders";
 import { INTRO_VH, logoPose, placeLights } from "./storyPlan";
-import { makeTesseract, type TesseractHandle } from "./Tesseract";
-import { hyperPose, ISO } from "./tesseractPlan";
+import { CHROME_ENV, makeTesseract, TESSERACT_LOOK, type TesseractHandle } from "./Tesseract";
+import { HYPER_RADIUS, hyperPose, ISO } from "./tesseractPlan";
 
 // The forest and the reactor: after the first frame, with their STL loader and shaders.
 const Places = lazy(() => import("./Places"));
@@ -66,6 +68,44 @@ function makeLogo(q: QualityTier, env: THREE.Texture): Logo {
   group.scale.setScalar(LOGO_R);
   group.name = "intro:logo";
   return { group, tesseract, dispose: () => tesseract.dispose() };
+}
+
+/** The page's boxes the tesseract keeps clear of: the hero's headline and column, the scroll hint, the brand, the
+ *  contact button, the station rail, the quality chip. */
+const KEEP_CLEAR = [".intro-beat__main", ".intro-beat__col", ".intro-down", ".world-brand", ".world-contact", ".world-rail", ".world-q"];
+
+interface Placement {
+  position: THREE.Vector3;
+  /** Of its designed size (1 at most). */
+  scale: number;
+}
+
+/** Where the tesseract floats and how large, so that even at its widest turn it stays in the largest space clear of
+ *  the page's boxes (heroSlot.ts), as seen from the hero's camera at the canvas's size. */
+function place(canvas: HTMLCanvasElement, tubeR: number): Placement {
+  const c = canvas.getBoundingClientRect();
+  const w = c.width || 1, h = c.height || 1;
+  const keep: Box[] = [];
+  for (const sel of KEEP_CLEAR) {
+    const e = document.querySelector(sel);
+    const r = e?.getBoundingClientRect();
+    if (r && r.width > 0 && r.height > 0) keep.push({ left: r.left - c.left, top: r.top - c.top, right: r.right - c.left, bottom: r.bottom - c.top });
+  }
+  // The rig draws portrait screens with a wider field of view (fov.ts); so does this.
+  const fov = fitFov(HERO_VIEW.fov, w / h);
+  const cam = new THREE.PerspectiveCamera(fov, w / h, 0.1, 1000);
+  cam.position.set(...HERO_VIEW.position);
+  cam.lookAt(new THREE.Vector3(...HERO_VIEW.target));
+  cam.updateMatrixWorld();
+  const forward = cam.getWorldDirection(new THREE.Vector3());
+  const depth = new THREE.Vector3(...LOGO).sub(cam.position).dot(forward);
+  // Its widest reach (a corner and its ball) at the designed size, in pixels at the logo's depth.
+  const reach = (HYPER_RADIUS + tubeR * 1.7) * LOGO_R;
+  const design = (reach / (depth * Math.tan(THREE.MathUtils.degToRad(fov) / 2))) * (h / 2);
+  const slot = heroSlot({ w, h }, keep, { pad: 16, margin: 12, maxR: design });
+  const ray = new THREE.Vector3((slot.cx / w) * 2 - 1, 1 - (slot.cy / h) * 2, 0.5).unproject(cam).sub(cam.position).normalize();
+  const position = cam.position.clone().addScaledVector(ray, depth / ray.dot(forward));
+  return { position, scale: Math.min(1, slot.r / design) };
 }
 
 function makeBackdrop() {
@@ -135,6 +175,24 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   // Sparse: a third of the tier's dust, so the space reads empty and deep.
   const dust = useMemo(() => makeDust(Math.round(quality.dustParticles / 3)), [quality.dustParticles]);
   const st = useRef({ readyAt: null as number | null, mx: 0, my: 0, spin: 0, spin4: 0 });
+  const slot = useRef<Placement>({ position: new THREE.Vector3(...LOGO), scale: 1 });
+
+  // Placed clear of the page's type: on load, as the fonts and the hero's words settle, and on every resize.
+  useEffect(() => {
+    const tube = TESSERACT_LOOK[quality.name].tube;
+    const measure = () => {
+      slot.current = place(gl.domElement, tube);
+      invalidate();
+    };
+    measure();
+    const timers = [250, 1000, 2500].map((ms) => window.setTimeout(measure, ms));
+    document.fonts?.ready.then(measure, () => undefined);
+    window.addEventListener("resize", measure);
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      window.removeEventListener("resize", measure);
+    };
+  }, [gl, quality.name, invalidate]);
 
   useEffect(() => {
     load.set("canvas", 1);
@@ -193,9 +251,10 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     logo.tesseract.update(hyperPose(vh, s.spin4, reduced));
     const turn = reduced ? 0 : pose.turn / 3 + s.spin;
     logo.group.rotation.set((reduced ? 0 : pose.tilt) - s.my * 0.14, turn + s.mx * 0.22, 0);
-    logo.group.scale.setScalar(LOGO_R * (reduced ? 1 : Math.max(0.001, easeOutBack(grow))));
+    logo.group.position.copy(slot.current.position);
+    logo.group.scale.setScalar(LOGO_R * slot.current.scale * (reduced ? 1 : Math.max(0.001, easeOutBack(grow))));
     const { chrome, teal, joints } = logo.tesseract.materials;
-    chrome.envMapIntensity = joints.envMapIntensity = 1.4 * light;
+    chrome.envMapIntensity = joints.envMapIntensity = CHROME_ENV * light;
     teal.emissiveIntensity = 0.85 * light;
     teal.envMapIntensity = 0.6 * light;
     logo.group.visible = grow > 0 && light > 0;

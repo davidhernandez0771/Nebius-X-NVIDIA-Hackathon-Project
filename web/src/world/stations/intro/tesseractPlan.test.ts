@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import {
-  EDGES, ISO, OPEN, OPEN_REACH, STILL, VERTICES, W_DIST, edgeKind, hyperFrame, hyperPose, place4, project, rotate4, type Angles4,
+  EDGES, HYPER_RADIUS, INNER_RATIO, ISO, OPEN, OPEN_REACH, STILL, VERTICES, edgeKind, hyperFrame, hyperPose, place4, project, rotate4, type Angles4,
 } from "./tesseractPlan";
 import { INTRO_VH, span } from "./storyPlan";
 
@@ -44,12 +44,22 @@ describe("4D rotation and the projection to 3D", () => {
     expect(r[3]).toBeCloseTo(-1, 9);
   });
 
-  it("projects with perspective in w: the outer cube larger than the inner, by the flat mark's ratio (about 0.43)", () => {
+  it("scales by depth in w: the outer cube larger than the inner, by the flat mark's ratio (3/7, about 0.43)", () => {
     const big = project([1, 1, 1, 1]);
     const small = project([1, 1, 1, -1]);
-    expect(small[0] / big[0]).toBeCloseTo((W_DIST - 1) / (W_DIST + 1), 9);
-    expect(small[0] / big[0]).toBeGreaterThan(0.38);
-    expect(small[0] / big[0]).toBeLessThan(0.48);
+    expect(small[0] / big[0]).toBeCloseTo(INNER_RATIO, 9);
+    expect(INNER_RATIO).toBeCloseTo(3 / 7, 9);
+    // Nearer in w is always larger.
+    expect(project([1, 1, 1, 1.5])[0]).toBeGreaterThan(big[0]);
+  });
+
+  it("never reaches past HYPER_RADIUS at any angle, and that is at most 1.5 times its still size (so it can be fitted on screen)", () => {
+    const radius = (a: Angles4) => Math.max(...VERTICES.map((v) => Math.hypot(...project(place4(v, a)))));
+    for (let i = 0; i < 200; i++) {
+      const a = { xw: Math.sin(i * 12.9898) * 10, zw: Math.cos(i * 78.233) * 10 };
+      expect(radius(a)).toBeLessThanOrEqual(HYPER_RADIUS);
+    }
+    expect(HYPER_RADIUS / radius(STILL)).toBeLessThan(1.5);
   });
 });
 

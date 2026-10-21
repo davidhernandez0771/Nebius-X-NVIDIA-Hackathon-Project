@@ -1,5 +1,5 @@
 // The hero's tesseract, the SANT mark (docs/design/logo): a 4D cube, its 16 corners (±1 on x, y, z, w) and 32
-// edges, turned in 4D and projected to 3D with perspective in w, so the inner cube (w = -1, teal) and the outer one
+// edges, turned in 4D and projected to 3D scaled by depth in w, so the inner cube (w = -1, teal) and the outer one
 // (w = +1) keep turning inside out into each other. One outer corner is broken open: its edges stop short of it in
 // 4D, so the gap holds through every turn, and the teal cube passes through it. Pure, so the tests hold the maths;
 // Tesseract.ts draws it, Scene.tsx poses it.
@@ -22,14 +22,17 @@ export const edgeKind = ([a, b]: readonly [number, number]): EdgeKind => {
   return wa !== wb ? "link" : wa < 0 ? "inner" : "outer";
 };
 
-/** The eye's distance in w: the inner cube comes out (W_DIST - 1) / (W_DIST + 1) the outer's size, as in the mark. */
-export const W_DIST = 2.5;
+/** The inner cube's size to the outer one's at rest, as in the flat mark (3/7, about 0.43). */
+export const INNER_RATIO = 3 / 7;
 /** The outer cube's half size in the logo's units (the old logo ring's radius is 1). */
 export const HALF = 0.5;
 
-/** w → 3D with perspective in w, scaled so the outer cube (w = 1) has half size HALF. */
+/** 4D → 3D, scaled by depth in w: nearer in w is larger, INNER_RATIO for each unit of w further away, so the outer
+ *  cube (w = 1) has half size HALF and the inner one (w = -1) INNER_RATIO of it. A true perspective in w at this
+ *  ratio (the eye at w = 2.5) blows a corner up to 2.6 times the logo's size as it swings near the eye; this keeps
+ *  the same turning inside out within HYPER_RADIUS, so the hero can fit it on screen. */
 export function project(v: readonly number[]): [number, number, number] {
-  const f = (HALF * (W_DIST - 1)) / (W_DIST - v[3]);
+  const f = HALF * INNER_RATIO ** ((1 - v[3]) / 2);
   return [v[0] * f, v[1] * f, v[2] * f];
 }
 
@@ -87,6 +90,19 @@ export function shear4(v: readonly number[]): [number, number, number, number] {
 
 /** A corner (or any 4D point of the tesseract) at these angles: sheared, then turned. */
 export const place4 = (v: readonly number[], a: Angles4) => rotate4(shear4(v), a);
+
+/** The farthest any corner reaches from the centre, at any angle (logo units): what the hero fits on screen. */
+export const HYPER_RADIUS: number = (() => {
+  let r = 0;
+  const n = 72;
+  for (let a = 0; a < n; a++)
+    for (let b = 0; b < n; b++) {
+      const angles = { xw: (a / n) * Math.PI * 2, zw: (b / n) * Math.PI * 2 };
+      for (const v of VERTICES) r = Math.max(r, Math.hypot(...project(place4(v, angles))));
+    }
+  // The grid can step past a peak by a little.
+  return r * 1.02;
+})();
 
 /** How far toward the open corner its edges reach (of their length, in 4D). */
 export const OPEN_REACH = 0.62;
