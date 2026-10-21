@@ -51,6 +51,23 @@ export function prefetchOrder(tier: TierName): string[] {
   return uniq([...forestFiles(tier), ...descentFiles(), CARTRIDGE_URL, MACHINE_URL, ...wallFiles(tier)]);
 }
 
+/** The rooms the builder mounts (core/rooms.ts), in the journey's order: the forest and the reactor inside
+ *  the intro (not with reduced motion, which holds the hero), then the stations'. */
+export function roomOrder(reduced: boolean): string[] {
+  const later: StationId[] = ["descent", "workshop", "machine", "zoom", "workbench", "robots"];
+  return [...(reduced ? [] : ["intro:places"]), ...later];
+}
+
+/** A room's files. */
+export const roomFiles = (room: string, tier: TierName): string[] => (room === "intro:places" ? forestFiles(tier) : stationFiles(room as StationId, tier));
+
+/** The room the visitor is in or reaching, or null (the hero). */
+export function roomAt(id: StationId, vh: number, reduced: boolean): string | null {
+  if (id !== "intro") return id;
+  const [a] = span("sink");
+  return reduced || vh < a ? null : "intro:places";
+}
+
 const LABEL: Record<StationId, string> = {
   intro: "the forest",
   descent: "the descent",

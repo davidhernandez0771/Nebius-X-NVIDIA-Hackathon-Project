@@ -2,10 +2,9 @@
 // rig asks for frames while the camera moves, the scroll asks for one per scroll event, and an idle
 // world draws nothing. Each station's Scene sits in its own group, Suspense and error boundary, so
 // one module loading or failing never blanks the others.
-import { Component, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Component, Suspense, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { Group } from "three";
-import { assets } from "./assets";
 import { CameraRig } from "./CameraRig";
 import { WORLD_BG } from "./layout";
 import { AutoTune, HudProbe, Pause, Resolution, WarmUp } from "./Perf";
@@ -13,9 +12,10 @@ import { PostFX } from "./PostFX";
 import type { QualityTier, TierName } from "./quality";
 import { targetDpr } from "./resolution";
 import type { WorldStore } from "./store";
+import { RoomBuild } from "./RoomBuild";
+import { rooms } from "./rooms";
 import { markStanding } from "./standing";
 import type { StationFrame, StationModule } from "./types";
-import { stationFiles } from "./waiting";
 
 class StationBoundary extends Component<{ id: string; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -55,21 +55,18 @@ function StationGroup({ station, frame, quality, reduced }: { station: StationMo
 }
 
 /**
- * The stations' Scenes. Until the loader is done only the first rail station (the intro) is mounted, so
- * its shaders compile under the loader. After it, each station mounts once its files have streamed in
- * (core/assets.ts, in the journey's order): its loaders then find them in three's cache, with no second
- * download, and the stations come in one by one rather than all at once on the hero's way in.
+ * The stations' Scenes. The first rail station (the intro) mounts at once, so its shaders compile under
+ * the loader. The others mount when the room builder allows them (core/rooms.ts, RoomBuild.tsx): one at a
+ * time, once their files have streamed in (core/assets.ts), so their loaders find them in three's cache
+ * with no second download. Under the loader if they are in by then, else in idle time after the reveal.
  */
 function Stations({ store, stations, quality, reduced }: { store: WorldStore; stations: readonly StationModule[]; quality: QualityTier; reduced: boolean }) {
-  const ready = useSyncExternalStore(store.subscribe, () => store.getCoarse().ready);
   const first = store.rails[0].id;
-  const files = useMemo(() => new Map(stations.map((s) => [s.id, stationFiles(s.id, quality.name)])), [stations, quality.name]);
-  // Which stations' files are all in (or failed: their scenes fall back as they always have).
-  const arrived = useSyncExternalStore(assets.subscribe, () => stations.map((s) => (assets.progress(files.get(s.id) ?? []).done ? "1" : "0")).join(""));
+  const allowed = useSyncExternalStore(rooms.subscribe, () => rooms.list().join(","));
   return (
     <>
       {stations
-        .filter((s, i) => s.Scene && (s.id === first || (ready && arrived[i] === "1")))
+        .filter((s) => s.Scene && (s.id === first || allowed.split(",").includes(s.id)))
         .map((s) => (
           <StationGroup key={s.id} station={s} frame={store.frames[s.id]} quality={quality} reduced={reduced} />
         ))}
@@ -120,6 +117,7 @@ export default function WorldCanvas({
       {/* No lights here: the room's light is baked, and the workshop's live lights follow its lamps. */}
       <CameraRig store={store} stations={stations} reduced={reduced} onCut={onCut} />
       <Stations store={store} stations={stations} quality={quality} reduced={reduced} />
+      <RoomBuild store={store} stations={stations} tier={quality.name} reduced={reduced} />
       {quality.post ? <PostFX store={store} quality={quality} reduced={reduced} /> : null}
       <Resolution quality={quality} onDpr={setDpr} />
       <HudProbe />

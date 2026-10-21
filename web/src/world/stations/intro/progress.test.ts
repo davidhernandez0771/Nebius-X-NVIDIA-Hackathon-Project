@@ -3,7 +3,7 @@ import { FRAMES, STEPS, createLoad, frameGate } from "./progress";
 
 describe("the loader's progress", () => {
   it("weighs the real steps of the first scene to 1, in the order they happen", () => {
-    expect(Object.keys(STEPS)).toEqual(["engine", "fonts", "build", "shaders", "frames"]);
+    expect(Object.keys(STEPS)).toEqual(["engine", "fonts", "build", "shaders", "rooms", "frames"]);
     expect(Object.values(STEPS).reduce((a, s) => a + s.weight, 0)).toBeCloseTo(1, 9);
   });
 
@@ -23,6 +23,7 @@ describe("the loader's progress", () => {
     l.count("fonts", 4, 4);
     l.set("build", 1);
     l.count("shaders", 36, 36);
+    l.count("rooms", 5, 5);
     l.count("frames", FRAMES, FRAMES);
     expect(l.value()).toBeCloseTo(1, 9);
     expect(l.done()).toBe(true);
@@ -43,6 +44,9 @@ describe("the loader's progress", () => {
     l.count("shaders", 12, 31);
     expect(l.status()).toEqual({ step: "shaders", label: "Compiling shaders", detail: "12 / 31" });
     l.count("shaders", 31, 31);
+    l.count("rooms", 2, 5);
+    expect(l.status()).toEqual({ step: "rooms", label: "Building the rooms", detail: "2 / 5" });
+    l.count("rooms", 5, 5);
     l.count("frames", 1, FRAMES);
     expect(l.status()).toEqual({ step: "frames", label: "Warming up", detail: `1 / ${FRAMES} steady frames` });
     l.count("frames", FRAMES, FRAMES);

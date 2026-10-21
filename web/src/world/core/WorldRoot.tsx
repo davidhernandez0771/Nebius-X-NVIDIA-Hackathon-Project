@@ -27,6 +27,7 @@ import { Wait } from "../ui/Wait";
 import { assets } from "./assets";
 import { isStanding } from "./standing";
 import { prefetchOrder, waitFor } from "./waiting";
+import { Loader } from "../stations/intro/Loader";
 import { load } from "../stations/intro/progress";
 import { INTRO_VH } from "../stations/intro/storyPlan";
 
@@ -407,6 +408,8 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
         </p>
         <Contact />
         {run3D ? <Wait store={store} assets={assets} tier={quality.name} reduced={reduced} stands={isStanding} /> : null}
+        {/* Over everything, wherever the page opens (a return lands in the workshop, not at the hero). */}
+        {run3D ? <Loader /> : null}
         <JourneyRail stations={stations} at={at} goTo={jump} />
         {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />

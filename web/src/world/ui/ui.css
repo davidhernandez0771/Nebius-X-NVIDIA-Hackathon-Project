@@ -445,3 +445,84 @@
     left: 0;
   }
 }
+
+/* While the loader holds the page, the world's chrome waits behind it (the loader sits in a station's
+   layer, under them); it comes in with the hero. */
+.sant.world[data-loading="true"] :is(.world-brand, .world-rail, .world-contact, .world-hud, .world-skip) {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.sant.world[data-loading="false"] :is(.world-brand, .world-rail, .world-contact) {
+  animation: world-chrome-in 0.8s ease 0.5s both;
+}
+
+@keyframes world-chrome-in {
+  from {
+    opacity: 0;
+  }
+}
+
+[data-motion-world="reduced"].sant.world :is(.world-brand, .world-rail, .world-contact) {
+  animation: none;
+}
+
+/* Scrolled ahead of what has arrived (Wait.tsx): a small chip in the middle of the view, with the bytes. */
+.world-wait {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 8;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 12px 18px;
+  font-family: var(--w-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--w-ink);
+  background: rgb(7 9 12 / 0.72);
+  border: 1px solid var(--w-line);
+  transform: translate(-50%, -50%) scale(0.97);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.world-wait:empty {
+  padding: 0;
+  border: 0;
+}
+
+.world-wait[data-on="true"] {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.world-wait__bytes {
+  color: var(--w-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.world-wait__bar {
+  position: relative;
+  display: block;
+  width: 140px;
+  height: 1px;
+  background: rgb(25 245 194 / 0.16);
+  overflow: hidden;
+}
+
+.world-wait__bar b {
+  position: absolute;
+  inset: 0;
+  background: var(--w-teal);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+[data-motion-world="reduced"] .world-wait,
+[data-motion-world="reduced"] .world-wait * {
+  transition: none;
+}

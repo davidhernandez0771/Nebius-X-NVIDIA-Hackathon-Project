@@ -4,14 +4,18 @@
 // - fonts: the faces the hero's words and the loader set, each one as it loads;
 // - build: the tesseract, its studio light and the dust made for the tier;
 // - shaders: every program on screen compiled and linked, one by one (three/compileSafe.ts);
+// - rooms: the later scenes whose files are already in (or arrive within a short grace) mounted one at a
+//   time out of sight, then all compiled (core/rooms.ts), so no frame after the reveal stalls on a build;
 // - frames: a few frames drawn at a steady frame time (frameGate), so the first scroll never hitches.
-// The heavier stations' files stream in the background meanwhile (core/assets.ts) and don't hold it.
+// The heavier stations' files stream in the background meanwhile (core/assets.ts); what hasn't arrived
+// by the rooms step is built after the reveal, in idle time.
 export const STEPS = {
-  engine: { weight: 0.2, label: "Loading the 3D engine" },
+  engine: { weight: 0.15, label: "Loading the 3D engine" },
   fonts: { weight: 0.1, label: "Loading the type" },
-  build: { weight: 0.1, label: "Building the tesseract" },
-  shaders: { weight: 0.4, label: "Compiling shaders" },
-  frames: { weight: 0.2, label: "Warming up" },
+  build: { weight: 0.05, label: "Building the tesseract" },
+  shaders: { weight: 0.3, label: "Compiling shaders" },
+  rooms: { weight: 0.25, label: "Building the rooms" },
+  frames: { weight: 0.15, label: "Warming up" },
 } as const;
 export type Step = keyof typeof STEPS;
 const ORDER = Object.keys(STEPS) as Step[];

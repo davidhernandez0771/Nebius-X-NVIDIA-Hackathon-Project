@@ -12,8 +12,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { ambient } from "../../core/activity";
-import { assets } from "../../core/assets";
-import { forestFiles } from "../../core/waiting";
+import { rooms } from "../../core/rooms";
 import { fitFov } from "../../core/fov";
 import { compileSafe } from "../../../three/compileSafe";
 import type { QualityTier } from "../../core/quality";
@@ -173,7 +172,6 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   const camera = useThree((s) => s.camera);
   const invalidate = useThree((s) => s.invalidate);
   const logo = useMemo(() => makeLogo(quality), [quality]);
-  const loaded = useSyncExternalStore(store.subscribe, () => store.getCoarse().ready);
   const backdrop = useMemo(() => makeBackdrop(), []);
   // Sparse: a third of the tier's dust, so the space reads empty and deep.
   const dust = useMemo(() => makeDust(Math.round(quality.dustParticles / 3)), [quality.dustParticles]);
@@ -200,9 +198,20 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
   // The engine is up: this chunk arrived and the context works.
   useEffect(() => load.set("engine", 1), []);
 
-  // The forest and the reactor wait for the forest's files (the crack, the robots), streamed in the background.
-  const forest = useMemo(() => forestFiles(quality.name), [quality.name]);
-  const forestIn = useSyncExternalStore(assets.subscribe, () => assets.progress(forest).done);
+  // The forest and the reactor mount when the room builder allows them (core/rooms.ts): once their files
+  // have streamed in, under the loader if they are in by then.
+  const placesAllowed = useSyncExternalStore(rooms.subscribe, () => rooms.allowed("intro:places"));
+  // The loader's last step (steady frames) starts once the rooms are built: draw for it.
+  useEffect(
+    () =>
+      load.subscribe(() => {
+        if (load.status().step === "frames" && st.current.frames === null && !load.done()) {
+          st.current.frames = [];
+          invalidate();
+        }
+      }),
+    [invalidate],
+  );
   useEffect(() => () => backdrop.dispose(), [backdrop]);
   useEffect(() => () => dust.geometry.dispose(), [dust]);
   useEffect(() => () => logo.dispose(), [logo]);
@@ -216,7 +225,6 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
     const done = () => {
       if (!live) return;
       load.set("shaders", 1);
-      st.current.frames = [];
       invalidate();
     };
     // The tesseract is hidden until it grows in, and three compiles only what is visible: show it for the compile,
@@ -293,7 +301,7 @@ export function IntroScene({ frame, quality, reduced }: StationSceneProps) {
       <primitive object={backdrop.mesh} />
       <primitive object={logo.group} />
       <primitive object={dust} />
-      {loaded && forestIn && !reduced ? (
+      {placesAllowed && !reduced ? (
         <Suspense fallback={null}>
           <Places quality={quality} reduced={reduced} />
         </Suspense>

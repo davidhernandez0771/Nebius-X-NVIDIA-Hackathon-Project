@@ -28,6 +28,7 @@ function finish() {
     load.count("fonts", 1, 1);
     load.set("build", 1);
     load.count("shaders", 5, 5);
+    load.count("rooms", 4, 4);
     load.count("frames", FRAMES, FRAMES);
   });
 }

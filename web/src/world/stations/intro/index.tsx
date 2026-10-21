@@ -1,5 +1,5 @@
-// Intro (core): the opening, a station before the workshop. The slash-cartridge loader runs on real
-// progress; then the SANT logo grows in as a glass object in a clean dark space (Scene.tsx). Scrolling
+// Intro (core): the opening, a station before the workshop. The loader (Loader.tsx, mounted by WorldRoot
+// over everything) runs on real progress; then the SANT logo grows in as a glass object in a clean dark space (Scene.tsx). Scrolling
 // is a descent, like Active Theory's forest → reactor: the camera sinks below the logo onto a misty
 // forest floor with robot parts in the moss (the problem), drops through a crack into an underground
 // reactor that powers up as the story goes on (S·A·N·T, the proof, Nemotron), and ends above the core's
@@ -7,7 +7,6 @@
 // the workshop. Timing in storyPlan.ts, the camera in path.ts, the words in Story.tsx.
 import type { StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
-import { Loader } from "./Loader";
 import { IntroScene } from "./Scene";
 import { Story } from "./Story";
 import { HERO_VIEW } from "./layout";
@@ -21,7 +20,6 @@ export const TITLE = "Show a robot once. Get the data to teach it.";
 function Overlay(_: StationOverlayProps) {
   return (
     <>
-      <Loader />
       <h1 className="world-sr">{TITLE}</h1>
       <Story />
     </>
