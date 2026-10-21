@@ -450,3 +450,16 @@ def test_new_runs_train_with_the_speed_cap_on():
     assert (arm.v_max, arm.yaw_rate_max) == (rt.V_MAX, rt.YAW_RATE_MAX) == (0.5, 2.5)
     lift = rc.SantPickPlaceRLLiftEnvCfg().actions.arm_action
     assert (lift.v_max, lift.yaw_rate_max) == (0.5, 2.5)
+
+
+def test_the_tcp_target_terms_own_buffers_dont_shadow_the_tracking_ik_bases():
+    """demo_v6c's first launch: the speed cap's _prev_valid was the base's feed-forward flag, set True before the
+    base's first feed-forward ran from its zero command (a zero quaternion): NaN joints on step 0."""
+    import re
+
+    src = (Path(__file__).parents[1] / "sim_worker" / "rl_action.py").read_text(encoding="utf-8")
+    base = (Path(__file__).parents[1] / "sim_worker" / "mimic_tracking.py").read_text(encoding="utf-8")
+    cls = src.split("class SantTcpTargetAction", 1)[1].split("\nclass ", 1)[0]
+    mine = set(re.findall(r"self\.(_\w+)\s*=", cls))
+    theirs = set(re.findall(r"self\.(_\w+)\s*=", base))
+    assert not (mine & theirs), sorted(mine & theirs)
