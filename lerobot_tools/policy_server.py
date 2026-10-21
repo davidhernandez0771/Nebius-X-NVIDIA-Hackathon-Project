@@ -3,9 +3,12 @@
     C:\\venvs\\lerobot\\Scripts\\python.exe -m lerobot_tools.policy_server --checkpoint <dir> --port 8765
 
 <dir> may be a `pretrained_model/` dir, a step checkpoint dir, or a run output dir (uses checkpoints/last.txt).
+--n-action-steps N / --temporal-ensemble COEF (lerobot_tools.inference; default off: the checkpoint's own settings)
+change how the loaded policy executes its chunks. /health reports them under "inference".
 
 Routes (JSON):
-    GET  /health -> {"ok": true, "state_dim": 9, "cameras": {"front": [h, w], ...}, "checkpoint": ..., "device": ...}
+    GET  /health -> {"ok": true, "state_dim": 9, "cameras": {"front": [h, w], ...}, "checkpoint": ..., "device": ...,
+                     "inference": {"overrides": {...}, "chunk_size": 100, "n_action_steps": 100, ...}}
     POST /reset  -> {"ok": true}           clears the policy's action queue; call it at every episode start
     POST /act    {"state": [9 floats], "images": {"front": "<base64 raw uint8 HxWx3>", ...}, "h": 128, "w": 128}
                  -> {"action": [9 floats]}
@@ -28,6 +31,8 @@ from pathlib import Path
 from typing import Protocol
 
 import numpy as np
+
+from lerobot_tools.inference import InferenceOptions, add_inference_args, apply_to_config, config_record
 
 log = logging.getLogger("policy_server")
 IMAGE_PREFIX = "observation.images."
@@ -92,7 +97,8 @@ def decode_act_request(body: dict, state_dim: int, cameras: dict[str, tuple[int,
 class PolicyRunner:
     """Loads a LeRobot checkpoint (any policy type) with its saved pre/post-processors."""
 
-    def __init__(self, checkpoint: Path, device: str = "cuda", task: str | None = None):
+    def __init__(self, checkpoint: Path, device: str = "cuda", task: str | None = None,
+                 inference: InferenceOptions | None = None):
         from lerobot.configs import PreTrainedConfig
         from lerobot.policies.factory import get_policy_class, make_pre_post_processors
 
@@ -103,6 +109,7 @@ class PolicyRunner:
         self.task = task or TASK_TEXT
         cfg = PreTrainedConfig.from_pretrained(str(self.checkpoint))
         cfg.device = device
+        overrides = apply_to_config(cfg, inference or InferenceOptions())  # before the policy is built from cfg
         self.policy = get_policy_class(cfg.type).from_pretrained(str(self.checkpoint), config=cfg)
         self.policy.to(device).eval()
         self.pre, self.post = make_pre_post_processors(
@@ -110,12 +117,14 @@ class PolicyRunner:
             preprocessor_overrides={"device_processor": {"device": device}},
         )
         self.policy_type = cfg.type
+        self.inference = config_record(self.policy.config, overrides)
         self.state_dim = int(cfg.robot_state_feature.shape[0])
         self.cameras = {k[len(IMAGE_PREFIX):]: (int(ft.shape[1]), int(ft.shape[2]))  # (C, H, W)
                         for k, ft in cfg.image_features.items()}
 
     def describe(self) -> dict:
-        return {"checkpoint": str(self.checkpoint), "device": self.device, "policy_type": self.policy_type}
+        return {"checkpoint": str(self.checkpoint), "device": self.device, "policy_type": self.policy_type,
+                "inference": self.inference}
 
     def reset(self) -> None:
         self.policy.reset()
@@ -208,18 +217,28 @@ def make_server(runner: Runner, host: str = "127.0.0.1", port: int = 8765,
     return ThreadingHTTPServer((host, port), Handler)
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--checkpoint", type=Path, required=True)
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--device", default="cuda")
+    add_inference_args(p, gripper=False)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = build_parser()
     args = p.parse_args(argv)
+    try:
+        inference = InferenceOptions.from_args(args)
+    except ValueError as e:
+        p.error(str(e))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    runner = PolicyRunner(args.checkpoint, device=args.device)
+    runner = PolicyRunner(args.checkpoint, device=args.device, inference=inference)
     server = make_server(runner, args.host, args.port)
-    log.info("serving %s on http://%s:%d (state_dim=%d, cameras=%s)", runner.checkpoint, args.host,
-             server.server_address[1], runner.state_dim, runner.cameras)
+    log.info("serving %s on http://%s:%d (state_dim=%d, cameras=%s, inference=%s)", runner.checkpoint, args.host,
+             server.server_address[1], runner.state_dim, runner.cameras, runner.inference)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

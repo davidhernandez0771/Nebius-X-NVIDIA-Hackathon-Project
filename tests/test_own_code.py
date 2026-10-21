@@ -72,7 +72,8 @@ def test_own_src_wins_over_an_editable_install_pointing_elsewhere(tmp_path):
 
 ENTRY_GLOBS = ["sim_worker/server.py", "sim_worker/scripts/*.py", "sim_eval/scripts/*.py", "sim_eval/parallel/scripts/*.py",
                "lerobot_tools/experiments.py", "lerobot_tools/start_state.py", "lerobot_tools/train_smoke.py",
-               "scripts/mimic_smoke.py", "scripts/export_mimic.py"]  # Isaac Lab's Python runs these two (Mimic)
+               "scripts/mimic_smoke.py", "scripts/export_mimic.py",  # Isaac Lab's Python runs these two (Mimic)
+               "scripts/stage0_inference.py"]
 
 
 def _project_import(node: ast.stmt) -> bool:

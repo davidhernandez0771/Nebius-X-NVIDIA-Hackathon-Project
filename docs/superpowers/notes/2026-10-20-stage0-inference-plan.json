@@ -1,0 +1,22 @@
+{
+  "note": "Stage-0 inference test, pre-registered in 2026-10-20-stage0-inference-prereg.md. Read by scripts/stage0_inference.py. DRAFT: not run.",
+  "run_id": "stage0_inference_v1",
+  "practice": {"seed0": 5300, "n": 30},
+  "final": {"seed0": 5020, "n": 40},
+  "targets": [
+    {
+      "name": "mouse_pm10",
+      "primary": true,
+      "checkpoint": "C:\\dev\\pm-t6\\data\\experiments\\hx_mouse20261020_20261020_164411\\train\\perfected_multiply_10\\checkpoints\\030000\\pretrained_model",
+      "start_state": "C:\\dev\\pm-t6\\data\\experiments\\hx_mouse20261020_20261020_164411\\datasets\\raw_10",
+      "baseline": {"successes": 3, "n": 40, "source": "C:\\dev\\pm-t6\\data\\evals\\hx_mouse20261020_20261020_164411\\perfected_multiply_10.json (seeds 5020-5059, the pre-registered mouse20261020 result)"}
+    },
+    {
+      "name": "scripted_rm10",
+      "primary": false,
+      "checkpoint": "C:\\dev\\pm-t3\\data\\experiments\\sprint6_home_a_20261016_205725\\train\\raw_multiply_10\\checkpoints\\030000\\pretrained_model",
+      "start_state": "C:\\dev\\pm-t3\\data\\experiments\\sprint6_home_a_20261016_205725\\datasets\\raw_10",
+      "baseline": {"successes": 17, "n": 40, "source": "C:\\dev\\pm-t3\\data\\evals\\sprint7_30k\\raw_multiply_10_30k.json (seeds 5020-5059 of its n = 60 eval; sprint 7's confirmatory 17/40)"}
+    }
+  ]
+}
