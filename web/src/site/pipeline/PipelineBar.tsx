@@ -3,7 +3,7 @@
 // stage links (the example's ?speed=).
 import { Link } from "react-router-dom";
 import type { LiveConn } from "../data/hooks";
-import { PIPELINE_STAGES, formatDuration, type Bar, type RunState, type StageId } from "./model";
+import { formatDuration, stageOf, stagesFor, type Bar, type RunState, type StageId } from "./model";
 
 const CONN: Record<LiveConn, string> = { connecting: "connecting…", open: "live", closed: "" };
 
@@ -27,11 +27,11 @@ export function PipelineBar({ run, bar, shown, conn, search = "" }: { run: RunSt
       )}
       <div className="pipe-stages">
         <ol>
-          {PIPELINE_STAGES.map((s, i) => {
-            const st = run.stages[i];
+          {stagesFor(run.kind).map((s) => {
+            const st = stageOf(run, s.id);
             const pct = Math.round(st.progress * 100);
-            // A dry run skips every stage but plans each: show what it would take.
-            const planned = (st.status === "pending" || (st.status === "skipped" && run.plan_s !== null)) && st.eta_s !== null;
+            // A dry run skips every stage but plans each: show what it would take (0 s: a stage it won't run at all).
+            const planned = (st.status === "pending" || (st.status === "skipped" && run.plan_s !== null && (st.eta_s ?? 0) > 0)) && st.eta_s !== null;
             return (
               <li key={s.id}>
                 <Link

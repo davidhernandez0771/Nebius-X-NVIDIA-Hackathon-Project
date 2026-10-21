@@ -2,7 +2,7 @@
 // on a scripted clock, through an EventSource look-alike, so the pages run the same code either way. Its numbers are
 // shaped on tonight's mouse experiment (10 demos through physics, rules repairs, a 30k-step training, 40 seeds) but it
 // is an example, and the pages say so. Deterministic.
-import { PIPELINE_STAGES, type RunEvent, type StageId } from "./model";
+import { PIPELINE_STAGES, type DemosStageId, type RunEvent } from "./model";
 
 export const EXAMPLE_RUN_ID = "example";
 
@@ -31,9 +31,9 @@ export function exampleScript(): ScriptStep[] {
     t += dt;
     out.push({ at: t, event });
   };
-  const stage = (stage: StageId, patch: Record<string, unknown>) => ({ type: "stage", stage, ...patch });
+  const stage = (stage: DemosStageId, patch: Record<string, unknown>) => ({ type: "stage", stage, ...patch });
 
-  const plan: Record<StageId, number> = {
+  const plan: Record<DemosStageId, number> = {
     check: DEMOS.length * PER.check,
     repair: DEMOS.length * PER.repair,
     multiply: DEMOS.length * VARIANTS_PER_DEMO * PER.variant,

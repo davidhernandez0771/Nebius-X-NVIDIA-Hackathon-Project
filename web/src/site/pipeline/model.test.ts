@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  PIPELINE_STAGES, applyRunEvent, barOf, emptyRun, evalCells, evalScore, formatDuration, lossPath, parseRun, parseRunEvent, parseRuns, stageOf,
+  PIPELINE_STAGES, applyRunEvent, barOf, emptyRun, evalCells, evalScore, formatDuration, lossPath, parseRun, parseRunEvent, parseRuns, stageOf, stagesFor,
   type RunState,
 } from "./model";
 
@@ -42,7 +42,7 @@ describe("the pipeline's model", () => {
 
   it("reads the run list", () => {
     expect(parseRuns({ runs: [{ id: "r1", name: "n", created: "c", status: "done", stage: "export", demos: 10 }] })).toEqual([
-      { id: "r1", name: "n", created: "c", status: "done", stage: "export", demos: 10, detail: null, resumable: false },
+      { id: "r1", name: "n", created: "c", status: "done", stage: "export", demos: 10, detail: null, resumable: false, kind: "demos" },
     ]);
     expect(parseRuns({})).toEqual([]);
   });
@@ -129,6 +129,36 @@ describe("the pipeline's model", () => {
     s = applyRunEvent(s, { type: "end", status: "cancelled", detail: "cancelled at train; resumable" });
     expect(s.detail).toBe("cancelled at train; resumable");
     expect(parseRuns({ runs: [{ id: "a", status: "done", stage: null, demos: 3 }] })[0].stage).toBe("");
+  });
+
+  it("reads a teacher run (pm/pipeline-api 719d278): its own five stages, the teacher block, gate verdicts and a teacher patch", () => {
+    const TEACHER = {
+      iteration: 300, iterations: 1500, human_run: "mouse10", teacher_n: 300, dagger: false, smoke: false,
+      gate: { successes: null, n: null, min: 0.9, seeds: [5300, 5349], passed: null },
+      rounds: [{ round: 0, phase: "rollouts", rollouts: { done: 0, total: 300, successes: 0 }, selection: null, decision: null }],
+    };
+    let r = parseRun({
+      id: "t1", kind: "teacher", name: "teacher on mouse10", status: "running", demos: 0,
+      stages: [
+        { id: "teacher", status: "running", progress: 0.2, eta_s: 3600, items: { done: 300, total: 1500, unit: "iteration" } },
+        { id: "dagger", status: "skipped", eta_s: 0 },
+      ],
+      check: [], repair: [], variants: [],
+      evaluate: { seeds: [], planned: 50 },
+      teacher: TEACHER,
+    });
+    expect(r.kind).toBe("teacher");
+    expect(r.stages.map((s) => s.id)).toEqual(["teacher", "gate", "distill", "dagger", "export"]);
+    expect(stagesFor(r.kind).map((s) => s.label)).toEqual(["Teacher", "Gate", "Distill", "DAgger", "Export"]);
+    expect(barOf(r).current).toBe("teacher");
+    expect(r.teacher).toMatchObject({ iteration: 300, iterations: 1500, human_run: "mouse10", gate: { min: 0.9, seeds: [5300, 5349], passed: null } });
+    r = applyRunEvent(r, { type: "teacher", ...TEACHER, gate: { successes: 46, n: 50, min: 0.9, seeds: [5300, 5349], passed: true }, rounds: [{ ...TEACHER.rounds[0], phase: "train" }] });
+    expect(r.teacher?.gate).toMatchObject({ successes: 46, n: 50, passed: true });
+    expect(r.teacher?.rounds[0].phase).toBe("train");
+    expect(parseRun({ id: "x" }).kind).toBe("demos");
+    expect(parseRun({ id: "x" }).teacher).toBeNull();
+    expect(parseRuns({ runs: [{ id: "t1", kind: "teacher", status: "queued", demos: 0 }] })[0].kind).toBe("teacher");
+    expect(parseRuns({ runs: [{ id: "d1", status: "queued", demos: 3 }] })[0].kind).toBe("demos");
   });
 
   it("ignores events it doesn't know, and bad JSON", () => {

@@ -59,12 +59,37 @@ T5 sent **pm/pipeline-api c96c76b** this morning. It is 29fb66c plus fixes to ma
 - **Not changed:** the shared site nav clips "Robots" at 390 px. That is AppShell, not this page.
 
 ## Checks
-- **Pipeline tests:** model 11, stub 3, pages 22; all pass.
-- **The full web suite:** 192 files, 1,733 passed, 1 skipped.
+- **Pipeline tests:** model 12, stub 3, pages 29; all pass.
+- **The full web suite:** 192 files, 1,741 passed, 1 skipped (after the teacher recipe).
 - **`tsc -b` and `npm run build`:** pass.
 - **Screenshot timing:** shots 12–13 were taken before the "— spent" fix, and shot 11 before the "a dry run runs no stage" line was added. Both changes are covered by tests and visible in shots 16 and 18.
+
+## The teacher recipe (T5's pm/pipeline-api 719d278 + 8b10fa0)
+The pages now also run the teacher recipe: T3's RL teacher, the teacher gate, T6's distillation, and an optional DAgger round.
+
+**The start form** has a recipe switch, "From demos" or "Teacher". For a teacher run you pick:
+- a human run, listed by `GET /pipeline/human-runs`, with a note when the server has none;
+- the preset (`full` or `smoke`) and the number of teacher rollouts (300 or 600), both from `config.recipes.teacher`;
+- a DAgger round, and a dry run.
+
+It posts only the teacher fields, since the server forbids any other, and the estimate asks for the full run.
+
+**A teacher run:**
+- **The bar:** five stages (Teacher, Gate, Distill, DAgger, Export). The stage grid fits the run's stage count. A DAgger round nobody asked for reads "skipped", not "~0 s".
+- **Teacher:** iterations, the human run, the rollouts to come, DAgger yes or no.
+- **Gate:** "k of n replays verified (p%); the gate is 90%: passed/failed", the seed range, and the seed tiles.
+- **Distill / DAgger:** the round's phase, its rollouts and successes, the student's loss curve (`distill_r0`, then `distill_r1`), and the checkpoint chosen.
+- **Export:** names the student's checkpoint.
+- **The run list:** shows "teacher · …", not "0 demos".
+- **Live updates:** the `teacher` block updates live through T5's new `teacher` patch (8b10fa0, sent at my request).
+
+**Against the real API** (719d278, a dry run only; CORS via `SANT_CORS_ORIGINS`, so no web-security flag this time):
+- The form loaded the human runs and both presets, and estimated about 6 h 31 min.
+- The dry run was **refused by T5's preflight**: T3's and T6's scripts (pm/rl-teacher, pm/distill-dagger) aren't merged into pm-t5. That is expected until they are. The page shows the refusal in full, and every stage with its planned time. (19, 20; phones 21, 22)
+- The human run behind it was **hand-seeded** in my scratch data: "SEEDED_t2_fake_human_run", a `grid.json` and a `stages/train.json` that point nowhere.
+- The live teacher views (Gate verdicts, round phases, the student's curve) have only been checked in the tests, against T5's snapshot shape. No teacher run has run yet.
 
 ## For T5
 - Optional: allow the Vite origin from an env var, so the pages can run on another port without turning off web security.
 - A cancel that reaches a dry run while it runs ends `done`, not `cancelled`. That is fine (it finished first); I'm noting it in case it matters for the teacher recipe.
-- The teacher recipe's stage list isn't in these pages yet: waiting for it.
+- The teacher recipe is in (see above); thanks for the teacher patch.

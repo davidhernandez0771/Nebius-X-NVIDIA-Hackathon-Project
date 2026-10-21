@@ -26,11 +26,24 @@ export type Recipe = {
   dry_run?: boolean;
 };
 
+/** The teacher recipe (T3's RL teacher → the gate → T6's distillation). The server forbids any other field. */
+export type TeacherRecipe = {
+  kind: "teacher";
+  human_run: string;
+  teacher_n: 300 | 600;
+  dagger: boolean;
+  preset: "smoke" | "full";
+  rl_iterations?: number;
+  dry_run?: boolean;
+  name?: string;
+};
+export type AnyRecipe = Recipe | TeacherRecipe;
+
 const post = <T>(path: string, body: unknown, f: Fetch) => pmFetch<T>(path, { method: "POST", body: JSON.stringify(body) }, f);
 
-export const startRun = (r: Recipe, f: Fetch = fetch): Promise<string> => post<{ id: string }>("/pipeline/runs", r, f).then((b) => b.id);
+export const startRun = (r: AnyRecipe, f: Fetch = fetch): Promise<string> => post<{ id: string }>("/pipeline/runs", r, f).then((b) => b.id);
 
-export const estimateRun = (r: Recipe, f: Fetch = fetch): Promise<{ demos: number; remaining_s: number | null }> =>
+export const estimateRun = (r: AnyRecipe, f: Fetch = fetch): Promise<{ demos: number; remaining_s: number | null }> =>
   post<{ demos?: number; remaining_s?: number | null }>("/pipeline/estimate", r, f).then((b) => ({ demos: b.demos ?? 0, remaining_s: b.remaining_s ?? null }));
 
 /** Cancel or resume a run; both answer with its snapshot (resume: 409 unless it stopped). */
@@ -38,12 +51,30 @@ export const cancelRun = (id: string, f: Fetch = fetch): Promise<RunState> => po
 export const resumeRun = (id: string, f: Fetch = fetch): Promise<RunState> => post<unknown>(`/pipeline/runs/${encodeURIComponent(id)}/resume`, {}, f).then(parseRun);
 
 export type Preset = { id: NonNullable<Recipe["preset"]>; label: string; steps: number | null; eval_n: number | null };
-export type PipelineConfig = { enabled: boolean; presets: Preset[] };
+export type TeacherPreset = { id: TeacherRecipe["preset"]; label: string; rl_iterations: number | null };
+export type PipelineConfig = {
+  enabled: boolean;
+  presets: Preset[];
+  /** The teacher recipe's presets and rollout counts, when the server has it. */
+  teacher: { presets: TeacherPreset[]; teacher_n: TeacherRecipe["teacher_n"][] } | null;
+};
 
 /** The server's pipeline settings (GET /pipeline/config): whether it runs at all, and its presets. */
 export const fetchConfig = (f: Fetch = fetch): Promise<PipelineConfig> =>
-  pmFetch<{ enabled?: unknown; presets?: Record<string, { label?: unknown; steps?: unknown; eval_n?: unknown }> }>("/pipeline/config", undefined, f).then((b) => ({
+  pmFetch<{
+    enabled?: unknown;
+    presets?: Record<string, { label?: unknown; steps?: unknown; eval_n?: unknown }>;
+    recipes?: { teacher?: { presets?: Record<string, { label?: unknown; rl_iterations?: unknown }>; teacher_n?: unknown } };
+  }>("/pipeline/config", undefined, f).then((b) => ({
     enabled: b.enabled === true,
+    teacher: b.recipes?.teacher
+      ? {
+          presets: Object.entries(b.recipes.teacher.presets ?? {})
+            .filter(([id]) => id === "smoke" || id === "full")
+            .map(([id, p]) => ({ id: id as TeacherPreset["id"], label: typeof p?.label === "string" ? p.label : id, rl_iterations: typeof p?.rl_iterations === "number" ? p.rl_iterations : null })),
+          teacher_n: (Array.isArray(b.recipes.teacher.teacher_n) ? b.recipes.teacher.teacher_n : [300, 600]).filter((n): n is 300 | 600 => n === 300 || n === 600),
+        }
+      : null,
     presets: Object.entries(b.presets ?? {})
       .filter(([id]) => id === "smoke" || id === "standard" || id === "long")
       .map(([id, p]) => ({
@@ -53,6 +84,17 @@ export const fetchConfig = (f: Fetch = fetch): Promise<PipelineConfig> =>
         eval_n: typeof p?.eval_n === "number" ? p.eval_n : null,
       })),
   }));
+
+export type HumanRun = { name: string; cell: string; start_state: string };
+
+/** The trained human-demo runs a teacher can learn from (GET /pipeline/human-runs). */
+export const fetchHumanRuns = (f: Fetch = fetch): Promise<HumanRun[]> =>
+  pmFetch<{ runs?: unknown }>("/pipeline/human-runs", undefined, f).then((b) =>
+    (Array.isArray(b.runs) ? b.runs : [])
+      .map((r) => r as Partial<HumanRun>)
+      .filter((r): r is HumanRun => typeof r.name === "string")
+      .map((r) => ({ name: r.name, cell: String(r.cell ?? ""), start_state: String(r.start_state ?? "") })),
+  );
 
 /** A finished run's downloads (GET /pipeline/runs/{id}/artifacts). */
 export const fetchArtifacts = (id: string, f: Fetch = fetch): Promise<RunState["artifacts"]> =>
