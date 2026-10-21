@@ -195,6 +195,11 @@ def _keyed(rows: list[dict], key) -> dict:
 def patches(before: dict, after: dict) -> list[dict]:
     """What changed from one snapshot to the next, as the pages' patch events (in a fixed order)."""
     out: list[dict] = []
+    # The run itself: its status, why, and its clock (elapsed moves the patch every 5 s only)
+    run_key = lambda s: (s.get("status"), s.get("detail"), s.get("resumable"), s.get("remaining_s"),  # noqa: E731
+                         None if s.get("elapsed_s") is None else int(s["elapsed_s"] // 5))
+    if run_key(before) != run_key(after):
+        out.append({"type": "run", **{k: after.get(k) for k in ("status", "detail", "resumable", "elapsed_s", "remaining_s")}})
     old_st = {s["id"]: s for s in before.get("stages", [])}
     for s in after.get("stages", []):
         if old_st.get(s["id"]) != s:
@@ -209,8 +214,11 @@ def patches(before: dict, after: dict) -> list[dict]:
     if (bt.get("step"), bt.get("steps"), bt.get("eta_s"), len(bt.get("loss") or [])) != (
             at.get("step"), at.get("steps"), at.get("eta_s"), len(at.get("loss") or [])):
         seen = {tuple(p) for p in bt.get("loss") or []}
-        out.append({"type": "train", "step": at.get("step"), "steps": at.get("steps"),
-                    "loss": [p for p in at.get("loss") or [] if tuple(p) not in seen], "eta_s": at.get("eta_s")})
+        curve = at.get("loss") or []
+        # `loss`: the latest loss (at `step`); `loss_points`: every new [step, loss] since the last train patch
+        out.append({"type": "train", "step": at.get("step"), "steps": at.get("steps"), "cell": at.get("cell"),
+                    "loss": curve[-1][1] if curve else None, "loss_points": [p for p in curve if tuple(p) not in seen],
+                    "eta_s": at.get("eta_s")})
     old_ck = {c["name"] for c in bt.get("checkpoints") or []}
     out += [{"type": "checkpoint", **c} for c in at.get("checkpoints") or [] if c["name"] not in old_ck]
     old_ev = {(s.get("cell"), s.get("seed")) for s in (before.get("evaluate") or {}).get("seeds", [])}
@@ -267,6 +275,6 @@ async def events(run_id: str, request: Request, follow: bool = True, poll: float
             await asyncio.sleep(poll)
         if pending.strip():
             yield _sse({"type": "log", "line": pending.rstrip("\r")})
-        yield _sse({"type": "end", "status": snap["status"]})
+        yield _sse({"type": "end", "status": snap["status"], "detail": snap.get("detail")})
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
