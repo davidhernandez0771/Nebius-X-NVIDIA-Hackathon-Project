@@ -1061,7 +1061,16 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
 - **Code:** `pm/distill-dagger` `7f0322f`, which merges T3's `f2c67a2` for the teacher's declared execution (local,
   approved by the lead; checked on the branch).
 - **The bar:** ≥ 45/50. Hard stop at 22:58.
-- **Its result is added here.**
+- **Result: PASSED, 48/50** on 4950–4999 (Wilson 95% 0.865–0.989), against the bar of ≥ 45/50.
+  - **The run:** 22:16:14 → 22:29:18 (12.9 min), so it finished before the 22:58 stop.
+  - **Failures:** 4958 and 4981, both on the time limit. Passing episodes took 350–475 steps.
+  - **Output:** 48 episodes, 19,127 frames, under its own run id, so they are not training data.
+  - **Checked here:** `data\distill\distill_mouse_held_gate\r0\rollouts_done.json` (in `C:\dev\pm-t6`) has seeds
+    4950–4999, 50 attempted, 48 successes (success 48, time limit 2), 19,127 frames, `teacher_execution: held`,
+    the teacher `demo_v6h` (the `exported\policy.pt`), and code `7f0322f` with `dirty: false`.
+- **The teacher gate under Amendment 4 is NOT yet passed.** Part (b) passed, but part (a) is still to run, tomorrow
+  morning, per Amendment 5's order: the decision test on 7100–7131 must reach ≥ 29/32 first.
+- **Round 0 under the held execution** waits for the lead's go tomorrow, after the gate.
 
 **T3 confirmed Amendment 5's morning order** (read at `986fff0`). The teacher is `model_2697` throughout, with
 `6101243`'s recording:
