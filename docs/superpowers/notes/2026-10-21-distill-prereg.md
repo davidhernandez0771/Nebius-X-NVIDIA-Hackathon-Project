@@ -1192,4 +1192,14 @@ achieved recording and code `6101243`.
     22:03:20, after `model_2697.pt` (22:00:28), the run's last checkpoint.
   - **The inference (not a direct check):** it carried the same 12 tensors, and the byte difference comes from the
     TorchScript archive's metadata.
-  - **Still open:** whether T3's exporter is deterministic apart from the archive metadata. This is asked of T3.
+- **Closed (T3, checked on the CPU): last night's export carried the same 12 tensors.**
+  - **The exporter is deterministic apart from the zip metadata.** T3 exported `model_2697` twice, the way
+    `rsl_rl`'s `export_policy_to_jit` does. The two files have different sha256s (`cda8abc3…`, `c87e3604…`), but every
+    zip entry's content is identical, and identical to the current `policy.pt` (`811382a3…`). Only the TorchScript
+    container's metadata differs.
+  - **The current file's 12 tensors equal `model_2697`'s actor and normaliser** (max abs diff 0.0). Its outputs on 100
+    random observations differ by 0.0 from a fresh export, and by 0.0 from the eager actor.
+  - **`model_2697.pt`** (sha256 `49af0e9a…`) was written at 22:00:28, at the end of training, and is unchanged since.
+    Last night's export was made from it at 22:03, by the same code.
+    - Checked here: the file's time is 22:00:28, and its sha256 starts `49af0e9a`.
+  - **So gate (b), gate (a) and round 0 all used the same teacher, `model_2697`.** T3's report is `export_checkeport.json` in T3's scratchpad.
