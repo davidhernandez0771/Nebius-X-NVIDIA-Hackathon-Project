@@ -1023,7 +1023,22 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
 
 **The order:**
 - **Tonight:** gate (b) runs (T6: 4950–4999, held execution, `model_2697`).
-- **T3's code hash** for the new recording is added here when T3 sends it.
+- **T3's code for the new recording is `6101243`** (on `pm/rl-teacher`, on top of `f2c67a2`; no GPU used). It
+  changes only `scripts/rl_eval_teacher.py`, a test and T3's gate note (checked).
+  - **For a held-executed teacher** (`held_target` from the run): each step's Trajectory row is the ACHIEVED tool
+    pose after the step (`tcp_pos` / `tcp_quat`), the way SANT records human demos.
+    - The gripper column is still the commanded gripper.
+    - The step an episode ends on is dropped, because the env has already reset by then, and its pose would be the
+      next episode's.
+  - **Tracking teachers are unchanged:** commanded targets, with the ending step included.
+  - **`in_env.json`** now records `execution` (`held` or `tracking`) and `trajectory` (`achieved` or `commanded`).
+  - **`rl_verify_teacher` and the gate definition are unchanged.**
+  - **Tests (T3):** a held fixture's recorded rows equal the achieved poses (with the ending row dropped), and a
+    tracking fixture is unchanged. The Isaac venv's RL tests: 78 passed, 1 skipped. SANT's RL files: 21 passed,
+    2 skipped.
+  - **T3's note discloses** that the change followed the 22/32 replay check.
+  - **The 7000–7031 re-run** goes into a new folder, `data\rl\eval\v6h_replaycheck_7000_achieved`; the 22/32 one
+    is kept.
 - **Tomorrow morning, in this order** (added to this amendment by the lead before any of it runs, at T7's
   suggestion):
   1. **Re-run the replay check on 7000–7031** under the new recording. It is a diagnostic only, and is reported.
