@@ -959,3 +959,23 @@ lead): it enforces the amendment's "one execution" in code and changes no rule.
 - **Gate (b)** starts only by 22:30. If it is still running at 22:58, it is stopped cleanly. It can be resumed, and
   no partial numbers are reported.
 - **The held round 0 starts tomorrow morning.**
+
+**`demo_v6h` finished:** 1415 s, iterations 2098 → 2697, run `2026-10-21_21-33-14_demo_v6h`, code `4a22fcb`.
+
+**The teacher pick, applied mechanically before gate (a): `model_2697`.** The breakdowns used `rng(7)` scenes, 128
+episodes each, `held_target` on (from the run):
+
+| Checkpoint | Home | Demo-free | Demo-held | Collisions | All starts |
+|---|---|---|---|---|---|
+| `model_2400` (+300) | 63/67 (0.86–0.98); dropped 4 | 31/31 | 29/30; high_release 1 | 0 | 123/128 |
+| `model_2697` (+600, the last) | **64/67** (0.88–0.98); collision 2, dropped 1 | 31/31 | 26/30; collision 3, high_release 1 | 5 | 121/128 |
+
+- **The rule ranks home-start success first,** so `model_2697` wins on 64 against 63. The tie-breakers were not
+  needed.
+- **Disclosed:** `model_2400` had fewer collisions (0 against 5), a better demo-held result (29/30 against 26/30) and
+  more successes over all starts (123 against 121). The pre-registered rule ranks home starts first, and it is applied
+  as written.
+- **Checked here:** `data\rl\breakdown\v6h_2400` and `v6h_2697` (in `C:\dev\pm-t3`, written 22:01:47 and 22:02:44)
+  have the counts above, n = 128 and `held_target: true`.
+- **It was decided before any gate-seed run.** The replay check on 7000–7031 (non-gate seeds) took `gpu.lock` at
+  22:03:09, after both breakdowns. Then gate (a) runs once on 5450–5499, into `data\rl\eval\v6h_gate_a`.
