@@ -228,6 +228,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from sim_worker.teleop_qos import full_speed
+
+    full_speed()  # out of Windows power throttling (per process: a child does not inherit it)
     p = build_parser()
     args = p.parse_args(argv)
     try:

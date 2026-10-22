@@ -98,6 +98,9 @@ def run(lerobot_argv: list[str]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from sim_worker.teleop_qos import full_speed
+
+    full_speed()  # out of Windows power throttling (per process: a child does not inherit it)
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--resume-last", type=Path, default=None, metavar="OUTPUT_DIR",
                    help="resume the run in OUTPUT_DIR from checkpoints/last.txt")

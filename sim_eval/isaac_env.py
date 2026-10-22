@@ -118,6 +118,10 @@ class IsaacEvalEnv:
 
     def step(self, action: np.ndarray) -> StepRecord:
         self._apply(action)
+        return self._record(gripper_command(action))
+
+    def _record(self, gripper: int) -> StepRecord:
+        """The StepRecord after a control step (sim_eval.isaac_distill_env records the teacher's steps with it)."""
         sc, robot = self.scene, self.scene["robot"]
         origin = sc.env_origins[0]
         hand = robot.data.body_pose_w.torch[:, self.hand_id]
@@ -131,7 +135,7 @@ class IsaacEvalEnv:
             tcp_pos=tcp,
             tcp_quat_wxyz=np.array([q[3], q[0], q[1], q[2]]),
             cube_pos=(sc["cube"].data.root_pos_w.torch[0] - origin).cpu().numpy().astype(np.float64),
-            gripper=gripper_command(action),
+            gripper=gripper,
             contact_gripper_cube=_max_pair_force(sc["cube_contact"]) > CONTACT_N,
             contact_arm_bin=forces["bin"] > CONTACT_N,
             contact_arm_table=forces["table"] > CONTACT_N,
