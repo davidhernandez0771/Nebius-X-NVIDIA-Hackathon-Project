@@ -1203,3 +1203,24 @@ achieved recording and code `6101243`.
     Last night's export was made from it at 22:03, by the same code.
     - Checked here: the file's time is 22:00:28, and its sha256 starts `49af0e9a`.
   - **So gate (b), gate (a) and round 0 all used the same teacher, `model_2697`.** T3's report is `export_check\report.json` in T3's scratchpad.
+
+**Held round 0's teacher rollouts: 289/300 (96.3%) on 4300–4599**, held execution, 115,111 teacher frames, 08:26:47 →
+09:42:54 (wall 4,564 s).
+- **The 11 failures, all at the time limit:** 4354, 4360, 4401, 4433, 4451, 4456, 4500, 4511, 4557, 4595, 4598. No
+  failed rollout enters the training data.
+- **The mix (grid `distill_mouse_held_r0_t300`):** human 110 episodes, 31,536 frames ×1.8251 = share 0.3341; teacher
+  289 episodes, 115,111 frames ×1.0 = share 0.6659; target 1/3 : 2/3.
+- **data_check is clean:** human seeds 0–4009, teacher seeds 4300–4599. None touches the selection seeds 5301–5329, the
+  DAgger seeds 5210–5249 or the test seeds 5020–5059.
+- **The code:** `pm/distill-dagger` `95663cb`, clean, for both the rollouts and the round.
+- **Training started at 09:42:54:** ACT, 60k steps, candidates 40k and 60k, as fixed in Amendment 4 C. Next is selection
+  on 5301–5329 (bar ≥ 18/29).
+- **Checked here:**
+  - `rollouts_done.json`: 289/300, 115,111 frames, `ended_by` success 289 / time_limit 11, teacher
+    `rl-2026-10-21_21-33-14_demo_v6h` through `exported\policy.pt`, `teacher_execution: held`, `beta` 0.0, code
+    `95663cb` clean;
+  - `rollouts.jsonl`: 300 rows, seeds 4300–4599 each once, the 11 failures above, and 115,111 frames over the
+    successes;
+  - `round_t300.json`: the mix and data_check above;
+  - `distill_round.log`: the lock taken at 08:26:47, rollouts exit 0 and training started at 09:42:54. `gpu.lock` still
+    reads `distill_mouse_held_r0`.
