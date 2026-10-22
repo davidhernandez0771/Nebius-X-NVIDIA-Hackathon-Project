@@ -1259,4 +1259,27 @@ achieved recording and code `6101243`.
   - **The policy:** the 60k pick, with plain flags and `--trace`.
   - **What it can change:** it is a diagnostic only. It can stop the extension only if it shows a new systematic bug.
     Otherwise the extension to 600 runs as fixed: teacher 4300–4899, selection 5301–5329, bar ≥ 18/29.
-  - **Its findings are added here.**
+  - **Its findings are added here.** The run's `gpu.lock` was taken at 12:31:52 by PID 41060.
+
+**The trace (diagnostic only): 3/5 on 5200–5204, 12:31:52 → 12:36:24.** It used the 60k pick, plain flags and
+`--trace`. **No new systematic bug** (T6).
+- **5201 dropped:** the cube was lifted to 0.15 m, dropped, and then the policy looped regrasping.
+- **5204 not_in_bin + gripper_closed + dropped:** 10 gripper closes, 5–12 cm off the cube.
+- **The tracking lag:** median 0.016–0.039 rad, the teacher's own scale.
+- **Checked here:** `distill_held_diag_r0_t300_p5200\picked_s60000.episodes.jsonl` has 5200 ✓, 5201 dropped,
+  5202 ✓, 5203 ✓, and 5204 not_in_bin / gripper_closed / dropped, each at the time limit; traces are in
+  `picked_s60000_traces`.
+- It fixes nothing, and it changes nothing in the plan.
+
+**The extension to 600 (Amendment 4 C/D) started at 12:36:41-42** (PID 28096, T6). It took `gpu.lock` at 12:36:49.
+- **The run:** the same run id, `distill_mouse_held`, with `--teacher-execution held`, `--teacher-seed0 4300` and
+  `--teacher-n 600`.
+  - The teacher seeds are 4300–4899. The 300 existing rows resume, and 4600–4899 are new.
+- **The selection:** 5301–5329, bar ≥ 18/29. The recipe and the candidates (40k, 60k) are unchanged.
+- **The code:** `95663cb`, clean.
+- **The teacher:** `exported\policy.pt`, sha256 `811382a3…77aa2`, unchanged since 08:09:47.
+- **Checked here:**
+  - the sha256 and the file time;
+  - `distill_round.log`: the lock at 12:36:49, and "teacher rollouts on seeds 4300-4899";
+  - `rollouts.jsonl` still holds its 300 rows (09:42:53), and `round_t300.json` and `selection_t300.json` are kept;
+  - **no file** in any worktree's `data/` uses a seed in 4600–4899, so the new teacher seeds are fresh.
