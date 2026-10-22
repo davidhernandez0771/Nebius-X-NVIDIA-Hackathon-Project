@@ -708,8 +708,13 @@ off for the running trainer.**
 - **Finding so far:** the teacher's labels move about 5× faster per step than the human demos'.
 - **Any change of plan** comes as Amendment 4, with its reason. Until then, the pre-registered rule stands, and only
   its next step is held.
-- **Open item:** 5300 is a selection seed, and the trace list above names it, although the diagnostics are meant to
-  use no selection seed. This is asked of the lead, and the answer is added here.
+- **Resolved: 5300 in the trace list was not deliberate (the lead).** 5300 is a selection seed, and the diagnostics
+  use none. The lead's instruction to T6:
+  - **If the trace has not run,** swap 5300 for practice seed 5200.
+  - **If it already ran on 5300,** T6 discloses that to the lead and to this log, and limits inspection to the
+    outcome line.
+  - **Any later reselection on 5300–5329** either excludes 5300 or notes it.
+  - Which case applies is added here when T6 reports it.
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
