@@ -1380,3 +1380,57 @@ DAgger round is run.
 - **Checked here:** the lock, and that `data\evals\distill_mouse_final` was created at 17:48:15–16.
 - **The result is added here** as success/40 with its Wilson 95% CI, the goal of ≥ 24/40, Fisher exact vs mouse SANT
   3/40 and vs raw 0/40, and the scripted multiply 17/40 as a reference only.
+
+## RESULT: the final test, run once on 5020–5059
+
+**15/40 (37.5%), Wilson 95% CI 0.242–0.530. THE GOAL OF ≥ 24/40 (60%) IS NOT MET.**
+
+| Comparison (two-sided Fisher exact, α = 0.05) | Arm | p | |
+|---|---|---|---|
+| **vs the mouse SANT arm** (same data, no teacher) | 3/40 | **0.0025** | significant (needed ≥ 11/40) |
+| **vs the mouse raw arm** | 0/40 | **1.2 × 10⁻⁵** | significant (needed ≥ 6/40) |
+| the scripted multiply, **a reference only** (not a pre-registered comparison) | 17/40 | 0.82 | no detectable difference |
+
+- **The model:** the camera ACT student, held round 0 @600, 60k
+  (`distill_mouse_held_r0_t600_20261022_135818\...\checkpoints\060000\pretrained_model`). It is the SANT mouse data
+  (`mouse20261020`, `perfected_multiply_10`) plus the RL teacher `demo_v6h` `model_2697`, held execution, 565 teacher
+  episodes on 4300–4899.
+- **The run:**
+  - lock 17:48:15 → 18:24:12; `eval_cells` exit 0, `distill_final: evaluated`;
+  - the prereg's command, unchanged: `--seed0 5020 --n 40`, the start state from `raw_10` (`--start-pose dataset`,
+    dataset mean chosen), `--trace`;
+  - no inference flags, and the unchanged `check_success`;
+  - code `pm/distill-dagger` `95663cb`, clean.
+- **No sim_error or policy_error, so no episode was re-run.** The test ran once.
+- **The 25 failures, all at the time limit; every one includes `dropped`:**
+  - dropped 25, not_in_bin 22, gripper_closed 8, collision 7. A failure can carry several reasons.
+  - The seeds: 5022, 5023, 5024, 5025, 5028, 5029, 5030, 5031, 5032, 5034, 5037, 5038, 5039, 5043, 5045, 5046, 5047,
+    5048, 5049, 5050, 5051, 5054, 5055, 5057, 5058.
+  - **So the grasp that doesn't hold is again the bottleneck,** as in every earlier arm on these seeds.
+- **Selection vs test:** 21/29 (72%) on selection, 15/40 (37.5%) on test.
+  - The Wilson intervals overlap (0.543–0.853 vs 0.242–0.530 meet only at 0.53–0.54).
+  - The selection figure is expected to be optimistic. It is the better of two candidates, picked on the same 29
+    seeds it is scored on (the winner's curse), with a wide interval at n = 29.
+  - The test is the one figure reported.
+- **Checked here:**
+  - `distill_final.episodes.jsonl`: 40 episodes, seeds 5020–5059 each once, no errors, and the failure seeds and
+    reasons above;
+  - `distill_final.json`'s summary: 15/40 and the same counts; its checkpoint is the selected one;
+  - the runner log: one cell, evaluated once; 80 trace files;
+  - the Wilson CI and both Fisher p-values, re-computed here, match T6's.
+
+**What it means, in plain terms:** distilling the RL teacher into the camera student took this data from 3/40 (SANT
+alone) and 0/40 (raw) to 15/40 on the same unseen seeds. Both differences are significant. The 60% goal is not reached,
+and the student is level with, not better than, the scripted multiply (17/40).
+
+**Not run:**
+- **DAgger:** the rule ends at selection, which passed.
+- **The secondary no-demo teacher arm** (`SANT-PickPlace-Franka-RL-NoDemo-v0`): there was no time for it.
+
+**The test seeds 5020–5059 are now spent for this arm.** Any further experiment, such as DAgger or more teacher
+data, is a NEW experiment. It needs its own preregistration and fresh test seeds, and can't be run on 5020–5059.
+
+**The code used (the prereg's "record the commits"):**
+- **`pm/rl-teacher`:** teacher code `6101243`; branch tip `681e8dd`, which adds only the unused, off-by-default
+  `cap_from_tool`;
+- **`pm/distill-dagger`:** `95663cb`.
