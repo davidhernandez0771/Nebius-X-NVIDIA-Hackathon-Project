@@ -1023,7 +1023,27 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
 
 **The order:**
 - **Tonight:** gate (b) runs (T6: 4950–4999, held execution, `model_2697`).
-- **Tomorrow morning:** first a re-run of the replay check on 7000–7031 under the new recording, then gate (a), once.
 - **T3's code hash** for the new recording is added here when T3 sends it.
+- **Tomorrow morning, in this order** (added to this amendment by the lead before any of it runs, at T7's
+  suggestion):
+  1. **Re-run the replay check on 7000–7031** under the new recording. It is a diagnostic only, and is reported.
+     These are the seeds that motivated the change, so they cannot be the test of it.
+  2. **A FRESH non-gate check on 7100–7131** (n = 32) under the new recording. **This is the decision test.**
+  3. **Gate (a) on 5450–5499 runs ONLY if step 2 shows SANT's replay verify ≥ 29/32** (about 90%).
+- **If step 2 is below 29/32,** gate (a) is NOT run, and 5450–5499 stay fresh.
+  - **The next step** is then a diagnosis of replay fidelity under the held execution, reported to the lead before
+    any new amendment.
+  - **Candidates (not decided):** a lower speed cap; a longer settle; or a different teacher checkpoint, chosen by
+    the existing pick rule.
+- **The range check for 7100–7131 (T7, before writing this):** no use in `data\` in any worktree, and no mention in
+  the notes or `sim_eval` / `scripts` code.
 
 **Unchanged:** the teacher (`model_2697`), Amendment 4's ranges, both gate thresholds and everything after the gate.
+
+**Gate (b) under Amendment 4 started** at 22:16:14 (PID 57028, T6).
+- **Run:** run id `distill_mouse_held_gate`, seeds 4950–4999, `--teacher-execution held`.
+- **Teacher:** `demo_v6h` `model_2697` (its `exported\policy.pt`, run `2026-10-21_21-33-14_demo_v6h`).
+- **Code:** `pm/distill-dagger` `7f0322f`, which merges T3's `f2c67a2` for the teacher's declared execution (local,
+  approved by the lead; checked on the branch).
+- **The bar:** ≥ 45/50. Hard stop at 22:58.
+- **Its result is added here.**
