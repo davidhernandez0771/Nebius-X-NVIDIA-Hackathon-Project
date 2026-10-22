@@ -873,9 +873,13 @@ candidate; otherwise `demo_v6h` is fine-tuned.
 **T6's report for Amendment 4** (`pm/distill-dagger`, local and unpushed; full suite: 2675 passed, 34 skipped, 0
 failed).
 - **Round 0 at 300 and the diagnosis match what is logged above.** T6 adds:
-  - **(1)** For the arm, the 60k checkpoint's error against the labels is 0.012 rad on human data and 0.023 on teacher
-    data, against 0.11 and 0.22 for holding still. The gripper is right 97–99% of the time. This is T6's arm-joint
-    measure, not the lead's chunk MAE above; the conclusion is the same, with no fit or loading bug.
+  - **(1) The train-fit figures** all come from one T6 run: the 60k checkpoint, served, on 5 human and 5 teacher
+    episodes, a frame every 25 steps. They are columns of one measure, the arm MAE in rad (human / teacher):
+    - at chunk step 0: 0.012 / 0.023;
+    - over the 100-step chunk: 0.022 / 0.030. These are the lead's figures above.
+    - The hold-still baseline, over the same chunk: 0.108 / 0.216.
+    - The gripper is right 97–99% of the time. So there is no fit or loading bug.
+    - (An earlier wording of this entry, in `d41df19`, called these two people's measures; T6 corrected it.)
   - **(2)–(4)** The images, the proprioception, the start pose and the plain inference flags all match between
     training and eval.
   - **The root cause, in T6's words:** the labels were generated with an execution the student's actuator cannot
