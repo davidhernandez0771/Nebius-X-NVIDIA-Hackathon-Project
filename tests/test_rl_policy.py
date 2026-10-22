@@ -212,6 +212,46 @@ def test_the_adapter_applies_the_runs_speed_cap_from_the_previous_target(tmp_pat
     assert rl_policy.run_speed_cap(tmp_path / "old" / "exported" / "policy.pt") == (0.0, 0.0)  # before the cap
 
 
+def test_dagger_can_cap_from_the_tool_the_student_reached_keeping_the_previous_action():
+    """DAgger (T6, 2026-10-22): the student drives, so the cap's previous target (the teacher's own last target) is
+    where the teacher would have been. forget_prev_target() / observe_executed() cap the next step from the student's
+    tool instead, as after a reset, but keep the previous action in the observation. Never called: unchanged."""
+    seen = []
+
+    def full_x(obs):
+        seen.append(obs.copy())
+        return np.array([1.0, 0.0, 0.0, 0.0, 1.0])
+
+    step = rt.V_MAX * rt.STEP_S
+    t = rl_policy.RLTeacher(full_x, name="rl-test", v_max=rt.V_MAX, yaw_rate_max=rt.YAW_RATE_MAX)
+    first = t.act(_state(tcp=(0.45, 0.0, 0.35))).ee_pos
+    student = _state(tcp=(0.40, 0.0, 0.35))  # the student left the tool 5 cm behind the teacher's target
+    default = rl_policy.RLTeacher(full_x, name="rl-test", v_max=rt.V_MAX, yaw_rate_max=rt.YAW_RATE_MAX)
+    default.act(_state(tcp=(0.45, 0.0, 0.35)))
+    # default: capped from its own last target (0.46), the label is 2 cm (1 m/s) from the student's tool, twice the cap
+    assert default.act(student).ee_pos[0] == pytest.approx(0.40 + rt.DELTA_M)
+    t.forget_prev_target()
+    assert t.act(student).ee_pos[0] == pytest.approx(0.40 + step)  # from the student's tool
+    np.testing.assert_allclose(seen[-1][-rt.ACTION_DIM:], [1.0, 0.0, 0.0, 0.0, 1.0])  # previous action kept
+    t.observe_executed(np.array([0.39, 0.0, 0.35]), np.asarray(rt.DOWN_WXYZ))
+    assert t.act(student).ee_pos[0] == pytest.approx(0.39 + step)  # from the pose given, not the state's
+    np.testing.assert_allclose(seen[-1][-rt.ACTION_DIM:], [1.0, 0.0, 0.0, 0.0, 1.0])
+    # the flag: every act() caps from the state's tool (T6's DAgger rollouts), with no call per step
+    flagged = rl_policy.RLTeacher(full_x, name="rl-test", v_max=rt.V_MAX, yaw_rate_max=rt.YAW_RATE_MAX,
+                                  cap_from_tool=True)
+    flagged.act(_state(tcp=(0.45, 0.0, 0.35)))
+    assert flagged.act(student).ee_pos[0] == pytest.approx(0.40 + step)
+    np.testing.assert_allclose(seen[-1][-rt.ACTION_DIM:], [1.0, 0.0, 0.0, 0.0, 1.0])  # previous action still fed
+    assert rl_policy.RLTeacher(full_x, name="rl-test").cap_from_tool is False  # off by default (round 0)
+    # the yaw cap, too, runs from the pose given: the tool turned 0.3 rad, a full +0.1 step from the state's yaw 0
+    # is held to 0.3 - YAW_RATE_MAX * STEP_S
+    yawed = rl_policy.RLTeacher(lambda obs: np.array([0.0, 0.0, 0.0, 1.0, 1.0]), name="rl-test", v_max=rt.V_MAX,
+                                yaw_rate_max=rt.YAW_RATE_MAX)
+    yawed.observe_executed(np.array([0.45, 0.0, 0.35]), np.array([0.0, math.cos(0.15), math.sin(0.15), 0.0]))
+    q = yawed.act(_state()).ee_quat_wxyz
+    assert float(rt.tool_yaw(q[None])[0]) == pytest.approx(0.3 - rt.YAW_RATE_MAX * rt.STEP_S)
+
+
 def test_a_run_says_whether_it_trained_with_held_targets(tmp_path):
     run = tmp_path / "2026-10-21_demo_v6h"
     (run / "params").mkdir(parents=True)

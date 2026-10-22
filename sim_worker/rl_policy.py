@@ -60,7 +60,8 @@ class RLTeacher:
     action (rl_teacher.ACTION_DIM floats)."""
 
     def __init__(self, policy: Callable[[np.ndarray], np.ndarray], name: str, gripper_deadband: float = 0.0,
-                 v_max: float = 0.0, yaw_rate_max: float = 0.0, execution: str = "tracking"):
+                 v_max: float = 0.0, yaw_rate_max: float = 0.0, execution: str = "tracking",
+                 cap_from_tool: bool = False):
         if execution not in ("tracking", "held"):
             raise ValueError(f"execution is 'tracking' or 'held', not {execution!r}")
         self.policy = policy
@@ -73,13 +74,30 @@ class RLTeacher:
         self.v_max, self.yaw_rate_max = v_max, yaw_rate_max  # the training env's speed cap (rl_teacher.cap_speed)
         self._last = np.zeros(rt.ACTION_DIM)
         self._prev: tuple[np.ndarray, np.ndarray] | None = None  # the previous target (position [1, 3], yaw [1])
+        # DAgger (2026-10-22): when the student drives, the teacher's own previous target is where the teacher would
+        # have been, not where the tool is. cap_from_tool caps every step from the state's tool (the pose the student
+        # actually reached), as after a reset; off (round 0, the gates): from the previous target, as in training.
+        # forget_prev_target() / observe_executed() do the same for one step. None of them touch the previous action
+        # the observation feeds back.
+        self.cap_from_tool = cap_from_tool
         self._action = _action_type()
 
     def reset(self, scene) -> None:
         self._last = np.zeros(rt.ACTION_DIM)
         self._prev = None
 
+    def forget_prev_target(self) -> None:
+        """Cap the next step from the state's tool pose, not this teacher's previous target."""
+        self._prev = None
+
+    def observe_executed(self, tcp_pos, tcp_quat_wxyz) -> None:
+        """Cap the next step from this tool pose (the one the student's step reached; position [3], wxyz [4])."""
+        self._prev = (np.asarray(tcp_pos, dtype=np.float64).reshape(1, 3),
+                      rt.tool_yaw(np.asarray(tcp_quat_wxyz, dtype=np.float64).reshape(1, 4)))
+
     def act(self, state):
+        if self.cap_from_tool:
+            self.forget_prev_target()
         obs = rt.policy_observation(state, self._last)
         a = np.clip(np.asarray(self.policy(obs), dtype=np.float64).reshape(rt.ACTION_DIM), -1.0, 1.0)
         self._last = a
