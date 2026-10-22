@@ -1337,3 +1337,46 @@ DAgger round 1 only, if that round is ever needed.
   - That merge and wiring is a separate commit, made by T6 in a scratch worktree while selection runs. It is logged
     here when T6 sends its hash.
   - If it isn't in place before DAgger round 1 starts, round 1 runs with the default labels, and that is disclosed.
+
+**Held round 0 @600: SELECTION PASSED on 5301–5329.** 60k scored **21/29** (72.4%, Wilson 0.543–0.853), against the bar
+of ≥ 18/29 (Amendment 4 D). 40k scored 15/29 (Wilson 0.344–0.686). **60k is picked, and it is the FINAL MODEL.** No
+DAgger round is run.
+- **Timeline:** training ran 13:58:17 → 17:05:44 (exit 0). Selection of 40k ran 17:05:44 → 17:29:25, and of 60k
+  → 17:47:42. The GPU lock was released at 17:47:42.
+- **The failures, all at the time limit:**
+  - 60k, 8 failures (5302, 5305, 5307, 5316, 5320, 5321, 5322, 5329): dropped 8, not_in_bin 6, gripper_closed 2,
+    collision 1. A failure can carry several reasons.
+  - 40k, 14 failures: not_in_bin 14, dropped 13, gripper_closed 6, collision 5.
+- **The steps so far:**
+
+  | Arm | Teacher runs | 40k | 60k |
+  |---|---|---|---|
+  | round 0 @300, old execution | 300 | 0/30 | 0/30 |
+  | held round 0 @300 | 300 | 10/29 | 12/29 |
+  | held round 0 @600 | 600 | 15/29 | **21/29** |
+
+- **The final model:** `data\experiments\distill_mouse_held_r0_t600_20261022_135818\train\distill_r0\checkpoints\060000\pretrained_model`
+  (T6). The code is `pm/distill-dagger` `95663cb`, clean, with no inference arguments.
+- **The selection used the same start settings as the test** (`--start-state ...hx_mouse20261020_20261020_164411\datasets\raw_10
+  --start-pose dataset`), according to `select_60000.log`.
+- **Checked here:**
+  - `selection_t600.json`: counts 40000 15/29 and 60000 21/29, `chosen_step` 60000, teacher seeds 4300–4899, code
+    `95663cb` clean;
+  - both `*.episodes.jsonl` files: 29 episodes each, seeds 5301–5329 each once, and the failure counts above;
+  - `distill_round.log`: the times above.
+- **The @300 records are kept** (`selection_t300.json`, 12:28:57).
+- **T3's `cap_from_tool` hook is not used,** since no DAgger round runs.
+
+**THE FINAL TEST STARTED, ONCE, at 17:48:15** (PID 6056, `gpu.lock` `T6 6056 distill_mouse_final`, T6).
+- **The command is the prereg's "The test", unchanged:**
+
+  ```text
+  eval_cells.py --run-id distill_mouse_final --checkpoint distill_final=<the final model above> --seed0 5020 --n 40 ^
+    --start-state <DATA_DIR>\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset --trace
+  ```
+
+  It runs with no inference flags and the unchanged `check_success`.
+- **The code:** `95663cb`, clean.
+- **Checked here:** the lock, and that `data\evals\distill_mouse_final` was created at 17:48:15–16.
+- **The result is added here** as success/40 with its Wilson 95% CI, the goal of ≥ 24/40, Fisher exact vs mouse SANT
+  3/40 and vs raw 0/40, and the scripted multiply 17/40 as a reference only.
