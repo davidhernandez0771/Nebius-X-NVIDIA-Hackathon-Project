@@ -1224,3 +1224,20 @@ achieved recording and code `6101243`.
   - `round_t300.json`: the mix and data_check above;
   - `distill_round.log`: the lock taken at 08:26:47, rollouts exit 0 and training started at 09:42:54. `gpu.lock` still
     reads `distill_mouse_held_r0`.
+
+**Held round 0 @300: SELECTION FAILED on 5301–5329.** 40k scored 10/29 and 60k scored 12/29, against the bar of
+≥ 18/29 (Amendment 4 D). 60k is the picked checkpoint.
+- **Timeline:** training ran 09:42:54 → 11:36:37 (exit 0). Selection of 40k ran 11:36:37 → 12:03:44, and of 60k
+  → 12:28:57. The GPU lock was released at 12:28:57.
+- **The failures, all at the time limit:**
+  - 60k, 17 failures: dropped 15, not_in_bin 14, collision 9, gripper_closed 7. A failure can carry several reasons.
+  - 40k, 19 failures: dropped 18, not_in_bin 14, collision 11, gripper_closed 6.
+- **For comparison:** round 0 @300 under the old execution scored 0/30 at both checkpoints, on 5300–5329.
+- **The code:** `pm/distill-dagger` `95663cb`, clean. No inference arguments.
+- **So, per Amendment 4 D:** round 0 is extended to 600 teacher runs on 4300–4899, retrained and reselected on
+  5301–5329 with the same bar. The test seeds 5020–5059 stay untouched.
+- **Checked here:**
+  - `selection_t300.json`: counts 40000 10/29 and 60000 12/29, `chosen_step` 60000, seeds 5301–5329, code `95663cb`
+    clean;
+  - both `*.episodes.jsonl` files: 29 episodes each, seeds 5301–5329 each once, and the failure counts above;
+  - `distill_round.log`: the times above.
