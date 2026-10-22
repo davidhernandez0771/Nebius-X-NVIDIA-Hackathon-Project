@@ -908,3 +908,23 @@ failed).
 - **Gate (b) has its own run id,** so its episodes are never training data. The data check would also refuse them,
   because they fall outside round 0's teacher range.
 - **No test seed has been touched.**
+
+**`model_2098` zero-shot under the held execution: home starts below 90%, so the rule selects the `demo_v6h`
+fine-tune** (Amendment 4 A, applied as written). The breakdown used `rng(7)` scenes, 128 episodes, deterministic,
+`held_target` on.
+
+| Start | Success | Wilson 95% | Failures |
+|---|---|---|---|
+| home | **46/67** | 0.57–0.79 | dropped 19, collision 1, gripper_closed 1, not_settled 1 |
+| demo-free | 29/31 | 0.79–0.98 | dropped 2 |
+| demo-held | 24/30 | 0.63–0.91 | collision 6 |
+
+- **Checked here:** `data\rl\breakdown\v6c2_2098_held\breakdown.json` (in `C:\dev\pm-t3`, written 21:32:39). It has
+  `model_2098`, n = 128, `held_target: true` (override `env.actions.arm_action.held_target=True`), deadband 0.25, grace
+  10, and the counts above.
+- **`demo_v6h` started:** it fine-tunes from `model_2098` with `held_target`, for at most 600 iterations, judged at
+  +300 and +600.
+  - It took `gpu.lock` at 21:33:07 (the lock reads `rl-teacher:demo_v6h`, PID 54376). Its run folder is
+    `2026-10-21_21-33-14_demo_v6h`.
+- **The pick happens BEFORE gate (a), on the breakdown only:** the highest home-start success, then fewer collisions,
+  then the later iteration.
