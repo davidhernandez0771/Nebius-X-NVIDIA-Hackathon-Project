@@ -179,3 +179,27 @@ The pick, by the rule's first criterion (home), is **model_2697**. It was made b
 - `in_env.json` says which (`"trajectory": "achieved" | "commanded"`).
 - The gate is unchanged: `rl_verify_teacher.py` replay ≥ 45/50 on 5450–5499.
 - Next (morning, GPU): replay check 7000–7031 under the new recording, then gate (a) once.
+
+### Gate (a) for the held teacher: PASSED (2026-10-22 morning)
+
+This followed Amendment 5's order (prereg 986fff0). All runs used model_2697 with held execution and achieved-path recording (code 6101243).
+
+| step | seeds | in-env | SANT replay | agree |
+|---|---|---|---|---|
+| 1, diagnostic | 7000–7031 | 30/32 | 29/32 [0.76–0.97] | 31/32 |
+| 2, decision (≥ 29/32) | fresh 7100–7131 | 29/32 | 30/32 [0.80–0.98] | 31/32 |
+| **gate (a), once** | **5450–5499** | 49/50 | **48/50 [0.865–0.989]** | 49/50 |
+
+For comparison, step 1's seeds under the commanded recording gave replay 22/32 with agreement 24/32.
+
+**Gate (a) details:**
+- Replay failures: 5454 collision; 5463 not_in_bin + dropped.
+- First 30 (5450–5479): 28/30 [0.787–0.982].
+- Replay durations 6.9–12.0 s (median 7.7).
+- Directories: `data/rl/eval/v6h_replaycheck_7000_achieved`, `v6h_check_7100_achieved`, `v6h_gate_a`.
+
+**The teacher:**
+- `data/rl/logs/rsl_rl/sant_rl_teacher/2026-10-21_21-33-14_demo_v6h/exported/policy.pt`, re-exported from model_2697 at 08:09:47.
+- `make()` reports `execution="held"`.
+- Training: 2698 iterations, 7271 s (v6 3953 + v6c2 1903 + v6h 1415).
+- With T6's gate (b) at 48/50 (4950–4999, held execution), both parts are passed.
