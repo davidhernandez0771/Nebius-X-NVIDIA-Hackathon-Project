@@ -1161,3 +1161,23 @@ achieved recording and code `6101243`.
   totals: 2698 iterations, 7271 s.
 - **Next:** T6's held round 0 on 4300–4599, on the lead's go; then selection on 5301–5329 (≥ 18/29); then, if it
   passes, the test on 5020–5059, once.
+
+**Round 0 under the held execution (Amendment 4 C) started** at 08:26:40 (PID 46044, T6), and took `gpu.lock` at
+08:26:47.
+- **The run:** run id `distill_mouse_held`, `--teacher-execution held`.
+- **Seeds:** teacher 4300–4599; selection 5301–5329 (29 seeds, bar ≥ 18/29).
+- **The recipe is unchanged:** 60k steps, batch 8, candidates 40k and 60k, weights 0.25 / 0.5 / 0.25 (1/3 : 2/3 in
+  round 0, which has no DAgger source), and no extra training or inference arguments.
+- **The code:** `pm/distill-dagger` `95663cb`, clean. It merges T3's `6101243`, which touches only T3's eval script.
+  - Checked here: the commit is on the branch, and the lock reads `distill_mouse_held_r0`, taken at 08:26:47.
+- **The teacher:** `demo_v6h` `model_2697`, through `exported\policy.pt`, whose `make()` declares the held execution.
+- **The test seeds 5020–5059 are untouched.**
+
+**Disclosed: the teacher file's bytes differ from gate (b)'s.**
+- **Round 0's file:** gate (a)'s eval re-exported `exported\policy.pt` from `model_2697.pt` at 08:09:47. Its sha256 is
+  `811382a3…77aa2`, which I re-computed here and which matches T6's figure.
+- **Gate (b)'s file:** last night's export, from the same checkpoint, had sha256 `b67476d9…` (T6's figure). It was
+  overwritten in place by the re-export.
+- **So:** both files come from the same checkpoint. Gate (a) ran from `model_2697.pt` itself, and round 0 uses the
+  export made at gate (a)'s start. Whether the two exports differ only in file metadata, or in content, is not checked
+  here; it is an open item for T3 and T6.
