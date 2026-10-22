@@ -1179,5 +1179,17 @@ achieved recording and code `6101243`.
 - **Gate (b)'s file:** last night's export, from the same checkpoint, had sha256 `b67476d9…` (T6's figure). It was
   overwritten in place by the re-export.
 - **So:** both files come from the same checkpoint. Gate (a) ran from `model_2697.pt` itself, and round 0 uses the
-  export made at gate (a)'s start. Whether the two exports differ only in file metadata, or in content, is not checked
-  here; it is an open item for T3 and T6.
+  export made at gate (a)'s start.
+- **T6's weights check** (CPU, while round 0 ran on the GPU):
+  - **Method:** today's `policy.pt` (`811382a3…`) was loaded with `torch.jit`. All its parameters and buffers were
+    compared with `torch.equal` against `model_2697.pt`'s `actor_state_dict`.
+  - **Result:** **12/12 tensors bit-identical**: the four MLP layers' weights and biases, and the observation
+    normaliser's `_mean`, `_var`, `_std` and `count`.
+  - **The control:** `model_2650` matches 0/12, which shows the check can fail.
+  - **So** round 0's teacher file is exactly `model_2697`'s actor and observation normaliser.
+- **Last night's file can't be compared directly:** no copy survives.
+  - **What is known:** it was exported from `model_2697.pt` by T3's breakdown and replay-check run. It was written at
+    22:03:20, after `model_2697.pt` (22:00:28), the run's last checkpoint.
+  - **The inference (not a direct check):** it carried the same 12 tensors, and the byte difference comes from the
+    TorchScript archive's metadata.
+  - **Still open:** whether T3's exporter is deterministic apart from the archive metadata. This is asked of T3.
