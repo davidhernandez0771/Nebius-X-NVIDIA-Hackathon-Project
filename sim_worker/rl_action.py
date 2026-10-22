@@ -10,6 +10,12 @@ Trajectory step in SANT's own terms, and its rollouts replay in SANT's eval env 
 
 The base class sizes its buffers for its 7-number pose command; this term keeps them, takes 4 numbers from the
 action manager, and fills the pose itself.
+
+cfg.held_target (off by default; demo_v6h) executes the target the way the distilled student is executed
+(sim_eval.isaac_env._apply, labels from sim_eval.teacher_ik.ik_target): ONE damped-least-squares solve per control
+step, from the state at its start, held as the arm's position target for both physics substeps with a zero velocity
+target - no re-solve per substep, no feed-forward. No joint-limit clipping here (Isaac clamps targets to the soft
+limits either way).
 """
 
 from __future__ import annotations
@@ -39,6 +45,9 @@ class SantTcpTargetAction(SantTrackingIKAction):
         self._cap_prev_pos = torch.zeros(self.num_envs, 3, device=self.device)
         self._cap_prev_yaw = torch.zeros(self.num_envs, device=self.device)
         self._cap_prev_valid = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        # cfg.held_target: the arm's joint target, solved once per control step, and its zero velocity target
+        self._held_q = torch.zeros(self.num_envs, self._num_joints, device=self.device)
+        self._held_zero_vel = torch.zeros(self.num_envs, self._num_joints, device=self.device)
         self._tcp_ready = True
 
     @property
@@ -75,7 +84,23 @@ class SantTcpTargetAction(SantTrackingIKAction):
         self._processed_actions[:] = pose
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         self._ik_controller.set_command(self._processed_actions, ee_pos_curr, ee_quat_curr)
-        self._update_feedforward()
+        if getattr(self.cfg, "held_target", False):
+            self._solve_held(ee_pos_curr, ee_quat_curr)
+        else:
+            self._update_feedforward()
+
+    def _solve_held(self, ee_pos: torch.Tensor, ee_quat: torch.Tensor) -> None:
+        """cfg.held_target: the one IK solve of this control step (Isaac Lab's, as apply_actions would do it at the
+        first substep), from the tool pose ee_pos / ee_quat (root frame, xyzw) and the joints now."""
+        q = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        des = self._ik_controller.compute(ee_pos, ee_quat, self._compute_frame_jacobian(), q)
+        self._held_q[:] = torch.where(ee_quat.norm() != 0, des, q)  # Isaac Lab's own guard
+
+    def apply_actions(self):
+        if not getattr(self.cfg, "held_target", False):
+            return super().apply_actions()
+        self._asset.set_joint_position_target_index(target=self._held_q, joint_ids=self._joint_ids)
+        self._asset.set_joint_velocity_target_index(target=self._held_zero_vel, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         super().reset(env_ids)

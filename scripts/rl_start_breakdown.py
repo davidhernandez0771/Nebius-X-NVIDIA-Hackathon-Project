@@ -2,7 +2,8 @@
 GPU, one heavy job: it takes the GPU lock):
 
     C:\\isaac\\env_isaaclab\\Scripts\\python.exe scripts\\rl_start_breakdown.py --checkpoint <run>\\model_300.pt \\
-        --out data\\rl\\breakdown\\demo_v6_300 [--n 128 --demo-prob 0.5]
+        --out data\\rl\\breakdown\\demo_v6_300 [--n 128 --demo-prob 0.5] \\
+        [--override env.actions.arm_action.held_target=True]   # repeatable: on top of the run's own settings
 
 - n envs play one episode each in the training env (its reset, its success termination), deterministically (the
   policy's mean action), with the gripper deadband and held-start grace the run trained with (its params/env.yaml).
@@ -63,6 +64,28 @@ def summarize(results: list[dict], phase) -> dict:
     return out
 
 
+def apply_overrides(env_cfg, overrides: list[str]) -> None:
+    """Hydra-style env.* overrides (as rl_train.py --override) on the env config, after the run's own settings: e.g. a
+    checkpoint played with another execution (held_target, demo_v6h's zero-shot check). Values parse as YAML."""
+    import yaml
+
+    for o in overrides:
+        key, sep, value = o.partition("=")
+        root, *path = key.split(".")
+        if not sep or root != "env" or not path:
+            raise ValueError(f"not an env.* override: {o!r}")
+        node = env_cfg
+        for part in path[:-1]:
+            node = node[part] if isinstance(node, dict) else getattr(node, part)
+        last, val = path[-1], yaml.safe_load(value)
+        if isinstance(node, dict):
+            node[last] = val
+        elif hasattr(node, last):
+            setattr(node, last, val)
+        else:
+            raise ValueError(f"no setting {key!r}")
+
+
 def table(summary: dict) -> str:
     lines = [f"{'start':10} {'n':>4} {'success':>8} {'wilson95':>14} {'bonus':>6} {'grasped':>8} {'lifted':>7}"]
     for t in TYPES:
@@ -106,6 +129,7 @@ def _play_and_write(env_cfg, args, out: Path) -> None:
     summary = {"checkpoint": str(args.checkpoint), "n": env.num_envs, "demo_prob": args.demo_prob,
                "deadband": float(env_cfg.actions.gripper_action.deadband),
                "held_grace_steps": int(env_cfg.events.reset_scene.params.get("held_grace_steps", 0)),
+               "held_target": bool(env_cfg.actions.arm_action.held_target), "overrides": list(args.override),
                "by_start": summarize(env._sant_rl_monitor.history, phase)}
     env.close()
     (out / "breakdown.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
@@ -119,13 +143,15 @@ def main() -> int:
     parser.add_argument("--n", type=int, default=128)
     parser.add_argument("--demo-prob", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--override", action="append", default=[],
+                        help="an env.* setting on top of the run's, e.g. env.actions.arm_action.held_target=True")
     add_launcher_args(parser)
     args = parser.parse_args()
 
     from sim_worker import rl_env_cfg as rc
     from sim_worker.gpu_lock import GpuLock
     from sim_worker.keepawake import KeepAwake
-    from sim_worker.rl_policy import run_env_cfg
+    from sim_worker.rl_policy import run_env_cfg, run_held_target
 
     trained = run_env_cfg(args.checkpoint)
     reset = ((trained.get("events") or {}).get("reset_scene") or {}).get("params") or {}
@@ -136,8 +162,10 @@ def main() -> int:
     arm = (trained.get("actions") or {}).get("arm_action") or {}
     env_cfg.actions.arm_action.v_max = float(arm.get("v_max") or 0.0)  # the speed cap it trained with (none before v6c)
     env_cfg.actions.arm_action.yaw_rate_max = float(arm.get("yaw_rate_max") or 0.0)
+    env_cfg.actions.arm_action.held_target = run_held_target(args.checkpoint)  # its execution (demo_v6h: held)
     env_cfg.events.reset_scene.params.update(demo_prob=args.demo_prob, uniform_share=1.0, seed=args.seed,
                                              held_grace_steps=int(reset.get("held_grace_steps") or 0))
+    apply_overrides(env_cfg, args.override)
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
     lock = GpuLock(task=f"rl-breakdown:{out.name}", owner="T3", max_wait_s=8 * 3600)

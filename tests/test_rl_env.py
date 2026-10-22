@@ -488,3 +488,169 @@ def test_every_teacher_preset_override_names_a_real_setting():
                 else:
                     assert hasattr(node, part), (name, o, part)
                     node, parent = getattr(node, part), node
+
+
+def _teacher_ik():
+    """T6's numpy IK (sim_eval/teacher_ik.py, pm/distill-dagger): this repo's copy once merged, else T6's worktree."""
+    import importlib.util
+
+    for path in (Path(__file__).parents[1] / "sim_eval" / "teacher_ik.py", Path(r"C:\dev\pm-t6\sim_eval\teacher_ik.py")):
+        if path.is_file():
+            spec = importlib.util.spec_from_file_location("t6_teacher_ik", path)
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = mod  # its dataclass looks its module up
+            spec.loader.exec_module(mod)
+            return mod
+    pytest.skip("sim_eval/teacher_ik.py (pm/distill-dagger) not found")
+
+
+class _HeldAsset:
+    """The articulation data a held-target solve reads (Isaac Lab 3.0 names, .torch views), and the targets it sets."""
+
+    def __init__(self, root_pos, root_q, hand_pos, hand_q, jac_w, joint_pos):
+        def t(x):
+            return NS(torch=x)
+
+        self.data = NS(root_pos_w=t(root_pos), root_quat_w=t(root_q), body_pos_w=t(hand_pos[:, None]),
+                       body_quat_w=t(hand_q[:, None]), body_link_jacobian_w=t(jac_w[:, None]), joint_pos=t(joint_pos))
+        self.pos_targets, self.vel_targets = [], []
+
+    def set_joint_position_target_index(self, target, joint_ids):
+        self.pos_targets.append(target.clone())
+
+    def set_joint_velocity_target_index(self, target, joint_ids):
+        self.vel_targets.append(target.clone())
+
+
+def _held_term(asset, n, offset, held=True):
+    """A SantTcpTargetAction with Isaac Lab's real IK controller and frame maths, on _HeldAsset (no simulation)."""
+    from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+
+    from sim_worker.rl_action import SantTcpTargetAction
+
+    term = object.__new__(SantTcpTargetAction)
+    ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
+    term.cfg = NS(held_target=held, body_offset=NS(pos=offset), vel_ff=True, controller=ik_cfg)
+    term._asset, term._joint_ids, term._body_idx = asset, list(range(7)), 0
+    term._jacobi_body_idx, term._jacobi_joint_ids = 0, list(range(7))
+    term._offset_pos = torch.tensor([offset] * n, dtype=torch.float32)
+    term._offset_rot = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * n)  # xyzw
+    term._jacobian_b = torch.zeros(n, 6, 7)
+    term._ik_controller = DifferentialIKController(ik_cfg, num_envs=n, device="cpu")
+    term._held_q, term._held_zero_vel = torch.zeros(n, 7), torch.zeros(n, 7)
+    term._limits_injected, term._joint_vel = True, torch.full((n, 7), 0.5)
+    return term
+
+
+def _random_arm(n, seed):
+    from isaaclab.utils.math import quat_from_euler_xyz
+
+    g = torch.Generator().manual_seed(seed)
+
+    def r(*s):
+        return torch.rand(*s, generator=g) * 2 - 1
+
+    root_q = quat_from_euler_xyz(0.1 * r(n), 0.1 * r(n), 3.0 * r(n))  # xyzw (Isaac Lab 3.0)
+    hand_q = quat_from_euler_xyz(3.1 + 0.2 * r(n), 0.2 * r(n), 3.0 * r(n))
+    return dict(root_pos=0.3 * r(n, 3), root_q=root_q, hand_pos=0.5 * r(n, 3) + torch.tensor([0.4, 0.0, 0.5]),
+                hand_q=hand_q, joint_pos=torch.cat([r(n, 7), torch.full((n, 2), 0.04)], dim=1),
+                # well conditioned, as an arm away from singularities (a random 6x7 can be near-singular: radians)
+                jac_w=0.6 * torch.eye(6, 7).expand(n, 6, 7) + 0.2 * r(n, 6, 7))
+
+
+def _counting(term):
+    calls = []
+    real = term._ik_controller.compute
+
+    def compute(*a):
+        calls.append(1)
+        return real(*a)
+
+    term._ik_controller.compute = compute
+    return calls
+
+
+def test_held_target_solves_once_per_control_step_and_holds_it_with_zero_velocity():
+    from isaaclab.utils.math import quat_from_euler_xyz
+
+    n, offset = 3, (0.0, 0.0, 0.1034)
+    arm = _random_arm(n, 1)
+    asset = _HeldAsset(**arm)
+    term = _held_term(asset, n, offset)
+    calls = _counting(term)
+    ee_pos, ee_quat = term._compute_frame_pose()
+    cmd = torch.cat([ee_pos + 0.01, quat_from_euler_xyz(torch.full((n,), 3.1), torch.zeros(n), torch.zeros(n))], 1)
+    term._ik_controller.set_command(cmd, ee_pos, ee_quat)
+    term._solve_held(ee_pos, ee_quat)
+    for _ in range(2):  # the two physics substeps of a control step
+        term.apply_actions()
+    assert len(calls) == 1  # one solve, at the start of the step
+    assert torch.equal(asset.pos_targets[0], asset.pos_targets[1]) and torch.equal(asset.pos_targets[0], term._held_q)
+    assert not torch.equal(term._held_q, arm["joint_pos"][:, :7])  # it moved
+    assert len(asset.vel_targets) == 2 and all(torch.count_nonzero(v) == 0 for v in asset.vel_targets)
+    # off (every run before demo_v6h): Isaac Lab's IK re-solved at every substep, plus the feed-forward
+    asset2 = _HeldAsset(**arm)
+    off = _held_term(asset2, n, offset, held=False)
+    off._ik_controller.set_command(cmd, ee_pos, ee_quat)
+    calls2 = _counting(off)
+    for _ in range(2):
+        off.apply_actions()
+    assert len(calls2) == 2 and all(torch.all(v == 0.5) for v in asset2.vel_targets)
+    assert torch.allclose(asset2.pos_targets[0], term._held_q, atol=1e-6)  # the same first solve
+
+
+def test_held_target_is_t6s_student_label_arithmetic():
+    """Parity with T6 (2026-10-21): the arm target this term holds == sim_eval.teacher_ik.ik_target, the student's
+    label and execution, from the same state: tool = hand + offset, tool Jacobian in the root frame, DLS lambda 0.01."""
+    from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, quat_inv, subtract_frame_transforms
+
+    tik = _teacher_ik()
+    n, offset = 16, (0.0, 0.0, 0.1034)
+    arm = _random_arm(n, 2)
+    term = _held_term(_HeldAsset(**arm), n, offset)
+    ee_pos, ee_quat = term._compute_frame_pose()
+    g = torch.Generator().manual_seed(3)
+    tgt_p = ee_pos + 0.02 * (torch.rand(n, 3, generator=g) * 2 - 1)
+    tgt_q = quat_from_euler_xyz(3.1 + 0.1 * torch.rand(n, generator=g), 0.1 * torch.rand(n, generator=g),
+                                torch.rand(n, generator=g) * 3)
+    term._ik_controller.set_command(torch.cat([tgt_p, tgt_q], 1), ee_pos, ee_quat)
+    term._solve_held(ee_pos, ee_quat)
+
+    def wxyz(q):
+        return np.asarray([q[3], q[0], q[1], q[2]], dtype=np.float64)
+
+    hand_pb, hand_qb = subtract_frame_transforms(arm["root_pos"], arm["root_q"], arm["hand_pos"], arm["hand_q"])
+    rot = matrix_from_quat(quat_inv(arm["root_q"]))
+    jac = arm["jac_w"].clone()
+    jac[:, :3], jac[:, 3:] = torch.bmm(rot, jac[:, :3]), torch.bmm(rot, jac[:, 3:])
+    off = np.asarray(offset, dtype=np.float64)
+    for i in range(n):
+        hq = wxyz(hand_qb[i].numpy())
+        tool_p, tool_q = tik.tool_pose(hand_pb[i].numpy().astype(np.float64), hq, off)
+        j_tool = tik.tool_jacobian(jac[i].numpy().astype(np.float64), hq, off)
+        want = tik.ik_target(arm["joint_pos"][i, :7].numpy().astype(np.float64), j_tool, tool_p, tool_q,
+                             tgt_p[i].numpy().astype(np.float64), wxyz(tgt_q[i].numpy()))
+        assert np.allclose(term._held_q[i].numpy(), want, atol=1e-5), (i, term._held_q[i].numpy() - want)
+
+
+def test_new_runs_execute_as_before_unless_held_target_is_set():
+    assert rc.SantPickPlaceRLEnvCfg().actions.arm_action.held_target is False
+    assert rc.SantPickPlaceRLLiftEnvCfg().actions.arm_action.held_target is False
+    assert rc.SantPickPlaceRLPlayEnvCfg().actions.arm_action.held_target is False
+
+
+def test_the_breakdown_takes_env_overrides_on_top_of_the_runs_settings():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("rl_start_breakdown",
+                                                  Path(__file__).parents[1] / "scripts" / "rl_start_breakdown.py")
+    bd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bd)
+    cfg = rc.SantPickPlaceRLEnvCfg()
+    bd.apply_overrides(cfg, ["env.actions.arm_action.held_target=True", "env.events.reset_scene.params.demo_prob=0.2",
+                             "env.actions.arm_action.v_max=0.25"])
+    assert cfg.actions.arm_action.held_target is True and cfg.actions.arm_action.v_max == 0.25
+    assert cfg.events.reset_scene.params["demo_prob"] == 0.2
+    for bad in ("agent.algorithm.gamma=0.9", "env.actions.arm_action.no_such=1", "env.actions.arm_action.v_max"):
+        with pytest.raises(ValueError):
+            bd.apply_overrides(cfg, [bad])

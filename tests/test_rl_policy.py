@@ -205,3 +205,13 @@ def test_the_adapter_applies_the_runs_speed_cap_from_the_previous_target(tmp_pat
                                              encoding="utf-8")
     assert rl_policy.run_speed_cap(run / "exported" / "policy.pt") == (0.5, 2.5)
     assert rl_policy.run_speed_cap(tmp_path / "old" / "exported" / "policy.pt") == (0.0, 0.0)  # before the cap
+
+
+def test_a_run_says_whether_it_trained_with_held_targets(tmp_path):
+    run = tmp_path / "2026-10-21_demo_v6h"
+    (run / "params").mkdir(parents=True)
+    (run / "params" / "env.yaml").write_text("actions:\n  arm_action:\n    v_max: 0.5\n    held_target: true\n",
+                                             encoding="utf-8")
+    assert rl_policy.run_held_target(run / "exported" / "policy.pt") is True
+    assert rl_policy.run_held_target(run / "model_100.pt") is True
+    assert rl_policy.run_held_target(tmp_path / "old" / "model_2098.pt") is False  # demo_v6c2 and before

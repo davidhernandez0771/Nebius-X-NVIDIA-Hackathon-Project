@@ -110,3 +110,31 @@ uv run --no-sync python scripts/rl_train.py --preset teacher_v6c2 --checkpoint <
 - A test in the Isaac venv checks that every preset key is a real setting.
 
 **Not tested:** a single from-scratch run with the cap on.
+
+## A′: held-target execution (demo_v6h), 2026-10-21 evening
+
+**Why.** Round 0's camera student scored 0/30. The cause is how the arm is driven:
+- The teacher was executed with Isaac Lab's IK re-solved at every substep, plus the velocity feed-forward.
+- The student is executed with one 9-joint target held for both substeps, with zero velocity target (`sim_eval.isaac_env._apply`).
+- The arm is HIGH_PD (K 400, D 80), so its time constant is about 0.2 s. A held target at most 2 cm ahead of the tool moves it only about 0.1 m/s per axis (≈ 0.17 m/s diagonally).
+
+**The change.** `SantTcpTargetActionCfg.held_target` (off by default; every earlier run is unchanged) executes the arm the student's way:
+- one damped-least-squares solve per control step, from the state at the step's start (Isaac Lab's controller, λ 0.01, no joint-limit term);
+- that target held for both substeps, with a zero velocity target;
+- no feed-forward and no joint-limit clipping (the articulation clamps to its soft limits either way).
+
+**Tests.**
+- One solve per step, an identical target on both substeps, and zero velocity targets.
+- Off still means a re-solve on every substep plus the feed-forward.
+- **Parity with T6's `sim_eval.teacher_ik.ik_target`** (the student's label and execution): 16 random states with the root rotated and the TCP offset applied agree to 1e-5.
+
+**Wiring.**
+- `run_held_target(path)` reads the setting from a run's env.yaml. `rl_eval_teacher.py` and `rl_start_breakdown.py` play a run the way it trained.
+- The breakdown takes `--override env.…=…` on top of the run's own settings.
+
+**Plan (Amendment 4, T7).**
+1. **Zero-shot check:** `rl_start_breakdown.py --checkpoint <demo_v6c2>\model_2098.pt --out data\rl\breakdown\v6c2_2098_held --override env.actions.arm_action.held_target=True`.
+2. **If home-start success is ≥ 90%,** model_2098 is the candidate.
+3. **Otherwise,** run `--preset teacher_v6h --checkpoint <demo_v6c2>\model_2098.pt`: std reset to 0.3, then v6c2's settings plus held_target, at most 600 iterations, judged at +300 and +600.
+4. **Pick rule,** applied before the gate on the rng(7) breakdown only: highest home-start success, then fewer collisions, then the later iteration.
+5. **Gate (a)** on fresh seeds 5450–5499.

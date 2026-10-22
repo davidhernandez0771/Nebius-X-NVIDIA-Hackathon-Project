@@ -418,6 +418,9 @@ class SantTcpTargetActionCfg(SantTrackingIKActionCfg):
     before demo_v6c trained (their params/env.yaml has no v_max: read as 0, sim_worker.rl_policy.run_speed_cap)."""
     yaw_rate_max: float = rt.YAW_RATE_MAX
     """rad/s, the same for the yaw; 0 = off."""
+    held_target: bool = False
+    """Execute as the distilled student is executed (sim_worker/rl_action.py): one IK solve per control step, held for
+    both substeps with a zero velocity target. Off: Isaac Lab's IK re-solved every substep + SANT's feed-forward."""
 
 
 @configclass

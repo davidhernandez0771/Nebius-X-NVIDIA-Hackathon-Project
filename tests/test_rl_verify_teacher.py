@@ -171,3 +171,11 @@ def test_preset_stage_2_resets_the_std_then_resumes_from_the_copy(tmp_path, caps
     assert cmd[cmd.index("--max_iterations") + 1] == "600"
     assert "agent.algorithm.entropy_coef=0.001" in cmd and "agent.algorithm.entropy_coef=0.005" not in cmd
     assert not out.exists()  # a dry run writes nothing
+
+
+def test_the_held_fine_tune_preset_is_stage_2_executed_as_the_student():
+    rl_train = _rl_train()
+    v6h = rl_train.PRESETS["teacher_v6h"]
+    assert (v6h["reward"], v6h["max_iterations"], v6h["resume_std"]) == ("lift", 600, 0.3)
+    assert v6h["overrides"] == V6C2_LOGGED + ["env.actions.arm_action.held_target=True"]
+    assert rl_train.PRESETS["teacher_v6c2"]["overrides"] == V6C2_LOGGED  # unchanged

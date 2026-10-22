@@ -113,6 +113,13 @@ def run_speed_cap(path: Path) -> tuple[float, float]:
     return float(arm.get("v_max") or 0.0), float(arm.get("yaw_rate_max") or 0.0)
 
 
+def run_held_target(path: Path) -> bool:
+    """Whether the run trained with held-target execution (its params/env.yaml; demo_v6h): a teacher that then has to be
+    executed the student's way (one IK solve per control step, held, zero velocity target)."""
+    arm = (run_env_cfg(path).get("actions") or {}).get("arm_action") or {}
+    return bool(arm.get("held_target") or False)
+
+
 def run_env_cfg(path: Path) -> dict:
     """The env config the run trained with (its params/env.yaml) as plain data, {} if none. path: a checkpoint in the
     run (or in its exported/)."""

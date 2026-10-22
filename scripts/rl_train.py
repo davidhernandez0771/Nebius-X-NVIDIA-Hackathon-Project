@@ -10,6 +10,8 @@
 The gated teacher (demo_v6c2 model_2098, replay 50/50 on 5350-5399) as two named presets:
     uv run --no-sync python scripts/rl_train.py --preset teacher_v6                 # stage 1: 1500 iterations
     uv run --no-sync python scripts/rl_train.py --preset teacher_v6c2 --checkpoint <stage 1 run>/model_1499.pt
+    uv run --no-sync python scripts/rl_train.py --preset teacher_v6h --checkpoint <demo_v6c2 run>/model_2098.pt
+                                                        # A': stage 2 again, executed as the student (held targets)
 Stage 2 first copies the checkpoint with the motion std reset to 0.3 (scripts/rl_checkpoint_std.py, CPU) into
 data/rl/resume/<run-name>/, then resumes from the copy with the speed cap for 600 iterations.
 
@@ -39,6 +41,12 @@ LIFT_TASK = "SANT-PickPlace-Franka-RL-Lift-v0"  # --reward lift: the stock-lift 
 SMOKE = {"num_envs": 64, "max_iterations": 20}
 FULL = {"num_envs": 4096, "max_iterations": 1500}
 
+V6C2_OVERRIDES = ["env.events.reset_scene.params.held_grace_steps=10",
+                  "env.events.reset_scene.params.curriculum_start=0.0",  # both curricula held at their end
+                  "env.events.reset_scene.params.uniform_share=0.5", "env.rewards.action_rate.weight=-0.1",
+                  "env.rewards.joint_vel.weight=-0.1", "agent.actor.distribution_cfg.std_range=[0.1,0.5]",
+                  "agent.algorithm.entropy_coef=0.005", "env.actions.gripper_action.deadband=0.25"]
+
 # The gated RL teacher (2026-10-21, docs/superpowers/notes/2026-10-21-rl-teacher-gate.md): the commands demo_v6 and
 # demo_v6c2 ran, word for word. Stage 1 trained before the speed cap existed, so it turns the (now default) cap off;
 # stage 2 resumes stage 1's last checkpoint with its motion std reset to resume_std and the cap at its defaults
@@ -55,11 +63,14 @@ PRESETS = {
     },
     "teacher_v6c2": {
         "reward": "lift", "max_iterations": 600, "resume_std": 0.3,
-        "overrides": ["env.events.reset_scene.params.held_grace_steps=10",
-                      "env.events.reset_scene.params.curriculum_start=0.0",  # both curricula held at their end
-                      "env.events.reset_scene.params.uniform_share=0.5", "env.rewards.action_rate.weight=-0.1",
-                      "env.rewards.joint_vel.weight=-0.1", "agent.actor.distribution_cfg.std_range=[0.1,0.5]",
-                      "agent.algorithm.entropy_coef=0.005", "env.actions.gripper_action.deadband=0.25"],
+        "overrides": V6C2_OVERRIDES,
+    },
+    # A' (2026-10-21, after round 0's student scored 0/30 on the execution mismatch): demo_v6c2 fine-tuned with the
+    # arm executed as the student is (held_target: one IK solve per control step, held, zero velocity target), from
+    # demo_v6c2's model_2098 with the same std reset and settings.
+    "teacher_v6h": {
+        "reward": "lift", "max_iterations": 600, "resume_std": 0.3,
+        "overrides": [*V6C2_OVERRIDES, "env.actions.arm_action.held_target=True"],
     },
 }
 
