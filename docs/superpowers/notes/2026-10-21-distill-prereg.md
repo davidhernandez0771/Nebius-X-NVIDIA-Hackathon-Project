@@ -848,3 +848,24 @@ T6's `sim_eval` code:
   That is in addition to gate 1 (5300–5349), the smoke (5300–5301) and round 0's selection.
 - **5250–5279** was the planned selection range of the grasp-fix run 2 (the 2026-10-18 note), which never ran. No data
   exists for it.
+
+### Amendment 4: the log
+
+**T3's held execution is `4a22fcb`** (21:31, on `pm/rl-teacher`, on top of `f8a3633`). It is Amendment 4's teacher
+execution, A′.
+- **What:** `SantTcpTargetActionCfg.held_target`, off by default. When it is on, the arm is executed as the student's
+  is: one IK solve per control step, held for both substeps, with a zero velocity target.
+- **Where (checked):** `sim_worker/rl_action.py`, `rl_env_cfg.py` and `rl_policy.py` (`run_held_target`).
+  - `scripts/rl_eval_teacher.py` and `rl_start_breakdown.py` read the setting from the run, and the breakdown also
+    takes `--override`.
+  - `rl_train.py` gets a `--preset teacher_v6h`.
+  - There are tests, and T3's gate note records Amendment 4's ranges and pick rule.
+- **The default execution is unchanged,** so `b7935c0`'s teacher and `model_2098`'s gate-2 results are unaffected.
+- **Tests (T3):**
+  - SANT: 2609 passed.
+  - The Isaac venv's RL tests: 77 passed, 1 skipped. They include parity with T6's `teacher_ik.ik_target` to 1e-5, which
+    is the "one shared arithmetic, parity-tested" the amendment asks for.
+
+**Next: `model_2098`'s zero-shot breakdown under the held execution** (`rng(7)` scenes, 128 episodes), into
+`data\rl\breakdown\v6c2_2098_held`. It is queued on `gpu.lock`. If home starts reach ≥ 90%, `model_2098` is the
+candidate; otherwise `demo_v6h` is fine-tuned.
