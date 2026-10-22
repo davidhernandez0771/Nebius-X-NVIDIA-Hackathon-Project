@@ -1411,7 +1411,18 @@ DAgger round is run.
   - The Wilson intervals don't overlap: selection 0.543–0.853, test 0.242–0.530.
   - The selection figure is expected to be optimistic. It is the better of two candidates, picked on the same 29
     seeds it is scored on (the winner's curse), with a wide interval at n = 29.
-  - The test is the one figure reported.
+  - **The gap is larger than that alone readily explains:** 21/29 vs 15/40 gives two-sided Fisher p = 0.007.
+    - Recomputed here, at the pooled rate 36/69 = 0.52, assuming independent candidates: P(the better of two
+      ≥ 21/29) ≈ 4%, and P(test ≤ 15/40) ≈ 4%. T6's figures are ≈ 5% and ≈ 6%.
+    - So it is an unlucky draw at both ends, or a difference not found yet.
+  - **T6's gap analysis** (CPU, `pm/distill-dagger` `9d8621e`) found no mechanism:
+    - **The scenes:** both sets are regenerated with the same `sample_scene`. The medians of cube x, cube–bin
+      distance, cube radius and yaw are nearly equal.
+    - **The bin side:** it differs (bins on +y: selection 16/29, test 14/40), but it doesn't predict success.
+      Test is 5/14 vs 10/26, selection 12/16 vs 9/13, pooled Fisher p = 0.63.
+    - **No feature** separates successes from failures.
+    - **The run conditions** are identical apart from `--trace`, and the tracer is passive.
+  - **The test is the one figure reported, as run.**
 - **Checked here:**
   - `distill_final.episodes.jsonl`: 40 episodes, seeds 5020–5059 each once, no errors, and the failure seeds and
     reasons above;
@@ -1433,4 +1444,5 @@ data, is a NEW experiment. It needs its own preregistration and fresh test seeds
 **The code used (the prereg's "record the commits"):**
 - **`pm/rl-teacher`:** teacher code `6101243`; branch tip `681e8dd`, which adds only the unused, off-by-default
   `cap_from_tool`;
-- **`pm/distill-dagger`:** `95663cb`.
+- **`pm/distill-dagger`:** code `95663cb`; branch tip `9d8621e` (notes only on top: the results and the gap
+  analysis).
