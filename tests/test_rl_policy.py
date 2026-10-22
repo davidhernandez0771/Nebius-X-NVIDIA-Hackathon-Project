@@ -140,6 +140,8 @@ def test_make_loads_the_torchscript_export_and_refuses_a_raw_checkpoint(tmp_path
     (run / "params").mkdir()
     (run / "params" / "env.yaml").write_text("actions:\n  arm_action:\n    held_target: true\n", encoding="utf-8")
     assert rl_policy.make(checkpoint=run, device="cpu").execution == "held"  # T6 then refuses tracking rollouts
+    assert rl_policy.make(checkpoint=run, device="cpu").cap_from_tool is False  # DAgger's relabel hook: off unless asked
+    assert rl_policy.make(checkpoint=run, device="cpu", cap_from_tool=True).cap_from_tool is True
     with pytest.raises(ValueError, match="execution"):
         rl_policy.RLTeacher(lambda o: o, name="x", execution="fast")
     torch.save({"model_state_dict": net.state_dict()}, run / "model_100.pt")

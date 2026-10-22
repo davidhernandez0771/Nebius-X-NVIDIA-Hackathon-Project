@@ -163,8 +163,8 @@ def run_env_cfg(path: Path) -> dict:
     return yaml.load(env_yaml.read_text(encoding="utf-8"), Loader=_Loader) or {}
 
 
-def make(checkpoint, device: str = "cuda:0", **_) -> RLTeacher:
-    """The trained RL teacher (see the module docstring)."""
+def make(checkpoint, device: str = "cuda:0", cap_from_tool: bool = False, **_) -> RLTeacher:
+    """The trained RL teacher (see the module docstring). cap_from_tool: RLTeacher's (DAgger only; off by default)."""
     import torch
 
     path = resolve_checkpoint(checkpoint)
@@ -183,4 +183,5 @@ def make(checkpoint, device: str = "cuda:0", **_) -> RLTeacher:
     run = path.parent.parent.name if path.parent.name == "exported" else path.stem
     v_max, yaw_rate_max = run_speed_cap(path)
     return RLTeacher(policy, name=f"rl-{run}", gripper_deadband=run_gripper_deadband(path), v_max=v_max,
-                     yaw_rate_max=yaw_rate_max, execution="held" if run_held_target(path) else "tracking")
+                     yaw_rate_max=yaw_rate_max, execution="held" if run_held_target(path) else "tracking",
+                     cap_from_tool=cap_from_tool)
