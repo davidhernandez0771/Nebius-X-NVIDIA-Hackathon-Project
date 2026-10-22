@@ -1130,4 +1130,32 @@ achieved recording and code `6101243`.
 **So gate (a) runs, as Amendment 5 says.** It started once, on 5450–5499, into `data\rl\eval\v6h_gate_a`.
 - **Checked here:** the folder was created at 08:09:35, after the decision test's verify had finished (08:09:14).
   `gpu.lock` reads `rl-eval:v6h_gate_a`, taken at 08:09:35.
-- **Its result is added here.** The teacher gate under Amendment 4 needs both parts; part (b) passed at 48/50.
+- The teacher gate under Amendment 4 needs both parts; part (b) passed at 48/50.
+
+**Gate (a): PASSED, run once on 5450–5499. SANT's replay verify: 48/50** (Wilson 0.865–0.989), against the bar of
+≥ 45/50.
+- **Run:** `data\rl\eval\v6h_gate_a`, with `model_2697` (run `2026-10-21_21-33-14_demo_v6h`), the held execution, the
+  achieved recording and code `6101243`.
+- **The replay failures:** 5454 (collision) and 5463 (not in the bin, and dropped).
+- **The first 30 seeds (5450–5479):** 28/30 (Wilson 0.787–0.982).
+- **In the env:** 49/50 (5454 collision).
+- **Agreement:** 49/50. 5463 succeeds in the env and fails in replay.
+- **The replay durations:** 6.88 / 7.72 / 11.98 s (T3's figures).
+- **Timing:** the eval ran 08:09:32–08:10:22. The verify took and released its lock at 08:10:23 and was done at
+  08:25:32.
+- **Checked here:**
+  - `in_env.json` (08:10:21) has `execution: held`, `trajectory: achieved` and 49/50 on `model_2697`;
+  - `verify.json` (08:25:32) has 48/50 (Wilson 0.865–0.989), agreement 49, and failures collision 1, not_in_bin 1,
+    dropped 1;
+  - there are 50 scenes, 5450–5499.
+- **The export:** `exported\policy.pt` was re-exported from `model_2697` at 08:09:47 by the gate's eval, as T3 noted
+  last night. It is the same checkpoint, so it is the same policy. Gate (b) ran on the previous export of the same
+  checkpoint.
+
+**THE TEACHER GATE UNDER AMENDMENTS 4–5 IS PASSED:** part (a) replay 48/50 on 5450–5499, and part (b) in the camera env
+48/50 on 4950–4999.
+- **The teacher:** `demo_v6h` `model_2697`, with the held execution.
+- **The final teacher code** (Amendment 4 A): **`6101243`** on `pm/rl-teacher`. It is unchanged since the gate's runs.
+  T3's notes commit with the gate results is added here when T3 sends it.
+- **Next:** T6's held round 0 on 4300–4599, on the lead's go; then selection on 5301–5329 (≥ 18/29); then, if it
+  passes, the test on 5020–5059, once.
