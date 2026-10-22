@@ -7,9 +7,14 @@
   robot at home. The teacher plays one episode in each, deterministically (the policy's mean action).
 - In-env verdict: the env's own check_success on each episode (the unchanged function, on the reached tool path,
   the cube and the contacts the env read), written as in_env.json.
-- What the teacher did, as SANT data: per seed, the commanded tool targets and gripper as a SANT Trajectory (the
-  first row is the reached home pose, as align_home puts home in front of every training episode), and its Scene:
-  trajectories/<seed>.json, scenes/<seed>.json.
+- What the teacher did, as SANT data: per seed, its tool path and gripper as a SANT Trajectory (the first row is the
+  reached home pose, as align_home puts home in front of every training episode), and its Scene:
+  trajectories/<seed>.json, scenes/<seed>.json. The tool path (record_step):
+  - a tracking teacher (every run up to demo_v6c2): the commanded tool targets, which its arm follows;
+  - a held-executed teacher (held_target, demo_v6h; prereg Amendment 5, 2026-10-21): the ACHIEVED tool pose after
+    each step, as SANT records human demos, so replay checks what the arm really did. Held execution lags its
+    commands by design (~0.2 s, targets up to 2 cm ahead): replaying the commands was a different motion (demo_v6h
+    model_2697 on 7000-7031: in-env 30/32, commanded replay 22/32, the change made after that check).
 
 Step 2, the real test, is scripts/rl_verify_teacher.py: it replays those trajectories in SANT's own eval/replay
 env (the sim worker, the same tracking and check_success every demo goes through) and reports successes / n. The
@@ -80,6 +85,19 @@ def reset_eval_scenes(env, env_ids, seed0: int = 5020) -> None:
                                                              env_ids=ids)
 
 
+def record_step(rows: list[list], closed: list[list], finished, cmd, achieved, grip, dones, held: bool) -> None:
+    """Append one control step to each still-running episode's Trajectory rows, in place. cmd / achieved: [n, 7] tool
+    poses (x y z, x y z w): the step's commanded target / the tool after the step; grip: [n] commanded closed; dones:
+    [n] the episodes that ended this step. held: record the achieved pose (Amendment 5), else the command. An env
+    that ended this step has already been reset by the env, so its achieved pose is the next episode's: held drops
+    that last row (the command of an ended step is still its own, so tracking keeps it, as before)."""
+    for i in np.flatnonzero(~np.asarray(finished)):
+        if held and dones[i]:
+            continue
+        rows[i].append((achieved if held else cmd)[i])
+        closed[i].append(int(grip[i]))
+
+
 def _play_and_write(env_cfg, out: Path) -> None:
     """Play the checkpoint in every env (inside the running app), then write the trajectories, scenes and verdicts."""
     import torch
@@ -113,15 +131,16 @@ def _play_and_write(env_cfg, out: Path) -> None:
     rows: list[list] = [[start[i]] for i in range(n)]
     closed: list[list] = [[0] for _ in range(n)]
     finished = np.zeros(n, dtype=bool)
+    held = bool(getattr(env_cfg.actions.arm_action, "held_target", False))
     with torch.inference_mode():
         for _ in range(int(env.max_episode_length) + 1):
             obs, _, dones, _ = wrapped.step(policy(obs))
             cmd = arm.tcp_command().cpu().numpy()
+            achieved = torch.cat([rc.tcp_pos(env), rc.tcp_quat(env)], dim=-1).cpu().numpy()
             g = (grip.raw_actions[:, 0] < 0).cpu().numpy()
-            for i in np.flatnonzero(~finished):
-                rows[i].append(cmd[i])
-                closed[i].append(int(g[i]))
-            finished |= dones.cpu().numpy().astype(bool)
+            d = dones.cpu().numpy().astype(bool)
+            record_step(rows, closed, finished, cmd, achieved, g, d, held)
+            finished |= d
             if finished.all():
                 break
     verdicts: dict[int, dict] = {}
@@ -130,6 +149,7 @@ def _play_and_write(env_cfg, out: Path) -> None:
         verdicts.setdefault(r["env"], r)
     env.close()
     summary = {"checkpoint": str(args_cli.checkpoint), "seeds": [args_cli.seed0, args_cli.seed0 + n - 1], "n": n,
+               "execution": "held" if held else "tracking", "trajectory": "achieved" if held else "commanded",
                "in_env": {}}
     for i in range(n):
         seed = args_cli.seed0 + i

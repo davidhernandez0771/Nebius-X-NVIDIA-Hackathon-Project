@@ -654,3 +654,37 @@ def test_the_breakdown_takes_env_overrides_on_top_of_the_runs_settings():
     for bad in ("agent.algorithm.gamma=0.9", "env.actions.arm_action.no_such=1", "env.actions.arm_action.v_max"):
         with pytest.raises(ValueError):
             bd.apply_overrides(cfg, [bad])
+
+
+def test_a_held_teachers_eval_records_the_achieved_tool_path_and_a_tracking_ones_the_commands(monkeypatch):
+    """Amendment 5 (2026-10-21): a held-executed teacher's Trajectory is where the tool really was after each step (as
+    SANT records human demos); a tracking teacher's stays its commanded targets, as every run up to demo_v6c2."""
+    import importlib.util
+
+    monkeypatch.setattr(sys, "argv", ["rl_eval_teacher.py", "--checkpoint", "x.pt", "--out", "y"])
+    spec = importlib.util.spec_from_file_location("rl_eval_teacher",
+                                                  Path(__file__).parents[1] / "scripts" / "rl_eval_teacher.py")
+    ev = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ev)
+    n = 3
+    steps = [  # (cmd, achieved, grip, dones) per control step; the achieved pose lags the command
+        (np.full((n, 7), 1.0), np.full((n, 7), 0.5), np.array([0, 1, 0]), np.array([False, False, False])),
+        (np.full((n, 7), 2.0), np.full((n, 7), 1.5), np.array([1, 1, 0]), np.array([False, True, False])),
+    ]
+
+    def play(held):
+        rows = [[np.zeros(7)] for _ in range(n)]
+        closed = [[0] for _ in range(n)]
+        finished = np.array([False, False, True])  # env 2 ended before these steps
+        for cmd, achieved, grip, dones in steps:
+            ev.record_step(rows, closed, finished, cmd, achieved, grip, dones, held)
+            finished |= dones
+        return rows, closed
+
+    rows, closed = play(held=True)
+    assert [len(r) for r in rows] == [3, 2, 1]  # env 1 ended at step 2 (then reset): that row is dropped
+    assert np.array_equal(np.asarray(rows[0][1:]), [[0.5] * 7, [1.5] * 7])  # == the achieved tool pose
+    assert np.array_equal(rows[1][1], [0.5] * 7) and closed[0] == [0, 0, 1] and closed[1] == [0, 1]
+    rows, closed = play(held=False)
+    assert [len(r) for r in rows] == [3, 3, 1]  # tracking: unchanged, the commands, the ending step included
+    assert np.array_equal(np.asarray(rows[1][1:]), [[1.0] * 7, [2.0] * 7]) and closed[1] == [0, 1, 1]

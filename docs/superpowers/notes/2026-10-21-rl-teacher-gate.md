@@ -138,3 +138,44 @@ uv run --no-sync python scripts/rl_train.py --preset teacher_v6c2 --checkpoint <
 3. **Otherwise,** run `--preset teacher_v6h --checkpoint <demo_v6c2>\model_2098.pt`: std reset to 0.3, then v6c2's settings plus held_target, at most 600 iterations, judged at +300 and +600.
 4. **Pick rule,** applied before the gate on the rng(7) breakdown only: highest home-start success, then fewer collisions, then the later iteration.
 5. **Gate (a)** on fresh seeds 5450–5499.
+
+### demo_v6h results and Amendment 5 (a definition change, disclosed)
+
+**Zero-shot (model_2098 with held execution).**
+
+| start | success |
+|---|---|
+| home | 46/67 [0.57–0.79] (19 dropped) |
+| demo_free | 29/31 |
+| demo_held | 24/30 |
+
+Home was below 90%, so demo_v6h ran.
+
+**demo_v6h** (`--preset teacher_v6h`, code 4a22fcb):
+- Started 21:33:05. Iterations 2098→2697, 1415 s.
+- Run dir: `data/rl/logs/rsl_rl/sant_rl_teacher/2026-10-21_21-33-14_demo_v6h`.
+
+**Breakdowns** (rng 7, held execution):
+
+| start | model_2400 | model_2697 |
+|---|---|---|
+| home | 63/67 | 64/67 |
+| demo_free | 31/31 | 31/31 |
+| demo_held | 29/30 | 26/30 |
+| collisions | 0 | 5 |
+
+The pick, by the rule's first criterion (home), is **model_2697**. It was made before the replay check.
+
+**Replay check on 7000–7031 (commanded-target trajectories, as for every earlier teacher).**
+- in-env 30/32; SANT replay **22/32** [0.51–0.82] (not_in_bin 7, dropped 4, collision 4); agreement 24/32.
+- Gate (a) was NOT started, so seeds 5450–5499 are unused.
+- Cause: held execution lags its commands by design (≈ 0.2 s; targets up to 2 cm ahead). So the commanded path, replayed with SANT's tracking, is a different motion from the one that happened.
+
+**Amendment 5** (the lead's decision, logged by T7). It was made AFTER the 7000–7031 replay check above showed the commanded-vs-achieved mismatch (22/32).
+- For a held-executed teacher, `rl_eval_teacher.py` records the **achieved** tool pose after each step as the Trajectory. That is SANT's human-demo standard: replay checks what the arm really did.
+- The gripper column stays the commanded gripper.
+- An episode's ending step is dropped: the env has already reset it.
+- Tracking teachers are recorded unchanged (commands).
+- `in_env.json` says which (`"trajectory": "achieved" | "commanded"`).
+- The gate is unchanged: `rl_verify_teacher.py` replay ≥ 45/50 on 5450–5499.
+- Next (morning, GPU): replay check 7000–7031 under the new recording, then gate (a) once.
