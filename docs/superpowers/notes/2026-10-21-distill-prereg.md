@@ -869,3 +869,38 @@ execution, A′.
 **Next: `model_2098`'s zero-shot breakdown under the held execution** (`rng(7)` scenes, 128 episodes), into
 `data\rl\breakdown\v6c2_2098_held`. It is queued on `gpu.lock`. If home starts reach ≥ 90%, `model_2098` is the
 candidate; otherwise `demo_v6h` is fine-tuned.
+
+**T6's report for Amendment 4** (`pm/distill-dagger`, local and unpushed; full suite: 2675 passed, 34 skipped, 0
+failed).
+- **Round 0 at 300 and the diagnosis match what is logged above.** T6 adds:
+  - **(1)** For the arm, the 60k checkpoint's error against the labels is 0.012 rad on human data and 0.023 on teacher
+    data, against 0.11 and 0.22 for holding still. The gripper is right 97–99% of the time. This is T6's arm-joint
+    measure, not the lead's chunk MAE above; the conclusion is the same, with no fit or loading bug.
+  - **(2)–(4)** The images, the proprioception, the start pose and the plain inference flags all match between
+    training and eval.
+  - **The root cause, in T6's words:** the labels were generated with an execution the student's actuator cannot
+    reproduce at 0.5 m/s.
+- **`0a1d9c5`** (21:23): every process of a distill round, of selection and of eval opts out of Windows power
+  throttling (`full_speed`, in `sim_worker/teleop_qos.py`).
+  - It is run-enabling and changes speed only. It makes the lead's external opt-out, logged above, part of the code.
+- **`45a5293`** (21:33): **option A, `--teacher-execution held`.**
+  - **A teacher step** is one held 9-joint target: one DLS step from the state before the step. It is executed by the
+    eval's own student step (`env.step`, zero velocity).
+  - **The label** is that target. The replay pairing is unchanged.
+  - **Recorded** in `rollouts`, `distill.json` and `round.json`, with one execution per folder.
+  - It also adds `--select-seed0`.
+  - T3's A′ term (`4a22fcb`) is parity-tested against this same arithmetic.
+- **Checked here:** both commits are on `pm/distill-dagger`, on top of `da19c2a`, with the files as described.
+
+**Amendment 4's commands (T6), all with `--teacher-execution held`:**
+
+| Step | Command flags | Seeds | Bar |
+|---|---|---|---|
+| gate (b) | `--run-id distill_mouse_held_gate --teacher-seed0 4950 --teacher-n 50 --stop-after rollouts` | 4950–4999 | ≥ 45/50 |
+| round 0 | `--run-id distill_mouse_held --teacher-seed0 4300 --teacher-n 300 --select-seed0 5301 --select-n 29` | teacher 4300–4599; selection 5301–5329 | ≥ 18/29 |
+| extension | the same, with `--teacher-n 600` | teacher 4300–4899 | ≥ 18/29 |
+| DAgger r1 | `--dagger-seed0 5210` | 5210–5249 | the stop rule |
+
+- **Gate (b) has its own run id,** so its episodes are never training data. The data check would also refuse them,
+  because they fall outside round 0's teacher range.
+- **No test seed has been touched.**
