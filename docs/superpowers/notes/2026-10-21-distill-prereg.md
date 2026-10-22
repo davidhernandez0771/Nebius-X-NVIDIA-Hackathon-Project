@@ -1306,3 +1306,33 @@ achieved recording and code `6101243`.
   - `rollouts.jsonl`: 600 rows, seeds 4300–4899 each once, the 35 failures above, and 276 successes on 4600–4899;
   - `round_t600.json`: the mix and data_check above;
   - `distill_round.log`: training started at 13:58:17. The lock is still the extension's, from 12:36:49.
+
+**Fixed in advance, before the @600 selection result exists: T3's DAgger relabel hook, `cap_from_tool`.** It applies to
+DAgger round 1 only, if that round is ever needed.
+- **The commits:** `pm/rl-teacher` `c75d3da` (14:06:22, the hook) and `681e8dd` (14:08:36, `make()` passes the flag
+  through). The parent is `314613e`. Not pushed.
+  - The diff touches only `sim_worker/rl_policy.py` (+23 / −4) and `tests/test_rl_policy.py` (+42).
+- **The flag:** `cap_from_tool`, default `False`, on `RLTeacher(...)` and `rl_policy.make(...)`. There are also two
+  one-step hooks, `forget_prev_target()` and `observe_executed(tcp_pos, tcp_quat_wxyz)`.
+- **What it changes, with the flag on:** each label's speed cap (1 cm/step = 0.5 m/s; yaw 0.05 rad/step = 2.5 rad/s)
+  is measured from the tool pose the state actually has, which is what the teacher already does on its first step
+  after a reset.
+  - **What it doesn't change:** the previous action fed back in the policy's observation stays the teacher's own last
+    action. Nothing else changes.
+- **Why it enables the run (T3's case, the lead's request):** when the student drives, the teacher's own previous
+  target is where the teacher would have been, not where the tool is.
+  - So, without the flag, a label can be up to two capped steps from the student's tool. That breaks the 0.5 m/s cap
+    the teacher was trained and gated under, relative to the state the label is for.
+  - T3's test case: the last target is 0.46 and the tool is at 0.40. The default label is 0.42, which is 2 cm, or
+    1 m/s, from the tool. With the flag, the label is 0.41, one capped step.
+- **Default off, so nothing already run changes:** round 0 (@300 and @600) and gates (a) and (b) never set the flag.
+  - The run going on now uses `pm/distill-dagger` `95663cb`, which doesn't contain these commits.
+- **The tests (T3):** SANT 2610 passed; the Isaac venv's `test_rl_*.py` 55 passed / 1 skipped.
+- **Checked here:**
+  - the two commits, their times and parents;
+  - the diff (`act()` calls `forget_prev_target()` only when `cap_from_tool` is set);
+  - `pm/distill-dagger` doesn't yet reference `cap_from_tool`.
+- **Still to fix before any DAgger data exists:** for DAgger round 1 to use the flag, `pm/distill-dagger` must merge
+  `681e8dd` and pass `cap_from_tool=True` to the teacher in DAgger rounds only, never in round 0.
+  - That merge and wiring is a separate commit. It is logged here when T6 makes it.
+  - If it isn't in place before DAgger round 1 starts, round 1 runs with the default labels, and that is disclosed.
