@@ -91,6 +91,9 @@ def log(msg: str) -> None:
 
 def main() -> None:
     check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
+    from sim_worker.teleop_qos import full_speed
+
+    full_speed()  # out of Windows power throttling (per process: a child does not inherit it)
     t0 = time.time()
     a = args_cli
     out = a.out.resolve()

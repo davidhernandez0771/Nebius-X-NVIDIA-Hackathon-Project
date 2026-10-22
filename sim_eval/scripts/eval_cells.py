@@ -320,6 +320,9 @@ def evaluate_with_selection(cell: str, row: dict, out: Path, *, registry: Path |
 
 def main(argv: list[str] | None = None) -> int:
     check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
+    from sim_worker.teleop_qos import full_speed
+
+    full_speed()  # out of Windows power throttling (per process: a child does not inherit it)
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--run-id", required=True)
     p.add_argument("--n", type=int, default=20)

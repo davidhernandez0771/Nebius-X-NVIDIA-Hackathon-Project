@@ -344,6 +344,19 @@ Code: 2168db0 (T3's final b7935c0 merged), clean.
 but `meta/stats.json` differed. Not worth the change, so the export stays serial. Overlapping the export with the
 rollouts would need the mix before the rollouts end, so it is not possible as built.
 
+**Windows power throttling (EcoQoS), run-enabling, speed only.** Round 0 @300's background processes ran
+throttled: rollouts went from ~10 to ~18 s each after 16:05, the export ran at 45 s per 1,000 frames (22 measured
+alone), and training at 11.6 steps/s. None of the round's processes opted out, and the opt-out is per process: after
+`high_qos()` a parent reads ControlMask 5, but a child started after that reads 0. Two measures:
+- **The lead, ~19:0x, user-approved:** an external per-process opt-out (SetProcessInformation
+  ProcessPowerThrottling, ControlMask 5 / StateMask 0) on the running trainer → ~20.9 steps/s. A watcher then
+  applied it to every eval_cells / run_eval / policy_server / train / distill_rollouts process. No restart, no code
+  change, no effect on physics, policy or seeds.
+- **The code fix (committed after round 0's selection, so the round ran one code version):**
+  `sim_worker.teleop_qos.full_speed()` (`high_qos()`, logged to stderr). It is called at the top of `main()` in
+  distill_round, distill_rollouts, eval_cells, run_eval, policy_server, lerobot_tools.experiments and
+  lerobot_tools.train. `sim_eval/tests/test_entry_qos.py` checks each entry point calls it.
+
 ### Time estimates on the RTX 5080
 
 These are measured where noted and are otherwise judgement.
