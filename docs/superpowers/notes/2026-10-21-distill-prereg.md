@@ -1241,3 +1241,22 @@ achieved recording and code `6101243`.
     clean;
   - both `*.episodes.jsonl` files: 29 episodes each, seeds 5301–5329 each once, and the failure counts above;
   - `distill_round.log`: the times above.
+
+**A diagnostic trace of the 60k pick, and a seed error caught before any episode ran.**
+- **The error:** the lead's standing orders put a ≤ 15 min closed-loop trace on practice seeds 5210–5214. Those seeds
+  are inside DAgger round 1's range, 5210–5249 (Amendment 4 D), which was moved off 5200–5209 because diagnosis had seen
+  those. The cause is the lead's error, as the lead said.
+- **Two attempts on 5210–5214 were stopped during startup:** 12:29:47–12:30:55 and 12:31:25–12:31:32 (T6). Neither ran
+  an episode.
+  - **Checked here:** `data\evals\distill_held_diag_r0_t300` holds only startup files:
+    - `gate_checks.jsonl`, `trace_run.log` and `picked_s60000.server.log` (the policy server came up at 12:30:55);
+    - `picked_s60000.eval.log`, which is empty.
+    - There is no episodes file and no trace file.
+- **So DAgger round 1 stays at 5210–5249 with `--dagger-seed0 5210`, as Amendment 4 D says.** A move to 5215–5254 was
+  considered for a few minutes and is cancelled, since no 5210+ seed was seen.
+- **The trace runs instead on 5200–5204**, practice seeds already spent on diagnostics.
+  - **The run:** run id `distill_held_diag_r0_t300_p5200`, started 12:31:52 (`gpu.lock` `distill_held_diag`).
+  - **The policy:** the 60k pick, with plain flags and `--trace`.
+  - **What it can change:** it is a diagnostic only. It can stop the extension only if it shows a new systematic bug.
+    Otherwise the extension to 600 runs as fixed: teacher 4300–4899, selection 5301–5329, bar ≥ 18/29.
+  - **Its findings are added here.**
