@@ -1283,3 +1283,26 @@ achieved recording and code `6101243`.
   - `distill_round.log`: the lock at 12:36:49, and "teacher rollouts on seeds 4300-4899";
   - `rollouts.jsonl` still holds its 300 rows (09:42:53), and `round_t300.json` and `selection_t300.json` are kept;
   - **no file** in any worktree's `data/` uses a seed in 4600–4899, so the new teacher seeds are fresh.
+
+**The extension's teacher rollouts: 565/600 (94.2%) on 4300–4899**, held execution, 224,435 teacher frames. They ran
+12:36:49 → 13:58:16 (wall 4,884 s for the 300 new seeds).
+- **The new seeds 4600–4899:** 276/300 (92.0%). The 300 resumed rows on 4300–4599 are unchanged: 289/300, with the same
+  11 failures as before.
+- **The 35 failures, all at the time limit:**
+  - 4300–4599: 4354, 4360, 4401, 4433, 4451, 4456, 4500, 4511, 4557, 4595, 4598;
+  - 4600–4899: 4623, 4630, 4645, 4647, 4655, 4659, 4662, 4682, 4683, 4707, 4715, 4723, 4734, 4749, 4763, 4768, 4775,
+    4787, 4841, 4842, 4857, 4867, 4877, 4885.
+- **The mix (`round_t600.json`):**
+  - human: 110 episodes, 31,536 frames ×3.5584, share 0.3335;
+  - teacher: 565 episodes, 224,435 frames ×1.0, share 0.6665;
+  - target 1/3 : 2/3.
+- **data_check is clean:** human seeds 0–4009, teacher seeds 4300–4899.
+- **The code:** `95663cb`, clean, for both the rollouts and the round.
+- **The @300 files** (`round_t300.json`, `selection_t300.json`) are kept as they were, dated 12:28:57.
+- **Training started at 13:58:17:** ACT, 60k steps, candidates 40k and 60k. Next is selection on 5301–5329 (bar
+  ≥ 18/29), which T6 expects around 17:30–18:00.
+- **Checked here:**
+  - `rollouts_done.json`: 565/600, 224,435 frames, success 565 / time_limit 35, held, code `95663cb` clean;
+  - `rollouts.jsonl`: 600 rows, seeds 4300–4899 each once, the 35 failures above, and 276 successes on 4600–4899;
+  - `round_t600.json`: the mix and data_check above;
+  - `distill_round.log`: training started at 13:58:17. The lock is still the extension's, from 12:36:49.
