@@ -926,5 +926,15 @@ fine-tune** (Amendment 4 A, applied as written). The breakdown used `rng(7)` sce
   +300 and +600.
   - It took `gpu.lock` at 21:33:07 (the lock reads `rl-teacher:demo_v6h`, PID 54376). Its run folder is
     `2026-10-21_21-33-14_demo_v6h`.
+  - **T3's details:**
+    - It started at 21:33:05, with wrapper PID 24084.
+    - The lock is labelled "T4" by the shared GPU-stage helper, but it is T3's run.
+    - The code is `4a22fcb`.
+    - The command: `uv run --no-sync python scripts/rl_train.py --preset teacher_v6h --checkpoint
+      data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-21_13-39-10_demo_v6c2\model_2098.pt --run-name demo_v6h`.
+    - The std copy is `data\rl\resume\demo_v6h\model_2098.pt`, with a motion std of 0.3 (checked here: written at
+      21:33:06).
+    - Iterations run 2098 → 2698, judged at +300 and +600.
+    - In total, 7 collisions in the zero-shot breakdown.
 - **The pick happens BEFORE gate (a), on the breakdown only:** the highest home-start success, then fewer collisions,
   then the later iteration.
