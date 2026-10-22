@@ -1063,14 +1063,16 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
 - **The bar:** ≥ 45/50. Hard stop at 22:58.
 - **Result: PASSED, 48/50** on 4950–4999 (Wilson 95% 0.865–0.989), against the bar of ≥ 45/50.
   - **The run:** 22:16:14 → 22:29:18 (12.9 min), so it finished before the 22:58 stop.
-  - **Failures:** 4958 and 4981, both on the time limit. Passing episodes took 350–475 steps.
+  - **Failures:** 4958 and 4981, both on the time limit. Passing episodes took 350–475 steps (a median of about
+    8 s, near human pace; under tracking they took 125–150 steps, per the lead).
   - **Output:** 48 episodes, 19,127 frames, under its own run id, so they are not training data.
   - **Checked here:** `data\distill\distill_mouse_held_gate\r0\rollouts_done.json` (in `C:\dev\pm-t6`) has seeds
     4950–4999, 50 attempted, 48 successes (success 48, time limit 2), 19,127 frames, `teacher_execution: held`,
     the teacher `demo_v6h` (the `exported\policy.pt`), and code `7f0322f` with `dirty: false`.
 - **The teacher gate under Amendment 4 is NOT yet passed.** Part (b) passed, but part (a) is still to run, tomorrow
   morning, per Amendment 5's order: the decision test on 7100–7131 must reach ≥ 29/32 first.
-- **Round 0 under the held execution** waits for the lead's go tomorrow, after the gate.
+- **Round 0 under the held execution** waits for the lead's go tomorrow, after the gate. The lead's estimate is
+  about 4.3 h, with about 115k teacher frames and an export of about 1.5–1.8 h.
 
 **T3 confirmed Amendment 5's morning order** (read at `986fff0`). The teacher is `model_2697` throughout, with
 `6101243`'s recording:
