@@ -756,8 +756,8 @@ from round 0 at 300.
 - **Then a new round 0.**
 - **Round 0 at 600 under the old execution is abandoned** as uninformative: more labels the student cannot execute
   would not test the plan.
-- **5400–5449 overlap no used range:** test 5020–5059, DAgger 5200–5279, selection 5300–5329, gate 1 5300–5349,
-  gate 2 5350–5399.
+- **The seed ranges in this plan were superseded** before any data existed. Amendment 4, below, has the final ones;
+  for example, gate (a) moved from 5400–5449 to 5450–5499.
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
@@ -769,3 +769,82 @@ run-enabling safeguard. It makes the existing rule enforceable in code, and chan
 The gate and everything after it apply to the teacher from `demo_v6`, or from a later run logged here. **T3's final
 commit, after the gate: `b7935c0`** on `pm/rl-teacher` (in `pm/distill-dagger` as `2168db0`). The teacher is
 `demo_v6c2` `model_2098`.
+
+## Amendment 4 (2026-10-21, the lead's decision, before any held-execution teacher data exists)
+
+**Reason:** the diagnosis proved that round 0's labels could not be executed by the student's actuator: the teacher's
+own labels replayed 10/10 with the tracking execution and 0/10 with the student's. The fixed test env is unchanged. It
+executes the student with a held 9-joint target at zero velocity, and the teacher now has to work under that same
+execution.
+
+**Round 0 at 300 under the old execution stays reported as a failed attempt**, with its 0/30 and the diagnosis above.
+Round 0 at 600 under the old execution is not run.
+
+### A. The teacher
+
+- **Executed with the student's actuator** in training, in the gate and in the rollouts. This is T3's `held_target`
+  term, which is the same as T6's rollout option A: one shared arithmetic, with a parity test between the two.
+- **The candidate:**
+  - **`model_2098` zero-shot** under the held execution, if its start-type breakdown (`rng(7)` scenes, 128 episodes)
+    shows **≥ 90% success from home starts**;
+  - **otherwise `demo_v6h`**, fine-tuned from `model_2098` for at most 600 iterations and judged at +300 and +600.
+- **The pick rule, BEFORE the gate, on the breakdown only:** the highest home-start success; ties go to fewer
+  collisions, then to the later iteration.
+- **Unchanged:** the speed cap 0.5 m/s, `DELTA_M` 2 cm and `EPISODE_S` 12. Any change to these is a new amendment.
+- **The final teacher hash** is recorded after the gate. `b7935c0` above stays the record for gate 2's teacher.
+
+### B. The gate (both parts required, each run once)
+
+- **(a)** `rl_eval_teacher` + `rl_verify_teacher` on **5450–5499**, ≥ 45/50.
+  - 5400–5439 stays reserved for the confirmatory eval, as other notes plan it: the SANT v2 mouse prereg, the stage-0
+    inference prereg and the research notes pool it with 5020–5059 for n = 80. So the gate does not use it.
+- **(b)** Camera-env teacher rollouts on **4950–4999**, ≥ 45/50.
+  - These 50 episodes are **not round-0 training data**, unlike last time. 4950–4999 is outside the new round 0's
+    teacher range (4300–4899), and T6's data check refuses any teacher episode outside the round's own teacher range.
+
+### C. The new round 0
+
+- **Teacher rollouts on fresh seeds 4300–4599** (300), with `--teacher-seed0 4300`. **The extension to 600 is
+  4300–4899**, contiguous with the same `--teacher-seed0`.
+  - T6's code requires this: teacher seeds must be within `TEACHER_SEEDS` = 4000–4999 (`distill_round.py:49`,
+    checked at `:278`), as one contiguous range from `teacher_seed0`. The first draft's extension, 6000–6299, would
+    have been refused.
+- **The human cell is unchanged:** `mouse20261020` `perfected_multiply_10`, 110 episodes. They are replay-verified
+  under the student's execution.
+- **The mix:** 1/3 : 2/3 by frame share, with fractional repeats.
+- **Training:** ACT, 60k steps, batch 8. The candidates are 40k and 60k, with plain inference flags.
+
+### D. Selection
+
+- **Seeds 5301–5329** (n = 29). 5300 is excluded, because of the disclosed diagnostic run on it above.
+- **The bar is ≥ 18/29.**
+- **The 300 → 600 rule is unchanged:** below the bar at 300, extend to 600 (4300–4899), retrain and reselect.
+- **DAgger round 1 moves to 5210–5249**, with an explicit `--dagger-seed0 5210`, because the code's default for
+  round 1 is 5200 (`distill_round.py:259`). 5200–5209 were seen in the diagnosis.
+  - Its stop rule is unchanged, applied on those seeds. 5210–5249 is inside `PRACTICE_SEEDS` (5200–5279).
+  - There is still no DAgger round 2.
+
+### E. The test (unchanged)
+
+- 5020–5059, run once, on the final model.
+- The goal is ≥ 24/40, with Fisher's exact test against 3/40 and 0/40.
+
+### The range check (T7, before writing this amendment)
+
+I scanned `data\` in every worktree (seed-named files, `seed` keys, and `"seeds": [a, b]` ranges) plus the notes and
+T6's `sim_eval` code:
+- **Clean in data:** 4300–4999, 5450–5549, 6000–6299. In the notes, 4300–4599 appears only as round 0's old,
+  unused extension block.
+- **Corrected in this amendment, from the first draft:**
+  - gate (a), from 5400–5449 (reserved);
+  - the round-0 range and its extension, from 4700–4999 + 6000–6299 (refused by the code);
+  - gate (b), from 4600–4649 (moved outside the contiguous training range);
+  - the explicit DAgger start seed.
+
+**Disclosures, with no change needed:**
+- **5210–5219** were evaluated on 2026-10-18 with a different policy (`pm-t3`
+  `data\evals\grasp_diag_20261018`, the `raw_multiply_10_30k` traces). They are practice seeds, never training data.
+- **Selection seeds 5301–5303** also appear in `pm-t3` `data\rl\eval\check_v2_950`, a teacher check from before gate 1.
+  That is in addition to gate 1 (5300–5349), the smoke (5300–5301) and round 0's selection.
+- **5250–5279** was the planned selection range of the grasp-fix run 2 (the 2026-10-18 note), which never ran. No data
+  exists for it.
