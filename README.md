@@ -175,7 +175,77 @@ Details and the comparison table: [docs/submission/README.md](docs/submission/RE
   `nvidia/Nemotron-3.5-Super-VL` for images and `nvidia/nemotron-3-super-120b-a12b` for requests.
   <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 6 Task 1: hybrid 35 calls / $0.0544; sprint 7 T4 Task 4: $0.000206 per request, model id); docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md (VL model id) -->
 
-## Status (2026-10-20)
+### The models: what each one does, and why that size
+
+All of them are NVIDIA Nemotron models, served by Nebius Token Factory. The tiers are set in `src/nebius_llm/config.py`,
+and the call counts come from our usage logs (see below).
+
+| Model | Calls logged | What it does | Why this one |
+|---|---|---|---|
+| `nvidia/nemotron-3-super-120b-a12b` (tier `super`) | 234 | **The trajectory repairer**, with thinking on and a 16,000-token cap for thinking plus answer (`src/app/ai/nemotron_repair.py`). **The scene creator** (a sentence → a validated scene plan). **The assist-zone planner** and **the repair-request translator** | Text tasks that reason over forces, offsets and geometry. A mixture-of-experts model with 12B active parameters is cheap per call, and with thinking on it plans several steps ahead |
+| `nvidia/Nemotron-3.5-Super-VL` (tier `nemotron-vl`) | 249 | **The demo labeler and intent judge** (pre-registered: 40/40 and 59/60). Before that, **the demo diagnoser** (7 front frames + 1 wrist frame + a metrics table) | The only one here that takes images |
+| `nvidia/Nemotron-3_5-Lightning` (tier `nano`) | 0 | Wired to the site's Ask SANT box, the command and query helpers, `scripts/hello.py`, and the take review's optional rewording (`phrasing=nemotron`; the default is the rules' wording) | The fast tier, for short replies. **It isn't in our usage logs:** it was called only while the client was first set up (September), so none of these features has used it in a logged run |
+| `nvidia/Nemotron-3-Ultra-550b-a55b` (tier `ultra`) | 0 | **Nothing:** it's configured, and no code path calls it | We never needed more than Super |
+
+<!-- src: src/nebius_llm/config.py; src/app/ai/*.py and src/app/routers/demos.py (each feature's tier); usage logs as below -->
+
+### Where Nebius Token Factory accelerated the workflow
+
+- **Two large models with no GPU of our own.** Our one RTX 5080 (16 GB) ran Isaac Lab all day for replays,
+  multiplying, evaluation and RL training. A 120B text model and a vision-language model could not have shared it.
+  Token Factory runs them, so a Nemotron call never waits for the simulator or stops it.
+- **No new client.** The API is OpenAI-compatible, so the standard OpenAI Python SDK with a base URL was enough. Our
+  existing client gained a model tier and a multi-image helper.
+- **Budgeting from the start.**
+  - `GET /v1/models?verbose=true` lists each model's modality, context, rate limits and prices at no cost. It is the
+    source for our cost config.
+  - Every reply carries `usage`, so each call is logged with its tokens and estimated cost.
+  - The experiments run under a spend cap (for example `scripts/run_repair_ab.py --max-cost-usd`) that stops a run
+    cleanly.
+- **Cheap enough to test properly.** The usage logs we have (`usage_log.jsonl` in our working checkouts, 2026-10-15 to
+  2026-10-21) record **483 calls for about $1.14** in all:
+  - 249 to the VL model, about $0.31;
+  - 234 to Super, about $0.84.
+
+  The cost is estimated from our price config and each reply's token counts. That budget paid for pre-registered,
+  blind tests, and it let us re-run the repair A/B when it needed checking.
+
+### Nebius tools used
+
+**Nebius Token Factory only.** We did not use Nebius AI Cloud: all simulation, RL and training ran on one local RTX
+5080. We priced an H100 VM for NVIDIA Cosmos showcase clips, and didn't run it.
+<!-- src: docs/superpowers/notes/2026-10-20-research-approach.md (Q3) -->
+
+## The NVIDIA stack
+
+- **NVIDIA Nemotron:** 3 Super 120B-A12B and 3.5 Super VL (both called), plus 3.5 Lightning (wired, not used in a
+  logged run). See the models table above.
+- **NVIDIA Isaac Sim 6.2:** physics with contact sensors, cameras and rendering.
+- **NVIDIA Isaac Lab 3.0:**
+  - the pick-place scene;
+  - differential-IK replay;
+  - live teleop;
+  - the multiplier's verification;
+  - policy evaluation on unseen scenes.
+- **Isaac Lab Mimic:** demo generation from SANT's repaired demos, run on Windows. SANT checks Mimic's output.
+- **Isaac Lab RL** (rsl_rl PPO, 4,096 parallel envs): the RL teacher, in progress.
+
+Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
+
+## Status (2026-10-21)
+
+| | What |
+|---|---|
+| **Done** | Isaac Lab Mimic on SANT's repaired demos: SANT verified Mimic's output at the same rate as its own multiplier (82% vs 80%, p = 0.79) and rejected 9 of Mimic's 100 self-reported successes |
+| **Done** | The site: the tesseract hero, a real loading screen, the machine and bench v2, the `/data` showcase, and the `/pipeline` pages, which set up a run (the backend runs pipelines only with `SANT_PIPELINE=1`) |
+| **In progress** | **The RL teacher** (Isaac Lab, PPO), started from SANT-verified mouse demos. Training runs v1–v5 failed, each for a logged reason, and v6 (a stock-lift-style reward) is training. It must reach ≥ 90% on practice seeds before any distillation |
+| **Built, not run** | **Distillation of the teacher into the ACT camera policy, with DAgger rounds** (branch `pm/distill-dagger`, merged after the final test). It is pre-registered: one test on seeds 5020–5059, goal ≥ 24/40 ([prereg](docs/superpowers/notes/2026-10-21-distill-prereg.md)) |
+| **Next** | The distillation's single test, then the 3-minute video |
+
+<details><summary>Status on 2026-10-20</summary>
+
+| | What |
+|---|---|
 
 | | What |
 |---|---|
@@ -189,6 +259,8 @@ Details and the comparison table: [docs/submission/README.md](docs/submission/RE
 | **Next** | More repaired webcam demos to train on (more recordings, or Nemotron's repairs), and fixing the drops |
 | **Next** | The hybrid repairer (rules first, Nemotron edits only where they fail), an A/B on fresh failing demos the rules weren't written for, and a self-improvement loop |
 | **Next** | Record the 3-minute video; the shot list is in [`docs/submission/video_script.md`](docs/submission/video_script.md) |
+
+</details>
 
 <details><summary>Status on 2026-10-17</summary>
 
@@ -233,7 +305,7 @@ three Python environments). The RUNBOOK covers everything else: recording, perfe
 uv run pytest -q; npm --prefix web test                                    # tests
 powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Backend -Web
 powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Sim      # Isaac Lab, ~4.5 GB GPU
-# open http://localhost:5173/pm/record, then /pm/review to perfect a demo
+# open http://localhost:5173/record to record, then /pm/review to perfect a demo (/pm/record redirects to /record)
 powershell -ExecutionPolicy Bypass -File scripts\launch\stop.ps1
 ```
 <!-- src: docs/RUNBOOK.md §3.2–3.3 (start/stop scripts, sim worker ~4.5 GB), §4 (/pm/record), §2.2 and §2.5 (test commands) -->

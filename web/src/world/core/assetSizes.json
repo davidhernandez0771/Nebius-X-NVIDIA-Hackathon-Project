@@ -1,0 +1,20 @@
+{
+  "world/models/bench.glb": 391624,
+  "world/models/cartridge.glb": 126720,
+  "world/models/cartridge_lod.glb": 5196,
+  "world/models/crack.glb": 1212888,
+  "world/models/desk.glb": 179412,
+  "world/models/machine.glb": 1157804,
+  "world/models/machine_body.glb": 397616,
+  "world/models/machine_v2.glb": 373964,
+  "world/models/pedestal.glb": 165408,
+  "world/models/robots/fr3.glb": 731640,
+  "world/models/robots/franka.glb": 447364,
+  "world/models/robots/openarm.glb": 758976,
+  "world/models/robots/piper.glb": 262332,
+  "world/models/robots/so101.glb": 258068,
+  "world/models/robots/ur5e.glb": 477992,
+  "world/models/robots/xarm6.glb": 254232,
+  "world/models/room.glb": 644032,
+  "world/models/shelves.glb": 313700
+}

@@ -27,6 +27,8 @@ import ResetGestureRing from "../../record/ResetGestureRing";
 import type { StagePalette } from "../../record/stageDraw";
 import { ART_COOLDOWN_MS, ART_MORPH_MS, SINK_COMMAND, STEP_S, useRecordSession, type PoseUi, type RecordSession } from "../../record/useRecordSession";
 import { useMotion } from "../../sant/motion/MotionProvider";
+import { HandoffLink } from "../holo/Holo";
+import { handoffArrive } from "../holo/handoff";
 import { RobotTwin } from "../../twin";
 import { formatClock } from "../record-hud";
 import { GripDial, HeightGauge, SideGauge, Trace } from "./instruments";
@@ -158,7 +160,8 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const [deleted, setDeleted] = useState<string[]>([]);
   const [note, setNote] = useState<{ text: string; title: string } | null>(null); // the last delete's outcome, until the sim reports again
   useEffect(() => setNote(null), [sim?.lastResult, sim?.demoId]);
-  const saved = savedIds.filter((id) => !deleted.includes(id)).length;
+  const kept = savedIds.filter((id) => !deleted.includes(id));
+  const saved = kept.length;
   const lastDemo = sim?.demoId && !deleted.includes(sim.demoId) ? sim.demoId : null;
   const coach = useTakeReview(lastDemo); // the take review, shown in the trace's cell until the next recording
   const { reduced } = useMotion();
@@ -166,6 +169,9 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const [drawer, setDrawer] = useState(false);
   const [scenesOpen, setScenesOpen] = useState(false);
   const settingsButton = useRef<HTMLButtonElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  // Arrived from /pipeline or /data by a hand-off (site/holo/handoff.ts): lift its veil, focus the title.
+  useEffect(() => handoffArrive(title.current), []);
   const root = useCallback((el: HTMLDivElement | null) => {
     if (el) onPalette(stagePalette(el));
   }, [onPalette]);
@@ -239,7 +245,9 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
             <b>{LIVE_ROBOT.code}</b>
             <span>{LIVE_ROBOT.name}</span>
           </span>
-          <h1 className="rg-title">Record</h1>
+          <h1 ref={title} className="rg-title" tabIndex={-1}>
+            Record
+          </h1>
           <button type="button" className="rg-btn rg-btn--small rg-scene-btn" aria-controls={SCENES_ID} aria-expanded={scenesOpen}
             onClick={() => setScenesOpen((o) => !o)} title="The scene you record in: Standard, the protocol's S1-S8, or one you describe">
             {`Scene · ${sim?.scene?.name ?? "Standard"}`}
@@ -247,14 +255,23 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           </button>
         </div>
         <nav className="rg-steps" aria-label="SANT steps">
-          {STEPS.map((step, i) => (
-            <span key={step} className="rg-steps__item">
-              {i > 0 && <em aria-hidden="true" />}
-              <span className="rg-step" aria-current={i === 0 ? "step" : undefined}>
-                {step}
+          {STEPS.map((step, i) => {
+            // "S · show": the letter, then the word (hidden on laptop widths, still read by screen readers).
+            const [letter, word] = step.split(" · ");
+            return (
+              <span key={step} className="rg-steps__item">
+                {i > 0 && <em aria-hidden="true" />}
+                <span className="rg-step" aria-current={i === 0 ? "step" : undefined} title={step}>
+                  {letter}
+                  <span className="rg-step__word"> · {word}</span>
+                </span>
               </span>
-            </span>
-          ))}
+            );
+          })}
+          {/* After Record: the rest of SANT, live, on the demos saved this visit (the pipeline pages). */}
+          <HandoffLink className="rg-btn rg-btn--small rg-run" label="Pipeline" to={kept.length ? `/pipeline?demos=${kept.map(encodeURIComponent).join(",")}` : "/pipeline"}>
+            {kept.length ? `Run SANT on ${kept.length} demo${kept.length === 1 ? "" : "s"} →` : "Run SANT →"}
+          </HandoffLink>
         </nav>
         <div className="rg-right">
           <div className="rg-chips" role="group" aria-label="Status">

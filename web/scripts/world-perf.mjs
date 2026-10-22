@@ -8,7 +8,12 @@
 // Env: TIERS=low,high,ultra (default all); CHROME=<path to chrome.exe>;
 //   MODE=parts  GPU time with each part hidden (PARTS=..., BIG=WxH also renders at that CSS size);
 //   MODE=shot   SHOTS="name:vh,..." screenshots (REDUCED=1, CLICK="x,y" CLICK_AT=name for a click);
-//   MODE=load   frames of the load sequence on a throttled network (KBPS, STEP ms, N frames).
+//   MODE=load   frames of the load sequence on a throttled network (KBPS, STEP ms, N frames);
+//   MODE=hold   frame and GPU time holding scroll positions (AT="name:vh,...", default the hero; SECONDS);
+//   MODE=reveal the opening, RUNS fresh loads per tier: the loader's timeline, then for HOLD s after it lets go
+//               (holding the hero) the worst frame, frames over 16.7 ms, the stall (the sum over 16.7 ms) and the
+//               main thread's long tasks.
+// W, H, DPR: the viewport (default 1280 x 800 at 1.5); HEADFUL=1: a visible window instead of headless.
 import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +24,8 @@ const PORT = 9333;
 const CHROME = process.env.CHROME ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const profile = mkdtempSync(join(process.env.PERF_TMP ?? tmpdir(), "world-perf-"));
 const chrome = spawn(CHROME, [
-  "--headless=new",
+  // HEADFUL=1: a visible window (what a person sees), else headless.
+  ...(process.env.HEADFUL ? [] : ["--headless=new"]),
   `--remote-debugging-port=${PORT}`,
   `--user-data-dir=${profile}`,
   "--use-angle=d3d11",
@@ -28,7 +34,7 @@ const chrome = spawn(CHROME, [
   "--disable-background-timer-throttling",
   "--disable-renderer-backgrounding",
   "--disable-backgrounding-occluded-windows",
-  "--window-size=1280,800",
+  `--window-size=${process.env.W ?? 1280},${process.env.H ?? 800}`,
   "about:blank",
 ], { stdio: "ignore" });
 
@@ -72,8 +78,9 @@ const evaluate = async (expr) => {
 await send("Page.enable");
 await send("Performance.enable");
 await send("Runtime.enable");
-// A mid laptop's screen: 1280 x 800 CSS px at 1.5x (1920 x 1200 device px).
-await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1.5, mobile: false });
+// A mid laptop's screen by default: 1280 x 800 CSS px at 1.5x (1920 x 1200 device px); W, H, DPR override it.
+const W = Number(process.env.W ?? 1280), H = Number(process.env.H ?? 800), DPR = Number(process.env.DPR ?? 1.5);
+await send("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: DPR, mobile: false });
 await send("Emulation.setCPUThrottlingRate", { rate: Number(THROTTLE) });
 
 // The in-page probe: wraps the renderer to time each frame on the GPU (EXT_disjoint_timer_query_webgl2)
@@ -122,7 +129,7 @@ window.__perf = async function (opts) {
 };
 "ok"`;
 
-const results = { base: BASE, cpuThrottle: Number(THROTTLE), screen: "1280x800 CSS at 1.5x", runs: {} };
+const results = { base: BASE, cpuThrottle: Number(THROTTLE), screen: `${W}x${H} CSS at ${DPR}x`, runs: {} };
 
 async function open(url) {
   await send("Page.navigate", { url });
@@ -238,6 +245,84 @@ async function measured(expr) {
   r.mainThreadBusyPct = +((busy / (r.seconds * 1000)) * 100).toFixed(1);
   r.jsHeapMB = +(b.JSHeapUsedSize / 1048576).toFixed(1);
   return r;
+}
+
+if (process.env.MODE === "reveal") {
+  // Recorded from the document's start: every frame interval, every long task, the loader's status, its reveal.
+  await send("Page.addScriptToEvaluateOnNewDocument", {
+    source: String.raw`(() => {
+      const L = (window.__reveal = { status: [], long: [], frames: [], reveal: null });
+      try { new PerformanceObserver((l) => l.getEntries().forEach((e) => L.long.push([e.startTime, e.duration]))).observe({ type: "longtask", buffered: true }); } catch {}
+      let last = 0;
+      const tick = (t) => { if (last) L.frames.push([t, t - last]); last = t; requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      new MutationObserver(() => {
+        const bar = document.querySelector(".world-loader [role=progressbar]") || document.querySelector(".world-loader[role=progressbar]");
+        const loader = document.querySelector(".world-loader");
+        const txt = bar ? (bar.getAttribute("aria-valuetext") || "") + " " + bar.getAttribute("aria-valuenow") : null;
+        const s = L.status[L.status.length - 1];
+        if (txt && (!s || s[1] !== txt)) L.status.push([Math.round(performance.now()), txt]);
+        if (L.reveal === null && L.status.length && (!loader || loader.dataset.done === "true")) L.reveal = performance.now();
+      }).observe(document, { subtree: true, attributes: true, childList: true });
+    })();`,
+  });
+  const HOLD = Number(process.env.HOLD ?? 6);
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  for (const tier of (process.env.TIERS ?? "high,ultra").split(",")) {
+    results.runs[tier] = [];
+    for (let run = 0; run < Number(process.env.RUNS ?? 3); run++) {
+      await send("Network.clearBrowserCache").catch(() => {});
+      // Through a blank page, so the first check below can't read the last run's page.
+      await send("Page.navigate", { url: "about:blank" });
+      await sleep(300);
+      await send("Page.navigate", { url: `${BASE}/world?quality=${tier}` });
+      await sleep(300);
+      for (let i = 0; i < 240; i++) {
+        await sleep(250);
+        if (await evaluate("!!(window.__reveal && window.__reveal.reveal !== null)").catch(() => false)) break;
+      }
+      await sleep(HOLD * 1000);
+      const L = await evaluate("window.__reveal");
+      const inHold = (a) => a.filter(([t]) => t >= L.reveal && t <= L.reveal + HOLD * 1000);
+      const frames = inHold(L.frames).map(([, d]) => d);
+      const long = inHold(L.long).map(([, d]) => d);
+      const r = {
+        revealMs: Math.round(L.reveal),
+        timeline: L.status,
+        frames: frames.length,
+        worstFrameMs: +Math.max(0, ...frames).toFixed(1),
+        over16: frames.filter((d) => d > 16.7).length,
+        stallMs: Math.round(sum(frames.map((d) => Math.max(0, d - 16.7)))),
+        longTasks: long.length,
+        longestTaskMs: Math.round(Math.max(0, ...long)),
+        longTotalMs: Math.round(sum(long)),
+      };
+      results.runs[tier].push(r);
+      console.log(tier, run, JSON.stringify({ reveal: r.revealMs, worst: r.worstFrameMs, over16: r.over16, stall: r.stallMs, long: r.longTasks, longest: r.longestTaskMs }));
+    }
+  }
+  writeFileSync(OUT, JSON.stringify(results, null, 2));
+  chrome.kill();
+  process.exit(0);
+}
+
+if (process.env.MODE === "hold") {
+  // Hold each scroll position (AT="name:vh,...", default the hero at 0) on each tier and measure it (SECONDS).
+  for (const tier of (process.env.TIERS ?? "high,ultra").split(",")) {
+    await open(`${BASE}/world?quality=${tier}`);
+    results.runs[tier] = {};
+    for (const spec of (process.env.AT ?? "hero:0").split(",")) {
+      const [name, vh] = spec.split(":");
+      await evaluate(`window.scrollTo(0, ${Number(vh)} * innerHeight)`);
+      await sleep(Number(process.env.WAIT ?? 5000));
+      const r = await measured(`window.__perf({ seconds: ${Number(process.env.SECONDS ?? 5)} })`);
+      results.runs[tier][name] = r;
+      console.log(tier, name, JSON.stringify({ fps: r.renderedPerSec, frame: r.frameMs?.p50, frame95: r.frameMs?.p95, gpu: r.gpuMs?.p50, gpu95: r.gpuMs?.p95, cpu: r.renderCpuMs?.p50, main: r.mainThreadMsPerFrame, calls: r.drawCalls?.p50, tris: r.triangles?.p50, canvas: r.canvas }));
+    }
+  }
+  writeFileSync(OUT, JSON.stringify(results, null, 2));
+  chrome.kill();
+  process.exit(0);
 }
 
 const VH = { intro: 6.7, shelf: 8.2, machine: 9.0, plug: 9.8, projection: 10.6 };

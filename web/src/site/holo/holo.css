@@ -1,0 +1,433 @@
+/* The holo language of the work pages after Record (/pipeline, /data; Holo.tsx). Record's hologram
+   (record/record-hologram.css) carries over: the void, the faint cutting-mat grid, teal hairlines, corner ticks,
+   IBM Plex Mono for labels, Instrument Serif for the title. Active Theory's restraint: thin lines, see-through
+   panels, no blur, no big glows. Teal is #19F5C2 only (no NVIDIA green). Motion is opacity and transform only,
+   and none at all with reduced motion.
+   Owner: T1 (pm/data-holo). T2's /pipeline and T5's /test-track use it: ask before changing a box model. */
+
+.holo,
+.holo-handoff {
+  --holo-void: #040607;
+  --holo-teal: #19f5c2;
+  --holo-amber: #ffb000;
+  --holo-line: rgba(25, 245, 194, 0.28);
+  --holo-line-dim: rgba(25, 245, 194, 0.14);
+  --holo-line-hi: rgba(25, 245, 194, 0.55);
+  --holo-glass: rgba(14, 22, 24, 0.72);
+  --holo-glass-hi: rgba(20, 32, 34, 0.86);
+  --holo-grid: rgba(25, 245, 194, 0.04);
+  --holo-grid-major: rgba(25, 245, 194, 0.075);
+  --holo-ink: #e6eeec;
+  --holo-ink-2: #8fa3a0;
+  /* Decoration only (3.3:1 on the void): never for text someone has to read. */
+  --holo-ink-3: #53625f;
+  --holo-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --holo-serif: "Instrument Serif", Georgia, serif;
+  --holo-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Inside the frame the SANT app's tokens take the holo values, so the pages' own .sant .data-* / .pipe-* rules
+   (borders, surfaces, muted text, radii) come out in the holo look without restyling each one. */
+.holo {
+  --sant-bg: var(--holo-void);
+  --sant-surface: var(--holo-glass);
+  --sant-surface-2: var(--holo-glass-hi);
+  --sant-text: var(--holo-ink);
+  --sant-muted: var(--holo-ink-2);
+  --sant-line: var(--holo-line-dim);
+  --sant-control: var(--holo-ink-2);
+  --sant-accent-soft: rgba(25, 245, 194, 0.08);
+  --sant-radius-xs: 1px;
+  --sant-radius-sm: 2px;
+  --sant-radius-md: 2px;
+  --sant-radius-lg: 2px;
+  --sant-radius-pill: 2px;
+}
+
+/* ------------------------------------------------------------------ the page frame */
+
+.holo-page {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  color: var(--holo-ink);
+  /* The cutting mat: a 24 px grid, a heavier line every 120 px, one teal light leak from the top left. */
+  background:
+    radial-gradient(60rem 30rem at 0% 0%, rgba(25, 245, 194, 0.06), transparent 70%),
+    linear-gradient(var(--holo-grid-major) 1px, transparent 1px) 0 0 / 120px 120px,
+    linear-gradient(90deg, var(--holo-grid-major) 1px, transparent 1px) 0 0 / 120px 120px,
+    linear-gradient(var(--holo-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--holo-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--holo-void);
+  color-scheme: dark;
+}
+
+/* The top strip, as Record's: not sticky, about 48 px. */
+.holo-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--holo-line-dim);
+  font: 12px/1.4 var(--holo-mono);
+}
+
+.holo-top__left,
+.holo-top__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.holo-top__right {
+  justify-content: flex-end;
+}
+
+.holo-top__brand {
+  display: inline-flex;
+  flex: none;
+}
+
+.holo-top__brand .sant-logo {
+  --logo-ink: var(--holo-ink);
+  --logo-accent: var(--holo-teal);
+  font-size: 14px;
+}
+
+.sant .holo-top__eject {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--holo-line-dim);
+  border-radius: 2px;
+  color: var(--holo-ink-2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sant .holo-top__eject:hover,
+.sant .holo-top__eject:focus-visible {
+  border-color: var(--holo-line-hi);
+  color: var(--holo-ink);
+}
+
+.sant .holo-top__title {
+  min-width: 0;
+  overflow: hidden;
+  font: 400 26px/1.15 var(--holo-serif);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--holo-ink);
+}
+
+.holo-top__title:focus {
+  outline: none;
+}
+
+.holo-top__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The path: Record › Pipeline › Data. */
+.holo-path ol {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.holo-path li + li::before {
+  content: "›";
+  padding: 0 10px;
+  color: var(--holo-ink-3);
+}
+
+.sant .holo-path a,
+.sant .holo-more a {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--holo-ink-2);
+}
+
+.sant .holo-path a {
+  padding: 4px 0;
+}
+
+.sant .holo-path a:hover,
+.sant .holo-more a:hover {
+  color: var(--holo-ink);
+}
+
+.sant .holo-path a[aria-current="page"],
+.sant .holo-more a[aria-current="page"] {
+  color: var(--holo-teal);
+  box-shadow: inset 0 -1px 0 var(--holo-teal);
+}
+
+.holo-more {
+  display: flex;
+  gap: 14px;
+}
+
+.holo-main {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 16px 48px;
+}
+
+/* Coming in (on every mount, quickly; a hand-off's veil lifts over it): the page's blocks rise a little, in turn. */
+.holo-main > * {
+  animation: holo-in 520ms var(--holo-ease) both;
+}
+
+.holo-main > :nth-child(2) { animation-delay: 60ms; }
+.holo-main > :nth-child(3) { animation-delay: 120ms; }
+.holo-main > :nth-child(n + 4) { animation-delay: 180ms; }
+
+@keyframes holo-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 900px) {
+  .holo-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+
+  .holo-path {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 520px) {
+  /* A phone: three rows (the title, the path, the actions and More), nothing hidden. */
+  .holo-top {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 8px 12px;
+  }
+
+  .holo-path {
+    grid-row: auto;
+  }
+
+  .holo-top__right {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .sant .holo-top__title {
+    font-size: 22px;
+  }
+
+  .holo-main {
+    padding: 16px 12px 40px;
+  }
+}
+
+/* ------------------------------------------------------------------ primitives */
+
+/* A see-through panel. Position only: the element keeps its own display, padding and overflow. The corner ticks are
+   ::before (::after is the page's own, e.g. the pipeline's one-off scanline). */
+.holo-panel {
+  position: relative;
+  background: var(--holo-glass, rgba(14, 22, 24, 0.72));
+  border: 1px solid var(--holo-line-dim, rgba(25, 245, 194, 0.14));
+}
+
+.holo-panel::before {
+  --holo-tick: var(--holo-line-hi, rgba(25, 245, 194, 0.55));
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--holo-tick), var(--holo-tick)) top left / 10px 1px no-repeat,
+    linear-gradient(var(--holo-tick), var(--holo-tick)) top left / 1px 10px no-repeat,
+    linear-gradient(var(--holo-tick), var(--holo-tick)) top right / 10px 1px no-repeat,
+    linear-gradient(var(--holo-tick), var(--holo-tick)) top right / 1px 10px no-repeat,
+    linear-gradient(var(--holo-tick), var(--holo-tick)) bottom left / 10px 1px no-repeat,
+    linear-gradient(var(--holo-tick), var(--holo-tick)) bottom left / 1px 10px no-repeat,
+    linear-gradient(var(--holo-tick), var(--holo-tick)) bottom right / 10px 1px no-repeat,
+    linear-gradient(var(--holo-tick), var(--holo-tick)) bottom right / 1px 10px no-repeat;
+}
+
+.holo-panel[data-holo-state="pass"],
+.holo-panel[data-holo-state="live"] {
+  border-color: var(--holo-line, rgba(25, 245, 194, 0.28));
+}
+
+.holo-panel[data-holo-state="pass"]::before,
+.holo-panel[data-holo-state="live"]::before {
+  --holo-tick: var(--holo-teal, #19f5c2);
+}
+
+.holo-panel[data-holo-state="fail"] {
+  border-color: rgba(255, 176, 0, 0.32);
+}
+
+.holo-panel[data-holo-state="fail"]::before {
+  --holo-tick: var(--holo-amber, #ffb000);
+}
+
+/* A mono label in capitals. */
+.holo-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 11px/1.3 var(--holo-mono, "IBM Plex Mono", ui-monospace, monospace);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--holo-ink-2, #8fa3a0);
+}
+
+.holo-tag[data-dot="true"]::before {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--holo-teal, #19f5c2);
+}
+
+/* A hairline, fading to the right; a label sits at its left. */
+.holo-rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 1px;
+}
+
+.holo-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--holo-line, rgba(25, 245, 194, 0.28)), transparent);
+}
+
+.holo-rule__label {
+  flex: none;
+  font: 500 11px/1.3 var(--holo-mono, "IBM Plex Mono", ui-monospace, monospace);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--holo-ink-2, #8fa3a0);
+}
+
+/* A glow trace: a hairline with a light running along it. */
+.holo-trace {
+  position: relative;
+  display: block;
+  height: 1px;
+  overflow: hidden;
+  background: var(--holo-line-dim, rgba(25, 245, 194, 0.14));
+}
+
+.holo-trace::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--holo-teal, #19f5c2), transparent);
+  animation: holo-trace 2.6s linear infinite;
+}
+
+@keyframes holo-trace {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
+}
+
+/* ------------------------------------------------------------------ the hand-off (handoff.ts) */
+
+.holo-handoff {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  background:
+    linear-gradient(var(--holo-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--holo-grid) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--holo-void);
+  animation: holo-veil-in 320ms var(--holo-ease) both;
+}
+
+.holo-handoff__line {
+  display: block;
+  width: min(560px, 70vw);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--holo-teal) 30%, var(--holo-teal) 70%, transparent);
+  transform-origin: left center;
+  animation: holo-line-draw 320ms var(--holo-ease) both;
+}
+
+.holo-handoff__tag {
+  font: 500 11px/1.3 var(--holo-mono);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--holo-teal);
+  animation: holo-in 320ms var(--holo-ease) 80ms both;
+}
+
+.holo-handoff__tag::before {
+  content: "→ ";
+}
+
+.holo-handoff[data-state="out"] {
+  animation: holo-veil-out 420ms var(--holo-ease) both;
+}
+
+.holo-handoff[data-state="out"] .holo-handoff__line {
+  animation: holo-line-lift 420ms var(--holo-ease) both;
+}
+
+@keyframes holo-veil-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes holo-veil-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes holo-line-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes holo-line-lift {
+  from { transform: none; }
+  to { transform: translateY(-24px) scaleX(1.15); opacity: 0; }
+}
+
+/* ------------------------------------------------------------------ reduced motion: everything still */
+
+@media (prefers-reduced-motion: reduce) {
+  .holo-main > *,
+  .holo-trace::after,
+  .holo-handoff,
+  .holo-handoff * {
+    animation: none !important;
+  }
+}
+
+[data-motion="reduced"] .holo-main > *,
+[data-motion="reduced"] .holo-trace::after {
+  animation: none !important;
+}

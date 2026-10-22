@@ -1,13 +1,19 @@
-/* The loader: black, a cartridge of slashes lighting from the bottom, the //N counter under it. */
+/* The loader (Loader.tsx): black; the SANT mark lighting part by part as the first scene gets built, a
+   hairline bar, the share and what it waits for. It lifts into the hero: the mark rises a little and
+   dissolves as the black opens. Reduced motion: a plain, quick fade. */
 .world-loader {
+  --loader-ease: cubic-bezier(0.23, 1, 0.32, 1);
   position: fixed;
   inset: 0;
   z-index: 50;
   background: #000;
   display: grid;
-  place-items: center;
-  transition: opacity 0.7s ease;
+  place-content: center;
+  justify-items: center;
+  gap: 22px;
   pointer-events: auto;
+  font-family: var(--w-mono);
+  transition: opacity 0.7s ease 0.2s;
 }
 
 .world-loader[data-done="true"] {
@@ -15,38 +21,164 @@
   pointer-events: none;
 }
 
-.world-loader__cart {
-  margin: 0;
-  font-family: var(--w-mono);
-  font-size: 12px;
-  line-height: 1.18;
-  color: #0f1c19;
-  text-align: center;
-  user-select: none;
+/* The mark: every part dim, each lit in its order as the work gets done (data-lit = parts lit). */
+.world-loader__mark {
+  font-size: 30px;
+  transition: transform 0.9s var(--loader-ease), opacity 0.6s var(--loader-ease), filter 0.6s var(--loader-ease);
 }
 
-.world-loader__cart span {
-  transition: color 0.25s;
+.world-loader .world-loader__mark .sant-logo {
+  --logo-ink: var(--w-ink);
+  --logo-accent: var(--w-teal);
+  font-size: 30px;
 }
 
-.world-loader__cart span.is-lit {
-  color: rgba(25, 245, 194, 0.55);
+.world-loader .world-loader__mark .sant-logo__symbol {
+  width: 2.2em;
+  height: 2.2em;
 }
 
-.world-loader__count {
+.world-loader .world-loader__mark .sant-logo__unit {
+  stroke: rgb(216 239 233 / 0.12);
+  transition: stroke 0.5s ease;
+}
+
+.world-loader .world-loader__mark[data-lit="1"] .sant-logo__unit:nth-of-type(-n + 1),
+.world-loader .world-loader__mark[data-lit="2"] .sant-logo__unit:nth-of-type(-n + 2),
+.world-loader .world-loader__mark[data-lit="3"] .sant-logo__unit:nth-of-type(-n + 3),
+.world-loader .world-loader__mark[data-lit="4"] .sant-logo__unit {
+  stroke: var(--w-ink);
+}
+
+.world-loader .world-loader__mark[data-lit="3"] .sant-logo__unit[data-part="accent"]:nth-of-type(-n + 3),
+.world-loader .world-loader__mark[data-lit="4"] .sant-logo__unit[data-part="accent"] {
+  stroke: var(--w-teal);
+}
+
+.world-loader .world-loader__mark .sant-logo__word {
+  color: rgb(216 239 233 / 0.7);
+}
+
+/* The bar: a hairline track, filled by transform (no layout). */
+.world-loader__bar {
+  position: relative;
+  width: min(240px, 60vw);
+  height: 1px;
+  background: rgb(25 245 194 / 0.16);
+  overflow: hidden;
+}
+
+.world-loader__bar i {
   position: absolute;
-  top: calc(50% + 104px);
-  left: 50%;
-  transform: translateX(-50%);
-  color: var(--w-teal);
-  font-family: var(--w-mono);
-  font-size: 11px;
-  letter-spacing: 0.2em;
+  inset: 0;
+  background: var(--w-teal);
+  transform-origin: left;
+  transition: transform 0.35s var(--loader-ease);
 }
 
-[data-motion-world="reduced"] .world-loader,
-[data-motion-world="reduced"] .world-loader__cart span {
+.world-loader__status {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  min-height: 1.4em;
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--w-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.world-loader__pct {
+  min-width: 4ch;
+  text-align: right;
+  color: var(--w-teal);
+}
+
+.world-loader__detail {
+  color: rgb(216 239 233 / 0.45);
+}
+
+/* Taking a while: the way on. */
+.world-loader__slow {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--w-dim);
+  animation: world-loader-in 0.4s var(--loader-ease);
+}
+
+.world-loader__slow p {
+  margin: 0;
+}
+
+.world-loader__slow div {
+  display: flex;
+  gap: 10px;
+}
+
+.world-loader__slow button {
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 9px 14px;
+  color: var(--w-ink);
+  background: rgb(25 245 194 / 0.06);
+  border: 1px solid rgb(25 245 194 / 0.35);
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.16s ease-out;
+}
+
+.world-loader__slow button:hover {
+  background: rgb(25 245 194 / 0.14);
+}
+
+.world-loader__slow button:active {
+  transform: scale(0.97);
+}
+
+.world-loader__slow button:focus-visible {
+  outline: 1px solid var(--w-teal);
+  outline-offset: 3px;
+}
+
+@keyframes world-loader-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* The lift: the mark rises and dissolves, the bar and the words go first. */
+.world-loader[data-done="true"] .world-loader__mark {
+  transform: translateY(-10px) scale(1.06);
+  opacity: 0;
+  filter: blur(4px);
+}
+
+.world-loader__bar,
+.world-loader__status {
+  transition: opacity 0.25s ease;
+}
+
+.world-loader[data-done="true"] .world-loader__bar,
+.world-loader[data-done="true"] .world-loader__status {
+  opacity: 0;
+}
+
+[data-motion-world="reduced"] .world-loader {
+  transition: opacity 0.25s ease;
+}
+
+[data-motion-world="reduced"] .world-loader *,
+[data-motion-world="reduced"] .world-loader[data-done="true"] .world-loader__mark {
   transition: none;
+  animation: none;
+  transform: none;
+  filter: none;
 }
 
 /* ------------------------------------------------------------------ the story (Story.tsx)

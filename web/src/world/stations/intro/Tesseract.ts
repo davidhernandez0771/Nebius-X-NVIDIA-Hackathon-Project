@@ -1,7 +1,12 @@
-// The hero's tesseract (tesseractPlan.ts does the 4D maths): chrome tubes with ball joints for the outer cube and
+// The hero's tesseract (tesseractPlan.ts does the 4D maths): steel tubes with ball joints for the outer cube and
 // the links, glowing teal tubes for the inner cube, after the mark's 3D look (docs/design/logo/tesseract-3d-A.png).
 // Three instanced draws, their matrices laid along the projected edges every update. In the logo's units (the old
 // ring's radius is 1); Scene.tsx scales and turns the group. Low tier and phones: thinner tubes, fewer sides.
+//
+// Unlit, on purpose: matcaps made here (polished steel, and a bright one the teal tints into a glow). A lit
+// material (MeshPhysical) recompiled its shaders when the workshop's lamps joined the scene a second after the
+// hero appeared, about 180 ms of stalls on ultra; a matcap ignores the scene's lights, and is cheap to compile and
+// to draw.
 import * as THREE from "three";
 import type { QualityTier, TierName } from "../../core/quality";
 import { EDGES, OPEN, hyperFrame, type Angles4 } from "./tesseractPlan";
@@ -12,43 +17,75 @@ export const TESSERACT_LOOK: Record<TierName, { tube: number; sides: number; bal
   ultra: { tube: 0.034, sides: 20, ball: [24, 16] },
 };
 
-/** The steel's reflection strength (the hero fades it with its light). */
-export const CHROME_ENV = 0.9;
-
 /** A joint's radius, to the tube's (the outer cube's chrome balls); the inner cube's joints just round its corners. */
 const BALL = 1.7;
-const TEAL = new THREE.Color("#19f5c2");
+/** The inner cube's colour: brighter than white (linear), with a pale, hot core. The bloom clamps each pixel to 1
+ *  before its 0.8 threshold; a pure teal (no red) clamps to about 0.78 and never blooms, so the core carries some
+ *  red and blue, and the hero's one glow comes back. */
+const TEAL_GLOW = new THREE.Color(0.62, 1.35, 1.12);
+
+const toSrgb = (c: number) => {
+  const v = Math.min(1, Math.max(0, c));
+  return Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055));
+};
+
+/** A matcap (the shade of a sphere seen from the front, by its normal), `size` square, made here: polished steel,
+ *  or a bright `glow` one that a colour tints. Rows run bottom up, as three's matcap lookup expects. */
+function matcap(size: number, kind: "steel" | "glow"): THREE.DataTexture {
+  const data = new Uint8Array(size * size * 4);
+  const key = new THREE.Vector3(-0.5, 0.6, 0.62).normalize();
+  const fill = new THREE.Vector3(0.6, -0.3, 0.5).normalize();
+  const n = new THREE.Vector3();
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      let u = ((x + 0.5) / size) * 2 - 1, v = ((y + 0.5) / size) * 2 - 1;
+      const r = Math.hypot(u, v);
+      if (r > 1) [u, v] = [u / r, v / r];
+      n.set(u, v, Math.sqrt(Math.max(0, 1 - u * u - v * v)));
+      const k = Math.max(0, n.dot(key));
+      const spec = k ** 24 * 0.8 + k ** 160 * 2;
+      const rim = (1 - n.z) ** 3;
+      let c: [number, number, number];
+      if (kind === "steel") {
+        // Polished #8a9197 steel: a dark body, the long softbox it reflects up top (bright, soft-edged), a hot key
+        // highlight, a faint floor bounce below and a cold rim. Contrast is what reads as polish.
+        const band = Math.exp(-(((n.y - 0.5) / 0.16) ** 2)) * (0.35 + 0.65 * n.z);
+        const floor = Math.exp(-(((n.y + 0.55) / 0.2) ** 2)) * 0.08;
+        const a = [0.25, 0.28, 0.31];
+        c = [0, 1, 2].map((i) => a[i] * (0.14 + 0.1 * Math.max(0, n.dot(fill))) + band * 0.55 + floor + spec + rim * 0.2 * (i ? 1.06 : 0.94)) as [number, number, number];
+      } else {
+        // Bright across the whole tube, not just its middle, so all of it clears the bloom's threshold.
+        const l = 0.75 + 0.3 * n.z + 0.2 * spec;
+        c = [l, l, l];
+      }
+      data.set([toSrgb(c[0]), toSrgb(c[1]), toSrgb(c[2]), 255], (y * size + x) * 4);
+    }
+  const t = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+
+/** The steel matcap (exported for the tests). */
+export const steelMatcap = (size: number) => matcap(size, "steel");
 
 export interface TesseractHandle {
   group: THREE.Group;
-  /** The materials, whose light the hero fades. */
-  materials: { chrome: THREE.MeshPhysicalMaterial; teal: THREE.MeshPhysicalMaterial; joints: THREE.MeshPhysicalMaterial };
   update(a: Angles4): void;
+  /** The hero's light, 0–1: the steel and the glow fade with it. */
+  setLight(light: number): void;
   dispose(): void;
 }
 
-export function makeTesseract(q: QualityTier, env: THREE.Texture): TesseractHandle {
+export function makeTesseract(q: QualityTier): TesseractHandle {
   const look = TESSERACT_LOOK[q.name];
-  // Polished steel, not white: a mid-grey metal and a dimmer studio, so the teal stays the only glow under the bloom.
-  const chrome = new THREE.MeshPhysicalMaterial({
-    color: 0x8a9197,
-    metalness: 1,
-    roughness: 0.2,
-    clearcoat: q.name === "low" ? 0 : 0.25,
-    clearcoatRoughness: 0.12,
-    envMap: env,
-    envMapIntensity: CHROME_ENV,
-  });
-  const teal = new THREE.MeshPhysicalMaterial({
-    color: 0xa2f4e0,
-    emissive: TEAL,
-    emissiveIntensity: 0.85,
-    roughness: 0.3,
-    metalness: 0,
-    envMap: env,
-    envMapIntensity: 0.6,
-  });
-  const joints = chrome.clone();
+  const steel = steelMatcap(q.name === "low" ? 64 : 128);
+  const glow = matcap(64, "glow");
+  const chrome = new THREE.MeshMatcapMaterial({ matcap: steel });
+  // Not tone-mapped, as the site's other glows (PostFX.tsx): tone mapping would squeeze it under the bloom's threshold.
+  const teal = new THREE.MeshMatcapMaterial({ matcap: glow, color: TEAL_GLOW, toneMapped: false });
+  const joints = new THREE.MeshMatcapMaterial({ matcap: steel });
 
   const tubeGeo = new THREE.CylinderGeometry(look.tube, look.tube, 1, look.sides, 1, true);
   const ballGeo = new THREE.SphereGeometry(1, ...look.ball);
@@ -106,13 +143,19 @@ export function makeTesseract(q: QualityTier, env: THREE.Texture): TesseractHand
 
   return {
     group,
-    materials: { chrome, teal, joints },
     update,
+    setLight(light) {
+      chrome.color.setScalar(light);
+      joints.color.setScalar(light);
+      teal.color.copy(TEAL_GLOW).multiplyScalar(light);
+    },
     dispose() {
       tubeGeo.dispose();
       ballGeo.dispose();
       chrome.dispose();
       teal.dispose();
+      steel.dispose();
+      glow.dispose();
       joints.dispose();
       for (const m of [chromeTubes, tealTubes, balls]) m.dispose();
     },

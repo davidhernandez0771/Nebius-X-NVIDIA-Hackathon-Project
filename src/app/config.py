@@ -7,6 +7,7 @@ instead of one baked in at import time.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -30,3 +31,23 @@ def photos_dir() -> Path:
 
 def scans_dir() -> Path:
     return upload_dir() / "scans"
+
+
+_LOCAL_ORIGIN = re.compile(r"http://(localhost|127\.0\.0\.1):\d{2,5}")
+
+
+def cors_origins() -> list[str]:
+    """The browser origins the API answers: the Vite dev server (5173), plus SANT_CORS_ORIGINS (comma-separated) for a
+    dev server on another port. Only this machine's http origins are taken; anything else in the variable is ignored."""
+    out = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    for o in os.environ.get("SANT_CORS_ORIGINS", "").split(","):
+        o = o.strip()
+        if _LOCAL_ORIGIN.fullmatch(o) and o not in out:
+            out.append(o)
+    return out
+
+
+def pipeline_enabled() -> bool:
+    """Whether the site may start, cancel or resume pipeline runs (app/routers/pipeline.py): off unless SANT_PIPELINE=1,
+    so a public deployment can't start GPU jobs. Reading runs and downloading their artifacts is always allowed."""
+    return os.environ.get("SANT_PIPELINE", "").strip().lower() in ("1", "true", "yes", "on")

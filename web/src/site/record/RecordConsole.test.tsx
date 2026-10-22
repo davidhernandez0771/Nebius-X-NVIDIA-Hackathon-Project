@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MotionProvider } from "../../sant/motion/MotionProvider";
+import { resetHandoff } from "../holo/handoff";
 import type { HandFrame, TrackedHand } from "../../hand/contracts";
 import type { SimStatus } from "../../record/recordLink";
 import { DEFAULT_TELEOP_CONTROL, TELEOP_CONTROL_STORAGE_KEY } from "../../record/teleop/controlRegion";
@@ -265,6 +266,21 @@ describe("/record", () => {
     expect(within(tile("recorded")).getByText("1")).toBeTruthy();
   });
 
+  it("after Record, runs SANT on the demos saved this visit: the pipeline, with their ids", async () => {
+    const link = await startCamera();
+    const run = () => screen.getByRole("link", { name: /run sant/i });
+    expect(run().getAttribute("href")).toBe("/pipeline");
+    act(() => link.emitStatus(connected));
+    act(() => link.emitSim(sim({ steps: 376, demoId: "human_a", lastResult: "saved human_a" })));
+    act(() => link.emitSim(sim({ steps: 200, demoId: "human_b", lastResult: "saved human_b" })));
+    expect(run().getAttribute("href")).toBe("/pipeline?demos=human_a,human_b");
+    expect(run().textContent).toMatch(/2 demos/);
+    // The hand-off to the pipeline (site/holo/handoff.ts): the veil comes up with its name.
+    fireEvent.click(run());
+    expect(document.querySelector(".holo-handoff")?.textContent).toBe("Pipeline");
+    resetHandoff();
+  });
+
   it("Stop & discard shows only while recording and sends record_discard; Record still stops and saves", async () => {
     const link = await startCamera();
     act(() => link.emitStatus(connected));
@@ -432,8 +448,11 @@ describe("/record: the hologram's top bar and boot", () => {
     expect(screen.getByText("FRANKA")).toBeTruthy();
     expect(screen.getByText("Franka Panda")).toBeTruthy();
     const steps = screen.getByRole("navigation", { name: "SANT steps" });
-    expect(within(steps).getByText("S · show").getAttribute("aria-current")).toBe("step");
-    expect(within(steps).getByText("T · train").getAttribute("aria-current")).toBeNull();
+    // Each step reads in full ("S · show"); on laptop widths only its letter shows (the word stays for screen readers).
+    const step = (text: string) => within(steps).getByText((_, el) => !!el?.classList.contains("rg-step") && el.textContent === text);
+    expect(step("S · show").getAttribute("aria-current")).toBe("step");
+    expect(step("S · show").querySelector(".rg-step__word")?.textContent).toBe(" · show");
+    expect(step("T · train").getAttribute("aria-current")).toBeNull();
   });
 
   it("plugs in once: panes draw in with one scanline sweep, then it's gone", () => {

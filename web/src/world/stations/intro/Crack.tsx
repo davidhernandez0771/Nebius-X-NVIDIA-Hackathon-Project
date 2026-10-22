@@ -99,7 +99,7 @@ export interface CrackHandle {
 
 /** The crack, procedural at once, swapped for CRACK_SLOT.url's model if one is served and `model` allows it (the low
  *  tier keeps the procedural one: the model is ~27k triangles and 1.3 MB). */
-export function makeCrack(u: PlaceUniforms, glow: THREE.IUniform<number>, fetchImpl: typeof fetch = fetch, model = true): CrackHandle {
+export function makeCrack(u: PlaceUniforms, glow: THREE.IUniform<number>, fetchImpl: (url: string) => Promise<Response> = fetch, model = true): CrackHandle {
   const group = new THREE.Group();
   group.name = "forest:crack";
   const drop = { value: 0 };
