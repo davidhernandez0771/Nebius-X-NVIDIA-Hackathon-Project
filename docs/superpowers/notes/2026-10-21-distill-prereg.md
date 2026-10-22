@@ -1327,12 +1327,13 @@ DAgger round 1 only, if that round is ever needed.
     1 m/s, from the tool. With the flag, the label is 0.41, one capped step.
 - **Default off, so nothing already run changes:** round 0 (@300 and @600) and gates (a) and (b) never set the flag.
   - The run going on now uses `pm/distill-dagger` `95663cb`, which doesn't contain these commits.
-- **The tests (T3):** SANT 2610 passed; the Isaac venv's `test_rl_*.py` 55 passed / 1 skipped.
+- **The tests (T3):** SANT 2610 passed / 36 skipped; the Isaac venv's `test_rl_*.py` 55 passed / 1 skipped.
 - **Checked here:**
   - the two commits, their times and parents;
   - the diff (`act()` calls `forget_prev_target()` only when `cap_from_tool` is set);
   - `pm/distill-dagger` doesn't yet reference `cap_from_tool`.
 - **Still to fix before any DAgger data exists:** for DAgger round 1 to use the flag, `pm/distill-dagger` must merge
   `681e8dd` and pass `cap_from_tool=True` to the teacher in DAgger rounds only, never in round 0.
-  - That merge and wiring is a separate commit. It is logged here when T6 makes it.
+  - That merge and wiring is a separate commit, made by T6 in a scratch worktree while selection runs. It is logged
+    here when T6 sends its hash.
   - If it isn't in place before DAgger round 1 starts, round 1 runs with the default labels, and that is disclosed.
