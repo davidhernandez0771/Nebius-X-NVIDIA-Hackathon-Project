@@ -1111,3 +1111,23 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
 
 **Step 2, the decision test on fresh seeds 7100–7131,** started at about 07:57, into
 `data\rl\eval\v6h_check_7100_achieved`. Gate (a) runs only if its SANT replay verify is ≥ 29/32.
+
+**Step 2, THE DECISION TEST, on fresh seeds 7100–7131: PASSED, with SANT's replay at 30/32** (Wilson 0.799–0.983),
+against the bar of ≥ 29/32. It used `data\rl\eval\v6h_check_7100_achieved`, `model_2697`, the held execution, the
+achieved recording and code `6101243`.
+- **In the env:** 29/32 (7104 collision; 7115 collision and dropped; 7118 collision).
+- **The replay failures:** 7104 (collision) and 7115 (not in the bin, and dropped).
+- **Agreement, in-env vs replay: 31/32.** The only disagreement is 7118, which fails in the env and succeeds in replay.
+- **The replay durations:** 7.08 / 8.32 / 11.98 s (T3's figures).
+- **Timing:** the eval ran 07:57:14–07:58:05. The verify took and released its lock at 07:58:06 and was done at
+  08:09:14.
+- **Checked here:**
+  - `in_env.json` (07:58:05) has `execution: held`, `trajectory: achieved` and 29/32 on `model_2697`;
+  - `verify.json` (08:09:14) has 30/32 (Wilson 0.799–0.983), agreement 31, and failures collision 1, not_in_bin 1,
+    dropped 1;
+  - there are 32 scenes, 7100–7131.
+
+**So gate (a) runs, as Amendment 5 says.** It started once, on 5450–5499, into `data\rl\eval\v6h_gate_a`.
+- **Checked here:** the folder was created at 08:09:35, after the decision test's verify had finished (08:09:14).
+  `gpu.lock` reads `rl-eval:v6h_gate_a`, taken at 08:09:35.
+- **Its result is added here.** The teacher gate under Amendment 4 needs both parts; part (b) passed at 48/50.
