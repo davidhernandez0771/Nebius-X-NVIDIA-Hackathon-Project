@@ -422,6 +422,59 @@ the student (zero velocity target). The label is that executed target; the pairi
 - **Round 0 (held) expected size:** ~115k teacher frames; mix = teacher ×1, human ×~1.83, so ~173k exported frames.
   About 3.8 h in all. It starts on the lead's go (2026-10-22 morning).
 
+**6. Held round 0 @300 (`distill_mouse_held`), 2026-10-22 08:26:47 → 12:28:57 (4 h 02 min), code 95663cb (T3's
+6101243 merged; it touches only T3's eval script).**
+- **Teacher:** demo_v6h model_2697, `exported\policy.pt` re-exported by T3 at 08:09:47, sha256 811382A3…AA2.
+  Gate (b) ran on the earlier export, B67476D9…. The new export's 12 tensors equal model_2697's actor bit for bit
+  (control model_2650: 0/12). That last night's file held the same weights is inference.
+- **Rollouts (4300–4599):** 289/300, 115,111 frames, 76 min. The 11 failures were all time limits.
+- **Mix:** human 0.3341 (×1.8251) / teacher 0.6659 (×1.0).
+- **Export and training:** 490 episodes, 172,861 frames in ~57 min (≈ 20 s per 1,000 with QoS); 60k steps in
+  ~56 min.
+- **Selection (5301–5329):** s40000 10/29, s60000 12/29 (picked). Below 18/29. Failures mostly drops.
+- **Label check (CPU), median per step:**
+
+  | | lead | change | tool speed |
+  |---|---|---|---|
+  | held teacher | 0.038 rad | 0.005 | 0.15 m/s |
+  | human | 0.002 rad | 0.0035 | 0.20 m/s |
+
+  The pace now matches the human data. The labels are the executed targets. The lead differs from the human labels
+  (a different command convention, both executable).
+- **Practice trace (s60000, 5200–5204, 12:31:52 → 12:36:24): 3/5.** Commanded-vs-actual lag 0.016–0.039 rad, the
+  teacher's scale. The failures are a drop with regrasps (5201) and failed grasps (5204). No new systematic bug.
+  - Two attempts on 5210–5214 were stopped during startup; NO episode ran, so DAgger r1 stays 5210–5249.
+
+**7. Extension @600 (same run id), 12:36:41 → 17:47:42 (5 h 11 min), code 95663cb.**
+- **Rollouts:** 565/600 in all, the new 4600–4899 at 276/300; 224,435 frames.
+- **Mix:** human 0.3335 (×3.5584) / teacher 0.6665.
+- **Export and training:** 956 episodes, 336,729 frames in ~1 h 51 min; 60k steps in ~1 h 16 min (12.7 min per 10k).
+- **Selection (5301–5329):**
+
+  | Checkpoint | Score | Failure reasons |
+  |---|---|---|
+  | s40000 | 15/29 | not_in_bin 14, dropped 13, gripper_closed 6, collision 5 |
+  | s60000 | **21/29**, picked | dropped 8, not_in_bin 6, gripper_closed 2, collision 1 |
+
+  21 ≥ 18/29, so this is the **final model** (prereg rule).
+- **Logging slip:** the extension's stdout redirect went to an unresolved relative path (PowerShell's current
+  directory), so the monitors read `r0\distill_round.log`, which has the same phase lines.
+
+**8. THE FINAL TEST (prereg command, once): 15/40 on 5020–5059 (37.5%), Wilson 95% 0.242–0.530.**
+- **Run:** lock 17:48:15 → 18:24:12 (35.9 min); `eval_cells --run-id distill_mouse_final --checkpoint
+  distill_final=<@600 s60000> --seed0 5020 --n 40 --start-state ...raw_10 --start-pose dataset --trace`, no
+  inference flags.
+- **Goal ≥ 24/40: not met.**
+- **Two-sided Fisher exact:**
+  - vs the mouse SANT arm 3/40: p = 0.0025, significant;
+  - vs the mouse raw arm 0/40: p = 1.2e-5, significant.
+- **Reference only:** scripted multiply 17/40.
+- **Failures:** 25, all time limit, all including "dropped" (not_in_bin 22, gripper_closed 8, collision 7). No sim or
+  policy errors, 0 retries.
+- **Files:** `data\evals\distill_mouse_final\` (json, episodes.jsonl, traces for all 40).
+- **Selection vs test:** selection's 21/29 (Wilson 0.54–0.85) overstated the test's 15/40. That is the max of two
+  candidates on 29 seeds (winner's curse); the intervals overlap. The test is the number that counts.
+
 ### Time estimates on the RTX 5080
 
 These are measured where noted and are otherwise judgement.
