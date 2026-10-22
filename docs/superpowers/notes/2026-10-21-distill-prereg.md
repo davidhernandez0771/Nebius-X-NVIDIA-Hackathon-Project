@@ -1062,3 +1062,16 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
   approved by the lead; checked on the branch).
 - **The bar:** ≥ 45/50. Hard stop at 22:58.
 - **Its result is added here.**
+
+**T3 confirmed Amendment 5's morning order** (read at `986fff0`). The teacher is `model_2697` throughout, with
+`6101243`'s recording:
+
+| Step | Seeds | Output folder | Role |
+|---|---|---|---|
+| 1 | 7000–7031 | `data\rl\eval\v6h_replaycheck_7000_achieved` | diagnostic only, reported |
+| 2 | 7100–7131 (fresh) | `data\rl\eval\v6h_check_7100_achieved` | the decision test |
+| 3 | 5450–5499 | `data\rl\eval\v6h_gate_a` | gate (a), once, only if step 2's replay is ≥ 29/32 |
+
+- **A note from T3:** each `rl_eval_teacher` run re-exports `exported\policy.pt` from `model_2697`. It is the same
+  checkpoint, so it is the same policy, but the file's modification time changes. Tonight's gate (b) uses that file,
+  so T3 leaves it alone until gate (b) ends.
