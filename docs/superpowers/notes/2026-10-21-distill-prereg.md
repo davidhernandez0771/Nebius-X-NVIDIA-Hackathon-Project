@@ -1086,3 +1086,28 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
 - **A note from T3:** each `rl_eval_teacher` run re-exports `exported\policy.pt` from `model_2697`. It is the same
   checkpoint, so it is the same policy, but the file's modification time changes. Tonight's gate (b) uses that file,
   so T3 leaves it alone until gate (b) ends.
+
+## 2026-10-22: Amendment 5's morning steps
+
+**Step 1 (diagnostic only): the replay check on 7000–7031 under the achieved recording**
+(`data\rl\eval\v6h_replaycheck_7000_achieved`). It used `model_2697`, the held execution and code `6101243`.
+
+| Measure | Achieved recording (step 1) | Commanded recording (last night) |
+|---|---|---|
+| In the env | 30/32 (7016 collision; 7023 collision and dropped) | 30/32 |
+| **SANT's replay verify** | **29/32** (Wilson 0.758–0.968) | 22/32 |
+| Agreement, in-env vs replay | 31/32 | 24/32 |
+
+- **The replay failures:** 7006 (not in the bin, and dropped), 7016 (collision) and 7023 (collision and dropped).
+- **The replay durations:** 6.96 / 8.16 / 11.98 s (T3's figures).
+- **Timing:** the eval ran 07:46:48–07:47:23. The verify took and released its lock at 07:47:25 and was done at
+  07:56:51.
+- **Checked here:**
+  - `in_env.json` (07:47:22) has `execution: held`, `trajectory: achieved` and 30/32 on `model_2697`;
+  - `verify.json` (07:56:50) has 29/32 (Wilson 0.758–0.968), agreement 31, and failure counts not_in_bin 1, dropped 2,
+    collision 2;
+  - there are 32 scenes, 7000–7031.
+- **Diagnostic only:** these are the seeds that motivated Amendment 5, so this result decides nothing.
+
+**Step 2, the decision test on fresh seeds 7100–7131,** started at about 07:57, into
+`data\rl\eval\v6h_check_7100_achieved`. Gate (a) runs only if its SANT replay verify is ≥ 29/32.
