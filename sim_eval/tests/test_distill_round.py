@@ -168,8 +168,8 @@ def cfg(tmp_path: Path, round_id: int = 0, **over) -> RoundConfig:
 class FakeRunner:
     """Writes what each GPU command would: rollout episodes, a training run, practice results."""
 
-    def __init__(self, data: Path, teacher_ok=True, student_success=0, practice=(1, 2)):
-        self.data, self.cmds = data, []
+    def __init__(self, data: Path, teacher_ok=True, student_success=0, practice=(1, 2), execution=None):
+        self.data, self.cmds, self.execution = data, [], execution
         self.teacher_ok, self.student_success, self.practice = teacher_ok, student_success, practice
 
     def __call__(self, cmd, env, log_file):
@@ -192,7 +192,8 @@ class FakeRunner:
             (out / "rollouts_done.json").write_text(json.dumps({
                 "kind": kind, "round": r, "seeds": [seed0, seed0 + n - 1], "attempted": n,
                 "successes": sum(x["success"] for x in rows), "episodes": sum(len(x["episodes"]) for x in rows),
-                "frames": frames, "teacher": "rl"}), encoding="utf-8")
+                "frames": frames, "teacher": "rl",
+                **({"teacher_execution": self.execution} if self.execution else {})}), encoding="utf-8")
         elif cmd[1:3] == ["-m", "lerobot_tools.experiments"]:
             grid = json.loads(Path(cmd[cmd.index("--grid") + 1]).read_text(encoding="utf-8"))
             (cell,) = grid["cells"]
@@ -461,6 +462,55 @@ def test_round_grid_stops_on_a_selection_seed_episode(tmp_path):
     with pytest.raises(PhaseFailed, match="5301"):
         run(c, FakeRunner(c.data))
     assert not c.grid_file.exists()
+
+
+def test_held_teacher_execution_is_passed_on_recorded_and_not_mixed(tmp_path):
+    """Option A: --teacher-execution held reaches distill_rollouts and round.json; a round-0 folder whose rollouts
+    were made with the teacher's tracking does not count as done for a held round (it needs its own run id)."""
+    c = cfg(tmp_path, teacher_n=2)
+    run_phases(plan_round(c, log=lambda m: None, runner=FakeRunner(c.data), stop_after="rollouts"),
+               log=lambda m: None)
+    assert "--teacher-execution" in teacher_cmd(c) and teacher_cmd(c)[-1] == "tracking"
+    held = cfg(tmp_path, teacher_n=2, teacher_execution="held")
+    assert teacher_cmd(held)[-2:] == ["--teacher-execution", "held"]
+    pending = [ph.name for ph in plan_round(held, log=lambda m: None, runner=FakeRunner(held.data)) if not ph.done()]
+    assert "rollouts" in pending  # the tracking rollouts_done.json does not cover a held round
+    h2 = cfg(tmp_path / "h2", teacher_n=2, teacher_execution="held")
+    runner = FakeRunner(h2.data, execution="held")
+    run(h2, runner)
+    rnd0 = json.loads(h2.round_file.read_text(encoding="utf-8"))
+    assert rnd0["teacher_execution"] == "held"
+    with pytest.raises(ValueError):
+        cfg(tmp_path, teacher_execution="fast")
+
+
+def test_amendment_4_ranges_are_accepted(tmp_path, capsys):
+    """Amendment 4 (2026-10-21): gate (b) on 4950-4999 (its own run id, never training data), round 0 on 4300-4599
+    (extension 4300-4899), selection on 5301-5329 (5300 excluded: 29 seeds), DAgger round 1 from 5210."""
+    gate = cfg(tmp_path, teacher_seed0=4950, teacher_n=50, teacher_execution="held")
+    t = teacher_cmd(gate)
+    assert t[t.index("--seed0") + 1] == "4950" and t[t.index("--n") + 1] == "50"
+    for n in (300, 600):
+        t = teacher_cmd(cfg(tmp_path, teacher_seed0=4300, teacher_n=n))
+        assert t[t.index("--seed0") + 1] == "4300" and t[t.index("--n") + 1] == str(n)
+    s = select_cmd(cfg(tmp_path, select_seed0=5301, select_n=29), "x", Path("ckpt"))
+    assert s[s.index("--seed0") + 1] == "5301" and s[s.index("--n") + 1] == "29"
+    d = dagger_cmd(cfg(tmp_path, round_id=1, dagger_seed0=5210, dagger_n=40), Path("ckpt"))
+    assert d[d.index("--seed0") + 1] == "5210" and d[d.index("--n") + 1] == "40"
+    # the wrapper takes --select-seed0
+    import importlib.util
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "distill_round.py"
+    spec = importlib.util.spec_from_file_location("distill_round_script_a4", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    rc = mod.main(["--round", "0", "--run-id", "dryrun_a4_never_written", "--teacher", "m:f",
+                   "--teacher-checkpoint", str(tmp_path / "t.pt"), "--human-grid", str(tmp_path / "g.json"),
+                   "--human-cell", "x", "--start-state", str(tmp_path), "--teacher-seed0", "4300", "--teacher-n", "300",
+                   "--select-seed0", "5301", "--select-n", "29", "--teacher-execution", "held", "--dry-run"])
+    out = capsys.readouterr().out
+    assert rc == 0 and "seeds 4300-4599" in out and "seeds 5301-5329" in out
+    assert not (mod.REPO / "data" / "distill" / "dryrun_a4_never_written").exists()
 
 
 def test_round_records_name_the_code(tmp_path):

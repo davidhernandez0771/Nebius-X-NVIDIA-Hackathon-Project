@@ -231,6 +231,56 @@ def test_teacher_commands_run_through_the_teachers_own_tracking(scene):
     assert env.student_steps == np.flatnonzero(~r.by_teacher).tolist()
 
 
+def test_held_execution_runs_the_teacher_through_the_students_step(scene, tmp_path):
+    """Option A (2026-10-21, diagnostics of round 0 @300): the teacher's command becomes ONE held 9-joint target
+    (ik_label: one DLS step from the state before the step) executed by env.step, the call eval makes for the
+    student; the label is that executed target. The pairing stays replay's ("after")."""
+    env = ToyEnv()
+    r = rollout(env, scene, StubTeacher(), RolloutConfig(driver="teacher", teacher_execution="held"))
+    assert r.success and r.teacher_execution == "held"
+    assert env.teacher_steps == [] and env.student_steps == list(range(len(r.records)))
+    assert np.allclose(r.label, r.label_first) and np.allclose(r.executed, r.label_first)
+    assert np.isnan(r.label_last).all() and (r.label[:, 3] == 0).all()  # no last-substep mark: not step_teacher's
+    assert rollout_row(r)["teacher_execution"] == "held"
+    (row,) = write_rollout(tmp_path, r, scene, kind="teacher", round_id=0, teacher_name="stub")
+    prov = json.loads((Path(row["ep_dir"]) / "distill.json").read_text(encoding="utf-8"))
+    assert prov["teacher_execution"] == "held" and prov["pairing"] == "after"
+    assert prov["label"] == "held target (one DLS step, as executed)"
+    _, arrays, _ = load_episode(Path(row["ep_dir"]))
+    assert np.allclose(arrays["action"], r.label_first[:-1])
+    # beta-mixed teacher steps in a DAgger rollout follow the same option
+    env = ToyEnv()
+    m = rollout(env, scene, StubTeacher(), RolloutConfig(driver="student", beta=0.5, max_seconds=1.0, rng_seed=3,
+                                                         teacher_execution="held"), student=StubStudent())
+    assert env.teacher_steps == [] and env.student_steps == list(range(len(m.records)))
+    assert np.allclose(m.executed[m.by_teacher], m.label_first[m.by_teacher])
+    # the default is unchanged: the teacher's own tracking
+    assert rollout(ToyEnv(), scene, StubTeacher(), RolloutConfig(driver="teacher")).teacher_execution == "tracking"
+
+
+def test_the_held_rollout_step_is_the_eval_student_step():
+    """Option A's promise, at the Isaac level: IsaacDistillEnv.step and ._apply go through IsaacEvalEnv's (the
+    eval's student execution), and the eval's episode loop drives its policy with env.step. Read from the source: the Isaac modules
+    need Isaac Lab."""
+    import ast
+
+    root = Path(__file__).resolve().parents[1]
+    cls = next(n for n in ast.parse((root / "isaac_distill_env.py").read_text(encoding="utf-8")).body
+               if isinstance(n, ast.ClassDef) and n.name == "IsaacDistillEnv")
+    assert [b.id for b in cls.bases if isinstance(b, ast.Name)] == ["IsaacEvalEnv"]
+    methods = {f.name: f for f in cls.body if isinstance(f, ast.FunctionDef)}
+
+    def super_calls(fn):
+        return {n.func.attr for n in ast.walk(fn) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and isinstance(n.func.value, ast.Call) and getattr(n.func.value.func, "id", None) == "super"}
+
+    assert "step" in super_calls(methods["step"]) and "_apply" in super_calls(methods["_apply"])
+    ev = next(n for n in ast.parse((root / "eval_policy.py").read_text(encoding="utf-8")).body
+              if isinstance(n, ast.FunctionDef) and n.name == "run_episode")  # evaluate's episode loop
+    assert any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "step"
+               and getattr(n.func.value, "id", None) == "env" for n in ast.walk(ev))
+
+
 def test_beta_mixes_in_the_teacher_deterministically(scene):
     cfg = RolloutConfig(driver="student", beta=0.5, max_seconds=2.0, rng_seed=7)
     a = rollout(ToyEnv(), scene, StubTeacher(), cfg, student=StubStudent())
@@ -281,6 +331,8 @@ def test_config_is_checked():
         RolloutConfig(driver="student", beta=1.5)
     with pytest.raises(ValueError):
         RolloutConfig(driver="teacher", beta=0.5)
+    with pytest.raises(ValueError, match="teacher_execution"):
+        RolloutConfig(driver="teacher", teacher_execution="fast")
     with pytest.raises(ValueError):
         rollout(ToyEnv(), sample_scene(np.random.default_rng(1), "franka", 1), StubTeacher(),
                 RolloutConfig(driver="student"))  # a student rollout needs a student
@@ -424,6 +476,19 @@ def test_resume_rows_and_done_summary(tmp_path):
     with pytest.raises(ValueError):
         done_summary(rows, kind="dagger", round_id=1, seed0=5200, n=3, teacher="rl")  # 5202 missing
     assert read_rows(tmp_path / "none.jsonl") == {}
+
+
+def test_one_folder_never_mixes_teacher_executions():
+    """A round folder is resumed seed by seed: its rows must all come from one teacher execution (rows from before
+    the option count as "tracking")."""
+    from sim_eval.distill import check_execution
+
+    check_execution({}, "held")
+    check_execution({4000: {"seed": 4000}, 4001: {"seed": 4001, "teacher_execution": "tracking"}}, "tracking")
+    with pytest.raises(ValueError, match="tracking"):
+        check_execution({4000: {"seed": 4000}}, "held")
+    with pytest.raises(ValueError, match="held"):
+        check_execution({4000: {"seed": 4000, "teacher_execution": "held"}}, "tracking")
 
 
 def test_stale_episodes_of_a_seed_are_moved_aside_not_deleted(tmp_path):

@@ -357,6 +357,59 @@ alone), and training at 11.6 steps/s. None of the round's processes opted out, a
   distill_round, distill_rollouts, eval_cells, run_eval, policy_server, lerobot_tools.experiments and
   lerobot_tools.train. `sim_eval/tests/test_entry_qos.py` checks each entry point calls it.
 
+**3. Round 0 @300 (`distill_mouse`, 15:33 → 20:23, 4 h 50 min), code da19c2a.**
+- **Rollouts:** 295/300 teacher rollouts passed, 40,830 frames. The 5 failures were all time limits.
+- **Mix:** human 0.3333 / teacher 0.6667 (fractional repeat 1.5447). data_check clean.
+- **Export and training:** 566 episodes, 94,605 frames.
+- **Selection on 5300–5329:** s40000 0/30, s60000 0/30. Every episode hit the time limit with the cube not in the
+  bin; also collisions and drops. s60000 picked (tie → later step). Far below 18/30; round 0 @600 was NOT launched
+  (the lead).
+
+**4. Diagnostics (no test seeds).**
+- **(1) Open-loop train fit (the served policy on held-in frames): no bug.** s60000's arm error against its labels
+  is 0.012 rad on human frames and 0.023 on teacher frames, against 0.11 and 0.22 for holding the current joints;
+  gripper agreement 97–99%.
+- **(2)–(4) Inputs:**
+  - images: RGB 128×128, same camera path and names;
+  - proprio: 9 joints, same order;
+  - start pose: eval's dataset mean = the rollouts' start;
+  - plain flags: chunk 100, n_action_steps 100.
+- **(5) Closed loop on its own training scenes 4000/4001: 0/2.** The student commands roughly the teacher's labels
+  (0.035 rad away), but its joints lag its commands by 0.10–0.11 rad against the teacher's 0.010–0.018. Its tool is
+  6–13 cm off the teacher's path by step 25. It closes the gripper on time but 8–10 cm from the cube.
+- **Seed 5300:** a diagnostic run on selection seed 5300 happened by mistake. It is disclosed (pm/live-13 0253357)
+  and its files are quarantined unread. Later selection excludes 5300.
+- **(6) Inference modes on practice seeds 5200–5209:** plain 0/10, n_action_steps 10 0/10, temporal ensemble 0.01
+  0/10. Not an inference problem.
+- **(7) The teacher's own labels replayed on 4000–4009:** 10/10 with its tracking (IK at both substeps + velocity
+  feed-forward, tool 7 mm from target). 0/10 when held as eval holds the student's command (tool 5–7 cm from target,
+  cube never lifted).
+- **Root cause:** round 0's labels came from an execution the student's actuator cannot reproduce at 0.5 m/s. At
+  human pace (~0.2 m/s) the difference was negligible. More data (600) would not help.
+
+**Option A (`--teacher-execution held`, default "tracking").** A teacher-executed step becomes ONE held 9-joint
+target from `ik_label` (one DLS step from the state before the step), executed by `env.step`, the call eval makes for
+the student (zero velocity target). The label is that executed target; the pairing stays replay's ("after").
+- **Where it is recorded:** rows, `distill.json`, `rollouts_done.json` and `round.json`.
+- **Guards:**
+  - a folder never mixes executions (`check_execution`);
+  - a held round does not count a tracking `rollouts_done` as done, so it needs its own run id.
+- **Tests:**
+  - held teacher steps go through `env.step`, not `step_teacher`;
+  - an AST test that `IsaacDistillEnv.step`/`_apply` call `IsaacEvalEnv`'s, and that eval's `run_episode` drives the
+    policy with `env.step`.
+- **T3's A′:** T3's matching env term (held target, one DLS solve per control step) is pinned to
+  `sim_eval.teacher_ik.ik_target` by a parity test on T3's side.
+
+**Amendment 4 (T7; the lead, 2026-10-21): the ranges, all with `--teacher-execution held`.**
+- teacher: model_2098 zero-shot if T3's held breakdown has home starts ≥ 90%, else the demo_v6h fine-tune;
+- gate (a): T3, on 5450–5499;
+- gate (b): `--run-id distill_mouse_held_gate --teacher-seed0 4950 --teacher-n 50 --stop-after rollouts`, ≥ 45/50.
+  It has its own run id, so it is never training data.
+- round 0: `--run-id distill_mouse_held --teacher-seed0 4300 --teacher-n 300 --select-seed0 5301 --select-n 29`
+  (bar ≥ 18/29); the extension is `--teacher-n 600` (4300–4899);
+- DAgger r1: `--dagger-seed0 5210` (5210–5249).
+
 ### Time estimates on the RTX 5080
 
 These are measured where noted and are otherwise judgement.

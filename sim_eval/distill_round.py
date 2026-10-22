@@ -189,12 +189,15 @@ class RoundConfig:
     train_args: tuple[str, ...] = ()  # lerobot_tools.experiments options, e.g. ("--augment", "shift")
     port: int = 8766
     min_free_gb: float = 40.0
+    teacher_execution: str = "tracking"  # sim_eval.distill.RolloutConfig: "tracking" | "held" (option A)
 
     def __post_init__(self):
         if not 0 <= self.round_id <= MAX_ROUND:
             raise ValueError(f"round must be 0..{MAX_ROUND}, got {self.round_id}")
         if any(s not in SOURCES for s in self.weights):
             raise ValueError(f"weights name unknown sources: {self.weights}")
+        if self.teacher_execution not in ("tracking", "held"):
+            raise ValueError(f"teacher_execution must be 'tracking' or 'held', got {self.teacher_execution!r}")
 
     def with_(self, **kw) -> "RoundConfig":
         return replace(self, **kw)
@@ -271,7 +274,7 @@ def _rollouts_cmd(c: RoundConfig, kind: str, seed0: int, n: int) -> list[str]:
     return [str(c.isaac_py), str(c.repo / "sim_eval" / "scripts" / "distill_rollouts.py"), "--kind", kind,
             "--round", str(c.round_id), "--seed0", str(seed0), "--n", str(n), "--out", str(c.round_dir()),
             "--teacher", c.teacher, "--teacher-checkpoint", str(c.teacher_checkpoint),
-            "--start-state", str(c.start_state)]
+            "--start-state", str(c.start_state), "--teacher-execution", c.teacher_execution]
 
 
 def teacher_cmd(c: RoundConfig) -> list[str]:
@@ -430,7 +433,8 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         if not c.done_file().exists():
             return False
         seed0, n = (c.teacher_seed0, c.teacher_n) if r == 0 else (c.dagger_seed0_effective, c.dagger_n)
-        return _read(c.done_file())["seeds"] == [seed0, seed0 + n - 1]
+        done = _read(c.done_file())
+        return done["seeds"] == [seed0, seed0 + n - 1] and done.get("teacher_execution", "tracking") == c.teacher_execution
 
     def history() -> list[dict]:
         out = []
@@ -447,7 +451,8 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         c.round_file.write_text(json.dumps({
             "run_id": c.run_id, "round": r, "teacher": c.teacher, "teacher_checkpoint": str(c.teacher_checkpoint),
             "student_checkpoint": str(student()), "rollouts": {"successes": d["successes"], "n": d["attempted"]},
-            "dagger_seeds": d["seeds"], "beta": c.beta, "decision": dec, "code": code_version(c.repo)}, indent=1),
+            "dagger_seeds": d["seeds"], "beta": c.beta, "teacher_execution": c.teacher_execution, "decision": dec,
+            "code": code_version(c.repo)}, indent=1),
             encoding="utf-8")
         c.decision_file.write_text(json.dumps(dec, indent=1), encoding="utf-8")  # last: marks the phase done
         log(f"[distill]   round {r}: student {dec['student_rate']:.0%} on its rollouts; "
@@ -480,7 +485,8 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         info = _read(c.round_file) if r >= 1 else {"run_id": c.run_id, "round": r, "teacher": c.teacher,
                                                    "teacher_checkpoint": str(c.teacher_checkpoint)}
         info.update(human={"grid": str(c.human_grid), "cell": c.human_cell, "n_human": n_human}, teacher_gate=gate,
-                    teacher_seeds=[t0, t1], mix=report, data_check=data_check, grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)),
+                    teacher_seeds=[t0, t1], teacher_execution=c.teacher_execution, mix=report, data_check=data_check,
+                    grid=str(c.grid_file), dagger_rounds=list(range(1, r + 1)),
                     code=code_version(c.repo), rollouts_code=_read(c.done_file()).get("code"))
         c.round_file.write_text(json.dumps(info, indent=1), encoding="utf-8")
         log(f"[distill]   cell {c.label}: " + ", ".join(f"{s} {v['frames']} frames x{v['repeat']} ({v['share']:.0%})"

@@ -61,6 +61,7 @@ ARM = slice(0, 7)
 Driver = Literal["teacher", "student"]
 Kind = Literal["teacher", "dagger"]
 Pairing = Literal["before", "after"]  # which observation an episode row pairs with step k's label (write_rollout)
+TeacherExecution = Literal["tracking", "held"]  # how a teacher-executed step runs (RolloutConfig)
 
 
 class DistillEnv(Protocol):
@@ -86,6 +87,11 @@ class RolloutConfig:
     max_seconds: float = MAX_SECONDS
     check_every: int = CHECK_EVERY
     rng_seed: int = 0  # for beta; combined with the scene seed
+    # How a teacher-executed step runs. "tracking": the teacher's own RL-env tracking (IK at both substeps +
+    # velocity feed-forward; label = the last substep's target). "held" (option A, 2026-10-21): one held 9-joint
+    # target from ik_label through env.step, exactly the eval's student execution; label = that executed target.
+    # Round 0 @300 showed the student cannot reproduce "tracking" data at 0.5 m/s (lag 0.10 vs 0.01 rad).
+    teacher_execution: TeacherExecution = "tracking"
 
     def __post_init__(self):
         if self.driver not in ("teacher", "student"):
@@ -94,6 +100,8 @@ class RolloutConfig:
             raise ValueError(f"beta must be in [0, 1], got {self.beta}")
         if self.driver == "teacher" and self.beta != 0.0:
             raise ValueError("beta mixes the teacher into a student rollout; a teacher rollout has none")
+        if self.teacher_execution not in ("tracking", "held"):
+            raise ValueError(f"teacher_execution must be 'tracking' or 'held', got {self.teacher_execution!r}")
 
 
 @dataclass
@@ -116,6 +124,7 @@ class Rollout:
     reasons: list[str] = field(default_factory=list)
     verdict: VerificationResult | None = None
     error: str | None = None
+    teacher_execution: TeacherExecution = "tracking"
 
     @property
     def success(self) -> bool:
@@ -155,7 +164,8 @@ def rollout(env: DistillEnv, scene: Scene, teacher: Teacher, cfg: RolloutConfig,
                        teacher_ee=arr["teacher_ee"], executed=arr["executed"],
                        by_teacher=np.asarray(rows["by_teacher"], dtype=bool), images={c: v[:n] for c, v in images.items()},
                        records=records, ended_by=ended_by, reasons=reasons, verdict=verdict,
-                       error=f"{type(error).__name__}: {error}" if error else None)
+                       error=f"{type(error).__name__}: {error}" if error else None,
+                       teacher_execution=cfg.teacher_execution)
 
     try:
         env.reset(scene)
@@ -188,17 +198,18 @@ def rollout(env: DistillEnv, scene: Scene, teacher: Teacher, cfg: RolloutConfig,
             by_teacher = first is not None and cfg.beta > 0 and rng.random() < cfg.beta
         last = None
         try:
-            # The teacher's command runs through its own tracking (sim_eval.teacher_ik: IK at every substep plus the
-            # velocity feed-forward, as in T3's env); the student's 9-joint target is held for the step.
-            if by_teacher:
+            # "tracking": the teacher's command runs through its own tracking (sim_eval.teacher_ik: IK at every
+            # substep plus the velocity feed-forward, as in T3's env). "held": it becomes the one-DLS-step 9-joint
+            # target, held for the step by env.step, as the student's always is.
+            if by_teacher and cfg.teacher_execution == "tracking":
                 rec, last = env.step_teacher(t_act)
             else:
-                rec = env.step(s_act)
+                rec = env.step(first if by_teacher else s_act)
         except Exception as e:  # noqa: BLE001
             return done("sim_error", e)
         if last is not None:
             last = _joints(last, "step_teacher")
-        action = last if by_teacher else s_act
+        action = (last if last is not None else first) if by_teacher else s_act
         label = last if last is not None else first
         nan9 = np.full(9, np.nan)
         rows["joint_pos"].append(np.asarray(obs.joint_pos, dtype=np.float64))
@@ -246,7 +257,7 @@ def rollout_row(r: Rollout) -> dict:
     return {"seed": r.seed, "driver": r.driver, "beta": r.beta, "success": r.success, "ended_by": r.ended_by,
             "reasons": list(r.reasons), "steps": len(r.records), "labelled": int(np.isfinite(r.label).all(axis=1).sum()),
             "by_teacher": float(r.by_teacher.mean()) if len(r.by_teacher) else 0.0, "arm_disagreement": arm,
-            "gripper_disagreement": grip, "error": r.error}
+            "gripper_disagreement": grip, "error": r.error, "teacher_execution": r.teacher_execution}
 
 
 def _save_png(path: Path, img: np.ndarray) -> None:
@@ -266,6 +277,12 @@ def _rows(seg: tuple[int, int], n_steps: int, pairing: Pairing) -> tuple[np.ndar
         return lab, lab
     lab = np.arange(k0, min(k1, n_steps - 1))
     return lab + 1, lab
+
+
+def _label_kind(kind: Kind, execution: TeacherExecution) -> str:
+    if execution == "held":
+        return "held target (one DLS step, as executed)"
+    return "last substep" if kind == "teacher" else "first substep (one DLS step)"
 
 
 def write_rollout(root: Path, r: Rollout, scene: Scene, *, kind: Kind, round_id: int, teacher_name: str,
@@ -331,7 +348,8 @@ def write_rollout(root: Path, r: Rollout, scene: Scene, *, kind: Kind, round_id:
         prov = {
             "kind": kind, "round": round_id, "teacher": teacher_name, "lineage_root": root_id,
             "student_checkpoint": student_checkpoint, "seed": r.seed, "segment": [k0, k1], "n_steps": len(lab),
-            "pairing": pairing, "label": "last substep" if kind == "teacher" else "first substep (one DLS step)",
+            "pairing": pairing, "teacher_execution": r.teacher_execution,
+            "label": _label_kind(kind, r.teacher_execution),
             "beta": r.beta, "executed_by_teacher": float(r.by_teacher[lab].mean()),
             "rollout": {"driver": r.driver, "success": r.success, "ended_by": r.ended_by, "reasons": list(r.reasons),
                         "steps": len(r.records), "arm_disagreement": arm, "gripper_disagreement": grip},
@@ -400,6 +418,15 @@ def done_summary(rows: dict[int, dict], *, kind: Kind, round_id: int, seed0: int
             "frames": sum(int(r["frames"]) for r in got), "teacher": teacher,
             "ended_by": dict(Counter(str(r.get("ended_by")) for r in got)),
             **extra}
+
+
+def check_execution(rows: dict[int, dict], execution: TeacherExecution) -> None:
+    """A round folder holds one teacher execution: refuse to resume rows made with another (rows from before the
+    option are "tracking")."""
+    other = sorted({r.get("teacher_execution", "tracking") for r in rows.values()} - {execution})
+    if other:
+        raise ValueError(f"this folder's rollouts were made with teacher execution {other}, not {execution!r}: "
+                         f"use another run id")
 
 
 def set_aside_stale(root: Path, *, kind: Kind, round_id: int, seed: int) -> list[Path]:

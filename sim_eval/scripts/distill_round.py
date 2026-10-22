@@ -65,6 +65,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dagger-seed0", type=int, default=None, help="default: 5200 + (round - 1) * --dagger-n")
     p.add_argument("--dagger-n", type=int, default=40)
     p.add_argument("--beta", type=float, default=0.0)
+    p.add_argument("--teacher-execution", choices=("tracking", "held"), default="tracking",
+                   help="teacher-executed steps: its RL env's tracking, or one held 9-joint target as the student's "
+                        "(option A); a held round needs its own --run-id")
+    p.add_argument("--select-seed0", type=int, default=5300,
+                   help="first selection seed (Amendment 4: 5301, 5300 excluded)")
     p.add_argument("--select-n", type=int, default=30)
     p.add_argument("--steps", type=int, default=60000)
     p.add_argument("--save-freq", type=int, default=10000)
@@ -90,7 +95,8 @@ def main(argv: list[str] | None = None) -> int:
                       teacher_checkpoint=_abs(args.teacher_checkpoint), human_grid=_abs(args.human_grid),
                       human_cell=args.human_cell, start_state=_abs(args.start_state), weights=weights,
                       teacher_seed0=args.teacher_seed0, teacher_n=args.teacher_n, dagger_seed0=args.dagger_seed0,
-                      dagger_n=args.dagger_n, beta=args.beta, select_n=args.select_n, steps=args.steps,
+                      dagger_n=args.dagger_n, beta=args.beta, teacher_execution=args.teacher_execution,
+                      select_seed0=args.select_seed0, select_n=args.select_n, steps=args.steps,
                       save_freq=args.save_freq, candidates=tuple(args.candidates), min_teacher=args.min_teacher,
                       target_rate=args.target_rate, min_gain=args.min_gain, min_new_frames=args.min_new_frames,
                       inference_args=tuple(args.inference_args.split()), train_args=tuple(args.train_args.split()))

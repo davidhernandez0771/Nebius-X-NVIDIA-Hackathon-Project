@@ -49,6 +49,9 @@ parser.add_argument("--beta", type=float, default=0.0, help="dagger: per-step ch
 parser.add_argument("--port", type=int, default=8766, help="dagger: the student's policy server port")
 parser.add_argument("--max-seconds", type=float, default=30.0)
 parser.add_argument("--min-segment", type=int, default=25, help="shortest labelled run kept as an episode (steps)")
+parser.add_argument("--teacher-execution", choices=("tracking", "held"), default="tracking",
+                    help="how a teacher-executed step runs: its RL env's tracking, or one held 9-joint target as the "
+                         "student's (sim_eval.distill.RolloutConfig)")
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
 add_inference_args(parser)
 add_launcher_args(parser)
@@ -67,8 +70,8 @@ args_cli.enable_cameras = True  # the student is a camera policy: every episode 
 
 from lerobot_tools.policy_client import PolicyClient  # noqa: E402
 from sim_eval.distill import (  # noqa: E402
-    RolloutConfig, append_row, done_summary, read_rows, rollout, rollout_row, rollout_scenes, set_aside_stale,
-    write_rollout,
+    RolloutConfig, append_row, check_execution, done_summary, read_rows, rollout, rollout_row, rollout_scenes,
+    set_aside_stale, write_rollout,
 )
 from sim_eval.distill_round import code_version  # noqa: E402
 from sim_eval.report import gpu_pids, isaac_gate, python_processes, resolve_start  # noqa: E402
@@ -100,6 +103,11 @@ def main() -> None:
     scenes = rollout_scenes(a.kind, a.seed0, a.n)  # the seed rules, before anything starts
     rows_path = out / "rollouts.jsonl"
     rows = read_rows(rows_path)
+    try:
+        check_execution(rows, a.teacher_execution)  # one folder, one teacher execution
+    except ValueError as e:
+        log(f"refusing to start: {e}")
+        sys.exit(2)
     todo = [s for s in scenes if s.seed not in rows]
     log(f"{a.kind} round {a.round}: seeds {a.seed0}-{a.seed0 + a.n - 1}; {len(rows)} done, {len(todo)} to go -> {out}")
     start_pose, start_check = resolve_start("dataset", start_state=a.start_state)
@@ -110,7 +118,8 @@ def main() -> None:
         sys.exit(3)
     log(f"start pose {start_check['chosen']}")
     cfg = RolloutConfig(driver="teacher" if a.kind == "teacher" else "student", beta=a.beta,
-                        max_seconds=a.max_seconds)
+                        max_seconds=a.max_seconds, teacher_execution=a.teacher_execution)
+    log(f"teacher execution: {a.teacher_execution}")
     server, policy = None, None
     if a.kind == "dagger" and todo:
         out.mkdir(parents=True, exist_ok=True)
@@ -158,7 +167,8 @@ def finish(out: Path, rows: dict, t0: float, teacher_name: str) -> None:
     summary = done_summary(rows, kind=a.kind, round_id=a.round, seed0=a.seed0, n=a.n, teacher=teacher_name,
                            teacher_spec=a.teacher, teacher_checkpoint=str(a.teacher_checkpoint), code=code_version(REPO),
                            student_checkpoint=str(a.checkpoint) if a.checkpoint else None, beta=a.beta,
-                           inference=inference.record(), wall_s=round(time.time() - t0, 1),
+                           inference=inference.record(), teacher_execution=a.teacher_execution,
+                           wall_s=round(time.time() - t0, 1),
                            finished=datetime.now(timezone.utc).isoformat(timespec="seconds"))
     (out / "rollouts_done.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     log(f"done: {summary['successes']}/{summary['attempted']} rollouts succeeded; {summary['episodes']} episodes, "
