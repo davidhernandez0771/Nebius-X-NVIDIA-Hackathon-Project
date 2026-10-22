@@ -938,3 +938,15 @@ fine-tune** (Amendment 4 A, applied as written). The breakdown used `rng(7)` sce
     - In total, 7 collisions in the zero-shot breakdown.
 - **The pick happens BEFORE gate (a), on the breakdown only:** the highest home-start success, then fewer collisions,
   then the later iteration.
+
+**T3's `f2c67a2`** (on `pm/rl-teacher`, on top of `4a22fcb`): `RLTeacher.execution` is now `"tracking"` or `"held"`.
+`make()` sets it from the run's `run_held_target`.
+- **Why:** it is T6's mismatch guard. A teacher trained under the held execution can't be rolled out with tracking.
+- **What it touches (checked):** only the adapter, `sim_worker/rl_policy.py`, and its test.
+- **What it changes:** nothing in `demo_v6h`'s training. The trainer doesn't load `rl_policy`, and the run started on
+  `4a22fcb`. It is a run-enabling safeguard, with no rule change.
+
+**T3's next steps:**
+- after the run ends (about 22:00), the breakdowns at +300 (`model_2400`) and +600 (the last checkpoint);
+- then the pick, the replay check on 7000–7031, and gate (a) on 5450–5499.
+- **Gate (a) runs only if it can finish by about 22:35.** This is the user's rule, via the lead.
