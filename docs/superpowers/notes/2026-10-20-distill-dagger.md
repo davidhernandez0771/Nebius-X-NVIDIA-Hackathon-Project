@@ -412,6 +412,16 @@ the student (zero velocity target). The label is that executed target; the pairi
   (bar ≥ 18/29); the extension is `--teacher-n 600` (4300–4899);
 - DAgger r1: `--dagger-seed0 5210` (5210–5249).
 
+**5. Gate (b) under held execution: PASSED, 48/50 (Wilson 95% 0.865–0.989).**
+- **Run:** 22:16:14 → 22:29:18, 12.9 min; teacher demo_v6h model_2697 (declared "held"); code 7f0322f (T3's
+  f2c67a2 merged), clean.
+- **Failures:** 4958 and 4981, both time limit.
+- **Episodes:** 48, 19,127 frames. Passing episodes take 350–475 steps (median 400 = 8 s) against 125–150 under
+  tracking: the held arm moves near human pace.
+- **Timing:** 13–16 s per pass and ~47 s per failure, with the QoS opt-out in code.
+- **Round 0 (held) expected size:** ~115k teacher frames; mix = teacher ×1, human ×~1.83, so ~173k exported frames.
+  About 3.8 h in all. It starts on the lead's go (2026-10-22 morning).
+
 ### Time estimates on the RTX 5080
 
 These are measured where noted and are otherwise judgement.
