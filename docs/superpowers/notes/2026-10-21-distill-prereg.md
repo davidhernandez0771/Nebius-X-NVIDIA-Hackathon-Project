@@ -1446,3 +1446,74 @@ data, is a NEW experiment. It needs its own preregistration and fresh test seeds
   `cap_from_tool`;
 - **`pm/distill-dagger`:** code `95663cb`; branch tip `9d8621e` (notes only on top: the results and the gap
   analysis).
+
+## Amendment 6 (2026-10-22, after the final test, before any run of it): the secondary arm, teacher-side only
+
+**The user approved running the secondary arm tonight (via the lead), in a reduced form.** This amendment replaces the
+"Secondary arm" section's plan above. It is written before the run starts, and T3 launches only after this commit.
+
+**What changes from the original secondary arm:**
+- **Teacher-side only:** there is no camera student, no gate, no round 0 and no test seeds.
+  - 5020–5059 are spent (the final test).
+  - The original comparisons, demo vs no-demo teacher on 5300–5349 and the students' 5020–5059 counts, are dropped.
+- **The question:** did the human demo starts help the RL teacher learn the task from the home pose?
+
+**The arm, `nodemo_v6`:** demo_v6's stage-1 recipe exactly as demo_v6 ran, except that no episode starts from a demo.
+- **Code:** demo_v6's own code, `pm/rl-teacher` `d9cf2a7` (11:45:47, the "lift" preset). demo_v6 was launched at
+  11:47:14, before the bonus fix `bf56c20`.
+  - It runs from a scratch worktree of T3's, detached at `d9cf2a7`, so the reward, including the pre-fix success
+    bonus, is identical. T3 confirms that demo_v6 ran with that tree clean.
+- **The command:** demo_v6's recorded command, with one added override and a new run name:
+
+  ```text
+  uv run --no-sync python scripts\rl_train.py --run-name nodemo_v6 --reward lift --max-iterations 1500 ^
+    --override env.events.reset_scene.params.held_grace_steps=10 --override env.events.reset_scene.params.curriculum_steps=24000 ^
+    --override env.events.reset_scene.params.uniform_share=0.5 --override agent.actor.distribution_cfg.init_std=0.6 ^
+    --override "agent.actor.distribution_cfg.std_range=[0.3,1.0]" --override agent.algorithm.entropy_coef=0.005 ^
+    --override env.actions.gripper_action.deadband=0.25 ^
+    --override env.events.reset_scene.params.demo_prob=0.0
+  ```
+
+- **Why an override and not the `-NoDemo-v0` task:**
+  - `rl_train.py` refuses `--reward lift --no-demos` ("the lift preset is registered with demo starts only"), and
+    `-NoDemo-v0` carries the potential reward, not the lift one.
+  - With `demo_prob=0.0`, `reset_rl_scene` loads no bank, and `plan_resets` starts every episode at home, in a random
+    scene with the gripper open (checked here in `d9cf2a7`).
+  - `held_grace_steps`, `curriculum_steps` and `uniform_share` act only on demo starts, so they have no effect; they
+    are kept so the command differs by one override.
+- **Otherwise unchanged:**
+  - 4096 envs; 1,500 iterations (`max_iterations` 1500, so checkpoints up to `model_1499`); seed 42 (the agent
+    default, as demo_v6);
+  - the speed cap off, tracking execution (neither exists in `d9cf2a7`).
+
+**The comparison (descriptive):** demo_v6's own checkpoints vs `nodemo_v6`'s, at the matched iterations 300, 600,
+900, 1200 and 1499.
+- **Home-start success:** `scripts\rl_start_breakdown.py` on each checkpoint, with `--n 128 --demo-prob 0.0 --seed 7`
+  (rng 7).
+  - So **all 128 episodes start at home, for both runs,** in the same 128 scenes.
+  - It runs on the current `pm/rl-teacher` code (the breakdown script came after `d9cf2a7`). It reads each run's own
+    deadband and grace from its `params\env.yaml`.
+  - Reported: `check_success`/128 with a Wilson 95% CI; also grasped, lifted and failure reasons.
+- **In-training curves:** from each run's TensorBoard log, at the same iterations: the success rate (check_success,
+  and `Episode_Termination/success` beside it, since `d9cf2a7`'s check_success undercounts), lifted and grasp.
+  - T3 names the exact tags before launch.
+  - They are descriptive only, because demo_v6's training episodes are half demo starts.
+- **The primary descriptive number:** home-start success at **1499**, both runs, each as x/128 with its Wilson 95%
+  CI.
+
+**The interpretation, stated in advance:**
+- **If `nodemo_v6` at 1499 is clearly lower** (the Wilson CIs don't overlap), the human demo starts mattered for the
+  teacher.
+- **If the CIs overlap,** the demos' value on the teacher side is not shown by this run.
+- **If `nodemo_v6` is clearly higher** (CIs don't overlap the other way), that is reported as it is: the demo starts
+  did not help the teacher from home here.
+- **A single seed per arm:** whichever way it comes out, it is one training run each. No p-value is a pre-registered
+  claim.
+
+**Disclosed:** demo_v6 at 1499 has been seen at home before, as 61/67 (Wilson 0.818–0.958).
+- That was T3's earlier breakdown, `data\rl\breakdown\v6_1499`, with `--demo-prob 0.5`, so only 67 of the 128 starts
+  were at home.
+- The new breakdown at `--demo-prob 0.0` gives 128 home starts and replaces it for this comparison.
+
+**Nothing here touches** the final test, the camera student, or any seed range in this prereg. The breakdown's scenes
+come from its own rng (seed 7), not from the eval seeds.
