@@ -1449,6 +1449,22 @@ data, is a NEW experiment. It needs its own preregistration and fresh test seeds
 
 ## Amendment 6 (2026-10-22, after the final test, before any run of it): the secondary arm, teacher-side only
 
+**The final spec: this amendment's first version (`ac82abe`), restored before launch.**
+- **The crossing:** the lead's messages crossed. After `ac82abe`, the lead first approved T3's plan A, and I
+  revised the amendment to it (`1f8465c`). The plan A version used a task registration commit on
+  `pm/rl-nodemo-control` and breakdowns at `--demo-prob 0.5`.
+- **The lead's final decision,** before any run, restores the first version:
+  - the override at `d9cf2a7` needs no code commit, so the control's code is byte-identical to demo_v6's;
+  - breakdowns at `--demo-prob 0.0` give 128 home starts per run instead of about 64, which doubles the
+    power on the primary number.
+- **Checked here at the time of this revision:**
+  - `pm/rl-nodemo-control` (T3's worktree `C:\dev\pm-t3-nodemo`) is still at `d9cf2a7`, with no commit on top;
+  - there is no `gpu.lock`, and no `nodemo` run directory exists.
+  - So nothing had run under either version.
+- **What follows is the first version's text, unchanged.** In it, "a scratch worktree of T3's, detached at
+  `d9cf2a7`" can be T3's existing worktree `C:\dev\pm-t3-nodemo` on `pm/rl-nodemo-control`, as long as that
+  branch stays at `d9cf2a7` with no commit.
+
 **The user approved running the secondary arm tonight (via the lead), in a reduced form.** This amendment replaces the
 "Secondary arm" section's plan above. It is written before the run starts, and T3 launches only after this commit.
 
@@ -1458,36 +1474,29 @@ data, is a NEW experiment. It needs its own preregistration and fresh test seeds
   - The original comparisons, demo vs no-demo teacher on 5300–5349 and the students' 5020–5059 counts, are dropped.
 - **The question:** did the human demo starts help the RL teacher learn the task from the home pose?
 
-**Revised before launch (the lead's decision, T3's plan A):** the first version of this amendment (`ac82abe`) used
-an override on `d9cf2a7` and a breakdown at `--demo-prob 0.0`. This version replaces it, before any run. The
-difference is only the mechanism (a registered task instead of an override) and the breakdown's start mix.
-
-**The arm, `demo_v6_nodemo`:** demo_v6's stage-1 recipe exactly as demo_v6 ran, except that no episode starts from a
-demo.
+**The arm, `nodemo_v6`:** demo_v6's stage-1 recipe exactly as demo_v6 ran, except that no episode starts from a demo.
 - **Code:** demo_v6's own code, `pm/rl-teacher` `d9cf2a7` (11:45:47, the "lift" preset). demo_v6 was launched at
   11:47:14, before the bonus fix `bf56c20`.
-  - So the later commits (the bonus timing `bf56c20`, the speed cap, `held_target`) can't make the control differ
-    in more than its starts.
-  - **It runs from T3's local worktree `C:\dev\pm-t3-nodemo`,** on the local branch `pm/rl-nodemo-control`, made from
-    `d9cf2a7`.
-  - **That branch has ONE commit:** it registers `SANT-PickPlace-Franka-RL-Lift-NoDemo-v0`. That is demo_v6's Lift env
-    config with `demo_prob=0` and `bank_path=""`, and the same PPO config as Lift.
-    - T3's test shows the env and agent configs differ from Lift only in those two fields.
-    - T3 diffs the two runs' actual `params\env.yaml` and `agent.yaml` in the note.
-    - That commit's hash is logged here when T3 sends it, before launch.
-- **The command:** demo_v6's recorded command word for word, except the task id
-  (`SANT-PickPlace-Franka-RL-Lift-NoDemo-v0`) and the run name (`demo_v6_nodemo`).
-  - **demo_v6's command:** `rl_train.py --run-name demo_v6 --reward lift --max-iterations 1500`, with these
-    overrides:
-    - `held_grace_steps=10`, `curriculum_steps=24000`, `uniform_share=0.5`;
-    - `init_std=0.6`, `std_range=[0.3,1.0]`, `entropy_coef=0.005`;
-    - `gripper_action.deadband=0.25`.
-  - **Why not `-NoDemo-v0`:** `rl_train.py` refuses `--reward lift --no-demos`, and `-NoDemo-v0` carries the
-    potential reward, not the lift one.
-  - **Inert in the control:** the start curriculum (`curriculum_steps`, `uniform_share`) and the held-start grace
-    act only on demo starts.
-  - **Kept as in demo_v6:** the stock reward-weight curriculum (the penalties go to −0.1 over 10k steps). It is a
-    reward schedule, not a start curriculum.
+  - It runs from a scratch worktree of T3's, detached at `d9cf2a7`, so the reward, including the pre-fix success
+    bonus, is identical. T3 confirms that demo_v6 ran with that tree clean.
+- **The command:** demo_v6's recorded command, with one added override and a new run name:
+
+  ```text
+  uv run --no-sync python scripts\rl_train.py --run-name nodemo_v6 --reward lift --max-iterations 1500 ^
+    --override env.events.reset_scene.params.held_grace_steps=10 --override env.events.reset_scene.params.curriculum_steps=24000 ^
+    --override env.events.reset_scene.params.uniform_share=0.5 --override agent.actor.distribution_cfg.init_std=0.6 ^
+    --override "agent.actor.distribution_cfg.std_range=[0.3,1.0]" --override agent.algorithm.entropy_coef=0.005 ^
+    --override env.actions.gripper_action.deadband=0.25 ^
+    --override env.events.reset_scene.params.demo_prob=0.0
+  ```
+
+- **Why an override and not the `-NoDemo-v0` task:**
+  - `rl_train.py` refuses `--reward lift --no-demos` ("the lift preset is registered with demo starts only"), and
+    `-NoDemo-v0` carries the potential reward, not the lift one.
+  - With `demo_prob=0.0`, `reset_rl_scene` loads no bank, and `plan_resets` starts every episode at home, in a random
+    scene with the gripper open (checked here in `d9cf2a7`).
+  - `held_grace_steps`, `curriculum_steps` and `uniform_share` act only on demo starts, so they have no effect; they
+    are kept so the command differs by one override.
 - **Otherwise unchanged:**
   - 4096 envs; 1,500 iterations (`max_iterations` 1500, so checkpoints up to `model_1499`); seed 42 (the agent
     default, as demo_v6);
@@ -1495,22 +1504,18 @@ demo.
 
 **The comparison (descriptive):** demo_v6's own checkpoints vs `nodemo_v6`'s, at the matched iterations 300, 600,
 900, 1200 and 1499.
-- **Home-start success:** today's `scripts\rl_start_breakdown.py` on each checkpoint, with `--n 128 --demo-prob 0.5
-  --seed 7` (rng 7).
-  - That gives **about 64 home starts per breakdown** (demo_v6 at 1499 had 67). With the same seed and mix, both runs
-    get the same start plan.
-  - The demo-start rows (`demo_free`, `demo_held`) are reported too, as secondary. For `demo_v6_nodemo` they show how
-    a teacher that never trained from demo states does from them.
+- **Home-start success:** `scripts\rl_start_breakdown.py` on each checkpoint, with `--n 128 --demo-prob 0.0 --seed 7`
+  (rng 7).
+  - So **all 128 episodes start at home, for both runs,** in the same 128 scenes.
   - It runs on the current `pm/rl-teacher` code (the breakdown script came after `d9cf2a7`). It reads each run's own
     deadband and grace from its `params\env.yaml`.
   - Reported: `check_success`/128 with a Wilson 95% CI; also grasped, lifted and failure reasons.
-- **In-training curves:** from each run's TensorBoard log, at the same iterations: check_success, success
-  terminations (`Episode_Termination/success`), lifted and grasp.
-  - Both runs' check_success comes one step early in the same way (the same code), so the two are comparable.
+- **In-training curves:** from each run's TensorBoard log, at the same iterations: the success rate (check_success,
+  and `Episode_Termination/success` beside it, since `d9cf2a7`'s check_success undercounts), lifted and grasp.
   - T3 names the exact tags before launch.
   - They are descriptive only, because demo_v6's training episodes are half demo starts.
-- **The primary descriptive number:** home-start success at **1499**, both runs, each as x / (its home starts) with
-  its Wilson 95% CI.
+- **The primary descriptive number:** home-start success at **1499**, both runs, each as x/128 with its Wilson 95%
+  CI.
 
 **The interpretation, stated in advance:**
 - **If `nodemo_v6` at 1499 is clearly lower** (the Wilson CIs don't overlap), the human demo starts mattered for the
@@ -1522,10 +1527,9 @@ demo.
   claim.
 
 **Disclosed:** demo_v6 at 1499 has been seen at home before, as 61/67 (Wilson 0.818–0.958).
-- That was T3's earlier breakdown, `data\rl\breakdown\v6_1499`, with the same settings (`--n 128 --demo-prob 0.5`,
-  seed 7).
-- The arm's own number for demo_v6 at 1499 is today's re-run. If it is deterministic it should repeat 61/67, and
-  any difference is reported.
+- That was T3's earlier breakdown, `data\rl\breakdown\v6_1499`, with `--demo-prob 0.5`, so only 67 of the 128 starts
+  were at home.
+- The new breakdown at `--demo-prob 0.0` gives 128 home starts and replaces it for this comparison.
 
 **Nothing here touches** the final test, the camera student, or any seed range in this prereg. The breakdown's scenes
 come from its own rng (seed 7), not from the eval seeds.
