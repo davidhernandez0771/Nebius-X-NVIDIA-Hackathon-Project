@@ -979,3 +979,27 @@ episodes each, `held_target` on (from the run):
   have the counts above, n = 128 and `held_target: true`.
 - **It was decided before any gate-seed run.** The replay check on 7000–7031 (non-gate seeds) took `gpu.lock` at
   22:03:09, after both breakdowns. Then gate (a) runs once on 5450–5499, into `data\rl\eval\v6h_gate_a`.
+
+**`model_2697`'s replay check on non-gate seeds 7000–7031** (`data\rl\eval\v6h_replaycheck_7000`):
+
+| Measure | Result |
+|---|---|
+| In the env (`check_success`) | 30/32 (7016: collision; 7023: collision and dropped) |
+| **SANT's replay verify** | **22/32** (Wilson 0.51–0.82); failures not_in_bin 7, dropped 4, collision 4 |
+| Agreement, in-env vs replay | 24/32 |
+
+- **The replay durations** were 7.0–8.8 s. The eval and the verify were both done by 22:14.
+- **Checked here:** `in_env.json` (22:03:53) has 30/32 on `model_2697`. `verify.json` (22:14:52) has 22/32, Wilson
+  0.514–0.820, the same failure counts, and 24 agreeing with the in-env verdict.
+
+**Gate (a) on 5450–5499 has NOT been started**, so the seeds are unused. Checked here: there is no
+`data\rl\eval\v6h_gate_a`, and `gpu.lock` is free.
+- **Why it was held:** a replay rate of about 69% makes ≥ 45/50 unlikely. T3 has asked the lead to decide among
+  three options:
+  1. run the gate now, as defined;
+  2. amend first: for held-executed teachers, the eval records the achieved tool path as the Trajectory; then
+     re-check and gate in the morning;
+  3. accept that it fails.
+- **T3's hypothesis:** under the held execution the arm lags its commanded targets, so replaying the commands does not
+  reproduce the motion that actually happened.
+- **The lead's decision is added here.**
