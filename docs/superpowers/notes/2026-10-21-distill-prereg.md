@@ -1002,4 +1002,28 @@ episodes each, `held_target` on (from the run):
   3. accept that it fails.
 - **T3's hypothesis:** under the held execution the arm lags its commanded targets, so replaying the commands does not
   reproduce the motion that actually happened.
-- **The lead's decision is added here.**
+- **The lead's decision is Amendment 5,** below.
+
+## Amendment 5 (2026-10-21, the lead's decision; gate seeds 5450–5499 untouched)
+
+**Reason:**
+- **The replay check above:** on non-gate seeds 7000–7031, `model_2697` scored 30/32 in the env, but only 22/32 in
+  SANT's replay verify (Wilson 0.51–0.82), with agreement 24/32.
+- **The cause (T3's hypothesis):** `rl_eval_teacher` writes the teacher's COMMANDED targets as the Trajectory.
+  - Under the held execution, the arm lags its commands by design: about 0.2 s, and at most 2 cm.
+  - So SANT's tight-tracking replay of the commands is a different motion from the one that happened.
+
+**The change:** for held-executed teachers, `rl_eval_teacher` records the **ACHIEVED tool path** at each step as the
+Trajectory. That is the same standard SANT applies to human demos, whose replay uses the achieved path.
+
+**Gate (a) is otherwise unchanged:** `rl_verify_teacher`'s replay, ≥ 45/50, on 5450–5499, run once.
+
+**DISCLOSED: this change to the gate's definition was decided after seeing the 22/32 replay check.** That check was on
+non-gate seeds, and the gate seeds 5450–5499 are untouched.
+
+**The order:**
+- **Tonight:** gate (b) runs (T6: 4950–4999, held execution, `model_2697`).
+- **Tomorrow morning:** first a re-run of the replay check on 7000–7031 under the new recording, then gate (a), once.
+- **T3's code hash** for the new recording is added here when T3 sends it.
+
+**Unchanged:** the teacher (`model_2697`), Amendment 4's ranges, both gate thresholds and everything after the gate.
