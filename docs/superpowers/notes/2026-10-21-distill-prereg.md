@@ -1408,7 +1408,7 @@ DAgger round is run.
     5048, 5049, 5050, 5051, 5054, 5055, 5057, 5058.
   - **So the grasp that doesn't hold is again the bottleneck,** as in every earlier arm on these seeds.
 - **Selection vs test:** 21/29 (72%) on selection, 15/40 (37.5%) on test.
-  - The Wilson intervals overlap (0.543–0.853 vs 0.242–0.530 meet only at 0.53–0.54).
+  - The Wilson intervals don't overlap: selection 0.543–0.853, test 0.242–0.530.
   - The selection figure is expected to be optimistic. It is the better of two candidates, picked on the same 29
     seeds it is scored on (the winner's curse), with a wide interval at n = 29.
   - The test is the one figure reported.
@@ -1421,7 +1421,7 @@ DAgger round is run.
 
 **What it means, in plain terms:** distilling the RL teacher into the camera student took this data from 3/40 (SANT
 alone) and 0/40 (raw) to 15/40 on the same unseen seeds. Both differences are significant. The 60% goal is not reached,
-and the student is level with, not better than, the scripted multiply (17/40).
+and the student shows no detectable difference from the scripted multiply (17/40, p = 0.82).
 
 **Not run:**
 - **DAgger:** the rule ends at selection, which passed.
