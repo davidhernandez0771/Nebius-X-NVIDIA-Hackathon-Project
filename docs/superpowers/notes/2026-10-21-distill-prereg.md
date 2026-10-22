@@ -726,6 +726,39 @@ off for the running trainer.**
       (5200–5239).
   - **No test seed (5020–5059) has been touched.**
 
+**The diagnosis: root cause found (the lead).** It used practice and training seeds only, with the 60k checkpoint
+from round 0 at 300.
+- **The open-loop fit on the training data shows no bug.**
+  - The chunk MAE is 0.022 on the human data and 0.030 on the teacher data, against 0.108 and 0.216 for holding
+    still.
+  - The gripper is right 97–99% of the time.
+- **Closed loop on the training scenes 4000 and 4001: 0/2.**
+  - The student's commands match the teacher's labels to within 0.035 rad.
+  - But the actual joints lag about 8× more: |command − joints| is 0.10–0.11, against 0.010–0.018 for the teacher.
+  - The gripper closes on time, but 8–10 cm from the cube.
+- **Inference modes on 5200–5209 don't help:** plain 0/10, `n_action_steps` 10 0/10, temporal ensemble 0.01 0/10.
+- **The proof: the teacher's own recorded labels for 4000–4009, replayed open loop.**
+  - With the rollout's tracking execution (IK at both substeps, plus the feed-forward): 10/10.
+  - With the student's execution in the eval (a held 9-joint target, zero velocity): 0/10. The tool ends 5–7 cm off,
+    and the cube is never lifted.
+- **Conclusion:** round 0's labels could not be executed by the student's actuator.
+  - That actuator is the Franka's high-gain PD, K = 400 and D = 80.
+  - With a held target and a 2 cm lead, it caps the arm at about 0.17 m/s.
+  - The teacher's motions only work with the tracking execution it was rolled out with.
+
+**The lead's plan (Amendment 4 is written when the fix is chosen; this is not yet an amendment):**
+- **Unchanged:** the test env and the test command.
+- **The teacher is executed, and trained, with the student's actuator:** T3's `held_target` term (A′) and T6's rollout
+  option A, with one shared arithmetic.
+- **Then a NEW gate on fresh seeds:**
+  - part (a) on 5400–5449;
+  - part (b) on fresh camera-env seeds.
+- **Then a new round 0.**
+- **Round 0 at 600 under the old execution is abandoned** as uninformative: more labels the student cannot execute
+  would not test the plan.
+- **5400–5449 overlap no used range:** test 5020–5059, DAgger 5200–5279, selection 5300–5329, gate 1 5300–5349,
+  gate 2 5350–5399.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
