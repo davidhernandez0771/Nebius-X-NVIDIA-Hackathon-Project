@@ -714,7 +714,17 @@ off for the running trainer.**
   - **If it already ran on 5300,** T6 discloses that to the lead and to this log, and limits inspection to the
     outcome line.
   - **Any later reselection on 5300–5329** either excludes 5300 or notes it.
-  - Which case applies is added here when T6 reports it.
+  - **Which case applied: it had already run (T6's disclosure).** It was a diagnostic, not a selection. The same
+    60k checkpoint was evaluated once more on **selection seed 5300**, with `--trace` and frames, at 20:27:52–20:29:15,
+    on code `da19c2a`.
+    - **Outcome:** 0/1 (not in the bin; collision). That outcome line is all that was looked at.
+    - **T6 has not opened its trace or frames.** They are being moved aside unread.
+    - **So any later reselection on 5300–5329 excludes 5300 or notes this.**
+  - **The other diagnostics** (T6) used the 60k checkpoint on:
+    - the training scenes 4000 and 4001, closed loop;
+    - practice seeds 5200–5209, in the three inference modes. These seeds are also in DAgger round 1's range
+      (5200–5239).
+  - **No test seed (5020–5059) has been touched.**
 
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
