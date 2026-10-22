@@ -949,4 +949,13 @@ fine-tune** (Amendment 4 A, applied as written). The breakdown used `rng(7)` sce
 **T3's next steps:**
 - after the run ends (about 22:00), the breakdowns at +300 (`model_2400`) and +600 (the last checkpoint);
 - then the pick, the replay check on 7000–7031, and gate (a) on 5450–5499.
-- **Gate (a) runs only if it can finish by about 22:35.** This is the user's rule, via the lead.
+
+**T6's guard is `da45046`** (21:42, on `pm/distill-dagger`, checked). A teacher may declare its execution, and
+`distill_rollouts` refuses a `--teacher-execution` that contradicts it. With T3's `f2c67a2`, it is run-enabling (the
+lead): it enforces the amendment's "one execution" in code and changes no rule.
+
+**Tonight's cut-offs** (the user's rule, via the lead: nothing is left half-done):
+- **Gate (a)** starts only if it can end by about 22:35.
+- **Gate (b)** starts only by 22:30. If it is still running at 22:58, it is stopped cleanly. It can be resumed, and
+  no partial numbers are reported.
+- **The held round 0 starts tomorrow morning.**
