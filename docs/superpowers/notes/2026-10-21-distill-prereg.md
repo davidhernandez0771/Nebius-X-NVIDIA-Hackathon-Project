@@ -1580,4 +1580,4 @@ directory is `C:\dev\pm-t3-nodemo\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-22
 - **The breakdowns are queued** (driver PID 46844; it starts when training exits).
   - They use today's `pm-t3` `rl_start_breakdown` with `--n 128 --demo-prob 0.0 --seed 7`.
   - The order: 1499 for both first, then 300, 600, 900 and 1200, with demo_v6 before `nodemo_v6` at each.
-  - The outputs: `C:\dev\pm-t3\datalreakdown\home_<run>_<it>reakdown.json`.
+  - The outputs: `C:\dev\pm-t3\data\rl\breakdown\home_<run>_<it>\breakdown.json`.
