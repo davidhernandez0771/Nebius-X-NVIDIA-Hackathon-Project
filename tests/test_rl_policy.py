@@ -135,8 +135,13 @@ def test_make_loads_the_torchscript_export_and_refuses_a_raw_checkpoint(tmp_path
     net = torch.nn.Sequential(torch.nn.Linear(rt.OBS_DIM, rt.ACTION_DIM), torch.nn.Tanh())
     torch.jit.script(net).save(str(run / "exported" / "policy.pt"))
     t = rl_policy.make(checkpoint=run, device="cpu")
-    assert t.name == "rl-2026-10-21_demo_v1"
+    assert t.name == "rl-2026-10-21_demo_v1" and t.execution == "tracking"  # no params/env.yaml: as before demo_v6h
     _check_action(t.act(_state()))
+    (run / "params").mkdir()
+    (run / "params" / "env.yaml").write_text("actions:\n  arm_action:\n    held_target: true\n", encoding="utf-8")
+    assert rl_policy.make(checkpoint=run, device="cpu").execution == "held"  # T6 then refuses tracking rollouts
+    with pytest.raises(ValueError, match="execution"):
+        rl_policy.RLTeacher(lambda o: o, name="x", execution="fast")
     torch.save({"model_state_dict": net.state_dict()}, run / "model_100.pt")
     with pytest.raises(ValueError, match="TorchScript"):
         rl_policy.make(checkpoint=run / "model_100.pt", device="cpu")
@@ -205,3 +210,13 @@ def test_the_adapter_applies_the_runs_speed_cap_from_the_previous_target(tmp_pat
                                              encoding="utf-8")
     assert rl_policy.run_speed_cap(run / "exported" / "policy.pt") == (0.5, 2.5)
     assert rl_policy.run_speed_cap(tmp_path / "old" / "exported" / "policy.pt") == (0.0, 0.0)  # before the cap
+
+
+def test_a_run_says_whether_it_trained_with_held_targets(tmp_path):
+    run = tmp_path / "2026-10-21_demo_v6h"
+    (run / "params").mkdir(parents=True)
+    (run / "params" / "env.yaml").write_text("actions:\n  arm_action:\n    v_max: 0.5\n    held_target: true\n",
+                                             encoding="utf-8")
+    assert rl_policy.run_held_target(run / "exported" / "policy.pt") is True
+    assert rl_policy.run_held_target(run / "model_100.pt") is True
+    assert rl_policy.run_held_target(tmp_path / "old" / "model_2098.pt") is False  # demo_v6c2 and before

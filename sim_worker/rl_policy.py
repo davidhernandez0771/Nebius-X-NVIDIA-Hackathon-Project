@@ -60,9 +60,15 @@ class RLTeacher:
     action (rl_teacher.ACTION_DIM floats)."""
 
     def __init__(self, policy: Callable[[np.ndarray], np.ndarray], name: str, gripper_deadband: float = 0.0,
-                 v_max: float = 0.0, yaw_rate_max: float = 0.0):
+                 v_max: float = 0.0, yaw_rate_max: float = 0.0, execution: str = "tracking"):
+        if execution not in ("tracking", "held"):
+            raise ValueError(f"execution is 'tracking' or 'held', not {execution!r}")
         self.policy = policy
         self.name = name
+        # how its targets must be executed, as in its training env (run_held_target): "held" = one IK solve per control
+        # step, held, zero velocity (demo_v6h); "tracking" = re-solved per substep + feed-forward. T6's distill_rollouts
+        # refuses a contradicting --teacher-execution (sim_eval.teacher.execution_mismatch).
+        self.execution = execution
         self.gripper_deadband = gripper_deadband  # the training env's (rl_teacher.gripper_closed)
         self.v_max, self.yaw_rate_max = v_max, yaw_rate_max  # the training env's speed cap (rl_teacher.cap_speed)
         self._last = np.zeros(rt.ACTION_DIM)
@@ -113,6 +119,13 @@ def run_speed_cap(path: Path) -> tuple[float, float]:
     return float(arm.get("v_max") or 0.0), float(arm.get("yaw_rate_max") or 0.0)
 
 
+def run_held_target(path: Path) -> bool:
+    """Whether the run trained with held-target execution (its params/env.yaml; demo_v6h): a teacher that then has to be
+    executed the student's way (one IK solve per control step, held, zero velocity target)."""
+    arm = (run_env_cfg(path).get("actions") or {}).get("arm_action") or {}
+    return bool(arm.get("held_target") or False)
+
+
 def run_env_cfg(path: Path) -> dict:
     """The env config the run trained with (its params/env.yaml) as plain data, {} if none. path: a checkpoint in the
     run (or in its exported/)."""
@@ -152,4 +165,4 @@ def make(checkpoint, device: str = "cuda:0", **_) -> RLTeacher:
     run = path.parent.parent.name if path.parent.name == "exported" else path.stem
     v_max, yaw_rate_max = run_speed_cap(path)
     return RLTeacher(policy, name=f"rl-{run}", gripper_deadband=run_gripper_deadband(path), v_max=v_max,
-                     yaw_rate_max=yaw_rate_max)
+                     yaw_rate_max=yaw_rate_max, execution="held" if run_held_target(path) else "tracking")
