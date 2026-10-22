@@ -683,6 +683,34 @@ off for the running trainer.**
 - **Effect:** training went from 11.6 to about 20.9 steps/s.
 - **What it changes:** speed only. The data, the mix, the flags, the steps and the seeds are unchanged.
 
+**Round 0 at 300: selection FAILED, 0/30 for both candidates** on 5300–5329. Selection ended at 20:23:13; round 0 took
+4 h 50 min in all, on code `da19c2a`.
+
+| Checkpoint | Selection seeds 5300–5329 | Collisions | Drops |
+|---|---|---|---|
+| 40k | 0/30 | 21 | 16 |
+| 60k | 0/30 | 16 | 11 |
+
+- **Every episode** ended on the time limit with the cube not in the bin (per the lead). An episode can count under
+  more than one failure kind.
+- **The pick is 60k,** since the tie goes to the later step.
+- **Checked here:** `selection_t300.json` and `selection.json` (in `C:\dev\pm-t6\data\distill\distill_mouse\r0`)
+  have counts 40000: 0/30 and 60000: 0/30, the chosen step 60000, seeds 5300–5329, no inference arguments, and code
+  `da19c2a` with `dirty: false`. The failure kinds are from the lead's message.
+- **Against the rule:** 0/30 is below 18/30, so the pre-registered next step is round 0 at 600 teacher runs.
+
+**A lead decision, logged openly (not yet an amendment): round 0 at 600 is HELD pending a diagnosis.**
+- **Why:** a teacher at 98% with a student at 0% points to a systematic mismatch between them, not to too little data.
+- **The diagnostics:** practice seeds 5200–5209 only. They never use 5300–5329 or 5020–5059:
+  - the open-loop fit on the training data;
+  - a `--trace` on the training scenes 4000 and 4001, and on 5300 (see the open item below);
+  - three inference modes: plain, `n_action_steps` 10, and a temporal ensemble at 0.01.
+- **Finding so far:** the teacher's labels move about 5× faster per step than the human demos'.
+- **Any change of plan** comes as Amendment 4, with its reason. Until then, the pre-registered rule stands, and only
+  its next step is held.
+- **Open item:** 5300 is a selection seed, and the trace list above names it, although the diagnostics are meant to
+  use no selection seed. This is asked of the lead, and the answer is added here.
+
 5300–5349 are never re-used. T3's `ba9e664` is the note logging the BC-initialised teacher (`56a3156`, above) as a
 run-enabling initialisation change; it has not been used.
 
