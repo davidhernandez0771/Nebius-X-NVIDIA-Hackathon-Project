@@ -393,7 +393,9 @@ the student (zero velocity target). The label is that executed target; the pairi
 - **Where it is recorded:** rows, `distill.json`, `rollouts_done.json` and `round.json`.
 - **Guards:**
   - a folder never mixes executions (`check_execution`);
-  - a held round does not count a tracking `rollouts_done` as done, so it needs its own run id.
+  - a held round does not count a tracking `rollouts_done` as done, so it needs its own run id;
+  - a teacher may declare `execution` (T3's `make()` can set it from `run_held_target`); `distill_rollouts` refuses a
+    `--teacher-execution` that contradicts it (`sim_eval.teacher.execution_mismatch`).
 - **Tests:**
   - held teacher steps go through `env.step`, not `step_teacher`;
   - an AST test that `IsaacDistillEnv.step`/`_apply` call `IsaacEvalEnv`'s, and that eval's `run_episode` drives the

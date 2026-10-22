@@ -181,6 +181,20 @@ def test_load_teacher_imports_a_factory_and_checks_the_protocol():
         load_teacher("no_colon_here")
 
 
+def test_a_teacher_that_declares_its_execution_must_get_it():
+    """A teacher may declare how it was trained to be executed (T3's held-trained demo_v6h: "held"); a rollout with
+    another --teacher-execution is refused. Teachers that declare nothing are accepted with either."""
+    from sim_eval.teacher import execution_mismatch
+
+    t = StubTeacher()
+    assert execution_mismatch(t, "tracking") is None and execution_mismatch(t, "held") is None
+    t.execution = "held"
+    assert execution_mismatch(t, "held") is None
+    assert "held" in execution_mismatch(t, "tracking")
+    t.execution = "tracking"
+    assert "tracking" in execution_mismatch(t, "held")
+
+
 def test_there_is_no_hand_written_teacher():
     """The user rules a scripted expert out as a teacher: nothing in the distill code may fall back to one."""
     root = Path(__file__).resolve().parents[1]

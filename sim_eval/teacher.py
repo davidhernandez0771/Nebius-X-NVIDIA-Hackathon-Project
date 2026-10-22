@@ -93,6 +93,16 @@ def check_action(a: TeacherAction | None) -> TeacherAction | None:
     return TeacherAction(ee_pos=pos, ee_quat_wxyz=q / norm, gripper=int(a.gripper))
 
 
+def execution_mismatch(teacher, execution: str) -> str | None:
+    """A teacher may declare `execution` ("tracking" | "held"): the execution it was trained with (T3's held-trained
+    run: "held"). Returns why a rollout with another sim_eval.distill teacher_execution must not run; None if it may
+    (a teacher that declares nothing runs with either)."""
+    declared = getattr(teacher, "execution", None)
+    if declared is None or declared == execution:
+        return None
+    return f"teacher {teacher.name!r} was trained for {declared!r} execution, not {execution!r}"
+
+
 def load_teacher(spec: str, **kwargs) -> Teacher:
     """`spec` is "package.module:factory"; factory(**kwargs) returns the teacher (T3's adapter around its trained RL
     policy). Refuses anything that isn't a Teacher."""

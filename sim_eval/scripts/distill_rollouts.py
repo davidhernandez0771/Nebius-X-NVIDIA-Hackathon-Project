@@ -76,7 +76,7 @@ from sim_eval.distill import (  # noqa: E402
 from sim_eval.distill_round import code_version  # noqa: E402
 from sim_eval.report import gpu_pids, isaac_gate, python_processes, resolve_start  # noqa: E402
 from sim_eval.retry import RetryingPolicy  # noqa: E402
-from sim_eval.teacher import load_teacher  # noqa: E402
+from sim_eval.teacher import execution_mismatch, load_teacher  # noqa: E402
 from sim_worker.replay import make_sim_cfg  # noqa: E402
 
 
@@ -139,6 +139,10 @@ def main() -> None:
             # after the app is up: the teacher may import Isaac Lab (rsl_rl and its wrappers)
             teacher = load_teacher(a.teacher, checkpoint=str(a.teacher_checkpoint), device=a.device)
             log(f"teacher {teacher.name!r} from {a.teacher} ({a.teacher_checkpoint})")
+            mismatch = execution_mismatch(teacher, a.teacher_execution)
+            if mismatch:
+                log(f"refusing to roll out: {mismatch}; pass --teacher-execution {teacher.execution}")
+                sys.exit(2)
             for i, scene in enumerate(todo):
                 t1 = time.time()
                 stale = set_aside_stale(out, kind=a.kind, round_id=a.round, seed=scene.seed)
