@@ -1202,4 +1202,4 @@ achieved recording and code `6101243`.
   - **`model_2697.pt`** (sha256 `49af0e9a…`) was written at 22:00:28, at the end of training, and is unchanged since.
     Last night's export was made from it at 22:03, by the same code.
     - Checked here: the file's time is 22:00:28, and its sha256 starts `49af0e9a`.
-  - **So gate (b), gate (a) and round 0 all used the same teacher, `model_2697`.** T3's report is `export_checkeport.json` in T3's scratchpad.
+  - **So gate (b), gate (a) and round 0 all used the same teacher, `model_2697`.** T3's report is `export_check\report.json` in T3's scratchpad.
