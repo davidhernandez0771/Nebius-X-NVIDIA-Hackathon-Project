@@ -472,8 +472,34 @@ the student (zero velocity target). The label is that executed target; the pairi
 - **Failures:** 25, all time limit, all including "dropped" (not_in_bin 22, gripper_closed 8, collision 7). No sim or
   policy errors, 0 retries.
 - **Files:** `data\evals\distill_mouse_final\` (json, episodes.jsonl, traces for all 40).
-- **Selection vs test:** selection's 21/29 (Wilson 0.54–0.85) overstated the test's 15/40. That is the max of two
-  candidates on 29 seeds (winner's curse); the intervals overlap. The test is the number that counts.
+- **Selection vs test (CORRECTED; T7 caught it):** the Wilson intervals do NOT overlap (selection 0.543–0.853, test
+  0.242–0.530). Two-sided Fisher, 21/29 vs 15/40: p = 0.007. The test is the number that counts. What I checked
+  (CPU only, scenes regenerated from their seeds with the same `sample_scene`):
+  - **Same sampler for both seed sets:** uniform cube x/y/yaw and bin x/y within one set of ranges, with the same
+    minimum cube–bin gap. Any difference is sampling noise.
+  - **Medians, selection / test / training (4300–4899):**
+
+    | | selection | test | training |
+    |---|---|---|---|
+    | cube x | 0.514 | 0.500 | 0.499 |
+    | cube–bin distance | 0.386 | 0.372 | 0.368 |
+    | cube distance from base | 0.526 | 0.518 | 0.519 |
+    | yaw off-axis | 0.375 | 0.329 | 0.386 |
+
+  - **Bin side:** the largest difference is bin_y (selection +0.186, test −0.209, i.e. 16/29 vs 14/40 bins on +y). But
+    success does not depend on it:
+    - test: bin +y 5/14, bin −y 10/26;
+    - selection: 12/16 and 9/13;
+    - pooled Fisher p = 0.63.
+
+    The human cell is balanced: 46% of its bins on +y.
+  - **No feature separates successes from failures** in either set, including the distance to the nearest training
+    scene.
+  - **Run conditions are the same:** checkpoint, reset pose, 30 s, cameras. The test added `--trace` (prereg); the
+    StepTracer only records `observe()` / `step()` and changes nothing the policy sees.
+  - **Chance alone:** with the pooled rate (36/69 = 52%), P(max of two candidates ≥ 21/29) ≈ 5% and P(test ≤ 15/40)
+    ≈ 6%. So the gap is unlikely but not impossible from selection + noise. No mechanism found; PhysX is not
+    deterministic. The final number stands as run.
 
 ### Time estimates on the RTX 5080
 
