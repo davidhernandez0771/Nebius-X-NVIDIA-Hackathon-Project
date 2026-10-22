@@ -1533,3 +1533,36 @@ data, is a NEW experiment. It needs its own preregistration and fresh test seeds
 
 **Nothing here touches** the final test, the camera student, or any seed range in this prereg. The breakdown's scenes
 come from its own rng (seed 7), not from the eval seeds.
+
+**`nodemo_v6` launched under Amendment 6 (`c9d48f9`)** at 18:59:15 (`gpu.lock` `T4 42824 rl-teacher:nodemo_v6`). Its run
+directory is `C:\dev\pm-t3-nodemo\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-22_18-59-23_nodemo_v6`.
+- **The code:** T3's worktree `C:\dev\pm-t3-nodemo`, branch `pm/rl-nodemo-control`, HEAD `d9cf2a7`, no commit added.
+  `git status --untracked-files=all` is empty.
+  - One git-ignored file was added: `data\rl\bank_mouse20261020.npz`, copied from `pm-t3`, sha256 `52076b83843a056c…`
+    (identical).
+  - `d9cf2a7`'s `rl_train.py` refuses to start without the bank on disk. At `demo_prob` 0 it is never loaded.
+- **The command:** the trainer line is `data\rl\demo_v6.log`'s line 1 word for word, except `--run_name nodemo_v6` and
+  the added `env.events.reset_scene.params.demo_prob=0.0`.
+  - The task is `SANT-PickPlace-Franka-RL-Lift-v0` (`run.json`), with 4096 envs and 1500 iterations.
+  - It runs through `d9cf2a7`'s wrapper (the GPU lock + KeepAwake). It has no QoS call, the same as demo_v6.
+- **Expected in the `env.yaml` diff,** besides `demo_prob`: `bank_path` reads the `pm-t3-nodemo` copy, because
+  `DEFAULT_BANK` is relative to the repo. It is inert at `demo_prob` 0. The diff is added here once the run writes its
+  `params`.
+- **The in-training tags, named before the run (T3):** `Metrics/check_success`, `Episode_Termination/success`,
+  `Stages/lifted`, and `Stages/centred_grasp` (= "grasp").
+  - demo_v6's values at 300 / 600 / 900 / 1200 / 1499:
+
+    | Tag | 300 | 600 | 900 | 1200 | 1499 |
+    |---|---|---|---|---|---|
+    | `Metrics/check_success` | 0.050 | 0.177 | 0.428 | 0.477 | 0.524 |
+    | `Episode_Termination/success` | 0.254 | 0.337 | 0.721 | 0.895 | 0.903 |
+    | `Stages/lifted` | 0.022 | 0.036 | 0.140 | 0.229 | 0.229 |
+    | `Stages/centred_grasp` | 0.010 | 0.015 | 0.061 | 0.124 | 0.121 |
+
+  - **They are not home-vs-home:** demo_v6's tags average over all its starts (about half from demo states), while
+    `nodemo_v6`'s are home starts only. The breakdown is the home-vs-home comparison.
+- **Checked here:**
+  - HEAD `d9cf2a7`, a clean tree, and the bank's sha256 matching `pm-t3`'s;
+  - the launch line vs demo_v6's, compared word by word: the only differences are the run name and the one added
+    override;
+  - the lock, and `run.json`'s task.
