@@ -1566,3 +1566,18 @@ directory is `C:\dev\pm-t3-nodemo\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-22
   - the launch line vs demo_v6's, compared word by word: the only differences are the run name and the one added
     override;
   - the lock, and `run.json`'s task.
+
+**`nodemo_v6`'s config vs demo_v6's: they differ only in the start setting** (diffed here, from the run's `params`).
+- **`env.yaml`, 3 lines:**
+  - `demo_prob` 0.5 → 0.0;
+  - `bank_path` (the `pm-t3-nodemo` copy, the same sha256, never loaded at 0);
+  - `log_dir`.
+- **`agent.yaml`, 1 line:** `run_name`. The seed (42) and `max_iterations` (1500) are the same.
+- **`git/IsaacLab.diff`:** byte-identical.
+- **Everything else is byte-identical,** including PPO, rewards, the reward-weight curriculum and the inert demo-start
+  settings.
+- **The wrapper:** PID 50920, started 18:59:14 (T3).
+- **The breakdowns are queued** (driver PID 46844; it starts when training exits).
+  - They use today's `pm-t3` `rl_start_breakdown` with `--n 128 --demo-prob 0.0 --seed 7`.
+  - The order: 1499 for both first, then 300, 600, 900 and 1200, with demo_v6 before `nodemo_v6` at each.
+  - The outputs: `C:\dev\pm-t3\datalreakdown\home_<run>_<it>reakdown.json`.
