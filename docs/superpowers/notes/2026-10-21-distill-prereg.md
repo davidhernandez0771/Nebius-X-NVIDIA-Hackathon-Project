@@ -1156,6 +1156,8 @@ achieved recording and code `6101243`.
 48/50 on 4950–4999.
 - **The teacher:** `demo_v6h` `model_2697`, with the held execution.
 - **The final teacher code** (Amendment 4 A): **`6101243`** on `pm/rl-teacher`. It is unchanged since the gate's runs.
-  T3's notes commit with the gate results is added here when T3 sends it.
+  T3's notes commit with the gate results is **`314613e`**. It is docs only (checked: it adds 24 lines to T3's gate
+  note, and no code), so `pm/rl-teacher`'s tip is `314613e` while the teacher's code stays `6101243`. T3's training
+  totals: 2698 iterations, 7271 s.
 - **Next:** T6's held round 0 on 4300–4599, on the lead's go; then selection on 5301–5329 (≥ 18/29); then, if it
   passes, the test on 5020–5059, once.
