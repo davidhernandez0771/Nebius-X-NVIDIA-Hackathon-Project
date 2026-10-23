@@ -204,7 +204,7 @@ shafts in e7b3d24).
   - `dissolve` (5, the timed reveal), `shaderPow` (1);
   - updated: robot tiers, wrecks, LOD and the budget test. The budget test now counts only the robots in the camera's
     view along the path (16:9, plus a portrait phone on low) and the rift's triangles.
-- **Full web suite** (`--minWorkers=1`): **205 files, 1,863 passed, 1 skipped.** That run was before the NaN commit; the
+- **Full web suite** (`--minWorkers=1`), last run after the trees and the clean robots: **207 files, 1,867 passed, 1 skipped.** An earlier run, before the NaN commit, was 205 files, 1,863 passed; the
   intro tests passed again after it.
 - **`tsc -b` and `npm run build`:** pass. The worker is bundled (`robotLevels.worker-*.js`).
 - **Triangle budget**, worst frame along the camera's path (`robotBudget.test.ts`):
