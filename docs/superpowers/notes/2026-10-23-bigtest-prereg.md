@@ -486,3 +486,42 @@ C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\held_human_rollouts.py
   --start-state C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 ^
   --out data\held_human\mouse20261020_settle --run-log C:\dev\pm-t6-big\data\distill\bigtest\run_log.txt
 ```
+
+### Amendment 1's pilot: the floor FAILS, so both stages use the original human set
+
+**The pilot on `8071e15` can no longer reach 16/22.** At 16:10 it stood at **0/14** (`00ab` 0/11, `da08` 0/3), so
+at most 8 of the remaining 8 rows could pass, and 8 < 16. By its own rule (Amendment 1) it ends at row 22 with "stop".
+Its final line is logged below when it lands. It started at 16:02:27 (`gpu.lock` `T3 38564 held_human`).
+- **The rows so far** (checked here, from `mouse20261020_settle\rollouts.jsonl`):
+  - `00ab`: 11 of 11 `not_in_bin` + `dropped`, with 44–46 steps of gripper–cube contact each.
+  - `da08`: 3 of 3 `not_in_bin`, with **no gripper–cube contact at all**.
+  - No arm–bin or arm–table contact on any row.
+  - The cube's highest z is 0.025–0.0257 m against a start of 0.025 m, so it is never lifted.
+  - The grip waits are 9–14 steps at the close.
+- **T3's figure:** the tool's lowest point is z ≈ 0.058 m, against the human's grasp height of 0.0395 m. So the fingers
+  close about 19 mm above the grasp point.
+
+**The lead's decision, applying the prereg and Amendment 1 as written (no new amendment):**
+- **The floor FAILS.** Stage A AND Stage B use the ORIGINAL human set, `perfected_multiply_10` (the 110 episodes from
+  `C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json`).
+- **Change 2 is dropped, and that is disclosed here.** The arm that runs is v2 without change 2: the gripper deadband,
+  180k steps, and Stage B's DAgger r1 with the retrain.
+- **Nothing from either held-human run is trained on.** Run 1 kept 0, and the pilot's "stop" writes `kept` 0 and no
+  `grid.json`.
+
+**Disclosed: why change 2 failed.**
+- **A bug in the pilot's code (T3's):** `8071e15`'s grasp wait held the PREVIOUS capped target. On a descent that
+  target lags the human's point, so the wait ended with the tool about 19 mm above the grasp point.
+  - The fix is `511d9a5` on `pm/held-human`: the wait commands the human's point at the change, capped as always, until
+    the tool is within the distance. It is committed as a candidate only. **It was NOT used, and nothing ran on it.**
+- **The root cause (T3's finding):** the held executor closes only about 9% of the tool-to-target gap per step. T3
+  measured that over about 59k steps of T6's held teacher episodes. So the tool tops out at about 0.1–0.15 m/s.
+  - k = 2 is too fast for that. The prereg's k rule measured only the speed-cap lag (capped target vs commanded), not
+    the executor's lag (tool vs target). **The rule measured the wrong limit.** That is T3's error and the reason change 2
+    failed.
+  - T3's model sweep puts a workable k at about 5.
+- **A k = 5 pilot is queued as a post-test diagnostic only.** It has no effect on this experiment: it runs after the
+  test, and its data is never part of this arm.
+
+**Next:** the lead gives T6 the go with `--human-grid C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json --human-cell
+perfected_multiply_10`. The go line is logged here when T6 writes it.
