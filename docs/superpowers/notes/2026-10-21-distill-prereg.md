@@ -1639,4 +1639,28 @@ no overrides. Every one of the 128 episodes started at home, in the same 128 sce
     off-centre grasp.
 - **Checked here:** both files' settings (n, demo_prob, deadband, grace, `held_target`, overrides, the checkpoint
   path), 128 home episodes and 0 demo episodes in each, and both Wilson intervals recomputed independently.
-- The curve at 300 / 600 / 900 / 1200 follows when those breakdowns finish.
+
+### Amendment 6 RESULT: the curve (home starts at 300 / 600 / 900 / 1200 / 1499)
+
+The same settings as the primary. The driver's log (`C:\dev\pm-t3\data\rl\nodemo_breakdowns.log`) has every run at
+rc 0, then "ALL DONE" at 20:15:07; `gpu.lock` is released.
+
+| Iteration | demo_v6 home success (Wilson 95%) | grasped / lifted | nodemo_v6 home success (Wilson 95%) | grasped / lifted |
+|---|---|---|---|---|
+| 300 | 0/128 (0.000–0.029) | 0 / 0 | 0/128 (0.000–0.029) | 0 / 0 |
+| 600 | 10/128 (0.043–0.138) | 5 / 21 | 0/128 (0.000–0.029) | 6 / 0 |
+| 900 | 99/128 (0.694–0.837) | 77 / 126 | 0/128 (0.000–0.029) | 0 / 0 |
+| 1200 | 109/128 (0.780–0.903) | 93 / 128 | 0/128 (0.000–0.029) | 0 / 0 |
+| 1499 | **113/128 (0.816–0.928)** | 96 / 128 | **0/128 (0.000–0.029)** | 0 / 0 |
+
+- **demo_v6** learned from home between 600 and 900 (10 to 99 of 128) and kept improving to 1499.
+- **nodemo_v6** never succeeded and never lifted from home at any checkpoint. Its only centred grasps (6/128) are at
+  600, matching its in-training grasp peak at iteration 556; they were gone by 900.
+- Failure reasons per checkpoint are in each `breakdown.json` (for demo_v6 at 900–1499, mostly dropped and
+  collision; for nodemo_v6, every episode ends `not_in_bin`).
+- **Checked here:** all ten files (settings, 128 home and 0 demo episodes each, the checkpoint paths) and every
+  Wilson interval, recomputed independently.
+
+**Amendment 6 is complete.** Its conclusion stands as stated with the primary: under the pre-stated rule, the human
+demo starts mattered for the teacher, in this recipe and budget, one run per arm. No student and no test seeds were
+used.
