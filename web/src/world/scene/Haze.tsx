@@ -1,12 +1,13 @@
 // Ultra only: the air in the room. A soft shaft of light under each of the two pendant lamps (over
-// the bench and over the machine, where the bake puts the pools of light on the floor) and one down
-// through the ceiling's opening onto the spiral. Additive, no depth write, no fog; they follow the
+// the bench and over the machine, where the pools of light lie on the floor: lightPools.ts) and one down
+// through the ceiling's opening onto the spiral. The shafts fade out in the air above the floor: run down
+// through it, their rims cut the floor in dashed rings that flickered as the camera moved. Additive, no depth write, no fog; they follow the
 // lamps (power.ts). The dust in them is the journey's one dust (stations/intro), so the workshop
 // keeps to two Points objects.
 import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { BENCH_PIVOT, MACHINE_PIVOT } from "./layout";
+import { FLOOR_Y, LAMPS } from "./lightPools";
 import { power } from "./power";
 
 export interface Shaft {
@@ -18,12 +19,12 @@ export interface Shaft {
   strength: number;
 }
 
-const FLOOR = -0.6;
-/** Pools on the floor in front of each desk (matched against W-baked-preview), lamps above them. */
+/** Where the shafts end, faded to nothing: well clear of the floor. */
+const END = FLOOR_Y + 1.4;
+/** The lamps over the pools in front of each desk, and the opening over the spiral (the same cones as before, cut short). */
 export const SHAFTS: Shaft[] = [
-  { top: new THREE.Vector3(BENCH_PIVOT.position[0] + 0.6, 11.2, BENCH_PIVOT.position[2] + 1.8), floorY: FLOOR, topR: 0.5, bottomR: 4.2, strength: 0.075 },
-  { top: new THREE.Vector3(MACHINE_PIVOT.position[0] - 0.6, 11.2, MACHINE_PIVOT.position[2] + 1.8), floorY: FLOOR, topR: 0.5, bottomR: 4.2, strength: 0.075 },
-  { top: new THREE.Vector3(0, 14.2, 0), floorY: FLOOR, topR: 4.6, bottomR: 4.4, strength: 0.05 },
+  ...LAMPS.map((l) => ({ top: new THREE.Vector3(l.x, 11.2, l.z), floorY: END, topR: 0.5, bottomR: 3.64, strength: 0.075 })),
+  { top: new THREE.Vector3(0, 14.2, 0), floorY: END, topR: 4.6, bottomR: 4.42, strength: 0.05 },
 ];
 
 const shaftVert = /* glsl */ `
@@ -38,14 +39,17 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * wp;
 }`;
 
-const shaftFrag = /* glsl */ `
+/** Exported for its test: the base of every pow() is held at 0 or above. */
+export const shaftFrag = /* glsl */ `
 uniform vec3 uColor;
 uniform float uStrength;
 varying float vDown;
 varying float vFacing;
 void main() {
-  // Brightest near the lamp, fading to the floor; soft at the silhouette, so it reads as volume.
-  float a = uStrength * pow(1.0 - vDown, 1.6) * smoothstep(0.1, 1.0, vFacing) * smoothstep(0.0, 0.08, vDown);
+  // Brightest near the lamp, fading to the floor; soft at the silhouette, so it reads as volume. The
+  // base is clamped: at the rim the interpolated vDown runs a hair past 1, and pow() of a negative base
+  // is undefined (NaN on D3D), which the bloom spread into the dashed rings round each shaft's foot.
+  float a = uStrength * pow(max(1.0 - vDown, 0.0), 1.6) * smoothstep(0.1, 1.0, vFacing) * smoothstep(0.0, 0.08, vDown);
   gl_FragColor = vec4(uColor * a, 1.0);
 }`;
 
