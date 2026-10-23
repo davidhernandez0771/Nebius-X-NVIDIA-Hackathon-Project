@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { buildForest, FOREST_TIERS } from "./forestGeometry";
-import { ROBOT_TIERS, robotUrl, type RobotId } from "./forestRobots";
+import { ROBOT_TIERS, forestRobotUrl, type RobotId } from "./forestRobots";
 import { FOREST } from "./layout";
 import { cameraAt } from "./path";
 import { dropLight, INTRO_VH, placeLights } from "./storyPlan";
@@ -24,7 +24,7 @@ async function scene(path: string): Promise<THREE.Object3D> {
   return gltf.scene;
 }
 
-const model = async (id: RobotId): Promise<LodMesh> => modelFromScene(await scene(robotUrl(id)));
+const model = async (id: RobotId): Promise<LodMesh> => modelFromScene(await scene(forestRobotUrl(id)));
 
 /** The crack model's triangles: all of them, and those the walk draws (Crack.tsx). */
 async function crackTris(): Promise<{ all: number; walk: number }> {

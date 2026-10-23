@@ -2,7 +2,7 @@
 // when the visitor is somewhere that is still on its way.
 import { describe, expect, it } from "vitest";
 import { BAKED, CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL, bakedUrl } from "../scene/assets";
-import { ROBOT_TIERS, robotUrl } from "../stations/intro/forestRobots";
+import { ROBOT_TIERS, forestRobotUrl } from "../stations/intro/forestRobots";
 import { span } from "../stations/intro/storyPlan";
 import SIZES from "./assetSizes.json";
 import { prefetchOrder, stationFiles, waitFor } from "./waiting";
@@ -45,7 +45,7 @@ describe("what each station needs", () => {
   it("fetches in the order the journey reaches them: the forest's crack and robots, then the descent's, then the rest", () => {
     const order = prefetchOrder("high");
     expect(order[0]).toBe(`${BASE}world/models/crack.glb`);
-    const forest = ROBOT_TIERS.high.ids.map((id) => `${BASE}${robotUrl(id)}`);
+    const forest = ROBOT_TIERS.high.ids.map((id) => `${BASE}${forestRobotUrl(id)}`);
     expect(order.slice(1, 1 + forest.length)).toEqual(forest);
     expect(order.indexOf(bakedUrl("room"))).toBeGreaterThan(forest.length);
     expect(order.indexOf(MACHINE_URL)).toBeGreaterThan(order.indexOf(bakedUrl("room")));

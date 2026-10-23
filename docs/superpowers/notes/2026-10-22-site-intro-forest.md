@@ -90,8 +90,8 @@ They were 1,000 tiny points clamped to 12 px, so they read as dust. Now (`firefl
 
 - **Soup exports** (open-edge share over 15%) get one level, no coarser than 6,000 triangles (`SOUP_FLOOR`). The OpenArm
   holds up at that.
-- **`fr3` is left out of the forest** (`FOREST_SKIP`) until it is re-exported clean (the Blender list below). Its spot is
-  kept, so the other spots don't move.
+- **`fr3` was left out of the forest** (`FOREST_SKIP`) until it was re-exported clean. It is back since the lead's clean
+  export (see 4b).
 
 Close-ups (SwiftShader; the same camera before and after): `closeup-{franka,piper,openarm,ur5e}.jpg`.
 
@@ -113,6 +113,44 @@ Close-ups (SwiftShader; the same camera before and after): `closeup-{franka,pipe
 - **Depth:** a backdrop ring beyond the last far trunks, with three rows of trunk silhouettes, each deeper in the fog,
   under a ragged canopy band. It is one draw and about 100 triangles, with its own fog.
 - **Budget:** ferns were trimmed to fit (high 160 → 150, ultra 250 → 236, low 70 → 68).
+
+### 4b. The modelled trees (the lead's trees.glb v1, wired in later the same evening)
+
+**What the lead modelled in Blender:**
+- 3 trunk variants;
+- 4 levels each (1,340 / 574 / 222 / 50 triangles);
+- flared roots and limbs;
+- baked bark (a tileable albedo and normal) with baked AO in the vertex colour;
+- leaf cards.
+
+**How they're drawn** (`forestTrees.ts`, tested):
+- **Placement:** every tree of the layout keeps its place, lean and tint. Its variant comes from a hash, it is spun about
+  its axis, and it is scaled evenly from its chest radius (radius / 0.8 m).
+- **Levels:** lod0 for the near trees closest to the walk (12 on high, 16 on ultra, none on low), then near lod1, mid
+  lod2, and far and backdrop lod3.
+- **Merging:** every tree of a level is merged into one world-space geometry, so 4 bark draws and 1 for the leaves.
+- **The swap:** once the GLB and its textures are in, these replace the procedural trunks, roots and branch cards.
+  Until then, or if the files fail, the procedural ones stay.
+- **Shaders:** compiled under the loader on stand-in triangles; the textures swap in without a recompile.
+- **Budget:** a test holds the merged triangles under what they replace, on every tier.
+
+Shots (SwiftShader, the GPU then held by Blender): `after/desktop-12…` and `desktop-13…`.
+
+**The lead's bark pass** (`desktop-14…`, `desktop-15…`):
+- the moon on the normal-mapped bark at 0.02 + 0.15 · max(n·moon · 0.7 + 0.3, 0);
+- the lantern fireflies catch the plates through the mapped normal;
+- the baked AO lifted to mix(0.55, 1, ao).
+The forest stays dark; the lead judges whether the albedo goes up too.
+
+**The robots' clean exports.** The lead re-exported fr3 and the OpenArm welded (0 and 18 of 22,500 edges open).
+- **Where they live:** `world/models/forest/robots/`, read only by the forest (`forestRobotUrl`). The workshop's wall
+  keeps the originals: the welded files would join the link shells it cuts the robots into, and push the wall to 180,709
+  of its 180,000 triangles. Fixing the wall is a later job.
+- **fr3 is back in the forest** (`FOREST_SKIP` is empty).
+- **Budget:** to stay inside it, the robots' levels are 1,900 / 4,400 on high and 2,400 / 6,200 on ultra, and ferns 145
+  and 235.
+- **Asset sizes:** regenerated (`assetSizes.json`).
+- **Shots:** `after/closeup-fr3-clean-export.jpg`, `after/closeup-openarm-clean-export.jpg`.
 
 ## 5. The rift (the crack, seen from the forest)
 
@@ -230,9 +268,9 @@ shafts in e7b3d24).
 
 ## Blender list (for later; nothing here was made in Blender)
 
-1. **Re-export `fr3.glb` as a clean, welded mesh** (today it is a triangle soup, 69% open edges), with an LOD near
-   2.5k triangles. It then goes back into `ROBOT_TIERS`.
-2. **Re-export `openarm.glb` welded** (27% open edges), so it can take the normal 2.2–2.8k far level.
+1. **Done for the forest** (the lead, 21:45): fr3 and the OpenArm re-exported welded, as the forest's own copies.
+2. **Still to do:** the workshop's wall on clean exports, keeping the links as separate shells and staying under its 180k
+   triangles.
 3. **Trees:** the lead is modelling them now (3 trunk variants with LODs, baked bark, leaf cards).
    - I sent the per-layer counts and the triangle budget they must fit: high's trunks and roots cost about 84k today.
    - I'll swap in uniform per-tree scale and the baked bark, and drop the procedural roots, branch cards and

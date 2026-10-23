@@ -17,13 +17,13 @@ import { buildForest, FOREST_TIERS, MOON, type ForestPiece } from "./forestGeome
 import { crackFireflyCount, fireflies, fireflyCount } from "./fireflyPlan";
 import { makeFireflies } from "./fireflies";
 import { MIST_BANDS } from "./forestPlan";
-import { ROBOT_TIERS, robotUrl } from "./forestRobots";
+import { ROBOT_TIERS, forestRobotUrl } from "./forestRobots";
 import { BARK_ALBEDO_URL, BARK_NORMAL_URL, LEAVES_URL, TREES_URL, mergeTrees, treeMeshes, treePlan } from "./forestTrees";
 import type { Wrecks } from "./robotWrecks";
 import { bandK } from "./mistBands";
 import { FOREST } from "./layout";
 import { seeded } from "./particles";
-import { OUT, placeUniforms, surfaceFrag, surfaceMaterial, type PlaceUniforms } from "./placeShaders";
+import { OUT, PLACE_GLOWS, placeUniforms, surfaceFrag, surfaceMaterial, type PlaceUniforms } from "./placeShaders";
 
 const F = FOREST.floor;
 const BASE = (import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "/");
@@ -390,8 +390,16 @@ void main(){
   // The relief flattens with distance, so far bark doesn't shimmer.
   m.xy *= 1. - smoothstep(12., 40., distance(cameraPosition, vW));
   vec3 n = perturb(n0, vW, vUv, m);
-  vec3 alb = texture2D(uAlbedo, vUv).rgb * vAo.r * (.75 + .5 * vTint);
-  vec3 c = alb * (.022 + .075 * max(0., dot(n, uMoon)));
+  // The baked AO, lifted so the feet don't go to black.
+  vec3 alb = texture2D(uAlbedo, vUv).rgb * mix(.55, 1., vAo.r) * (.75 + .5 * vTint);
+  // The moon on the normal-mapped bark (with a little wrap, so the side away from it isn't pure black): what makes
+  // the plates show at night on a dark albedo.
+  vec3 c = alb * (.02 + .15 * max(dot(n, uMoon) * .7 + .3, 0.));
+  // The lantern fireflies catch the plates too (place() adds their soft pool; this is the relief facing them).
+  for (int i = 0; i < ${PLACE_GLOWS}; i++){
+    vec3 g = uGlowP[i].xyz - vW;
+    c += uGlowC[i] * uGlowP[i].w * .05 * max(dot(n, normalize(g)), 0.) / (1. + dot(g, g) * 4.);
+  }
   vec3 v = normalize(cameraPosition - vW);
   c += vec3(.011, .016, .021) * pow(max(1. - max(0., dot(n, v)), 0.), 3.);
   float mossy = (1. - smoothstep(uFloor, uFloor + 1.8 + 1.4 * vTint, vW.y)) * .7;
@@ -625,7 +633,7 @@ export function useForest(quality: QualityTier): ForestHandle {
         maker = lm;
         // Each model's levels are simplified in a worker as it arrives (robotLevelsClient.ts), off the main thread.
         const loaded = await Promise.all(robotTier.ids.map((id) =>
-          loader.loadAsync(BASE + robotUrl(id)).then(async (g) => {
+          loader.loadAsync(BASE + forestRobotUrl(id)).then(async (g) => {
             const model = w.modelFromScene(g.scene);
             return [id, model, await lm.make(id, model, robotTier)] as const;
           }, (e) => {

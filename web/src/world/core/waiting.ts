@@ -6,7 +6,7 @@ import { BAKED, CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL, bakedUrl } from "../
 import { MODEL_IDS, robotModelUrl } from "../scene/robotModels";
 import { EXTRA_ROBOTS } from "../scene/wallPlan";
 import { CRACK_SLOT } from "../stations/intro/crackSlot";
-import { ROBOT_TIERS, robotUrl } from "../stations/intro/forestRobots";
+import { ROBOT_TIERS, forestRobotUrl } from "../stations/intro/forestRobots";
 import { span } from "../stations/intro/storyPlan";
 import type { TierName } from "./quality";
 import type { StationId } from "./types";
@@ -16,7 +16,7 @@ const BASE = import.meta.env.BASE_URL ?? "/";
 /** The forest's: the crack's model (not on the low tier, which keeps the procedural crack) and its robots. */
 export function forestFiles(tier: TierName): string[] {
   const crack = tier === "low" ? [] : [`${BASE}${CRACK_SLOT.url}`];
-  return [...crack, ...ROBOT_TIERS[tier].ids.map((id) => `${BASE}${robotUrl(id)}`)];
+  return [...crack, ...ROBOT_TIERS[tier].ids.map((id) => `${BASE}${forestRobotUrl(id)}`)];
 }
 
 /** The descent builds the workshop out of the baked room and the machine. */

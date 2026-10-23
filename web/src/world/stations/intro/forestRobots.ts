@@ -17,6 +17,13 @@ export type RobotId = (typeof ROBOT_IDS)[number];
 
 export const robotUrl = (id: RobotId) => `world/models/robots/${id}.glb`;
 
+/**
+ * Robots the forest draws from a clean re-export of its own (welded, no open edges; world/models/forest/robots/), while
+ * the workshop's wall keeps the originals (it cuts them into their link shells, which the weld joins).
+ */
+export const FOREST_EXPORTS: readonly RobotId[] = ["fr3", "openarm"];
+export const forestRobotUrl = (id: RobotId) => (FOREST_EXPORTS.includes(id) ? `world/models/forest/robots/${id}.glb` : robotUrl(id));
+
 /** Each model's bounds (m), as its GLB has them; a test checks them against the files. */
 export const ROBOT_BOUNDS: Record<RobotId, { min: [number, number, number]; max: [number, number, number] }> = {
   franka: { min: [-0.117, 0, -0.134], max: [0.548, 0.722, 0.126] },
@@ -172,15 +179,15 @@ export interface RobotTier {
 }
 
 /**
- * Robots left out of the forest until their GLB is re-exported clean: fr3.glb is a triangle soup (69% of its edges
- * open, cracks everywhere), which reads as speckled shards at any detail (notes/2026-10-22-site-intro-forest.md).
+ * Robots left out of the forest (none now: fr3's original GLB was a triangle soup, 69% of its edges open, until the
+ * clean forest export; notes/2026-10-22-site-intro-forest.md).
  */
-export const FOREST_SKIP: readonly RobotId[] = ["fr3"];
+export const FOREST_SKIP: readonly RobotId[] = [];
 const FOREST_IDS = ROBOT_IDS.filter((id) => !FOREST_SKIP.includes(id));
 
 export const ROBOT_TIERS: Record<TierName, RobotTier> = {
   // Phones and slow GPUs: four robots, spaced along the walk, coarse only (one level, no dissolve).
   low: { ids: ["franka", "piper", "ur5e", "xarm6"], coarse: 1600, detail: 0, near: 0, band: 0, far: 24 },
-  high: { ids: FOREST_IDS, coarse: 2200, detail: 5000, near: 4.5, band: 0, far: 26 },
-  ultra: { ids: FOREST_IDS, coarse: 2800, detail: 7000, near: 5, band: 0, far: 30 },
+  high: { ids: FOREST_IDS, coarse: 1900, detail: 4400, near: 4.5, band: 0, far: 26 },
+  ultra: { ids: FOREST_IDS, coarse: 2400, detail: 6200, near: 5, band: 0, far: 30 },
 };
