@@ -1610,3 +1610,33 @@ directory is `C:\dev\pm-t3-nodemo\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-22
   runs first (demo_v6 first), then 300, 600, 900, 1200.
 - **Checked here:** the checkpoint list and times, the log's last lines, every tag value above (from the event files
   directly), and `nodemo_breakdowns.log` (it waited for trainer PID 50920, then started `demo_v6 1499`).
+
+### Amendment 6 RESULT: the primary number (home starts at iteration 1499)
+
+Both breakdowns ran with `--n 128 --demo-prob 0.0 --seed 7`, deadband 0.25, held grace 10, `held_target` False and
+no overrides. Every one of the 128 episodes started at home, in the same 128 scenes for both runs.
+
+| Run | Home success | Wilson 95% | Bonus | Ever centred-grasped | Ever lifted | Failure reasons |
+|---|---|---|---|---|---|---|
+| demo_v6 `model_1499` | **113/128 (88.3%)** | 0.816–0.928 | 113 | 96 | 128 | dropped 10, collision 7 |
+| nodemo_v6 `model_1499` | **0/128 (0%)** | 0.000–0.029 | 0 | 0 | 0 | not_in_bin 128, not_settled 7, collision 5 |
+
+- **The files:** `C:\dev\pm-t3\data\rl\breakdown\home_demo_v6_1499\breakdown.json` (written 20:09:51, rc 0) and
+  `C:\dev\pm-t3\data\rl\breakdown\home_nodemo_v6_1499\breakdown.json` (20:10:54, rc 0).
+- **The pre-stated rule applies:** the Wilson CIs do not overlap (0.029 vs 0.816), and `nodemo_v6` is lower. So,
+  under the amendment's interpretation, **the human demo starts mattered for the teacher.**
+  - The scope is this recipe (demo_v6's lift reward at `d9cf2a7`, 4096 envs, 1500 iterations, seed 42).
+  - It is one training run per arm, so this is a descriptive result with no p-value claim, as stated in advance.
+  - In plain terms: from home starts alone, PPO with this reward never found a lift in 1500 iterations (see the
+    in-training tags above). It is not shown that it never would with more iterations or another seed.
+- **The disclosure:** demo_v6 at 1499 had been seen before at home as 61/67 (Wilson 0.818–0.958), in
+  `data\rl\breakdown\v6_1499` at `--demo-prob 0.5`. Today's 113/128 is a different set of start scenes (the start plan
+  differs with the mix). The two intervals overlap, so the re-run is consistent with the earlier figure.
+- **On the columns** (checked in `sim_worker\rl_env_cfg.py` at `pm/rl-teacher` `681e8dd`):
+  - "ever centred-grasped" is `centred_grasp > 0.5` at any step, and "ever lifted" is the `lifted` term `> 0` at any
+    step.
+  - So the grasp column is stricter than success: 113 successes but 96 centred grasps means some successes used an
+    off-centre grasp.
+- **Checked here:** both files' settings (n, demo_prob, deadband, grace, `held_target`, overrides, the checkpoint
+  path), 128 home episodes and 0 demo episodes in each, and both Wilson intervals recomputed independently.
+- The curve at 300 / 600 / 900 / 1200 follows when those breakdowns finish.
