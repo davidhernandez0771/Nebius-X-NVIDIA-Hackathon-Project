@@ -518,6 +518,25 @@ of 687 s; `gpu.lock` was released afterwards.
 - **Correction to the 16:10 entry above:** "no arm–bin or arm–table contact" held for the first 14 rows. The 2 bin
   collisions came later, both in `da08`.
 
+**T3's pilot diagnostics** (written up in T3's `2026-10-23-held-human.md`, `pm/held-human` `ac6a8c1`; the branch is
+`c799064` → `46963d6` → `8071e15` → `511d9a5` → `ac6a8c1`, not pushed):
+- **`00ab`:** the tool's lowest z is 0.058 m, against the human's grasp height of 0.0395 m. About 45 steps of
+  gripper–cube contact. Grip waits 9–12 and 9–14 steps.
+- **`da08`:** the tool's lowest z is 0.075 m. No gripper–cube contact. Grip waits 12, then 0–3 steps.
+- **At each close,** the tool was 13.4–14.1 mm from its target.
+- **T3's model k table** (median / p90 close error; the share of waits hitting the 1.0 s limit). It is a rough model:
+  it gives waits of 14 steps against the real 11–12, and a lowest z of 0.041 m against the real 0.058 m.
+
+  | k | Close error | Waits at the limit |
+  |---|---|---|
+  | 2 | 76 / 108 mm | 73% |
+  | 3 | 12 / 50 mm | 34% |
+  | 4 | 4.7 / 5.1 mm | 10% |
+  | 5 | 4.7 / 4.9 mm | 0% |
+
+- **The post-test k = 5 pilot** runs on `511d9a5`. It is a measurement only (the lead's call), and nothing from it
+  enters this experiment.
+
 **The lead's decision, applying the prereg and Amendment 1 as written (no new amendment):**
 - **The floor FAILS.** Stage A AND Stage B use the ORIGINAL human set, `perfected_multiply_10` (the 110 episodes from
   `C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json`).
