@@ -33,7 +33,7 @@ export function HubBar() {
   return (
     <div ref={bar} className="world-hubbar world-u" data-on="false">
       <span className="world-hubbar__hint">
-        Drag a cartridge to the machine<span className="world-hubbar__more"> · click the shelf, the machine, the bench or the robot wall</span> · Esc goes back
+        Click a tag to go in · Esc comes back out<span className="world-hubbar__more"> · or drag a cartridge onto the machine</span>
       </span>
       <span className="world-hubbar__go" role="group" aria-label="Go to">
         {GO.map((g) => (

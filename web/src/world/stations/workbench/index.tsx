@@ -5,6 +5,8 @@
 // on the spiral; Back (or Escape) returns to the room view.
 import { still } from "../../core/layout";
 import type { StationModule, StationOverlayProps } from "../../core/types";
+import { useWorld } from "../../core/WorldContext";
+import { StationBar } from "../../ui/StationBar";
 import { STILLS } from "../../scene/assets";
 import { BENCH_PIVOT, stopFrom } from "../../scene/layout";
 import { bench, type Stage } from "./draft";
@@ -27,7 +29,13 @@ function shot() {
 }
 
 function Overlay({ current }: StationOverlayProps) {
-  return <Editor current={current} />;
+  const { back } = useWorld();
+  return (
+    <>
+      <StationBar on={current} title="The bench" hint="Make a new cartridge" back={back} />
+      <Editor current={current} />
+    </>
+  );
 }
 
 const workbench: StationModule = {

@@ -46,9 +46,10 @@ describe("the loader", () => {
     vi.useRealTimers();
   });
 
-  it("holds the page still while it loads, signed with the mark", () => {
-    renderLoader();
-    expect(document.documentElement.style.overflow).toBe("hidden");
+  // The page's hold follows the store's ready (WorldRoot, core/pageHold.ts), not an effect of the loader's.
+  it("keeps the world not ready while it loads, signed with the mark", () => {
+    const { store } = renderLoader();
+    expect(store.getCoarse().ready).toBe(false);
     expect(screen.getByRole("img", { name: "SANT" })).toBeTruthy();
     expect(bar().getAttribute("aria-valuenow")).toBe("0");
   });
@@ -78,10 +79,10 @@ describe("the loader", () => {
     act(() => vi.advanceTimersByTime(5000));
     // Shaders done, but no steady frames yet: still held.
     expect(store.getCoarse().ready).toBe(false);
-    expect(document.documentElement.style.overflow).toBe("hidden");
     finish();
     act(() => vi.advanceTimersByTime(2000));
     expect(store.getCoarse().ready).toBe(true);
+    // The loader never writes the page's overflow itself any more.
     expect(document.documentElement.style.overflow).toBe("");
   });
 

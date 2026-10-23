@@ -40,22 +40,6 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.world-robots__back {
-  padding: 7px 12px;
-  border: 1px solid var(--w-line);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--w-ink);
-  font: inherit;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-.world-robots__back:hover {
-  border-color: var(--w-teal);
-  color: var(--w-teal);
-}
 
 .world-robots__lede,
 .world-robots__note {

@@ -263,6 +263,79 @@ describe("the spiral's filters (no WebGL)", () => {
     vi.unstubAllGlobals();
   });
 
+  // Every way out of the shelf gives back the camera, the scroll and the room's UI (site-fixes-1, bug 4).
+  describe("leaving the shelf", () => {
+    const openShelf = async () => {
+      const { shelf } = await import("../stations/workshop/stepper");
+      scrollTo(window.innerHeight * HUB);
+      fireEvent.click(screen.getByRole("button", { name: "-> record a demo" }));
+      expect(shelf.open).toBe(true);
+      expect(document.documentElement.style.overflow).toBe("hidden");
+      return shelf;
+    };
+    afterEach(async () => {
+      const { setFilter, setSelected } = await import("../scene/spiral");
+      const { shelf } = await import("../stations/workshop/stepper");
+      shelf.open = false;
+      setSelected(-1);
+      setFilter(null);
+    });
+
+    it.each(["Story", "Descent"])("by the journey rail's %s: the shelf closes and the page scrolls again", async (to) => {
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Journey" })).getByRole("button", { name: to }));
+      await waitFor(() => expect(shelf.open).toBe(false), { timeout: 2000 });
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("from a detail view by the journey rail: the detail closes with it", async () => {
+      const { spiral } = await import("../scene/spiral");
+      renderWorld();
+      await openShelf();
+      fireEvent.keyDown(window, { key: "Enter" });
+      expect(spiral.selected).toBeGreaterThanOrEqual(0);
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Journey" })).getByRole("button", { name: "Story" }));
+      await waitFor(() => expect(spiral.selected).toBe(-1), { timeout: 2000 });
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("to the machine and back: back lands in the room view, not on a shelf with no UI", async () => {
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.click(screen.getByRole("button", { name: "PiPER" }));
+      expect(current()).toBe("machine");
+      expect(shelf.open).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: /Back to room/ }));
+      expect(current()).toBe("workshop");
+      expect(shelf.open).toBe(false);
+      // The stills have no landed dive to hold: nothing holds the page now.
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("by its own Back to room button, which says how to browse", async () => {
+      renderWorld();
+      const shelf = await openShelf();
+      const bar = screen.getByRole("group", { name: "The shelf: the way out" });
+      expect(bar.textContent).toMatch(/to browse/);
+      fireEvent.click(within(bar).getByRole("button", { name: "Back to room" }));
+      expect(shelf.open).toBe(false);
+      expect(screen.queryByRole("group", { name: "The shelf: the way out" })).toBeNull();
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("to the robot wall and out on Escape: the same", async () => {
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Robots" }));
+      expect(current()).toBe("robots");
+      expect(shelf.open).toBe(false);
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(current()).toBe("workshop");
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+  });
+
   it("lists the cartridges as buttons without the 3D spiral, filtered too", async () => {
     const { spiral } = await import("../scene/spiral");
     renderWorld();

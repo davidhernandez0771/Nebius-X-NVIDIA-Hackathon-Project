@@ -3,7 +3,8 @@ import { PerspectiveCamera, Vector3 } from "three";
 import { ITEM_SIZE, robotSpot } from "../../scene/wallPlan";
 import { CATALOG } from "./catalog";
 import { fitFov } from "../../core/fov";
-import robots, { ROBOTS_VIEW, ROBOTS_VIEW_PORTRAIT } from "./index";
+import { robotsView } from "./hot";
+import robots, { ROBOTS_VIEW, ROBOTS_VIEW_PORTRAIT, closeUp } from "./index";
 
 function project(p: readonly number[], aspect: number, view = ROBOTS_VIEW) {
   const cam = new PerspectiveCamera(fitFov(view.fov, aspect), aspect, 0.1, 200);
@@ -56,5 +57,55 @@ describe("the robots view", () => {
         expect(Math.abs(p.x)).toBeLessThan(0.95);
       }
     }
+  });
+});
+
+// A robot picked on the wall (or its entry in the catalog) gets a close-up: the camera closes in on it,
+// where it is clear of the panel, and Escape or "All robots" steps back to the whole wall.
+describe("a robot's close-up", () => {
+  const height = (view: typeof ROBOTS_VIEW, id: string, aspect: number) => {
+    const { position, height: h } = robotSpot(id);
+    return project([position[0], position[1] + h, position[2]], aspect, view).y - project(position, aspect, view).y;
+  };
+
+  it("frames the robot whole beside the panel on a 16:9 screen, much larger than on the wall", () => {
+    for (const r of CATALOG) {
+      const view = closeUp(r.id, false);
+      const { position, height: h } = robotSpot(r.id);
+      const half = ITEM_SIZE.robot.width / 2;
+      for (const dz of [-half, half])
+        for (const dy of [0, h]) {
+          const p = project([position[0], position[1] + dy, position[2] + dz], 16 / 9, view);
+          expect(p.x).toBeGreaterThan(-0.15);
+          expect(p.x).toBeLessThan(0.85);
+          expect(Math.abs(p.y)).toBeLessThan(0.9);
+        }
+      expect(height(view, r.id, 16 / 9)).toBeGreaterThan(1.8 * height(ROBOTS_VIEW, r.id, 16 / 9));
+    }
+  });
+
+  it("on a phone, stands whole above the bottom sheet, larger than on the wall", () => {
+    const sheetTop = 1 - 2 * 0.48;
+    for (const r of CATALOG) {
+      const view = closeUp(r.id, true);
+      const { position, height: h } = robotSpot(r.id);
+      for (const dy of [0, h]) {
+        const p = project([position[0], position[1] + dy, position[2]], 390 / 844, view);
+        expect(p.y).toBeGreaterThan(sheetTop);
+        expect(p.y).toBeLessThan(0.95);
+        expect(Math.abs(p.x)).toBeLessThan(0.6);
+      }
+      expect(height(view, r.id, 390 / 844)).toBeGreaterThan(1.3 * height(ROBOTS_VIEW_PORTRAIT, r.id, 390 / 844));
+    }
+  });
+
+  it("is the robots station's shot while a robot is picked; the wall otherwise", () => {
+    robotsView.reset();
+    expect(robots.shot!().key).toBe("wall");
+    robotsView.pick("franka");
+    expect(robots.shot!()).toEqual({ key: "franka", pose: closeUp("franka", false) });
+    robotsView.unpick();
+    expect(robots.shot!().key).toBe("wall");
+    expect(robotsView.get().picked).toBeNull();
   });
 });
