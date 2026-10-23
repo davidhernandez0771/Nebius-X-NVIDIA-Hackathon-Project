@@ -1581,3 +1581,32 @@ directory is `C:\dev\pm-t3-nodemo\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-22
   - They use today's `pm-t3` `rl_start_breakdown` with `--n 128 --demo-prob 0.0 --seed 7`.
   - The order: 1499 for both first, then 300, 600, 900 and 1200, with demo_v6 before `nodemo_v6` at each.
   - The outputs: `C:\dev\pm-t3\data\rl\breakdown\home_<run>_<it>\breakdown.json`.
+
+**`nodemo_v6` training ended (2026-10-22 20:08), before any breakdown result.**
+- **The run:** the trainer exited at 20:08:38. `model_1499.pt` was written at 20:08:25; there are 31 checkpoints
+  (`model_0` at 19:03:34, then every 50 to 1450, and 1499).
+  - `data\rl\nodemo_v6.log` ends with "Training time: 3912.95 seconds" (about 2.6 s per iteration), then
+    "SimulationContext cleared".
+- **The in-training tags,** read here from both runs' TensorBoard event files (1500 steps each, 0–1499):
+
+  | Tag | Run | 300 | 600 | 900 | 1200 | 1499 | Max (iteration) |
+  |---|---|---|---|---|---|---|---|
+  | `Metrics/check_success` | nodemo_v6 | 0 | 0 | 0 | 0 | 0 | 0 |
+  | | demo_v6 | 0.050 | 0.177 | 0.428 | 0.477 | 0.524 | 0.699 (1113) |
+  | `Episode_Termination/success` | nodemo_v6 | 0 | 0 | 0 | 0 | 0 | 0 |
+  | | demo_v6 | 0.254 | 0.337 | 0.721 | 0.895 | 0.903 | 0.922 (1419) |
+  | `Stages/lifted` | nodemo_v6 | 0 | 0 | 0 | 0 | 0 | 0 |
+  | | demo_v6 | 0.022 | 0.036 | 0.140 | 0.229 | 0.229 | 0.252 (1399) |
+  | `Stages/centred_grasp` | nodemo_v6 | 0.0002 | 0.0056 | 0.0002 | 0.0002 | 0.0000 | 0.058 (556) |
+  | | demo_v6 | 0.010 | 0.015 | 0.061 | 0.124 | 0.121 | 0.136 (1399) |
+  | `Train/mean_reward` | nodemo_v6 | 11.2 | 6.2 | 8.1 | 8.2 | 8.7 | 11.3 (413) |
+  | | demo_v6 | 130.0 | 165.7 | 401.5 | 465.0 | 462.7 | 478.8 (1420) |
+
+  - **So, in training, `nodemo_v6` never had a success termination, a check_success or a lift,** in any of its
+    1500 iterations. Its centred grasp peaked at 0.058 at iteration 556 and fell back to about 0.
+  - As stated in the amendment, these are descriptive only and not home-vs-home: demo_v6's tags average over all its
+    starts. The primary number is still the home breakdown at 1499.
+- **The breakdowns** (`--n 128 --demo-prob 0.0 --seed 7`) started at 20:08:38, in the planned order: 1499 for both
+  runs first (demo_v6 first), then 300, 600, 900, 1200.
+- **Checked here:** the checkpoint list and times, the log's last lines, every tag value above (from the event files
+  directly), and `nodemo_breakdowns.log` (it waited for trainer PID 50920, then started `demo_v6 1499`).
