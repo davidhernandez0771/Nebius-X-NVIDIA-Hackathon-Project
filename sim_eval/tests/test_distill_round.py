@@ -239,7 +239,7 @@ def test_round0_teacher_rollouts_mix_train_select(tmp_path):
                                   "teacher": {"episodes": 4, "seeds": [4000, 4003]}}
     sel = json.loads(c.selection_file.read_text(encoding="utf-8"))
     assert sel["chosen_step"] == 200 and sel["counts"] == {"100": [1, 2], "200": [2, 2]}
-    assert sel["seeds"] == [5300, 5301]
+    assert sel["seeds"] == [5500, 5501]
     assert sel["checkpoint"].endswith(str(Path("distill_r0", "checkpoints", "000200", "pretrained_model")))
     assert sel["teacher_seeds"] == [4000, 4003]
     assert json.loads(c.selection_path(0).read_text(encoding="utf-8")) == sel  # the latest, for round 1
@@ -484,17 +484,18 @@ def test_held_teacher_execution_is_passed_on_recorded_and_not_mixed(tmp_path):
         cfg(tmp_path, teacher_execution="fast")
 
 
-def test_amendment_4_ranges_are_accepted(tmp_path, capsys):
-    """Amendment 4 (2026-10-21): gate (b) on 4950-4999 (its own run id, never training data), round 0 on 4300-4599
-    (extension 4300-4899), selection on 5301-5329 (5300 excluded: 29 seeds), DAgger round 1 from 5210."""
+def test_the_big_test_ranges_are_accepted(tmp_path, capsys):
+    """The 2026-10-23 big test (T7's prereg): teacher 4300-4899 (reused), Stage A selection 5500-5528, Stage B
+    selection 5529-5557, DAgger round 1 on 5210-5249. Amendment 4's selection seeds (5301-5329) are retired."""
     gate = cfg(tmp_path, teacher_seed0=4950, teacher_n=50, teacher_execution="held")
     t = teacher_cmd(gate)
     assert t[t.index("--seed0") + 1] == "4950" and t[t.index("--n") + 1] == "50"
     for n in (300, 600):
         t = teacher_cmd(cfg(tmp_path, teacher_seed0=4300, teacher_n=n))
         assert t[t.index("--seed0") + 1] == "4300" and t[t.index("--n") + 1] == str(n)
-    s = select_cmd(cfg(tmp_path, select_seed0=5301, select_n=29), "x", Path("ckpt"))
-    assert s[s.index("--seed0") + 1] == "5301" and s[s.index("--n") + 1] == "29"
+    for seed0 in (5500, 5529):
+        s = select_cmd(cfg(tmp_path, select_seed0=seed0, select_n=29), "x", Path("ckpt"))
+        assert s[s.index("--seed0") + 1] == str(seed0) and s[s.index("--n") + 1] == "29"
     d = dagger_cmd(cfg(tmp_path, round_id=1, dagger_seed0=5210, dagger_n=40), Path("ckpt"))
     assert d[d.index("--seed0") + 1] == "5210" and d[d.index("--n") + 1] == "40"
     # the wrapper takes --select-seed0
@@ -507,9 +508,9 @@ def test_amendment_4_ranges_are_accepted(tmp_path, capsys):
     rc = mod.main(["--round", "0", "--run-id", "dryrun_a4_never_written", "--teacher", "m:f",
                    "--teacher-checkpoint", str(tmp_path / "t.pt"), "--human-grid", str(tmp_path / "g.json"),
                    "--human-cell", "x", "--start-state", str(tmp_path), "--teacher-seed0", "4300", "--teacher-n", "300",
-                   "--select-seed0", "5301", "--select-n", "29", "--teacher-execution", "held", "--dry-run"])
+                   "--select-seed0", "5500", "--select-n", "29", "--teacher-execution", "held", "--dry-run"])
     out = capsys.readouterr().out
-    assert rc == 0 and "seeds 4300-4599" in out and "seeds 5301-5329" in out
+    assert rc == 0 and "seeds 4300-4599" in out and "seeds 5500-5528" in out
     assert not (mod.REPO / "data" / "distill" / "dryrun_a4_never_written").exists()
 
 
@@ -519,3 +520,141 @@ def test_round_records_name_the_code(tmp_path):
     rnd0 = json.loads(c.round_file.read_text(encoding="utf-8"))
     sel = json.loads(c.selection_file.read_text(encoding="utf-8"))
     assert set(rnd0["code"]) == {"commit", "branch", "dirty"} and set(sel["code"]) == {"commit", "branch", "dirty"}
+
+
+# --- the 2026-10-23 big test -------------------------------------------------------------------------------------------
+
+def test_selection_takes_only_the_big_test_blocks(tmp_path):
+    """T7: 5330-5387 were the teacher gate scenes (v6_gate 5300-5349, v6c2_gate2 5350-5399); 5500-5557 is clean."""
+    c = cfg(tmp_path)
+    for seed0, n in ((5500, 29), (5529, 29), (5500, 58)):
+        select_cmd(c.with_(select_seed0=seed0, select_n=n), "x", Path("ckpt"))
+    for seed0, n in ((5330, 29), (5359, 29), (5301, 29), (5400, 29), (5530, 29), (5020, 29), (5210, 29)):
+        with pytest.raises(ValueError, match="selection"):
+            select_cmd(c.with_(select_seed0=seed0, select_n=n), "x", Path("ckpt"))
+
+
+def test_the_data_check_refuses_every_eval_seed(tmp_path):
+    """No training episode (human, teacher or DAgger) on the big test's test (5400-5439) or selection blocks
+    (5500-5528, 5529-5557), the old test (5020-5059), or the retired selection / gate seeds (5300-5399)."""
+    from sim_eval.distill_round import EVAL_ONLY_SEEDS, check_training_episodes
+
+    assert {5400, 5439, 5500, 5528, 5529, 5557, 5020, 5059, 5300, 5399} <= EVAL_ONLY_SEEDS
+    assert not {5210, 5249, 4300, 4899, 0, 5440, 5499, 5558} & EVAL_ONLY_SEEDS
+    r0, r1 = tmp_path / "r0" / "episodes", tmp_path / "r1" / "episodes"
+    folders = {"teacher": [r0], "dagger": [r1]}
+    for seed in (5400, 5439, 5500, 5528, 5529, 5557, 5020, 5059, 5300, 5399):
+        eps = {"human": [write_scene(make_episode(tmp_path / "h", f"h{seed}", [f"h{seed}"]), seed)],
+               "teacher": [write_scene(make_episode(r0, f"teacher_r0_{seed}", ["teacher-rl", f"t{seed}"]), seed)],
+               "dagger": [write_scene(make_episode(r1, f"dagger_r1_{seed}_0", ["dagger-r1-rl", f"d{seed}"]), seed)]}
+        for src, ep in eps.items():
+            with pytest.raises(ValueError, match=f"{seed}, a selection/test seed"):
+                check_training_episodes({src: ep}, teacher_seeds=(4300, 4899), folders=folders)
+
+
+def test_stage_b_can_run_without_the_stop_rule(tmp_path):
+    """The big test's Stage B always runs (prereg): with the stop rule off, a round the rule would stop still
+    mixes, trains and selects; round.json and decision.json record what the rule would have said."""
+    c0 = cfg(tmp_path)
+    run(c0, FakeRunner(c0.data))
+    c1 = cfg(tmp_path, round_id=1, target_rate=0.5, stop_rule=False)
+    runner = FakeRunner(c1.data, student_success=3)  # 3/3 >= 0.5: the rule would stop
+    run(c1, runner)
+    kinds = [Path(x[0][1]).name if not x[0][1].startswith("-m") else x[0][2] for x in runner.cmds]
+    assert kinds == ["distill_rollouts.py", "lerobot_tools.experiments", "eval_cells.py", "eval_cells.py"]
+    dec = json.loads(c1.decision_file.read_text(encoding="utf-8"))
+    assert dec["stop"] is False and dec["stop_rule"] is False and dec["rule_would_stop"] is True
+    assert json.loads(c1.round_file.read_text(encoding="utf-8"))["decision"] == dec
+    assert c1.selection_file.exists()
+
+
+class FakeSampler:
+    def __init__(self):
+        self.events = []
+
+    def __call__(self, path):
+        sampler = self
+
+        class _Ctx:
+            def __enter__(self):
+                sampler.events.append(("start", Path(path).name))
+
+            def __exit__(self, *exc):
+                sampler.events.append(("stop", Path(path).name))
+                return False
+
+        return _Ctx()
+
+
+def test_training_is_sampled_by_the_gpu_logger(tmp_path):
+    """The lead (2026-10-23): log GPU clocks and utilisation during training, into the round's logs."""
+    c = cfg(tmp_path)
+    sampler, seen = FakeSampler(), []
+
+    class Runner(FakeRunner):
+        def __call__(self, cmd, env, log_file):
+            seen.append((Path(log_file).name, list(sampler.events)))
+            return super().__call__(cmd, env, log_file)
+
+    run_phases(plan_round(c, log=lambda m: None, runner=Runner(c.data), gpu_sampler=sampler), log=lambda m: None)
+    assert sampler.events == [("start", "gpu.csv"), ("stop", "gpu.csv")]
+    train_seen = [ev for name, ev in seen if name == "train.log"]
+    assert train_seen == [[("start", "gpu.csv")]]  # running while the training command ran
+
+
+def test_the_nvidia_smi_sampler_writes_and_stops(tmp_path):
+    import sys
+    import time
+
+    from sim_eval.distill_round import GpuSampler
+
+    out = tmp_path / "logs" / "gpu.csv"
+    fake = [sys.executable, "-c", "import time; print('timestamp, clocks.sm', flush=True); time.sleep(60)"]
+    with GpuSampler(out, interval_s=600, cmd=fake) as s:
+        for _ in range(200):
+            if out.exists() and "clocks.sm" in out.read_text(encoding="utf-8"):
+                break
+            time.sleep(0.05)
+    assert "clocks.sm" in out.read_text(encoding="utf-8")
+    assert s.proc.poll() is not None  # stopped with the block
+    assert GpuSampler(out, interval_s=600).command()[-1] == "600"  # nvidia-smi -l <seconds>
+    with GpuSampler(tmp_path / "x.csv", interval_s=600, cmd=["no-such-exe-for-the-test"]) as s2:
+        pass  # a missing nvidia-smi never stops training
+    assert s2.proc is None
+
+
+def test_a_crashed_training_run_resumes_in_its_own_folder(tmp_path):
+    """A restart after a crash mid-training passes the unfinished run to lerobot_tools.experiments --resume-run
+    (it keeps a finished export and resumes from checkpoints/last.txt) instead of exporting and training anew."""
+    c = cfg(tmp_path)
+    run_phases(plan_round(c, log=lambda m: None, runner=FakeRunner(c.data), stop_after="grid"), log=lambda m: None)
+    crashed = c.data / "experiments" / f"{c.grid_name}_20261023_200000"
+    (crashed / "train" / c.label / "checkpoints" / "000100" / "pretrained_model").mkdir(parents=True)
+    (crashed / "datasets" / c.label).mkdir(parents=True)
+    older = c.data / "experiments" / f"{c.grid_name}_20261023_100000"
+    (older / "datasets").mkdir(parents=True)
+    runner = FakeRunner(c.data)
+    run(c, runner)
+    t_cmd = next(cmd for cmd, _ in runner.cmds if cmd[1:3] == ["-m", "lerobot_tools.experiments"])
+    assert t_cmd[t_cmd.index("--resume-run") + 1] == str(crashed)  # the latest unfinished one
+    fresh = cfg(tmp_path / "fresh")
+    r2 = FakeRunner(fresh.data)
+    run(fresh, r2)
+    assert "--resume-run" not in next(cmd for cmd, _ in r2.cmds if cmd[1:3] == ["-m", "lerobot_tools.experiments"])
+
+
+def test_the_wrapper_takes_the_stage_b_switches(tmp_path, capsys):
+    import importlib.util
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "distill_round.py"
+    spec = importlib.util.spec_from_file_location("distill_round_script_b", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    rc = mod.main(["--round", "1", "--run-id", "dryrun_b_never_written", "--teacher", "m:f",
+                   "--teacher-checkpoint", str(tmp_path / "t.pt"), "--human-grid", str(tmp_path / "g.json"),
+                   "--human-cell", "x", "--start-state", str(tmp_path), "--dagger-seed0", "5210",
+                   "--select-seed0", "5529", "--no-stop-rule", "--steps", "180000",
+                   "--candidates", "60000", "120000", "180000", "--dry-run"])
+    out = capsys.readouterr().out
+    assert rc == 0 and "seeds 5210-5249" in out and "seeds 5529-5557" in out and "180000" in out
+    assert not (mod.REPO / "data" / "distill" / "dryrun_b_never_written").exists()
