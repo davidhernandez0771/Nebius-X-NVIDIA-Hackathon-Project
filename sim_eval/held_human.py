@@ -125,10 +125,11 @@ class HumanPathTeacher:
     Its first step caps from the observed tool (after a reset, as RLTeacher), every later one from its own previous
     target. Never abstains: after the path it holds the last point until the rollout ends.
 
-    grip_settle_m (off by default): at each change of the human's gripper command, the path's clock stops (the
-    previous target and gripper held) until the tool is within grip_settle_m of the target, at most grip_settle_max_s;
-    then the change runs. A held step leaves the tool short of its target (the held RL teacher's episodes: 24 mm at its
-    close), so without it the fingers close where the human's tool would be, not where the tool is."""
+    grip_settle_m (off by default): at each change of the human's gripper command, the path's clock stops at the
+    point where it changes, and the teacher keeps commanding that point (capped as always) with the previous gripper,
+    until the tool is within grip_settle_m of it, at most grip_settle_max_s; then the change runs. A held step leaves
+    the tool short of its target (the held RL teacher's episodes: 24 mm at its close), and the cap's target lags a fast
+    descent, so without it the fingers close above where the human closed them."""
 
     execution = "held"  # sim_eval.teacher.execution_mismatch: only a held rollout may run it
 
@@ -152,16 +153,18 @@ class HumanPathTeacher:
         if self._prev is None:
             self._prev = (tcp, rt.tool_yaw(np.asarray(state.tcp_quat_wxyz, dtype=np.float64).reshape(1, 4)))
         pos, yaw, grip = self.path.at(self._j, self.k)
-        if (self.grip_settle_m is not None and self._grip is not None and grip != self._grip
-                and self._wait < self.grip_settle_max
-                and float(np.linalg.norm(tcp[0] - self._prev[0][0])) > self.grip_settle_m):
-            self._wait += 1  # hold the previous target and gripper; the path's clock waits
-            return TeacherAction(ee_pos=self._prev[0][0], ee_quat_wxyz=rt._down_turned(self._prev[1])[0],
-                                 gripper=self._grip)
-        if self._grip is not None and grip != self._grip and self.grip_settle_m is not None:
+        change = self.grip_settle_m is not None and self._grip is not None and grip != self._grip
+        if (change and self._wait < self.grip_settle_max
+                and float(np.linalg.norm(tcp[0] - pos)) > self.grip_settle_m):
+            self._wait += 1  # the path's clock waits at the change; its point, the previous gripper
+            return self._command(pos, yaw, tcp, self._grip)
+        if change:
             self.waits.append(self._wait)
         self._wait = 0
         self._j += 1
+        return self._command(pos, yaw, tcp, grip)
+
+    def _command(self, pos, yaw, tcp, grip) -> TeacherAction:
         cpos, cyaw = rt.cap_speed(pos.reshape(1, 3), np.array([yaw]), *self._prev, tcp, self.v_max,
                                   self.yaw_rate_max)
         self._prev, self._grip = (cpos, cyaw), grip

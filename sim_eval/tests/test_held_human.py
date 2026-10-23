@@ -195,17 +195,17 @@ def test_the_grid_is_one_valid_cell_of_the_passing_episodes(tmp_path):
         human_grid([], n_human=10, name="x")
 
 
-def test_the_grasp_wait_pauses_the_path_at_a_gripper_change_until_the_tool_arrives():
-    p = path_of(straight(0.25, 0.1), [0, 0, 0, 1, 1, 1])  # 5 mm per step; the human closes at point 3
-    t = HumanPathTeacher(p, 1.0, grip_settle_m=0.005, grip_settle_max_s=0.06)  # at most 3 steps
+def test_the_grasp_wait_pauses_the_path_at_a_gripper_change_until_the_tool_reaches_the_humans_point():
+    p = path_of(straight(1.0, 0.1), [0, 0, 0, 1, 1, 1])  # 2 cm per step, twice the cap; the human closes at point 3
+    t = HumanPathTeacher(p, 1.0, grip_settle_m=0.005, grip_settle_max_s=0.2)  # at most 10 steps
     assert t.name == "held-human-k1-settle5mm"
-    acts = [t.act(state(0, [0.45, 0.0, 0.35]))]
-    acts += [t.act(state(k, [0.45 + 0.005 * (k - 1), 0.0, 0.35])) for k in (1, 2)]  # the tool one step behind
-    assert [a.gripper for a in acts] == [0, 0, 0] and acts[-1].ee_pos[0] == pytest.approx(0.46)
-    far = t.act(state(3, [0.452, 0.0, 0.35]))  # 8 mm from the target: wait, the previous target and gripper held
-    assert far.gripper == 0 and far.ee_pos[0] == pytest.approx(0.46)
-    near = t.act(state(4, [0.457, 0.0, 0.35]))  # within 5 mm: the change runs, the path resumes at point 3
-    assert near.gripper == 1 and near.ee_pos[0] == pytest.approx(0.465) and t.waits == [1]
+    acts = [t.act(state(k, [0.45 + 0.01 * max(k - 1, 0), 0.0, 0.35])) for k in range(3)]  # tool a step behind
+    assert [a.gripper for a in acts] == [0, 0, 0] and acts[-1].ee_pos[0] == pytest.approx(0.47)  # capped: 1 cm/step
+    # the human's point at the change is 0.51; the target keeps moving to it (capped), the gripper stays open
+    waiting = [t.act(state(k, [x, 0.0, 0.35])) for k, x in ((3, 0.47), (4, 0.48), (5, 0.49), (6, 0.50))]
+    assert [round(a.ee_pos[0], 6) for a in waiting] == [0.48, 0.49, 0.50, 0.51] and {a.gripper for a in waiting} == {0}
+    done = t.act(state(7, [0.506, 0.0, 0.35]))  # within 5 mm of 0.51: the change runs at the human's point
+    assert done.gripper == 1 and done.ee_pos[0] == pytest.approx(0.51) and t.waits == [4]
     t2 = HumanPathTeacher(p, 1.0, grip_settle_m=0.005, grip_settle_max_s=0.06)
     for k in range(3):
         t2.act(state(k, [0.45, 0.0, 0.35]))
