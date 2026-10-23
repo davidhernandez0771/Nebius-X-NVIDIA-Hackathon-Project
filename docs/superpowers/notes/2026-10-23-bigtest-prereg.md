@@ -334,7 +334,7 @@ lag is |capped target − commanded|, taking each episode's maximum, over the 11
       - a held dir is judged and recorded;
       - an explicit set wins and is recorded, and an unknown cell is refused;
       - a recorded choice refuses a different one.
-      - `sim_eval` + `lerobot_tools`: 312 passed, 12 skipped. The full suite: re-running; its count is logged here before the go.
+      - `sim_eval` + `lerobot_tools`: 312 passed, 12 skipped. The full suite on `c6bae0a`: 2783 passed, 0 failed, 35 skipped (T6), which is 34f02f7's 2779 plus the 4 new tests.
     - **`run_log.txt`** (15:26:10) records `c6bae0ae1505` as the chain code, superseding `34f02f7c5c64`, with the reason.
       The chain had never started, so nothing had been decided.
     - **The command at the go:**
