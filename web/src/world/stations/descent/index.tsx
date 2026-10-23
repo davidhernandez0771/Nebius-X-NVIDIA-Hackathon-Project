@@ -8,6 +8,7 @@ import { Suspense, useRef } from "react";
 import { useStationFrame } from "../../core/WorldContext";
 import type { StationModule, StationOverlayProps, StationSceneProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
+import { roomWhole } from "../../scene/dissolve";
 import { Generator } from "./Generator";
 import { descentCamera, HUB_FAR } from "./path";
 
@@ -24,7 +25,8 @@ function Overlay(_: StationOverlayProps) {
   useStationFrame("descent", (f) => {
     if (!line.current) return;
     const pct = Math.round(Math.min(1, f.t / 0.95) * 100);
-    line.current.textContent = `// building the workshop · ${String(pct).padStart(2, "0")}%`;
+    // Once the room has played in whole (scene/dissolve.ts), it says so.
+    line.current.textContent = roomWhole() ? "// the workshop · online" : `// building the workshop · ${String(pct).padStart(2, "0")}%`;
     line.current.style.opacity = String(f.current ? Math.min(1, f.t * 8) : 0);
   });
   return (
