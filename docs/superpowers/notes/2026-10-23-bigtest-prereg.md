@@ -316,18 +316,29 @@ lag is |capped target − commanded|, taking each episode's maximum, over the 11
   (`...\held_human\mouse20261020`), and the script has no flag to change it.
   - If Amendment 1 applies, the floor is judged on the rerun's folder instead.
   - But `human_choice()` decides once, as soon as run 1's done marker appears, so it would never read the rerun.
-  - T6 was asked for a `--held-human-dir` flag. **The lead's resolution: no code change is needed**, and this is the
-    mechanism.
-    - The chain is not running, so nothing can decide at run 1's marker.
-    - At the lead's go, T6 writes `data\distill\bigtest\human_choice.json` before the chain starts. It holds:
-      - the exact grid and cell the lead names: the settle rerun's `held_human_10` if that reaches ≥ 80/110,
-        otherwise the original `perfected_multiply_10`;
-      - the run it came from, its kept / attempted, and `decided_by`.
-      - A `run_log.txt` line records it too.
-    - `human_choice()` returns an existing `human_choice.json` and never re-decides (checked: `bigtest.py:118–121`).
-      The preflight and the data check run on the named cell.
-    - The script's wait loop (`scripts/bigtest.py:78`) still waits for run 1's marker. That is harmless once run 1 has
-      ended.
-    - **So the floor is applied by the lead,** from the counts logged here, not by `human_choice()`'s own rule. The
-      file's numbers must match this log.
-    - A `--held-human-dir` flag is optional (T6's choice) and not required for the go.
+  - **Fixed in code: `pm/bigtest` `c6bae0a`** (T6, on `34f02f7`; 4 files, +126 / −28: `sim_eval/bigtest.py`,
+    `sim_eval/scripts/bigtest.py`, `sim_eval/tests/test_bigtest.py` and T6's note). It replaces the hand-written-file
+    mechanism logged first (`2e35198`).
+    - **No default human folder:** `BigTest.held_human_dir` defaults to `None` (checked: `bigtest.py:61`). With no
+      human flag, the CLI refuses ("no human set", `scripts/bigtest.py:59`) and `human_choice()` raises
+      (`bigtest.py:170`). Only `--prepare` and `--dry-run` work without one.
+    - **`--human-grid <grid.json> --human-cell <cell>`:** the set the lead's go names, taken as given. The cell must
+      exist, and kept / attempted are recorded from that folder's `held_human_done.json`, if there is one.
+    - **`--held-human-dir <T3 run folder>`:** it waits for that folder's done marker and judges the 80/110 floor on it.
+    - The two forms together are refused, and so is `--human-grid` without `--human-cell`.
+    - **`human_choice.json`** records the grid, cell, `held`, `decided_by`, `held_human_dir` and the counts. Once it
+      is decided, a later different choice is refused ("already decided", `bigtest.py:138`/`:142`). A restart with the
+      same flags, or with none, reuses it.
+    - **Tests:** 4 new in `test_bigtest.py`:
+      - never implicit;
+      - a held dir is judged and recorded;
+      - an explicit set wins and is recorded, and an unknown cell is refused;
+      - a recorded choice refuses a different one.
+      - `sim_eval` + `lerobot_tools`: 312 passed, 12 skipped. The full suite: re-running; its count is logged here before the go.
+    - **`run_log.txt`** (15:26:10) records `c6bae0ae1505` as the chain code, superseding `34f02f7c5c64`, with the reason.
+      The chain had never started, so nothing had been decided.
+    - **The command at the go:**
+      `C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\bigtest.py --human-grid <grid> --human-cell <cell>`,
+      with exactly the grid and cell the lead names: the settle rerun's `held_human_10` if it reaches ≥ 80/110,
+      otherwise the original `perfected_multiply_10`.
+    - **The floor is the lead's call,** from the counts logged here. `human_choice.json`'s counts must match this log.
