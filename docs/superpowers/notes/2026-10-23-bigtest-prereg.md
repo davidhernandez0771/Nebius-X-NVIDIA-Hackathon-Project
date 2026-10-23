@@ -342,3 +342,99 @@ lag is |capped target − commanded|, taking each episode's maximum, over the 11
       with exactly the grid and cell the lead names: the settle rerun's `held_human_10` if it reaches ≥ 80/110,
       otherwise the original `perfected_multiply_10`.
     - **The floor is the lead's call,** from the counts logged here. `human_choice.json`'s counts must match this log.
+
+## Amendment 1 (2026-10-23, the lead's decision, before the rerun): a grasp-wait time-warp in the held re-execution
+
+**Reason:** the first held-human run, run 1 (`c799064`, k = 2, `C:\dev\pm-t3-hh\data\held_human\mouse20261020`), ran
+to its end at 15:52:55 (started 15:08:25; wall 2667 s) with **0/110 passing, below the floor of 80/110**. No frames were kept, so no `grid.json` was written.
+- **All 110 ended at the time limit with `not_in_bin`.** 22 of them also dropped the cube, and 52 collided.
+- **Per human** (11 episodes each; checked here from `rollouts.jsonl` and `held_human_done.json`):
+
+  | Human | Outcome |
+  |---|---|
+  | `00ab` | 11 dropped |
+  | `da08` | 7 not in bin only; 4 collision |
+  | `be76` | 6 not in bin only; 5 collision |
+  | `dc3e` | 6 not in bin only; 5 collision |
+  | `ee42` | 2 dropped; 9 collision + dropped |
+  | `3cd0` | 11 not in bin only |
+  | `b27d` | 1 not in bin only; 10 collision |
+  | `68ce` | 6 not in bin only; 5 collision |
+  | `848e` | 7 not in bin only; 4 collision |
+  | `4c66` | 1 not in bin only; 10 collision |
+
+- **`gpu.lock` was released,** and `run_log.txt` has the end line (15:52:55).
+- **It was not stopped.** The prereg says a stop needs the user's OK, so run 1 ran all 110 episodes.
+- **T3's diagnosis** (CPU, from the first 40 `teacher_r0_*` held RL-teacher episodes of `distill_mouse_held` r0): under
+  the held execution, the tool after a step is not at that step's target.
+  - The per-episode p95 of |tool after step k − step k's target| has a median of 31 mm.
+  - At the gripper-close step it is a median of 24 mm, with the target 18 mm BELOW the tool.
+  - The teacher's target speed just before the close has a median of 0.135 m/s (p90 0.214). So the RL teacher learned
+    to aim through the cube.
+- **Why that drops the cube:** the human path closes the gripper as soon as it arrives, so under the lag the gripper
+  closes about 2 cm high, and the grasp is shallow. k = 2 only fixes the speed-cap lag, not the executor's.
+
+**The change (option B):**
+- **A grasp-wait time-warp** (a flag, off by default, so `c799064`'s behaviour is unchanged):
+  - at each change of the human's gripper command, the path clock pauses, holding the previous capped target and the
+    previous gripper;
+  - the pause lasts until |tool − capped target| ≤ 5 mm, or for at most 1.0 s;
+  - then the human's gripper command executes and the path resumes.
+  - The rollout's time limit grows by 1.0 s per gripper change.
+  - Each row's provenance records the wait lengths for every change.
+- **Everything else is unchanged:**
+  - k = 2;
+  - the speed cap, the orientation, the held executor and the "after" pairing;
+  - only `check_success` passes are kept, and the achieved path is recorded;
+  - the floor (≥ 80/110 → the held-human set; otherwise the original 110, with change 2 dropped and disclosed).
+- **The rerun** goes into a NEW out dir, `C:\dev\pm-t3-hh\data\held_human\mouse20261020_settle`. Its `run_log.txt`
+  start line carries its commit.
+  - **Its behaviour is `pm/held-human` `46963d6`** (parent `c799064`; 3 files, +101 / −22):
+    - `HumanPathTeacher` gains `grip_settle_m` (default off) and `grip_settle_max_s`;
+    - the rollout script gains `--grip-settle-m 0.005 --grip-settle-max-s 1.0`;
+    - `test_held_human.py` goes from 9 to 13 tests;
+    - T3's full pytest: 2762 passed, 35 skipped.
+  - **The rerun's code is T3's diagnostics-only commit on top of `46963d6`**, with tests. Each row records:
+    - the first collision step and its kind (arm–bin or arm–table);
+    - the steps with gripper–cube contact;
+    - the cube's highest z and the tool's lowest z;
+    - the gripper waits.
+  - That commit may not change any behaviour. Its hash, its diff summary and a test that behaviour is unchanged are
+    logged here BEFORE the rerun starts.
+- **THE PILOT RULE** (the lead's, fixed here before the rerun):
+  1. **The pilot:** the rerun first runs only the first 22 episodes in the run's order, humans #1 and #2 (`00ab`,
+     `da08`).
+     - It is launched as a run of those 22 sources only. Continuing is a resume of the same out dir over the other 88.
+     - So nothing is stopped mid-run: the pilot is a planned end point, fixed in advance.
+  2. **Pilot ≥ 16/22 kept** (the floor's rate, 80/110 ≈ 73%): the rerun continues to all 110, and the floor is judged on
+     the full 110 as written.
+  3. **Pilot < 16/22:** the rerun ends at the pilot, and **the floor counts as failed**. Both stages use the ORIGINAL
+     set, `perfected_multiply_10` (110 episodes). Change 2 is dropped, and that is disclosed.
+  - **The pilot's count decides only this.** Its episodes become training data only if the full 110 then reaches the
+    floor.
+- **The floor is judged on the rerun's count only.** Run 1's rows are kept, untouched, in
+  `C:\dev\pm-t3-hh\data\held_human\mouse20261020`, and reported. They never become training data.
+- **If the full rerun is below 80/110,** both stages use the original 110 (the prereg's floor), and change 2 is dropped
+  and disclosed.
+- **Why a pilot (the lead):**
+  - B fixes the grasp timing, not the 52 collisions, so going from 0/110 to ≥ 80 is unlikely;
+  - every idle GPU hour pushes the test later.
+
+**Disclosed:**
+- **This change was decided after seeing run 1's failures,** on the training-data side only. No selection,
+  test or DAgger seed has been touched, and no student has been trained. Selection (5500–5557) and the test
+  (5400–5439) are unaffected.
+- **The rerun is a second attempt at the floor.** The floor's purpose is to keep a broken re-execution out of training.
+  Selection still guards the result, since Stage A's pick and the final pick use only selection seeds.
+- **The pilot's first 22 aren't a random sample.** They are humans #1 and #2. In run 1, human #1 failed by dropping
+  (the failure B targets), and human #2 by not_in_bin, with 4 collisions.
+- **The time-warp makes the held-human episodes longer** than k = 2 alone, by at most 1.0 s per gripper change.
+- **A second failure mode that this change doesn't target:** 52 of the 110 collided. Option B addresses the grasp, not the
+  collisions. Failed rollouts store no trace, so run 1 can't show where the collisions happen. The rerun's diagnostics
+  are for that.
+- **The cause is T3's hypothesis.** It rests on the held RL teacher's episodes, not on run 1's own failures, which have
+  no traces.
+- **Run 1's 0/110 is reported as a result of change 2 as first specified:** re-executing the human paths at k = 2
+  through the held executor kept nothing.
+
+**Unchanged:** the arm, the seeds, every decision rule and the test.
