@@ -3,9 +3,10 @@ import * as THREE from "three";
 import { BENCH_PIVOT, stop } from "../../scene/layout";
 import { ABOVE_PORT, PLUGGED_Q } from "../../scene/plugSequence";
 import { DRAG_PX, DROP_ZONE, MAGNET, cancel, drag, hiddenInstance, move, onPlane, press, rayHitsBox, release, resetDrag, settle, wasDrag } from "./drag";
-import { CARRY_V, PICK, PICK_S, backStep, backTravelS, carryStep, gripOf, pickStep, type PickStep, type Pose } from "./drag";
+import { BACK, CARRY_V, PICK, PICK_S, backStep, backTravelS, carryStep, gripOf, pickStep, type PickStep, type Pose } from "./drag";
 import { solveArm, wristAbove } from "../../scene/armIk";
-import { SPIRAL_R, cartridgeBody, clear } from "../../scene/collide";
+import { MAST_R, cartridgeBody, clear } from "../../scene/collide";
+import { CORE_R } from "../../scene/plugSequence";
 import { slotAt } from "../../scene/layout";
 
 const step = (): PickStep => ({ pose: { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }, grip: new THREE.Vector3(), closed: 0 });
@@ -110,7 +111,7 @@ describe("dragging a cartridge: the 3D", () => {
     expect(MAGNET.quaternion.angleTo(PLUGGED_Q)).toBe(0);
   });
 
-  it("picks: the hand comes down onto the slot's top edge, closes, and the cartridge comes out clear of the spiral", () => {
+  it("picks: the hand comes down onto the slot's top edge, closes, and the cartridge comes into the spiral's core", () => {
     const slot = slotPoseOf(12);
     const hand = new THREE.Vector3(0.5, 7, 0.8);
     const out = step();
@@ -122,8 +123,16 @@ describe("dragging a cartridge: the 3D", () => {
     expect(out.pose.position.distanceTo(slot.position)).toBe(0);
     expect(out.closed).toBeGreaterThan(0.99);
     pickStep(slot, hand, PICK_S, out);
-    expect(Math.hypot(out.pose.position.x, out.pose.position.z)).toBeGreaterThanOrEqual(SPIRAL_R);
-    expect(out.pose.quaternion.equals(slot.quaternion)).toBe(true);
+    // In the core beside the mast: every corner inside the band's inner edge (1.68 m from the axis).
+    expect(Math.hypot(out.pose.position.x, out.pose.position.z)).toBeCloseTo(CORE_R, 6);
+    for (const x of [-1.15, 1.15]) for (const z of [-0.17, 0.17]) {
+      const c = new THREE.Vector3(x, 0, z).applyQuaternion(out.pose.quaternion).add(out.pose.position);
+      expect(Math.hypot(c.x, c.z)).toBeLessThan(1.62);
+      expect(Math.hypot(c.x, c.z)).toBeGreaterThan(0.4);
+    }
+    // Facing straight out from the axis, its label away from the mast.
+    const face = new THREE.Vector3(0, 0, 1).applyQuaternion(out.pose.quaternion);
+    expect(Math.atan2(face.x, face.z)).toBeCloseTo(Math.atan2(slot.position.x, slot.position.z), 6);
     // The fingertips stay on the edge as it comes out, and nothing jumps.
     let prev = pickStep(slot, hand, 0, step()).grip.clone();
     for (let t = 0.01; t <= PICK_S; t += 0.01) {
@@ -150,7 +159,7 @@ describe("dragging a cartridge: the 3D", () => {
     }
   });
 
-  it("puts back: round the outside of the spiral to its slot, in, and lets go", () => {
+  it("puts back: round to the core by its slot (the spiral up), waits there while it comes down, out into the slot, and lets go", () => {
     const slot = slotPoseOf(5);
     const from = { position: new THREE.Vector3(6, 7, 3), quaternion: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 1) };
     const out = step();
@@ -163,7 +172,10 @@ describe("dragging a cartridge: the 3D", () => {
       const r = backStep(from, slot, t, out);
       expect(out.pose.position.distanceTo(prev)).toBeLessThan(0.3);
       prev = out.pose.position.clone();
-      if (t < travel) expect(Math.hypot(out.pose.position.x, out.pose.position.z)).toBeGreaterThanOrEqual(SPIRAL_R - 1e-6);
+      // Never into the mast on the way.
+      if (t < travel) expect(Math.hypot(out.pose.position.x, out.pose.position.z)).toBeGreaterThanOrEqual(MAST_R - 1e-6);
+      // The spiral only comes down once it is in the core.
+      if (r.liftWant === 0 && t < first.total - BACK.insert - BACK.open) expect(Math.hypot(out.pose.position.x, out.pose.position.z)).toBeCloseTo(CORE_R, 6);
       if (r.done) break;
     }
     const end = backStep(from, slot, first.total, out);

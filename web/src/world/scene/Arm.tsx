@@ -18,7 +18,7 @@ import { armTask } from "./armTask";
 import { slotAt } from "./layout";
 import { plug } from "./plug";
 import { liftAt, PHASE, cartridgePose } from "./plugSequence";
-import { spiralLift, stepLift } from "./lift";
+import { clearOfSpiral, spiralLift, stepLift } from "./lift";
 import { power } from "./power";
 import { N_ITEMS, instanceSlot, spiral, stepPose } from "./spiral";
 
@@ -38,8 +38,8 @@ const FINISH = {
 } as const;
 type Finish = keyof typeof FINISH;
 
-/** How far in from the spiral's cartridges the idle hand waits (its wrist, from the axis). */
-export const IDLE_R = 1.55;
+/** How far in the idle hand waits (its wrist, from the axis): well inside the spiral's core, so the spiral can always move past it. */
+export const IDLE_R = 1.0;
 /** The fingers' half gap, open and closed on a cartridge (0.34 m thick). */
 const FINGER_OPEN = 0.34;
 const FINGER_SHUT = 0.19;
@@ -242,6 +242,9 @@ const _pts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new
 const _wrist = new THREE.Vector3();
 const _grip = new THREE.Vector3();
 const _pose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
+const _heldPos = new THREE.Vector3();
+const _heldQ = new THREE.Quaternion();
+const _up = new THREE.Vector3(0, 1, 0);
 const ease = (a: number, b: number, k: number) => a + (b - a) * k;
 const easeAngle = (a: number, b: number, k: number) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
 
@@ -269,12 +272,18 @@ export function Arm({ quality, reduced }: { quality: QualityTier; reduced: boole
     if (following && !s.following) s.reachFrom.copy(armTask.hand);
     s.following = following;
     const liftBefore = spiralLift.level;
+    // Where the spiral is to go, and how: step there at its pace, or follow the plug-in's own timeline.
+    let liftTo = 0;
+    let liftSet = false;
+    let held: { position: THREE.Vector3; quaternion: THREE.Quaternion } | null = null;
     if (armTask.active) {
       solveArm(wristAbove(armTask.grip, _wrist), s.want);
       wantRoll = handRoll(s.want.yaw, armTask.handYaw);
       wantClosed = armTask.closed;
       exact = true;
-      spiralLift.level = stepLift(spiralLift.level, armTask.liftWant, lag, reduced);
+      liftTo = armTask.liftWant;
+      // The cartridge it holds hangs from the fingertips, turned as the hand is.
+      held = { position: _heldPos.copy(armTask.grip).setY(armTask.grip.y - (1.25 - GRIP_DEPTH)), quaternion: _heldQ.setFromAxisAngle(_up, armTask.handYaw) };
     } else if (following) {
       cartridgePose(plug.slot, u, _pose, plug.held);
       gripOn(_pose, _grip);
@@ -288,10 +297,12 @@ export function Arm({ quality, reduced }: { quality: QualityTier; reduced: boole
       solveArm(wristAbove(_grip, _wrist), s.want);
       wantRoll = handRoll(s.want.yaw, faceYaw(_pose.quaternion));
       exact = true;
-      spiralLift.level = liftAt(u, plug.held);
+      liftTo = liftAt(u, plug.held);
+      liftSet = true;
+      held = _pose;
     } else {
       // Nothing to carry: the spiral comes (or stays) down; the plug-in's own lift brings it down after a click.
-      spiralLift.level = u >= PHASE.click[1] && u < 1 ? liftAt(u, plug.held) : stepLift(spiralLift.level, 0, lag, reduced);
+      liftTo = 0;
       idlePose(idleWrist(lookTarget(_look), _wrist), s.want);
       wantRoll = Math.PI / 2;
       const breathe = quality.idleMotion && !reduced ? Math.sin(clock.elapsedTime * 0.9) * 0.03 : 0;
@@ -330,6 +341,9 @@ export function Arm({ quality, reduced }: { quality: QualityTier; reduced: boole
 
     // Where the fingertips are now (a task starts from there).
     armPoints(p, _pts);
+    // The spiral only moves while the arm (and what it holds) is wholly inside its core: nothing of it
+    // ever passes through them. Else it waits where it is (lift.ts clearOfSpiral).
+    if (clearOfSpiral(_pts, s.closed > 0.5 ? held : null)) spiralLift.level = liftSet ? liftTo : stepLift(spiralLift.level, liftTo, lag, reduced);
     armTask.hand.copy(_pts[3]);
     armTask.handYawNow = p.yaw - s.roll + Math.PI / 2;
 
