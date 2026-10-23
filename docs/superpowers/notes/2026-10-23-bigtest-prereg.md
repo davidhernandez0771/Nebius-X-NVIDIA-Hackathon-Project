@@ -501,6 +501,23 @@ Its final line is logged below when it lands. It started at 16:02:27 (`gpu.lock`
 - **T3's figure:** the tool's lowest point is z ≈ 0.058 m, against the human's grasp height of 0.0395 m. So the fingers
   close about 19 mm above the grasp point.
 
+**The pilot's final line (16:13:47): kept 0/22 → "stop"**, as the rule says. It started at 16:02:19, with a wall time
+of 687 s; `gpu.lock` was released afterwards.
+- **`held_human_done.json`:**
+  - kept 0, attempted 22, passed 0;
+  - `stopped_after_pilot: true`, `pilot_decision: "stop"`;
+  - frames 0, no `grid.json`;
+  - failures: not_in_bin 22, dropped 11, collision 2;
+  - code `8071e15`, clean.
+- **The rows:**
+  - `00ab`: 11/11 not_in_bin + dropped, all with gripper–cube contact.
+  - `da08`: 11/11 not_in_bin, **none with gripper–cube contact**. 2 of them collided with the bin, first at steps 521
+    and 528 (93 and 4 contact steps), after the missed grasp. No arm–table contact on any row.
+  - The cube's highest z over all 22 rows is 0.0257 m (it starts at 0.025 m).
+- **Sources 23–110 never ran**, so the floor fails by the pilot rule.
+- **Correction to the 16:10 entry above:** "no arm–bin or arm–table contact" held for the first 14 rows. The 2 bin
+  collisions came later, both in `da08`.
+
 **The lead's decision, applying the prereg and Amendment 1 as written (no new amendment):**
 - **The floor FAILS.** Stage A AND Stage B use the ORIGINAL human set, `perfected_multiply_10` (the 110 episodes from
   `C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json`).
