@@ -316,5 +316,18 @@ lag is |capped target − commanded|, taking each episode's maximum, over the 11
   (`...\held_human\mouse20261020`), and the script has no flag to change it.
   - If Amendment 1 applies, the floor is judged on the rerun's folder instead.
   - But `human_choice()` decides once, as soon as run 1's done marker appears, so it would never read the rerun.
-  - T6 has been asked for a `--held-human-dir` flag, recorded in `human_choice.json`, with a test. The chain doesn't
-    start until that commit is logged here.
+  - T6 was asked for a `--held-human-dir` flag. **The lead's resolution: no code change is needed**, and this is the
+    mechanism.
+    - The chain is not running, so nothing can decide at run 1's marker.
+    - At the lead's go, T6 writes `data\distill\bigtest\human_choice.json` before the chain starts. It holds:
+      - the exact grid and cell the lead names: the settle rerun's `held_human_10` if that reaches ≥ 80/110,
+        otherwise the original `perfected_multiply_10`;
+      - the run it came from, its kept / attempted, and `decided_by`.
+      - A `run_log.txt` line records it too.
+    - `human_choice()` returns an existing `human_choice.json` and never re-decides (checked: `bigtest.py:118–121`).
+      The preflight and the data check run on the named cell.
+    - The script's wait loop (`scripts/bigtest.py:78`) still waits for run 1's marker. That is harmless once run 1 has
+      ended.
+    - **So the floor is applied by the lead,** from the counts logged here, not by `human_choice()`'s own rule. The
+      file's numbers must match this log.
+    - A `--held-human-dir` flag is optional (T6's choice) and not required for the go.
