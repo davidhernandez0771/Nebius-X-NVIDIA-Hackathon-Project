@@ -118,7 +118,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
       <Materialize>
         {BAKED.map((name) => (
           <Suspense key={name} fallback={null}>
-            <Baked name={name} anisotropy={anisotropy} cut={name === "machine_body" ? cutBakedBody : undefined} />
+            <Baked name={name} anisotropy={anisotropy} cut={name === "machine_body" ? cutBakedBody : undefined} detail={quality.name !== "low"} />
           </Suspense>
         ))}
         <Pendants />
