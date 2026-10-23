@@ -264,3 +264,57 @@ lag is |capped target − commanded|, taking each episode's maximum, over the 11
 - **The cost:** the human paths average 5.71 s (max 8.38 s), so the re-executed episodes take about twice as long.
 - **The GPU run starts now** (T3). Its start line, with the commit, goes in `run_log.txt`. When I checked at 15:08, there
   was no `run_log.txt` and no `gpu.lock` yet. The pass count and the floor decision are logged when it ends.
+
+### `pm/bigtest` (T6): the code for Stage A onwards, checked before any of it runs
+
+**`pm/bigtest` `34f02f7`** (T6, `C:\dev\pm-t6-big`, local only). It is four commits on `a17f231`, touching 21 files, with
++1343 / −61 lines.
+
+| Commit | What |
+|---|---|
+| `5cf556c` | DAgger rollouts load the teacher with `cap_from_tool=True` (T3's `681e8dd` hook) through `load_teacher_for`; round 0 refuses it |
+| `779e0fa` | `--gripper-deadband 0.25` (eval side, `wrap_gripper`, in `run_eval` and `distill_rollouts`); `MAX_STEPS` 200k |
+| `24227da` | the seed guards; `--no-stop-rule`; an `nvidia-smi` log every 10 min during export + training; `experiments --resume-run` |
+| `34f02f7` | the chain, `sim_eval/bigtest.py` + `sim_eval/scripts/bigtest.py`, and T6's note `2026-10-23-bigtest.md` |
+
+- **Tests (T6):**
+  - The full suite: 2779 passed, 0 failed, 35 skipped. The first pass had one failure: `run_human_demo_experiment`'s
+    cap test still expected 100k. T6 fixed the test to 200,001 and re-ran it, and it passed (5/5).
+  - The torch tests under Isaac's Python (the teacher speed cap, including the real `RLTeacher` DAgger rollout; distill;
+    bigtest; inference): 57 passed.
+- **Checked here, against this prereg:**
+  - `distill_round.py:53`: `SELECT_SEEDS = range(5500, 5558)`.
+  - `:54–58`: `RETIRED_SELECT_SEEDS = range(5300, 5400)` and `BIGTEST_TEST_SEEDS = range(5400, 5440)`.
+    `EVAL_ONLY_SEEDS` is both test sets plus both of those; the data check (`:379`) refuses any training episode on them.
+  - `lerobot_tools/inference.py` `GripperHysteresis`:
+    - the thresholds are 0.02 ± 0.25 × 0.04 / 2, so 15 and 25 mm;
+    - the mean of the two finger targets is compared, and the last state is held in between;
+    - `reset()` sets it open, and only the finger targets are written.
+  - `lerobot_tools/train.py:27`: `MAX_STEPS` is 200,000.
+  - `bigtest.py`: `INFERENCE_ARGS = ("--gripper-deadband", "0.25")`, `HELD_FLOOR = 80`, steps 180,000, candidates
+    60k / 120k / 180k.
+- **The chain:** one restartable command, `C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\bigtest.py` (cwd
+  `C:\dev\pm-t6-big`). A re-run skips the stages already finished.
+  1. **human + teacher:**
+     - it waits for T3's `held_human_done.json`;
+     - it takes `gpu.lock` for the whole chain;
+     - it checks the teacher's sha256 (`811382a3…77aa2`);
+     - it writes `human_choice.json` once, by the floor;
+     - it reuses the 565 @600 episodes.
+  2. **A:** as fixed above.
+  3. **B:** as fixed above.
+  4. **The test:**
+     - `final_choice.json` (A-best vs B-best, a tie to B);
+     - `eval_cells` on 5400–5439 with `--gripper-deadband 0.25 --trace`, run id `bigtest_test`, cell `bigtest_final`
+       (the test command above used placeholder names; these are T6's);
+     - `guard_final` lets it run once;
+     - it writes `test_result.json` with the Wilson 95% CI.
+- **Already done, on the CPU only (15:12–15:18):** `--prepare` matched the teacher's sha256, and copied and verified the 565
+  teacher episodes (451,695 files, 4.65 GB) into `data\distill\bigtest\r0`. `round.json` names their rollouts code,
+  `95663cb`. No GPU was used.
+- **A blocker, found here before the chain's go:** `bigtest.py:60` hard-codes `held_human_dir` to run 1's folder
+  (`...\held_human\mouse20261020`), and the script has no flag to change it.
+  - If Amendment 1 applies, the floor is judged on the rerun's folder instead.
+  - But `human_choice()` decides once, as soon as run 1's done marker appears, so it would never read the rerun.
+  - T6 has been asked for a `--held-human-dir` flag, recorded in `human_choice.json`, with a test. The chain doesn't
+    start until that commit is logged here.
