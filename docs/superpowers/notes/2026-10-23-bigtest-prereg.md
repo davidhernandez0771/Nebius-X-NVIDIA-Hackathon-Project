@@ -438,3 +438,51 @@ to its end at 15:52:55 (started 15:08:25; wall 2667 s) with **0/110 passing, bel
   through the held executor kept nothing.
 
 **Unchanged:** the arm, the seeds, every decision rule and the test.
+
+### Amendment 1: the rerun's code, logged before its launch
+
+**The rerun's code is `pm/held-human` `8071e15`** (T3; parent `46963d6`, whose parent is `c799064`). It changes 3
+files, +124 / −18 (checked here).
+- **`sim_eval/held_human.py`:**
+  - **`rollout_diagnostics(r)`** reads a finished `Rollout` only. Per row, it records:
+    - the first step and the count of arm–bin contacts, of arm–table contacts and of gripper–cube contacts;
+    - the cube's z at the start and at its highest;
+    - the tool's lowest z;
+    - at each commanded gripper change, the tool after that step against its target (in mm, and in z).
+  - **`pilot_decision(successes, pilot_min)`** returns `None` until every pilot episode has run. Then it returns
+    "continue" if at least `pilot_min` passed, else "stop".
+- **`sim_eval/scripts/held_human_rollouts.py`:**
+  - each row gains `diag`;
+  - it gets `--pilot N --pilot-min M`;
+  - the pilot line goes to the log and to `run_log.txt`;
+  - `held_human_done.json` gains `passed`, `stopped_after_pilot`, `pilot`, `pilot_min` and `pilot_decision`.
+  - **On "stop"**, `kept` is 0 and no `grid.json` is written, so nothing from the rerun can be trained on (checked:
+    `finish()`).
+- **Tests (T3):**
+  - `test_held_human` 16/16. `test_the_diagnostics_only_read_a_finished_rollout` shows identical `teacher_ee`,
+    executed and label arrays with and without the diagnostics, and across two rollouts.
+  - The pilot test covers `None`, continue (16/22) and stop (15/22).
+  - The full pytest: 2765 passed, 35 skipped.
+
+**How the pilot rule runs (a clarification of the mechanism; the rule is unchanged):** ONE invocation, and the code
+applies the rule. No one stops the run.
+- The script runs sources 1–22 in run order (`00ab` × 11, then `da08` × 11). After the 22nd row, `pilot_decision`
+  applies "≥ 16/22".
+  - **Below 16:** it writes `held_human_done.json` with `stopped_after_pilot: true` and `kept` 0, and exits normally
+    without starting sources 23–110.
+  - **16 or more:** the same process continues over the other 88. The floor is judged on 110.
+- **Re-running the same command** resumes from `rollouts.jsonl` and re-applies the rule from the existing rows.
+- **This replaces the wording above** ("launched as a run of those 22 sources only; continuing is a resume"). The end
+  point is still fixed in advance, and it is now applied by code instead of by a relaunch.
+- **The source order** is the grid's, read by the same code as run 1, so the first 22 are the same sources as run 1's
+  first 22 (checked: run 1's rows 1–22 are `00ab` × 11 and `da08` × 11).
+
+**The command** (cwd `C:\dev\pm-t3-hh`; it takes its own `gpu.lock`, with `KeepAwake` and `full_speed`):
+
+```text
+C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\held_human_rollouts.py --k 2 --grip-settle-m 0.005 ^
+  --grip-settle-max-s 1.0 --pilot 22 --pilot-min 16 --grid C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json ^
+  --cell perfected_multiply_10 ^
+  --start-state C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 ^
+  --out data\held_human\mouse20261020_settle --run-log C:\dev\pm-t6-big\data\distill\bigtest\run_log.txt
+```
