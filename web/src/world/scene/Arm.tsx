@@ -4,7 +4,7 @@
 // is dragged, the drag steers it (armTask.ts): its fingertips go exactly where they are told, so it
 // takes the cartridge out of its slot, carries it, puts it back or lowers it into the machine's port.
 // It also follows a dropped cartridge's insert on the machine (plugSequence.ts, held) and lets go at
-// the click. Wherever its links cross the spiral, it opens the spiral there (armTask.ts gap).
+// the click. While it carries one, the whole spiral is lifted up out of its way (lift.ts).
 // Each moving segment is one merged mesh: per-vertex colour, metalness/roughness and glow, so painted
 // shells, dark joints, steel and the teal rings share one draw call per segment (10). Lit by the live
 // lights; the rings follow the lamps.
@@ -14,10 +14,11 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { QualityTier } from "../core/quality";
 import { ARM, GRIP_DEPTH, HANG, SHOULDER_MAX, armPoints, armPose, solveArm, wristAbove, type ArmPose } from "./armIk";
-import { armTask, gap } from "./armTask";
+import { armTask } from "./armTask";
 import { slotAt } from "./layout";
 import { plug } from "./plug";
-import { PHASE, cartridgePose } from "./plugSequence";
+import { liftAt, PHASE, cartridgePose } from "./plugSequence";
+import { spiralLift, stepLift } from "./lift";
 import { power } from "./power";
 import { N_ITEMS, instanceSlot, spiral, stepPose } from "./spiral";
 
@@ -222,6 +223,11 @@ export function idleWrist(c: THREE.Vector3, out = new THREE.Vector3()): THREE.Ve
 /** The idle pose for a wrist: hanging from high above, so it stays clear of the spiral. */
 export const idlePose = (wrist: THREE.Vector3, out?: ArmPose) => solveArm(wrist, out, HANG);
 
+/** The fingertips on a cartridge at a pose (scale 1): just under the middle of its top edge. */
+export function gripOn(pose: { position: THREE.Vector3; quaternion: THREE.Quaternion }, out = new THREE.Vector3()): THREE.Vector3 {
+  return out.set(0, 1.25 - GRIP_DEPTH, 0).applyQuaternion(pose.quaternion).add(pose.position);
+}
+
 /** The world yaw a cartridge turned by `q` faces (its label's normal). */
 export function faceYaw(q: THREE.Quaternion): number {
   const z = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
@@ -231,34 +237,7 @@ export function faceYaw(q: THREE.Quaternion): number {
 /** The roll that lines the fingers up across a cartridge facing world yaw `face`, for an arm at `armYaw`. */
 export const handRoll = (armYaw: number, face: number) => armYaw - face + Math.PI / 2;
 
-/** The spiral's ring of cartridges, as far as the arm's links are concerned (metres from the axis). */
-const RING = [2.0, 4.3] as const;
 const _pts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
-const _a = new THREE.Vector3();
-
-/** The band of heights where the arm (and what it holds) crosses the spiral's ring, or null. */
-export function crossing(p: ArmPose, holding: boolean, grip: THREE.Vector3): [number, number] | null {
-  armPoints(p, _pts);
-  let y0 = Infinity;
-  let y1 = -Infinity;
-  for (let s = 0; s < 3; s++) {
-    for (let i = 0; i <= 12; i++) {
-      _a.lerpVectors(_pts[s], _pts[s + 1], i / 12);
-      const r = Math.hypot(_a.x, _a.z);
-      if (r < RING[0] || r > RING[1]) continue;
-      y0 = Math.min(y0, _a.y);
-      y1 = Math.max(y1, _a.y);
-    }
-  }
-  if (holding) {
-    const r = Math.hypot(grip.x, grip.z);
-    if (r > RING[0] - 1.2 && r < RING[1] + 1.2) {
-      y0 = Math.min(y0, grip.y - 2.5);
-      y1 = Math.max(y1, grip.y);
-    }
-  }
-  return y0 <= y1 ? [y0, y1] : null;
-}
 
 const _wrist = new THREE.Vector3();
 const _grip = new THREE.Vector3();
@@ -269,34 +248,50 @@ const easeAngle = (a: number, b: number, k: number) => a + Math.atan2(Math.sin(b
 export function Arm({ quality, reduced }: { quality: QualityTier; reduced: boolean }) {
   const invalidate = useThree((s) => s.invalidate);
   const arm = useMemo(() => build(quality), [quality]);
-  const st = useRef({ pose: idlePose(new THREE.Vector3(0, 6, IDLE_R)), want: armPose(), roll: Math.PI / 2, closed: 0, glow: 0, open: 0 });
+  const st = useRef({ pose: idlePose(new THREE.Vector3(0, 6, IDLE_R)), want: armPose(), roll: Math.PI / 2, closed: 0, glow: 0, following: false, reachFrom: new THREE.Vector3() });
   useEffect(() => () => arm.dispose(), [arm]);
+  // A fresh room: the spiral stands in place.
+  useEffect(() => () => void (spiralLift.level = 0), []);
 
   useFrame(({ clock }, delta) => {
     const dt = Math.min(delta, 1 / 30);
+    // The lift keeps real time (a slow frame doesn't slow it): the drag's put-back counts on it.
+    const lag = Math.min(delta, 0.25);
     const s = st.current;
     const p = s.pose;
     let wantRoll = s.roll;
     let wantClosed = 0;
     let exact = false;
-    let holding = false;
-    // What the hand is to do: the drag's task, the machine's insert of a dropped cartridge, or look about.
-    const inserting = !armTask.active && plug.held && plug.progress > 0 && plug.progress < PHASE.click[1];
+    // What the hand is to do: the drag's task; the machine's plug-in (a click, the scroll, or a dropped
+    // cartridge's insert), which the arm carries from the slot to the port; or look about.
+    const u = plug.progress;
+    const following = !armTask.active && u > 0 && u < PHASE.click[1];
+    if (following && !s.following) s.reachFrom.copy(armTask.hand);
+    s.following = following;
+    const liftBefore = spiralLift.level;
     if (armTask.active) {
       solveArm(wristAbove(armTask.grip, _wrist), s.want);
       wantRoll = handRoll(s.want.yaw, armTask.handYaw);
       wantClosed = armTask.closed;
-      holding = armTask.closed > 0.5;
       exact = true;
-    } else if (inserting) {
-      cartridgePose(plug.slot, plug.progress, _pose, true);
-      _grip.set(0, 1.25 - GRIP_DEPTH, 0).applyQuaternion(_pose.quaternion).add(_pose.position);
+      spiralLift.level = stepLift(spiralLift.level, armTask.liftWant, lag, reduced);
+    } else if (following) {
+      cartridgePose(plug.slot, u, _pose, plug.held);
+      gripOn(_pose, _grip);
+      if (!plug.held && u < PHASE.reach[1]) {
+        // Reaching the slot from wherever the hand was, coming down onto the top edge; closing at the end.
+        const k = u / PHASE.reach[1];
+        const e = k * k * (3 - 2 * k);
+        _grip.lerpVectors(s.reachFrom, _grip, e).setY(_grip.y + 0.45 * Math.sin(Math.PI * Math.min(1, e * 1.15)));
+        wantClosed = Math.max(0, (k - 0.75) / 0.25);
+      } else wantClosed = 1;
       solveArm(wristAbove(_grip, _wrist), s.want);
       wantRoll = handRoll(s.want.yaw, faceYaw(_pose.quaternion));
-      wantClosed = 1;
-      holding = true;
       exact = true;
+      spiralLift.level = liftAt(u, plug.held);
     } else {
+      // Nothing to carry: the spiral comes (or stays) down; the plug-in's own lift brings it down after a click.
+      spiralLift.level = u >= PHASE.click[1] && u < 1 ? liftAt(u, plug.held) : stepLift(spiralLift.level, 0, lag, reduced);
       idlePose(idleWrist(lookTarget(_look), _wrist), s.want);
       wantRoll = Math.PI / 2;
       const breathe = quality.idleMotion && !reduced ? Math.sin(clock.elapsedTime * 0.9) * 0.03 : 0;
@@ -316,7 +311,7 @@ export function Arm({ quality, reduced }: { quality: QualityTier; reduced: boole
     s.roll = easeAngle(s.roll, wantRoll, exact || reduced ? 1 : 1 - Math.exp(-dt * 6));
     const kc = reduced ? 1 : 1 - Math.exp(-dt * 14);
     s.closed = ease(s.closed, wantClosed, kc);
-    s.glow = ease(s.glow, armTask.active ? 0.6 + 0.9 * armTask.glow : inserting ? 0.9 : 0.35, kc);
+    s.glow = ease(s.glow, armTask.active ? 0.6 + 0.9 * armTask.glow : following ? 0.9 : 0.35, kc);
 
     arm.mast.scale.y = p.shoulderY - ARM.floor - ARM.foot;
     arm.yaw.position.y = p.shoulderY - ARM.floor;
@@ -333,22 +328,13 @@ export function Arm({ quality, reduced }: { quality: QualityTier; reduced: boole
     arm.glow.value = power.level;
     arm.handGlow.value = power.level * s.glow * 2;
 
-    // Where the fingertips are now (a task starts from there), and where the spiral opens for the arm.
+    // Where the fingertips are now (a task starts from there).
     armPoints(p, _pts);
     armTask.hand.copy(_pts[3]);
     armTask.handYawNow = p.yaw - s.roll + Math.PI / 2;
-    const band = crossing(p, holding, armTask.active ? armTask.grip : _grip);
-    const openTo = band ? 1 : 0;
-    s.open = ease(s.open, openTo, reduced ? 1 : 1 - Math.exp(-dt * (openTo > s.open ? 9 : 3)));
-    if (band) {
-      gap.yaw = p.yaw;
-      gap.y0 = band[0];
-      gap.y1 = band[1];
-    }
-    gap.level = s.open < 0.002 ? 0 : s.open;
 
     const after = p.yaw + p.shoulderY + p.shoulder + p.elbow + p.ext + s.roll;
-    if (exact || Math.abs(after - before) > 1e-4 || Math.abs(s.closed - wantClosed) > 0.002 || gap.level > 0) invalidate();
+    if (exact || Math.abs(after - before) > 1e-4 || Math.abs(s.closed - wantClosed) > 0.002 || spiralLift.level !== liftBefore || spiralLift.level > 0) invalidate();
   });
 
   return <primitive object={arm.root} />;

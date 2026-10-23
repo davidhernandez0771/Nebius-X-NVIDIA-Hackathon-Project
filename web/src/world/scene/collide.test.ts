@@ -14,6 +14,16 @@ describe("what a carried cartridge can't pass through", () => {
     expect(desk.yaw).toBeCloseTo(MACHINE_PIVOT.yaw, 9);
   });
 
+  it("knows the cartridge bay on the dock, where plugSequence.ts builds it", async () => {
+    const { BAY, DOCK_TOP, PORT_TOP } = await import("./plugSequence");
+    const bay = BLOCKS.find((b) => b.name === "bay")!;
+    expect(bay.center[0]).toBeCloseTo(DOCK_TOP.x, 2);
+    expect(bay.center[1]).toBeCloseTo(DOCK_TOP.z, 2);
+    expect(bay.half[0]).toBeCloseTo(BAY.halfShort + BAY.wall, 6);
+    expect(bay.half[1]).toBeCloseTo(BAY.halfLong + BAY.wall, 6);
+    expect(bay.top).toBeCloseTo(PORT_TOP.y, 2);
+  });
+
   it("lifts a cartridge pushed into a table onto its top", () => {
     const p = v(-9, 1, -0.5);
     const hits = resolve(p, body);

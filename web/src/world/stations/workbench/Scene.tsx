@@ -27,6 +27,7 @@ import { drawSingle, type LabelArt } from "../../scene/labels";
 import { BENCH_PIVOT } from "../../scene/layout";
 import { liveMaterial, trackLive } from "../../scene/materials";
 import { addBaked } from "../../scene/power";
+import { Materialize } from "../../scene/Materialize";
 import { FINISHES, finishOf, savedCartridges, type FinishId } from "../../scene/saved";
 import { bench, draftLabel, endFlight, pickFinish, setHover, subscribeBench } from "./draft";
 import { FINALE, finaleAt, popParticle, printWipe } from "./finale";
@@ -765,8 +766,11 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
 
   return (
     <>
-      {/* The mat stays in the room view too: it covers the baked mat's old shadows. */}
-      <primitive object={b.mat.mesh} />
+      {/* The mat stays in the room view too: it covers the baked mat's old shadows. It is part of the
+          room, so it materializes with it (Materialize: hidden, then dissolving in on the room's reveal). */}
+      <Materialize>
+        <primitive object={b.mat.mesh} />
+      </Materialize>
       <group ref={holder} visible={false} name="workbench">
         <primitive object={b.main.group} />
         <primitive object={b.flying.group} />

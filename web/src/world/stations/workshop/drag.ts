@@ -9,9 +9,10 @@
 // geometry and the choreography are pure, so they are tested.
 import * as THREE from "three";
 import { GRIP_DEPTH, clampReach } from "../../scene/armIk";
-import { SPIRAL_R, cartridgeBody, resolve, sweep, type Body } from "../../scene/collide";
+import { MAST_R, SPIRAL_R, cartridgeBody, resolve, sweep, type Body } from "../../scene/collide";
+import { LIFT_S } from "../../scene/lift";
 import { MACHINE_PIVOT } from "../../scene/layout";
-import { ABOVE_PORT, PLUGGED_Q } from "../../scene/plugSequence";
+import { ABOVE_PORT, PLUGGED_Q, pullAt, pullOf, type Pull } from "../../scene/plugSequence";
 
 export type PointerKind = "mouse" | "touch" | "pen";
 
@@ -203,20 +204,29 @@ export function centreUnder(grip: THREE.Vector3, q: THREE.Quaternion, out = new 
   return out.set(0, -(HALF_H - GRIP_DEPTH), 0).applyQuaternion(q).add(grip);
 }
 
-/** Seconds of the pick: the hand reaches the cartridge's top edge, the fingers close, it comes out of its slot. */
+/**
+ * Seconds of the pick: the hand reaches the cartridge's top edge, the fingers close, it comes out of
+ * its slot past the spiral's ring (plugSequence.ts pullOf, the plug-in's own way out). Then the spiral
+ * rises out of the way (lift.ts) and the carry starts once it is mostly up (Dragged.tsx).
+ */
 export const PICK = { reach: 0.42, close: 0.14, pull: 0.36 } as const;
 export const PICK_S = PICK.reach + PICK.close + PICK.pull;
-/** Out of the slot: up a little and out past the spiral's ring (collide.ts SPIRAL_R), facing as it was. */
-const PULL_UP = 0.35;
+/** The carry starts once the spiral is this far up (its ring is no longer in the way). */
+export const CARRY_FROM_LIFT = 0.6;
 
-/** A cartridge's slot pose pulled clear of the spiral (radially out, up a little), same turn. */
-export function pulledPose(slot: Pose, out: Pose): Pose {
-  const p = slot.position;
-  const r = Math.hypot(p.x, p.z);
-  const s = r > 1e-6 ? (SPIRAL_R + 0.05) / r : 1;
-  out.position.set(p.x * s, p.y + PULL_UP, p.z * s);
-  out.quaternion.copy(slot.quaternion);
+const Y = new THREE.Vector3(0, 1, 0);
+
+/** A slot's cartridge part of the way (k, 0–1) out of its slot, turned with it if its way out goes round. */
+function pulledAt(slot: Pose, pull: Pull, k: number, out: Pose): Pose {
+  if (k <= 0) out.position.copy(slot.position);
+  else pullAt(pull, k, out.position);
+  out.quaternion.setFromAxisAngle(Y, wrap(pull.a1 - pull.a0) * smooth(k)).multiply(slot.quaternion);
   return out;
+}
+
+/** A cartridge's slot pose pulled clear of the spiral: out past its ring, up a little (pullOf). */
+export function pulledPose(slot: Pose, out: Pose): Pose {
+  return pulledAt(slot, pullOf(slot.position), 1, out);
 }
 
 export interface PickStep {
@@ -255,10 +265,7 @@ export function pickStep(slot: Pose, hand: THREE.Vector3, t: number, out: PickSt
     out.closed = smooth((t - PICK.reach) / PICK.close);
     return out;
   }
-  pulledPose(slot, _pulled);
-  const k = smooth((t - PICK.reach - PICK.close) / PICK.pull);
-  out.pose.position.lerpVectors(slot.position, _pulled.position, k);
-  out.pose.quaternion.copy(slot.quaternion);
+  pulledAt(slot, pullOf(slot.position), smooth((t - PICK.reach - PICK.close) / PICK.pull), out.pose);
   gripOf(out.pose, out.grip);
   out.closed = 1;
   return out;
@@ -270,60 +277,76 @@ export const CARRY_FOLLOW = 9;
 
 /**
  * One frame of the carry: toward `target`, eased and no faster than CARRY_V, in short resolved steps
- * (over tables, along walls, round the spiral: collide.ts), the fingertips kept within the arm's reach.
+ * (over tables, along walls: collide.ts), the fingertips kept within the arm's reach. `spiralR`: what
+ * it keeps clear of in the middle (the spiral's ring while it stands, only the mast once it has lifted).
  */
-export function carryStep(from: THREE.Vector3, target: THREE.Vector3, q: THREE.Quaternion, dt: number, out: THREE.Vector3, body: Body = BODY): THREE.Vector3 {
+export function carryStep(from: THREE.Vector3, target: THREE.Vector3, q: THREE.Quaternion, dt: number, out: THREE.Vector3, spiralR = SPIRAL_R, body: Body = BODY): THREE.Vector3 {
   // Within reach: the fingertips' point pulled in toward the axis if need be.
   clampReach(gripOf({ position: target, quaternion: q }, _g1), _g1);
   centreUnder(_g1, q, _to);
-  resolve(_to, body);
+  resolve(_to, body, undefined, spiralR);
   const k = 1 - Math.exp(-dt * CARRY_FOLLOW);
   _step.copy(_to).sub(from).multiplyScalar(k).clampLength(0, CARRY_V * dt);
-  return sweep(from, _step.add(from), body, out);
+  return sweep(from, _step.add(from), body, out, 0.25, spiralR);
 }
 
-/** Seconds of the put-back: carried round to its slot (by the distance), pushed in, let go. */
-export const BACK = { min: 0.55, max: 1.5, perM: 0.11, insert: 0.32, open: 0.16 } as const;
+/**
+ * Seconds of the put-back: carried round to just outside its slot (by the distance) while the spiral is
+ * still up; held there while the spiral comes back down round it; pushed in; let go.
+ */
+export const BACK = { min: 0.55, max: 1.5, perM: 0.11, descend: LIFT_S + 0.1, insert: 0.32, open: 0.16 } as const;
 export const backTravelS = (from: THREE.Vector3, slot: Pose) => Math.min(BACK.max, Math.max(BACK.min, from.distanceTo(slot.position) * BACK.perM));
 
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
+export interface BackStep {
+  step: PickStep;
+  total: number;
+  done: boolean;
+  /** Whether the spiral should be up (1) or coming down (0) at this point. */
+  liftWant: number;
+}
+
 /**
- * The put-back at t seconds after letting go at `from`: round the outside of the spiral to just
- * outside the slot (bearing the short way, never closer to the axis than the spiral's ring, the
- * height eased), turning to face as the slot does; then pushed in; then the fingers open.
- * Done when t passes the returned `total`.
+ * The put-back at t seconds after letting go at `from`: round the axis to just outside the slot
+ * (bearing the short way, the height eased, clear of the mast and the furniture), turning to face as
+ * it will in the slot; the spiral comes back down; then back in along its way out; then the fingers
+ * open. Done when t passes the returned `total`.
  */
-export function backStep(from: Pose, slot: Pose, t: number, out: PickStep): { step: PickStep; total: number; done: boolean } {
+export function backStep(from: Pose, slot: Pose, t: number, out: PickStep): BackStep {
   const travel = backTravelS(from.position, slot);
-  const total = travel + BACK.insert + BACK.open;
-  const outside = pulledPose(slot, _pulled);
+  const total = travel + BACK.descend + BACK.insert + BACK.open;
+  const pull = pullOf(slot.position);
+  const outside = pulledAt(slot, pull, 1, _pulled);
   if (t < travel) {
     const k = smooth(t / travel);
     const a0 = Math.atan2(from.position.x, from.position.z);
     const a1 = Math.atan2(outside.position.x, outside.position.z);
-    const r0 = Math.max(SPIRAL_R, Math.hypot(from.position.x, from.position.z));
+    const r0 = Math.max(MAST_R, Math.hypot(from.position.x, from.position.z));
     const r1 = Math.hypot(outside.position.x, outside.position.z);
     const a = a0 + wrap(a1 - a0) * k;
     const r = r0 + (r1 - r0) * k;
     const y = from.position.y + (outside.position.y - from.position.y) * k;
     out.pose.position.set(r * Math.sin(a), y, r * Math.cos(a));
-    out.pose.quaternion.slerpQuaternions(from.quaternion, slot.quaternion, smooth(t / (travel * 0.8)));
-    resolve(out.pose.position, BODY);
+    out.pose.quaternion.slerpQuaternions(from.quaternion, outside.quaternion, smooth(t / (travel * 0.8)));
+    resolve(out.pose.position, BODY, undefined, MAST_R);
     out.closed = 1;
-  } else if (t < travel + BACK.insert) {
-    out.pose.position.lerpVectors(outside.position, slot.position, smooth((t - travel) / BACK.insert));
-    out.pose.quaternion.copy(slot.quaternion);
+  } else if (t < travel + BACK.descend) {
+    out.pose.position.copy(outside.position);
+    out.pose.quaternion.copy(outside.quaternion);
+    out.closed = 1;
+  } else if (t < travel + BACK.descend + BACK.insert) {
+    pulledAt(slot, pull, 1 - smooth((t - travel - BACK.descend) / BACK.insert), out.pose);
     out.closed = 1;
   } else {
     out.pose.position.copy(slot.position);
     out.pose.quaternion.copy(slot.quaternion);
-    out.closed = 1 - smooth((t - travel - BACK.insert) / BACK.open);
+    out.closed = 1 - smooth((t - travel - BACK.descend - BACK.insert) / BACK.open);
   }
   gripOf(out.pose, out.grip);
   // Letting go, the hand lifts off the edge.
   if (out.closed < 1) out.grip.y += 0.3 * (1 - out.closed);
-  return { step: out, total, done: t >= total };
+  return { step: out, total, done: t >= total, liftWant: t < travel ? 1 : 0 };
 }
 
 /** Half a spiral cartridge's height (cartridge.glb: ±1.25 m). */

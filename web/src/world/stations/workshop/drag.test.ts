@@ -136,7 +136,7 @@ describe("dragging a cartridge: the 3D", () => {
 
   it("carries: at most CARRY_V a second, within the arm's reach, never into a table or the spiral", () => {
     const q = new THREE.Quaternion();
-    let at = new THREE.Vector3(5, 6, 1);
+    let at = new THREE.Vector3(2, 7, -5);
     const out = new THREE.Vector3();
     // Toward a point down inside the bench, then across into the spiral, then far out of reach.
     for (const target of [new THREE.Vector3(-9, 1, -0.5), new THREE.Vector3(0, 5, 0), new THREE.Vector3(18, 6, 9)]) {

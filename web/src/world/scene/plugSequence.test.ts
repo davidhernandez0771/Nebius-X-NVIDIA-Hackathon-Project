@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { OBB } from "three/examples/jsm/math/OBB.js";
 import { HELIX, MACHINE_PIVOT } from "./layout";
-import { ABOVE_PORT, PHASE, PLUGGED, PLUGGED_Q, PLUG_S, cartridgePose, projection, scrollU, slotGlow, timeU } from "./plugSequence";
+import { liftOffset } from "./lift";
+import { GRIP_DEPTH, solveArm, wristAbove } from "./armIk";
+import { ABOVE_PORT, PHASE, liftAt, PLUGGED, PLUGGED_Q, PLUG_S, cartridgePose, projection, scrollU, slotGlow, timeU } from "./plugSequence";
 
 describe("the plug-in", () => {
   it("starts in the slot and ends seated in the port, edge-on along the slot", () => {
@@ -25,7 +27,8 @@ describe("the plug-in", () => {
     let prev = cartridgePose(0, 0).position.clone();
     for (let u = 0.002; u <= 1; u += 0.002) {
       const p = cartridgePose(0, u).position;
-      expect(p.distanceTo(prev)).toBeLessThan(0.12);
+      // The flight is quicker now the spiral is out of its way (0.26 of the timeline): ~17 m/s at its fastest.
+      expect(p.distanceTo(prev)).toBeLessThan(0.15);
       prev = p.clone();
     }
   });
@@ -46,13 +49,18 @@ describe("the plug-in", () => {
       dock: local(-3.7, 0, 2.69, 4.4, 0.6, 1.08),
       lens: local(3.6, 0, 2.69, 3.15, 0.35, 0.35),
     };
-    const others = HELIX.map((s) => box(new THREE.Vector3(...s.position), new THREE.Quaternion(...s.quaternion)));
     for (const s of HELIX) {
-      for (let u = PHASE.pull[1] * 0.5; u <= PHASE.fly[1]; u += 0.004) {
+      for (let u = PHASE.pull[0] + 0.03; u <= PHASE.fly[1]; u += 0.004) {
         const c = cartridgePose(s.index, u);
         const me = box(c.position, c.quaternion);
         for (const [name, f] of Object.entries(furniture)) expect(me.intersectsOBB(f), `slot ${s.index} u=${u.toFixed(3)} hits the ${name}`).toBe(false);
-        others.forEach((o, i) => i !== s.index && expect(me.intersectsOBB(o), `slot ${s.index} u=${u.toFixed(3)} hits slot ${i}`).toBe(false));
+        // The rest of the spiral where it is at u: in place for the pull, rising away before the flight.
+        const up = liftOffset(liftAt(u));
+        HELIX.forEach((o, i) => {
+          if (i === s.index) return;
+          const other = box(new THREE.Vector3(o.position[0], o.position[1] + up, o.position[2]), new THREE.Quaternion(...o.quaternion));
+          expect(me.intersectsOBB(other), `slot ${s.index} u=${u.toFixed(3)} hits slot ${i}`).toBe(false);
+        });
       }
     }
   });
@@ -92,5 +100,21 @@ describe("the plug-in", () => {
       }
       expect(cartridgePose(slot, 1, undefined, true).position.distanceTo(PLUGGED)).toBeLessThan(1e-6);
     }
+  });
+
+  it("stays within the arm's reach from the slot to the port, and the spiral is up while it flies", () => {
+    for (const s of HELIX) {
+      for (let u = 0; u <= PHASE.insert[1]; u += 0.01) {
+        const c = cartridgePose(s.index, u);
+        const grip = new THREE.Vector3(0, 1.25 - GRIP_DEPTH, 0).applyQuaternion(c.quaternion).add(c.position);
+        expect(solveArm(wristAbove(grip)).reachable, `slot ${s.index} u=${u.toFixed(2)}`).toBe(true);
+      }
+    }
+    expect(liftAt(PHASE.pull[1])).toBe(0);
+    expect(liftAt(PHASE.fly[0])).toBe(1);
+    expect(liftAt(PHASE.click[1])).toBe(1);
+    expect(liftAt(1)).toBe(0);
+    // A dropped one: the drag already had the spiral up.
+    expect(liftAt(0, true)).toBe(1);
   });
 });

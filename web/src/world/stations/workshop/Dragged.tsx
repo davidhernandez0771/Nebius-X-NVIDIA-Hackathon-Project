@@ -2,13 +2,16 @@
 // one picked up (its label tile and shell, Helix.slotLook). It choreographs the arm (armTask.ts;
 // Arm.tsx puts the fingertips where it says, and the spiral parts round the arm):
 // - pick: the hand comes down onto the cartridge's top edge, closes, and pulls it out of its slot;
+//   then the whole spiral rises straight up out of view (lift.ts), leaving the arm and this one;
 // - carry: it follows the pointer on a plane that faces the camera through where it was grabbed,
-//   label to you and leaning with the pointer's speed, never through a table, a wall or the spiral
-//   (collide.ts: over and along them) and never out of the arm's reach;
+//   label to you and leaning with the pointer's speed, never through a table, a wall or the arm's
+//   mast (collide.ts: over and along them) and never out of the arm's reach;
 // - over the machine: it glides to the port and waits there edge-on while a light stands up out of
 //   the slot (the drop target), and the hand's light comes up;
 // - let go there and the machine takes it (useSend, held): the arm keeps hold and lowers it in, on
-//   the machine's own insert (Arm.tsx); let go anywhere else, or Escape, and the arm puts it back.
+//   the machine's own insert (Arm.tsx), and the spiral comes back down after; let go anywhere else, or
+//   Escape, and the arm takes it round to just outside its slot, the spiral comes back down round it,
+//   and the arm pushes it home.
 // Drawn only while a cartridge is in the hand: the room view's draw calls stay as they were.
 import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
@@ -17,6 +20,8 @@ import * as THREE from "three";
 import { useWorld } from "../../core/WorldContext";
 import type { QualityTier } from "../../core/quality";
 import { armTask } from "../../scene/armTask";
+import { MAST_R, SPIRAL_R } from "../../scene/collide";
+import { spiralLift } from "../../scene/lift";
 import { faceYaw } from "../../scene/Arm";
 import { CARTRIDGE_URL } from "../../scene/assets";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
@@ -27,7 +32,7 @@ import { liveMaterial, trackLive } from "../../scene/materials";
 import { plug } from "../../scene/plug";
 import { PLUGGED_Q, PORT_TOP } from "../../scene/plugSequence";
 import { setHover } from "../../scene/spiral";
-import { MAGNET, PICK_S, backStep, cancel, carryStep, drag, gripOf, move, onPlane, pickStep, rayHitsBox, release, setOver, settle, type PickStep, type Pose } from "./drag";
+import { BACK, CARRY_FROM_LIFT, MAGNET, PICK_S, backStep, backTravelS, cancel, carryStep, drag, gripOf, move, onPlane, pickStep, rayHitsBox, release, setOver, settle, type PickStep, type Pose } from "./drag";
 import { useSend } from "./send";
 import { closeShelf } from "./stepper";
 
@@ -56,7 +61,8 @@ varying float vUp;
 void main() {
   // Rising bands while it is a target (uLevel near 1), a still glow while it is only a hint.
   float bands = 0.75 + 0.25 * sin(vUp * 18.0 - uTime * 6.0) * smoothstep(0.5, 1.0, uLevel);
-  float a = pow(1.0 - vUp, 1.8) * uLevel * bands;
+  // max(): a base a hair under zero gives NaN on D3D (bloom turns it into flickering rings).
+  float a = pow(max(1.0 - vUp, 0.0), 1.8) * uLevel * bands;
   gl_FragColor = vec4(uColor * a, a);
 }`;
 
@@ -280,7 +286,10 @@ export function Dragged({ quality, reduced }: { quality: QualityTier; reduced: b
     if (phase === "drag" && (store.getCoarse().branch !== null || store.getCoarse().current !== "workshop")) cancel();
 
     let glowTo = 0;
-    const picking = phase === "drag" && !reduced && now - s.t0 < PICK_S;
+    // Picking until it is out of its slot and the spiral has mostly risen out of the way.
+    const picked = reduced || now - s.t0 >= PICK_S;
+    const picking = phase === "drag" && (!picked || spiralLift.level < CARRY_FROM_LIFT);
+    if (phase === "drag") armTask.liftWant = picked ? 1 : 0;
     if (phase === "drag") {
       const r = canvas.getBoundingClientRect();
       _ndc.set(((drag.x - r.left) / r.width) * 2 - 1, -((drag.y - r.top) / r.height) * 2 + 1);
@@ -292,8 +301,8 @@ export function Dragged({ quality, reduced }: { quality: QualityTier; reduced: b
       if (over !== drag.over) document.body.style.cursor = over ? "copy" : "grabbing";
       setOver(over);
       if (picking) {
-        // The arm takes it: down onto the top edge, closing, out of the slot.
-        pickStep(s.home, s.handStart, now - s.t0, s.step);
+        // The arm takes it: down onto the top edge, closing, out of the slot; then it waits there while the spiral rises.
+        pickStep(s.home, s.handStart, reduced ? Infinity : now - s.t0, s.step);
         s.pose.position.copy(s.step.pose.position);
         s.pose.quaternion.copy(s.step.pose.quaternion);
         steer(s.step.grip, s.pose.quaternion, s.step.closed);
@@ -315,7 +324,7 @@ export function Dragged({ quality, reduced }: { quality: QualityTier; reduced: b
           // The port is clear above the machine: glide straight to it.
           s.pose.position.lerp(_at, reduced ? 1 : 1 - Math.exp(-dt * SNAP));
         } else {
-          carryStep(s.pose.position, _at, s.pose.quaternion, reduced ? 1 : dt, _next);
+          carryStep(s.pose.position, _at, s.pose.quaternion, reduced ? 1 : dt, _next, spiralLift.level >= 0.5 ? MAST_R : SPIRAL_R);
           s.pose.position.copy(_next);
         }
         steer(gripOf(s.pose, _next), s.pose.quaternion, 1);
@@ -328,6 +337,7 @@ export function Dragged({ quality, reduced }: { quality: QualityTier; reduced: b
       s.pose.position.lerp(MAGNET.position, k);
       s.pose.quaternion.slerp(MAGNET.quaternion, k);
       steer(gripOf(s.pose, _next), s.pose.quaternion, 1);
+      armTask.liftWant = 1;
       const there = s.pose.position.distanceTo(MAGNET.position) < 0.03;
       if (!s.handed && (there || now - s.t0 > HAND_S)) {
         s.handed = true;
@@ -349,8 +359,14 @@ export function Dragged({ quality, reduced }: { quality: QualityTier; reduced: b
       }
       glowTo = s.handed ? 0 : 1;
     } else {
-      // Put back: round the spiral to its slot, in, and the fingers open.
-      const r = backStep(s.from, s.home, reduced ? Infinity : now - s.t0, s.step);
+      // Put back: round to just outside its slot, the spiral comes down round it, in, and the fingers open.
+      let r = backStep(s.from, s.home, reduced ? Infinity : now - s.t0, s.step);
+      // Not in before the spiral is all the way down round it: its clock waits for the spiral.
+      if (!reduced && r.liftWant === 0 && spiralLift.level > 0.001 && now - s.t0 > backTravelS(s.from.position, s.home) + BACK.descend) {
+        s.t0 = now - backTravelS(s.from.position, s.home) - BACK.descend;
+        r = backStep(s.from, s.home, now - s.t0, s.step);
+      }
+      armTask.liftWant = r.liftWant;
       s.pose.position.copy(s.step.pose.position);
       s.pose.quaternion.copy(s.step.pose.quaternion);
       steer(s.step.grip, s.pose.quaternion, s.step.closed);

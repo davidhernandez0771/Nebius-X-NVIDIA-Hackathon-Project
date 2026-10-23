@@ -22,6 +22,8 @@ export const ROOM = { floor: -0.6, ceiling: 14.4, x: [-19.4, 19.4], z: [-20.2, 1
 export const PEDESTAL = { radius: 4.6, top: -0.22 } as const;
 /** The spiral: a carried cartridge's centre stays this far from the axis (its cartridges stand 2.3–4.1 m out, facing out, 0.34 m deep). */
 export const SPIRAL_R = 4.35;
+/** With the spiral lifted out of the way (lift.ts), only the arm's mast and base stand in the middle. */
+export const MAST_R = 1.6;
 
 const turnedOffset = (yaw: number, x: number, z: number): [number, number] => [x * Math.cos(yaw) + z * Math.sin(yaw), -x * Math.sin(yaw) + z * Math.cos(yaw)];
 
@@ -33,6 +35,8 @@ function block(name: string, pivot: { position: readonly number[]; yaw: number }
 export const BLOCKS: readonly Block[] = [
   block("desk", MACHINE_PIVOT, [0, 0], [4.0, 2.1], ROOM.floor, 2.69),
   block("machine", MACHINE_PIVOT, [-0.13, -0.03], [4.15, 1.25], 2.69, 4.38),
+  // The cartridge bay on the dock (plugSequence.ts BAY: the opening and its walls; its top 5.4 m).
+  block("bay", MACHINE_PIVOT, [-3.7, 0.004], [0.3, 1.28], 4.35, 5.4),
   block("bench", BENCH_PIVOT, [0, 0], [4.62, 2.43], ROOM.floor, 2.75),
   // The label printer at the bench's back left corner.
   block("printer", BENCH_PIVOT, [-2.75, -1.55], [0.8, 0.65], 2.75, 3.21),
@@ -54,8 +58,11 @@ function local(b: Block, p: THREE.Vector3): [number, number] {
   return turnedOffset(-b.yaw, p.x - b.center[0], p.z - b.center[1]);
 }
 
-/** Where `p` goes so the body doesn't overlap anything, in place. Returns what it hit (names), if anything. */
-export function resolve(p: THREE.Vector3, body: Body, hits: string[] = []): string[] {
+/**
+ * Where `p` goes so the body doesn't overlap anything, in place. Returns what it hit (names), if anything.
+ * `spiralR`: how far from the axis it must stay (the spiral's ring, or only the mast once it has lifted).
+ */
+export function resolve(p: THREE.Vector3, body: Body, hits: string[] = [], spiralR = SPIRAL_R): string[] {
   for (let pass = 0; pass < 3; pass++) {
     let moved = false;
     // Walls and ceiling: slide along them.
@@ -72,9 +79,9 @@ export function resolve(p: THREE.Vector3, body: Body, hits: string[] = []): stri
     }
     // The spiral: round it, never through it.
     const r = Math.hypot(p.x, p.z);
-    if (r < SPIRAL_R) {
-      const s = r > 1e-6 ? SPIRAL_R / r : 1;
-      p.x = r > 1e-6 ? p.x * s : SPIRAL_R;
+    if (r < spiralR) {
+      const s = r > 1e-6 ? spiralR / r : 1;
+      p.x = r > 1e-6 ? p.x * s : spiralR;
       p.z *= r > 1e-6 ? s : 0;
       hits.push("spiral");
       moved = true;
@@ -105,7 +112,7 @@ export function resolve(p: THREE.Vector3, body: Body, hits: string[] = []): stri
  * Move from `from` toward `to` in steps of at most `step` metres, each resolved, into `out`: a path
  * that rises over a table on the way rather than cutting through it, and comes back down beyond it.
  */
-export function sweep(from: THREE.Vector3, to: THREE.Vector3, body: Body, out: THREE.Vector3, step = 0.25): THREE.Vector3 {
+export function sweep(from: THREE.Vector3, to: THREE.Vector3, body: Body, out: THREE.Vector3, step = 0.25, spiralR = SPIRAL_R): THREE.Vector3 {
   const n = Math.max(1, Math.ceil(from.distanceTo(to) / step));
   out.copy(from);
   const d = new THREE.Vector3();
@@ -113,14 +120,22 @@ export function sweep(from: THREE.Vector3, to: THREE.Vector3, body: Body, out: T
     // Each step heads for the target from where the last one ended up (lifted, slid).
     d.copy(to).sub(out).divideScalar(n - i + 1);
     out.add(d);
-    resolve(out, body);
+    resolve(out, body, undefined, spiralR);
   }
   return out;
 }
 
 /** Whether the body at `p` overlaps nothing (to a millimetre). */
-export function clear(p: THREE.Vector3, body: Body): boolean {
+export function clear(p: THREE.Vector3, body: Body, spiralR = SPIRAL_R): boolean {
   const q = p.clone();
-  resolve(q, body);
+  resolve(q, body, undefined, spiralR);
   return q.distanceTo(p) < 1e-3;
+}
+
+/** Whether the body at `p` overlaps a table or the machine (the furniture alone: not the spiral, walls or floor). */
+export function hitsFurniture(p: THREE.Vector3, body: Body): boolean {
+  return BLOCKS.some((b) => {
+    const [lx, lz] = local(b, p);
+    return Math.abs(lx) < b.half[0] + body.radius && Math.abs(lz) < b.half[1] + body.radius && p.y - body.half < b.top + CLEAR && p.y + body.half > b.bottom;
+  });
 }
