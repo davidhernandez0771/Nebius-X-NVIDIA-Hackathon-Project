@@ -1643,7 +1643,10 @@ no overrides. Every one of the 128 episodes started at home, in the same 128 sce
 ### Amendment 6 RESULT: the curve (home starts at 300 / 600 / 900 / 1200 / 1499)
 
 The same settings as the primary. The driver's log (`C:\dev\pm-t3\data\rl\nodemo_breakdowns.log`) has every run at
-rc 0, then "ALL DONE" at 20:15:07; `gpu.lock` is released.
+rc 0, then "ALL DONE" at 20:15:07.
+- `C:\dev\gpu.lock` still reads the last breakdown's entry (`T3 33136 rl-breakdown:home_nodemo_v6_1200`), a stale
+  lock as usual: PID 33136 and the driver (PID 46844) have both exited. (Corrected: this line first said the lock was
+  released; I had looked at the wrong path.)
 
 | Iteration | demo_v6 home success (Wilson 95%) | grasped / lifted | nodemo_v6 home success (Wilson 95%) | grasped / lifted |
 |---|---|---|---|---|
