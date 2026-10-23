@@ -561,3 +561,29 @@ of 687 s; `gpu.lock` was released afterwards.
 
 **Next:** the lead gives T6 the go with `--human-grid C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json --human-cell
 perfected_multiply_10`. The go line is logged here when T6 writes it.
+
+### The go: the chain started at 16:14:10 with the original human set
+
+From `run_log.txt` (`C:\dev\pm-t6-big\data\distill\bigtest`), checked here:
+- **16:14:09, T6's go line:**
+  - the human set is the ORIGINAL, `--human-grid C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json --human-cell
+    perfected_multiply_10`;
+  - `decided_by`: the lead's go (the held-human floor failed: run 1 0/110, the Amendment 1 pilot below 16/22);
+  - change 2 is dropped.
+- **16:14:10:** the chain starts, on `pm/bigtest` `c6bae0a` (`c6bae0ae1505…`), clean.
+- **16:14:17:** it takes `gpu.lock` (`T6 45256 bigtest`).
+- **`human_choice.json`** (16:14:17): `held: false`, the grid and cell above, floor 80, `decided_by` "--human-grid /
+  --human-cell (the lead's go)".
+- **Teacher:** 565 episodes, 451,695 files, 4,647,066,907 bytes, reused from
+  `C:\dev\pm-t6\data\distill\distill_mouse_held\r0`, with teacher sha256 `811382A3…AA2`, as on 10-22.
+- **Stage A's mix** (`distill_r0`): human 31,536 frames ×3.5584 (33%) and teacher 224,435 frames ×1.0 (67%).
+- **Training started at 16:14:18:** ACT, 180,000 steps. Selection follows on 5500–5528 (60k / 120k / 180k).
+
+**Disclosed: with change 2 dropped, Stage A trains on exactly v1's data.** It is the same 110 human episodes and the
+same 565 teacher episodes, with the same repeats (v1's `round_t600.json`: ×3.5584 and ×1.0). So Stage A differs from
+v1 only in:
+- the training length (180k against 60k, with candidates 60k / 120k / 180k);
+- the gripper deadband at inference;
+- new selection seeds.
+
+Stage B adds DAgger r1.
