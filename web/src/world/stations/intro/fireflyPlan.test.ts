@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { BLINK_EMBER, FIREFLY_COUNTS, FIREFLY_PALETTE, LANTERNS, blinkAt, driftAt, fireflies, fireflyCount, KIND, type FireflyKind } from "./fireflyPlan";
+import { BLINK_EMBER, CRACK_FIREFLIES, FIREFLY_COUNTS, FIREFLY_PALETTE, LANTERNS, blinkAt, driftAt, fireflies, fireflyCount, KIND, type FireflyKind } from "./fireflyPlan";
 import { walkXZ } from "./path";
 import { forestLayout } from "./forestGeometry";
 import { inCrack } from "./forestPlan";
@@ -130,6 +130,12 @@ describe("the forest's fireflies", () => {
     expect(hi).toBeGreaterThan(0.95);
     expect(bright / n).toBeGreaterThan(0.06);
     expect(bright / n).toBeLessThan(0.35);
+  });
+
+  it("keeps the fall's own fireflies as many as they always were (the fall down the crack is unchanged)", () => {
+    expect(CRACK_FIREFLIES).toEqual({ ultra: 180, high: 120, low: 36, phone: 24 });
+    const g = fireflies(300 + 120, layout, ROBOT_TIERS.high.ids, 120);
+    expect([...Array(g.count).keys()].filter((i) => g.kind[i] === KIND.crack).length).toBe(120);
   });
 
   it("is the same every visit", () => {

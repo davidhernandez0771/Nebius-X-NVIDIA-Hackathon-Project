@@ -9,6 +9,7 @@ import { dropLight, INTRO_VH, placeLights } from "./storyPlan";
 import { WALK_DEPTH, fissureGeometry } from "./Crack";
 import { CRACK_SLOT, depthOrder } from "./crackSlot";
 import { buildWrecks, modelFromScene } from "./robotWrecks";
+import { riftTriangles } from "./riftDetail";
 import type { LodMesh } from "./robotLod";
 import { readPublic } from "../../../twin/testFiles";
 
@@ -70,7 +71,7 @@ describe("the forest with its real robots, per tier", () => {
       for (let vh = 0; vh <= INTRO_VH; vh += 0.005) {
         const robots = Math.max(...aspects.map((a) => w.update(new THREE.Vector3(...cameraAt(vh).position), inView(vh, a)))) / 3;
         const forest = placeLights(vh).forest > 0, drop = dropLight(vh) > 0;
-        const frame = (forest ? pieces + robots : 0) + (forest || drop ? fissure + (drop ? crack.all : crack.walk) : 0);
+        const frame = (forest ? pieces + robots + riftTriangles(tier) : 0) + (forest || drop ? fissure + (drop ? crack.all : crack.walk) : 0);
         if (forest) robotsMost = Math.max(robotsMost, robots);
         if (drop && !forest) fall = Math.max(fall, frame);
         most = Math.max(most, frame);

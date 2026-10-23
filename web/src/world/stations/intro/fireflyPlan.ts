@@ -68,6 +68,11 @@ export function blinkAt(r: Rand, t: number): number {
 
 export const fireflyCount = (tier: TierName, phone: boolean) => (phone ? FIREFLY_COUNTS.phone : FIREFLY_COUNTS[tier]);
 
+/** The crack's fireflies (those that fall with the camera) on top of those: as many as the fall has always had. */
+export const CRACK_FIREFLIES = { ultra: 180, high: 120, low: 36, phone: 24 } as const;
+
+export const crackFireflyCount = (tier: TierName, phone: boolean) => (phone ? CRACK_FIREFLIES.phone : CRACK_FIREFLIES[tier]);
+
 /** What each one does (its value in the `kind` attribute). */
 export const KIND = { drift: 0, robot: 1, crack: 2, bokeh: 3, lantern: 4 } as const;
 export type FireflyKind = keyof typeof KIND;
@@ -88,8 +93,9 @@ const F = FOREST.floor;
 const DIR = [Math.cos(CRACK.angle), -Math.sin(CRACK.angle)] as const;
 const ACROSS = [Math.sin(CRACK.angle), Math.cos(CRACK.angle)] as const;
 
-/** `count` fireflies over the forest of `layout`, the robot ones round the spots of `robots`. */
-export function fireflies(count: number, layout: ForestLayout, robots: readonly RobotId[]): Fireflies {
+/** `count` fireflies over the forest of `layout`, the robot ones round the spots of `robots`; `crack` of them wait at
+ *  the crack (by default an eighth). */
+export function fireflies(count: number, layout: ForestLayout, robots: readonly RobotId[], crack = Math.round(count * 0.12)): Fireflies {
   const rnd = seeded(4417);
   const walk = walkXZ();
   const ground = walk.slice(Math.floor(walk.length * 0.3));
@@ -97,7 +103,7 @@ export function fireflies(count: number, layout: ForestLayout, robots: readonly 
   const perRobot = Math.max(4, Math.round((count * 0.1) / Math.max(1, spots.length)));
   const nLantern = Math.min(count, LANTERNS);
   const nRobot = Math.min(count - nLantern, perRobot * spots.length);
-  const nCrack = Math.round(count * 0.12);
+  const nCrack = Math.min(crack, count - nLantern - nRobot);
   const nBokeh = Math.round(count * 0.025);
   const kinds: FireflyKind[] = [];
   for (let i = 0; i < count; i++) {

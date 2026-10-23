@@ -11,9 +11,10 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { QualityTier } from "../../core/quality";
 import { makeCrack } from "./Crack";
+import { makeRiftDetail } from "./riftDetail";
 import { assets } from "../../core/assets";
 import { buildForest, FOREST_TIERS, MOON, type ForestPiece } from "./forestGeometry";
-import { fireflies, fireflyCount } from "./fireflyPlan";
+import { crackFireflyCount, fireflies, fireflyCount } from "./fireflyPlan";
 import { makeFireflies } from "./fireflies";
 import { MIST_BANDS } from "./forestPlan";
 import { ROBOT_TIERS, robotUrl } from "./forestRobots";
@@ -58,6 +59,12 @@ void main(){
   // The lip: darker, then a thin cold glow from far below.
   c *= 1. - .8 * (1. - smoothstep(0., .9, sd));
   c += uTeal * uGlow * .03 * (1. - smoothstep(0., .6, sd));
+  // Its edge caught by that light, broken where the rock has crumbled; hairline fractures running off it into the
+  // ground, lit from inside, fading with distance from the lip.
+  float broken = smoothstep(.35, .6, vn2(p * 5.));
+  c += uTeal * uGlow * .1 * (1. - smoothstep(0., .07, sd)) * broken;
+  float vein = 1. - smoothstep(0., .05, abs(vn2(p * 1.6 + 4.2) - .5) + .02 * vn2(p * 9.));
+  c += uTeal * uGlow * .035 * vein * (1. - smoothstep(.05, 2.6, sd)) * smoothstep(.3, .7, vn2(p * .9 + 1.3));
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
 }`;
@@ -450,6 +457,10 @@ export function useForest(quality: QualityTier): ForestHandle {
     // The low tier keeps the procedural crack (Crack.tsx: the model is ~27k triangles).
     const crack = makeCrack(u, glow, (url) => assets.fetch(url), tier !== "low");
     group.add(crack.group);
+    // The rift's lip from the forest: stones, embers and its rising light (riftDetail.ts); not in the fall.
+    const rift = makeRiftDetail(u, glow, tier);
+    add(rift.group, "forest:rift");
+    disposables.push(rift);
 
     // Dust drifting everywhere along the walk; spores, fewer and brighter, rising slowly.
     const dustRnd = seeded(91);
@@ -464,7 +475,9 @@ export function useForest(quality: QualityTier): ForestHandle {
 
     // Fireflies in many colours (fireflyPlan.ts): one Points draw, all motion in the shader; fewer on phones.
     const phone = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 600px)").matches;
-    const flies = makeFireflies(fireflies(fireflyCount(tier, phone), layout, ROBOT_TIERS[tier].ids));
+    // The crack's (they fall with the camera) keep the fall's old count, on top of the forest's own.
+    const crackFlies = crackFireflyCount(tier, phone);
+    const flies = makeFireflies(fireflies(fireflyCount(tier, phone) + crackFlies, layout, ROBOT_TIERS[tier].ids, crackFlies));
     add(flies.points, "forest:fireflies");
     // The lantern fireflies light every forest surface round them (placeShaders.ts place()).
     u.uGlowP.value = flies.glows.position;
@@ -522,6 +535,7 @@ export function useForest(quality: QualityTier): ForestHandle {
         glow.value = s.glow;
         pr.value = s.pr;
         crack.update(s.drop);
+        rift.update(s.time, s.pr);
         // The crack's fireflies swirl into it over the last stretch of the walk toward it (s.glow comes up then).
         const near = Math.min(1, Math.max(0, (s.glow - 0.25) / 0.75));
         flies.update({ time: s.time, light: s.light, drop: s.drop, swirl: near * near * (3 - 2 * near), pr: s.pr, still: !!s.still });
