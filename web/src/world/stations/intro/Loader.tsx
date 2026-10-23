@@ -1,5 +1,5 @@
-// The loader: a real one. It holds the page (no scroll) until the first scene is truly ready
-// (progress.ts: the 3D engine, the type, the tesseract built, every shader compiled, a few steady frames),
+// The loader: a real one. The page holds still until the first scene is truly ready (store.setReady here;
+// the hold itself is WorldRoot's, core/pageHold.ts) (progress.ts: the 3D engine, the type, the tesseract built, every shader compiled, a few steady frames),
 // and shows that work as it happens: the SANT mark lighting part by part, a bar, the share and what it is
 // waiting for now. Then it lets go into the hero (the mark lifts and fades as the black opens; with reduced
 // motion a plain fade). The heavier stations keep streaming in the background (core/assets.ts).
@@ -32,17 +32,6 @@ export function Loader() {
   const [value, setValue] = useState(() => load.value());
   const [slow, setSlow] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-
-  // Hold the page still while loading: nobody scrolls into a scene that isn't there yet.
-  useEffect(() => {
-    if (done) return;
-    const html = document.documentElement;
-    const before = html.style.overflow;
-    html.style.overflow = "hidden";
-    return () => {
-      html.style.overflow = before;
-    };
-  }, [done]);
 
   useEffect(() => {
     if (gone) return;

@@ -79,6 +79,18 @@ const LABEL: Record<StationId, string> = {
 };
 
 /**
+ * Whose scene must stand for a station to be ready (core/standing.ts): the intro waits on its places, the
+ * robot wall on the workshop (the wall is in the workshop's scene) and the zoom on the machine (it plays out
+ * of it). Neither of those two has a Scene of its own, so waiting on their own name never ended.
+ */
+export function standKey(id: StationId): string {
+  if (id === "intro") return "intro:places";
+  if (id === "robots") return "workshop";
+  if (id === "zoom") return "machine";
+  return id;
+}
+
+/**
  * What the visitor is waiting on where they are, or null: at the hero nothing; past the middle of the
  * sink, the forest's files (not with reduced motion, which holds the hero); at a later station its own.
  * `vh` is how far into the intro, in viewport heights.

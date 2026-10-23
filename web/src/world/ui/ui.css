@@ -526,3 +526,120 @@
 [data-motion-world="reduced"] .world-wait * {
   transition: none;
 }
+
+/* The way out of a place in the workshop (StationBar.tsx), top centre where the room view's hub bar sits:
+   the holo look of the work pages (site/holo): a see-through strip with a hairline, mono capitals, the
+   back button a squared teal box. Shown only while its place is open, so there is one at a time. */
+.world-stationbar {
+  position: fixed;
+  left: 50%;
+  top: 18px;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 14px 6px 6px;
+  font-size: 11px;
+  color: var(--w-dim);
+  white-space: nowrap;
+  background: rgb(14 22 24 / 0.72);
+  border: 1px solid rgb(25 245 194 / 0.16);
+  border-radius: 2px;
+  backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+  animation: world-stationbar-in 0.35s ease both;
+}
+@keyframes world-stationbar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+.sant.world .world-stationbar__btn {
+  appearance: none;
+  margin: 0;
+  padding: 7px 12px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--w-teal);
+  background: rgb(25 245 194 / 0.06);
+  border: 1px solid rgb(25 245 194 / 0.55);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.sant.world .world-stationbar__btn:hover:not(:disabled) {
+  color: var(--w-ink);
+  background: rgb(25 245 194 / 0.16);
+}
+.sant.world .world-stationbar__btn:focus-visible {
+  outline: 2px solid var(--w-teal);
+  outline-offset: 2px;
+}
+.sant.world .world-stationbar__btn--step {
+  color: var(--w-ink);
+  border-color: rgb(25 245 194 / 0.28);
+  background: none;
+}
+.world-stationbar__where {
+  color: var(--w-ink);
+}
+.world-stationbar__hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.world-stationbar kbd {
+  padding: 1px 5px;
+  font: inherit;
+  color: var(--w-ink);
+  border: 1px solid rgb(25 245 194 / 0.28);
+  border-radius: 2px;
+}
+/* Below 1600 px the place's name goes (its own panel says it): the bar then clears the brand top left at
+   1280. A phone: full width under the top edge, the hint on its own line under the buttons. */
+@media (max-width: 1599px) {
+  .world-stationbar__where {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .world-stationbar {
+    left: 12px;
+    right: 44px;
+    top: 12px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 6px;
+    transform: none;
+    animation-name: world-stationbar-in-phone;
+  }
+  .world-stationbar__hint {
+    flex-basis: 100%;
+    padding: 0 4px 2px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    white-space: normal;
+  }
+  /* The bar is two lines here: Contact and the quality chip step down under it while it shows. */
+  .sant.world:has(.world-stationbar) .world-contact {
+    top: 96px;
+  }
+  .sant.world:has(.world-stationbar) .world-q {
+    top: 92px;
+  }
+  @keyframes world-stationbar-in-phone {
+    from {
+      opacity: 0;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-stationbar {
+    animation: none;
+  }
+}
+[data-motion-world="reduced"] .world-stationbar {
+  animation: none;
+}

@@ -16,6 +16,7 @@ import { AskBox } from "../../ask/AskBox";
 import { Detail } from "./Detail";
 import { Dock } from "./Dock";
 import { HubBar } from "./HubBar";
+import { ShelfBar } from "./ShelfBar";
 import { hubTagLayer } from "./hubTagLayer";
 import { useStepper } from "./stepper";
 import { TourCaption } from "./TourCaption";
@@ -32,6 +33,7 @@ function Overlay(_: StationOverlayProps) {
       <HoverTip />
       <h2 className="world-sr">Workshop</h2>
       <HubBar />
+      <ShelfBar />
       <Dock>
         <AskBox />
       </Dock>

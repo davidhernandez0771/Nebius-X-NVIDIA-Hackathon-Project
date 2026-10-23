@@ -15,6 +15,7 @@ import { cutBakedBody } from "../../scene/machineV2";
 import { Arm } from "../../scene/Arm";
 import { dissolve, FIELD_MAX, LAMPS_AT, revealAt } from "../../scene/dissolve";
 import { Helix, type BenchInstance } from "../../scene/Helix";
+import { FloorPools } from "../../scene/FloorPools";
 import { Haze } from "../../scene/Haze";
 import { Lamps } from "../../scene/Lamps";
 import { Materialize } from "../../scene/Materialize";
@@ -122,6 +123,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
           </Suspense>
         ))}
         <Pendants />
+        <FloorPools />
         {quality.haze ? <Haze /> : null}
         <Arm quality={quality} reduced={reduced} />
         <RobotWall quality={quality} reduced={reduced} />

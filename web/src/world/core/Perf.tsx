@@ -1,13 +1,13 @@
 // The canvas's housekeeping, all inside the r3f loop:
 // - HudProbe: counts the whole frame (every pass) for the HUD, a few times a second;
 // - AutoTune: after the intro, measures frames and asks for a tier change (autotune.ts);
-// - Pause: no frames at all while the tab is hidden;
+// - Pause: no frames at all while the tab is hidden (the clock keeps its time);
 // - WarmUp: compiles the shaders of whatever streamed in (the workshop after the loader), before the
 //   camera gets there, so the first look at it doesn't hitch.
 import { useEffect, useMemo, useRef } from "react";
 import { useProgress } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Texture, type Material, type Object3D, type WebGLRenderer } from "three";
+import { Texture, type Clock, type Material, type Object3D, type WebGLRenderer } from "three";
 import { compileSafe } from "../../three/compileSafe";
 import { idle } from "./activity";
 import { createTuner } from "./autotune";
@@ -106,20 +106,46 @@ export function Resolution({ quality, onDpr }: { quality: QualityTier; onDpr: (d
   return null;
 }
 
+/**
+ * Hidden: no frames. r3f's setFrameloop starts the clock again from 0, which put everything timed on it
+ * (the lamps' power-on, a playing branch, the hologram) back before its own start: the room came back dark.
+ * So the time is kept: on return the clock carries on from where it stopped.
+ */
+export function createPause({ setFrameloop, clock, invalidate }: { setFrameloop: (f: "never" | "demand") => void; clock: Clock; invalidate: () => void }) {
+  let held: number | null = null;
+  return (hidden: boolean) => {
+    if (hidden) {
+      if (held !== null) return;
+      held = clock.elapsedTime;
+      setFrameloop("never");
+      return;
+    }
+    if (held === null) return;
+    setFrameloop("demand");
+    clock.elapsedTime = held;
+    held = null;
+    invalidate();
+  };
+}
+
 export function Pause() {
   const setFrameloop = useThree((s) => s.setFrameloop);
+  const clock = useThree((s) => s.clock);
   const invalidate = useThree((s) => s.invalidate);
+  const gl = useThree((s) => s.gl);
   useEffect(() => {
-    const on = () => {
-      if (document.hidden) setFrameloop("never");
-      else {
-        setFrameloop("demand");
-        invalidate();
-      }
-    };
+    const pause = createPause({ setFrameloop, clock, invalidate });
+    const on = () => pause(document.hidden);
+    // A lost context (the GPU reset, a driver update) comes back without a frame asking for it.
+    const restored = () => invalidate();
+    const canvas = gl.domElement;
     document.addEventListener("visibilitychange", on);
-    return () => document.removeEventListener("visibilitychange", on);
-  }, [setFrameloop, invalidate]);
+    canvas.addEventListener("webglcontextrestored", restored);
+    return () => {
+      document.removeEventListener("visibilitychange", on);
+      canvas.removeEventListener("webglcontextrestored", restored);
+    };
+  }, [setFrameloop, clock, invalidate, gl]);
   return null;
 }
 

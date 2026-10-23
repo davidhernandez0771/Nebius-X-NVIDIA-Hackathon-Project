@@ -5,7 +5,7 @@ import { BAKED, CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL, bakedUrl } from "../
 import { ROBOT_TIERS, robotUrl } from "../stations/intro/forestRobots";
 import { span } from "../stations/intro/storyPlan";
 import SIZES from "./assetSizes.json";
-import { prefetchOrder, stationFiles, waitFor } from "./waiting";
+import { prefetchOrder, standKey, stationFiles, waitFor } from "./waiting";
 
 const BASE = "/";
 const key = (u: string) => u.replace(/^\//, "");
@@ -74,5 +74,19 @@ describe("waiting in place", () => {
     expect(waitFor("machine", 0, "high", false)?.label).toBe("the machine");
     expect(waitFor("robots", 0, "high", false)?.label).toBe("the robot wall");
     expect(waitFor("workshop", 0, "high", false)?.files).toEqual(stationFiles("workshop", "high"));
+  });
+});
+
+describe("whose scene a station waits on", () => {
+  // The robot wall is part of the workshop's scene and the zoom plays out of the machine's: neither has a
+  // Scene of its own, so waiting on their own name never ended ("Loading the robot wall 3.2 / 3.2 MB").
+  it("the robot wall stands with the workshop, the zoom with the machine", () => {
+    expect(standKey("robots")).toBe("workshop");
+    expect(standKey("zoom")).toBe("machine");
+  });
+
+  it("the forest is the intro's places; every other station stands as itself", () => {
+    expect(standKey("intro")).toBe("intro:places");
+    for (const id of ["descent", "workshop", "machine", "workbench"] as const) expect(standKey(id)).toBe(id);
   });
 });
