@@ -172,6 +172,35 @@ def not_a_teacher():
     return object()
 
 
+def make_relabel_stub(cap_from_tool: bool = False, **kw):
+    """Like T3's make(): takes cap_from_tool and keeps it on the teacher."""
+    t = StubTeacher(**kw)
+    t.cap_from_tool = cap_from_tool
+    return t
+
+
+def make_swallowing_stub(**_):
+    """Like a make() from before T3's 681e8dd: swallows unknown keywords, so cap_from_tool is silently ignored."""
+    return StubTeacher()
+
+
+def test_dagger_loads_the_teacher_capping_from_the_students_tool():
+    """DAgger rounds (only) load the teacher with cap_from_tool=True (T3's 681e8dd: each label capped from the tool
+    the student reached, not the teacher's own previous target), and refuse a teacher that does not report it on; round
+    0 loads it without the flag and refuses one that has it on."""
+    from sim_eval.teacher import load_teacher_for
+
+    d = load_teacher_for("dagger", f"{__name__}:make_relabel_stub")
+    assert d.cap_from_tool is True
+    t = load_teacher_for("teacher", f"{__name__}:make_relabel_stub")
+    assert t.cap_from_tool is False
+    with pytest.raises(ValueError, match="cap_from_tool"):
+        load_teacher_for("dagger", f"{__name__}:make_swallowing_stub")  # the flag would be silently ignored
+    with pytest.raises(ValueError, match="cap_from_tool"):
+        load_teacher_for("teacher", f"{__name__}:make_relabel_stub", cap_from_tool=True)
+    assert load_teacher_for("teacher", f"{__name__}:make_swallowing_stub").name == "stub"  # round 0: unchanged
+
+
 def test_load_teacher_imports_a_factory_and_checks_the_protocol():
     t = load_teacher(f"{__name__}:make_stub", none_at=[3])
     assert t.name == "stub" and t.none_at == {3}

@@ -103,6 +103,23 @@ def execution_mismatch(teacher, execution: str) -> str | None:
     return f"teacher {teacher.name!r} was trained for {declared!r} execution, not {execution!r}"
 
 
+def load_teacher_for(kind: str, spec: str, **kwargs) -> Teacher:
+    """load_teacher for a round's rollouts. DAgger ("dagger"): the student drives, so the teacher must cap each label
+    from the tool the student reached, not its own previous target (T3's make(cap_from_tool=True), 2026-10-22); a
+    teacher that does not report cap_from_tool True is refused (an older make() swallows the keyword silently).
+    Round 0 ("teacher"): loaded as before; a teacher with cap_from_tool on is refused."""
+    if kind == "dagger":
+        teacher = load_teacher(spec, **{**kwargs, "cap_from_tool": True})
+        if getattr(teacher, "cap_from_tool", None) is not True:
+            raise ValueError(f"{spec} does not report cap_from_tool=True: its DAgger labels would be capped from its "
+                             f"own previous target, not the student's tool (needs T3's make() of 681e8dd or later)")
+        return teacher
+    teacher = load_teacher(spec, **kwargs)
+    if getattr(teacher, "cap_from_tool", False):
+        raise ValueError(f"{spec} has cap_from_tool on: round 0's teacher caps from its own previous target")
+    return teacher
+
+
 def load_teacher(spec: str, **kwargs) -> Teacher:
     """`spec` is "package.module:factory"; factory(**kwargs) returns the teacher (T3's adapter around its trained RL
     policy). Refuses anything that isn't a Teacher."""
