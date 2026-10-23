@@ -173,6 +173,44 @@ def max_seconds(path: HumanPath, k: float, grip_settle_max_s: float = 0.0) -> fl
     return path.t[-1] * k + SETTLE_S + grip_settle_max_s * int(np.count_nonzero(np.diff(path.gripper)))
 
 
+def rollout_diagnostics(r: Rollout) -> dict:
+    """Where a rollout went wrong, for its row (diagnostics only, nothing reads them back): the first step of each
+    arm contact (bin, table) and how many, the gripper-cube contact steps, the cube's start and highest z, the tool's
+    lowest z, and at each change of the commanded gripper the tool after that step against its target (mm)."""
+    recs = r.records
+    if not recs:
+        return {}
+
+    def first(flags):
+        idx = [i for i, f in enumerate(flags) if f]
+        return (idx[0] if idx else None), len(idx)
+
+    first_bin, n_bin = first(x.contact_arm_bin for x in recs)
+    first_table, n_table = first(x.contact_arm_table for x in recs)
+    first_grasp, n_grasp = first(x.contact_gripper_cube for x in recs)
+    cube_z = [float(x.cube_pos[2]) for x in recs]
+    grip = r.teacher_ee[:, 7]
+    changes = []
+    for k in np.flatnonzero(np.diff(grip) != 0) + 1:
+        if k < len(recs):
+            d = np.asarray(recs[k].tcp_pos, dtype=np.float64) - r.teacher_ee[k, :3]
+            changes.append({"step": int(k), "to": int(grip[k]),
+                            "tool_target_mm": round(float(np.linalg.norm(d)) * 1000, 1),
+                            "tool_minus_target_z_mm": round(float(d[2]) * 1000, 1)})
+    return {"first_arm_bin": first_bin, "arm_bin_steps": n_bin, "first_arm_table": first_table,
+            "arm_table_steps": n_table, "first_grip_cube_contact": first_grasp, "grip_cube_contact_steps": n_grasp,
+            "cube_z_start": round(cube_z[0], 4), "cube_z_max": round(max(cube_z), 4),
+            "tool_z_min": round(min(float(x.tcp_pos[2]) for x in recs), 4), "grip_changes": changes}
+
+
+def pilot_decision(successes: list[bool | None], pilot_min: int) -> str | None:
+    """The pilot rule (Amendment 1): the pilot episodes' outcomes in order (None: not run yet). None until all have
+    run; then "continue" if at least pilot_min passed, else "stop"."""
+    if any(s is None for s in successes):
+        return None
+    return "continue" if sum(bool(s) for s in successes) >= pilot_min else "stop"
+
+
 def write_held_episode(root: Path, r: Rollout, scene: Scene, *, source: Path, k: float, teacher_name: str,
                        v_max: float = rt.V_MAX, yaw_rate_max: float = rt.YAW_RATE_MAX, robot: str = "franka",
                        extra: dict | None = None, save_image=_save_png) -> dict | None:

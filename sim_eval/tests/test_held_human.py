@@ -18,7 +18,8 @@ from lerobot_tools.assemble import source_of
 from lerobot_tools.experiments import Grid
 from sim_eval.distill import RolloutConfig, rollout
 from sim_eval.held_human import (
-    HumanPath, HumanPathTeacher, cap_lag, choose_k, human_grid, max_seconds, write_held_episode,
+    HumanPath, HumanPathTeacher, cap_lag, choose_k, human_grid, max_seconds, pilot_decision,
+    rollout_diagnostics, write_held_episode,
 )
 from sim_eval.teacher import TeacherState, check_action, execution_mismatch
 from sim_worker.homeset import passport
@@ -233,3 +234,37 @@ def test_a_grasp_wait_rollout_still_passes_in_the_toy(tmp_path):
     r = rollout(ToyEnv(), scene, teacher, RolloutConfig(driver="teacher", teacher_execution="held",
                                                        max_seconds=max_seconds(path, 2.0, 1.0)))
     assert r.success and teacher.waits == [0, 0]  # the toy's tool is always at its target
+
+
+def test_the_diagnostics_say_where_a_rollout_touched_what(tmp_path):
+    scene = sample_scene(np.random.default_rng(3103), "franka", 3103)
+    path = HumanPath.from_episode(source_episode(tmp_path, scene))
+    r = rollout(ToyEnv(), scene, HumanPathTeacher(path, 1.0), RolloutConfig(driver="teacher", teacher_execution="held",
+                                                                            max_seconds=max_seconds(path, 1.0)))
+    d = rollout_diagnostics(r)
+    assert (d["first_arm_bin"], d["arm_bin_steps"], d["first_arm_table"]) == (None, 0, None)
+    assert d["grip_cube_contact_steps"] > 0 and d["cube_z_max"] > d["cube_z_start"] + 0.05
+    assert [c["to"] for c in d["grip_changes"]] == [1, 0]
+    assert all(c["tool_target_mm"] < 1e-3 for c in d["grip_changes"])
+    assert json.loads(json.dumps(d)) == d  # a jsonl row
+    assert rollout_diagnostics(r.__class__(**{**r.__dict__, "records": []})) == {}
+
+
+def test_the_pilot_continues_only_with_enough_passes_once_every_pilot_episode_ran():
+    assert pilot_decision([True] * 16 + [None] * 6, 16) is None
+    assert pilot_decision([True] * 16 + [False] * 6, 16) == "continue"
+    assert pilot_decision([True] * 15 + [False] * 7, 16) == "stop"
+
+
+def test_the_diagnostics_only_read_a_finished_rollout(tmp_path):
+    """Run 1's code (c799064) and the rerun's give the same commands: diagnostics are computed after the rollout."""
+    scene = sample_scene(np.random.default_rng(3104), "franka", 3104)
+    path = HumanPath.from_episode(source_episode(tmp_path, scene))
+    cfg = RolloutConfig(driver="teacher", teacher_execution="held", max_seconds=max_seconds(path, 2.0))
+    a = rollout(ToyEnv(), scene, HumanPathTeacher(path, 2.0), cfg)
+    before = (a.teacher_ee.copy(), a.executed.copy(), a.label.copy())
+    rollout_diagnostics(a)
+    b = rollout(ToyEnv(), scene, HumanPathTeacher(path, 2.0), cfg)
+    for x, y in zip(before, (a.teacher_ee, a.executed, a.label)):
+        assert np.array_equal(x, y)
+    assert np.array_equal(a.teacher_ee, b.teacher_ee) and np.array_equal(a.executed, b.executed)
