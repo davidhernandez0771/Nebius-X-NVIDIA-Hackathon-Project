@@ -17,6 +17,13 @@ export type RobotId = (typeof ROBOT_IDS)[number];
 
 export const robotUrl = (id: RobotId) => `world/models/robots/${id}.glb`;
 
+/**
+ * Robots the forest draws from a clean re-export of its own (welded, no open edges; world/models/forest/robots/), while
+ * the workshop's wall keeps the originals (it cuts them into their link shells, which the weld joins).
+ */
+export const FOREST_EXPORTS: readonly RobotId[] = ["fr3", "openarm"];
+export const forestRobotUrl = (id: RobotId) => (FOREST_EXPORTS.includes(id) ? `world/models/forest/robots/${id}.glb` : robotUrl(id));
+
 /** Each model's bounds (m), as its GLB has them; a test checks them against the files. */
 export const ROBOT_BOUNDS: Record<RobotId, { min: [number, number, number]; max: [number, number, number] }> = {
   franka: { min: [-0.117, 0, -0.134], max: [0.548, 0.722, 0.126] },
@@ -160,18 +167,27 @@ export function robotSpots(walk: readonly XZ[], forest: readonly Tree[], fallen:
 export interface RobotTier {
   /** The robots shown. */
   ids: readonly RobotId[];
-  /** The far level's grid (model metres; robotLod.ts). */
+  /** The far level: each robot simplified to this many triangles (robotSimplify.ts). */
   coarse: number;
-  /** The near level's grid (0: the model as it is). */
+  /** The near level's triangles (0: no near level). */
   detail: number;
-  /** Within this distance (m) a robot is drawn in detail (0: never), the last `band` m dissolving. */
+  /** Beyond this distance (m) a robot isn't drawn at all (the fog has it). */
+  far: number;
+  /** Within this distance (m) a robot is drawn in detail (0: never); `band` > 0 draws both levels over its last metres. */
   near: number;
   band: number;
 }
 
+/**
+ * Robots left out of the forest (none now: fr3's original GLB was a triangle soup, 69% of its edges open, until the
+ * clean forest export; notes/2026-10-22-site-intro-forest.md).
+ */
+export const FOREST_SKIP: readonly RobotId[] = [];
+const FOREST_IDS = ROBOT_IDS.filter((id) => !FOREST_SKIP.includes(id));
+
 export const ROBOT_TIERS: Record<TierName, RobotTier> = {
   // Phones and slow GPUs: four robots, spaced along the walk, coarse only (one level, no dissolve).
-  low: { ids: ["franka", "piper", "ur5e", "xarm6"], coarse: 0.025, detail: 0, near: 0, band: 0 },
-  high: { ids: ROBOT_IDS, coarse: 0.025, detail: 0.012, near: 3.5, band: 1 },
-  ultra: { ids: ROBOT_IDS, coarse: 0.02, detail: 0.012, near: 3.5, band: 1 },
+  low: { ids: ["franka", "piper", "ur5e", "xarm6"], coarse: 1600, detail: 0, near: 0, band: 0, far: 24 },
+  high: { ids: FOREST_IDS, coarse: 1900, detail: 4400, near: 4.5, band: 0, far: 26 },
+  ultra: { ids: FOREST_IDS, coarse: 2400, detail: 6200, near: 5, band: 0, far: 30 },
 };

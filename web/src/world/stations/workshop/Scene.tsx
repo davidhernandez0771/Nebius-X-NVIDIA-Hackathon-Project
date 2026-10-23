@@ -1,9 +1,10 @@
 // The workshop in 3D: the baked room around everything (unlit, one atlas per piece), the lamps that
 // switch it on, the live lights and reflections for the moving parts, the spiral and the robot wall.
 // Each file loads in its own Suspense. A cartridge can be dragged off the spiral onto the machine
-// (Dragged.tsx), and the bench's draft stands on its turntable as one more of the spiral's instances. All of it materializes over the generator's particles during
-// the workshop's travel (scene/dissolve.ts: revealAt), then the lamps flicker on.
-import { Suspense, useCallback, useEffect, useMemo } from "react";
+// (Dragged.tsx), and the bench's draft stands on its turntable as one more of the spiral's instances. All of it
+// materializes over the generator's particles the moment the descent has built it (scene/dissolve.ts: a short timed
+// play, not the scroll), then the lamps flicker on.
+import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -13,7 +14,7 @@ import { BAKED } from "../../scene/assets";
 import { Baked } from "../../scene/Baked";
 import { cutBakedBody } from "../../scene/machineV2";
 import { Arm } from "../../scene/Arm";
-import { dissolve, FIELD_MAX, LAMPS_AT, revealAt } from "../../scene/dissolve";
+import { builtAt, dissolve, FIELD_MAX, materialize, revealOf, roomWhole, stepReveal } from "../../scene/dissolve";
 import { Helix, type BenchInstance } from "../../scene/Helix";
 import { FloorPools } from "../../scene/FloorPools";
 import { Haze } from "../../scene/Haze";
@@ -22,7 +23,7 @@ import { Materialize } from "../../scene/Materialize";
 import { LiveLights } from "../../scene/LiveLights";
 import { ENV_INTENSITY } from "../../scene/materials";
 import { Pendants } from "../../scene/Pendants";
-import { addEnvironment } from "../../scene/power";
+import { addEnvironment, loadProgress } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
 import { RobotWall } from "../../scene/RobotWall";
 import { N_ITEMS, instanceSlot, spiral } from "../../scene/spiral";
@@ -54,21 +55,34 @@ function Reflections() {
   return null;
 }
 
+/** If the room's files are still coming once the descent has built it, play the materialize anyway after this (s). */
+const LOAD_GRACE_S = 4;
+
 /**
- * Drives the materialize (one shared uniform) from the workshop's travel. With reduced motion there is
- * no edge to watch: the room is simply there once the journey has left the story (the veil fades it).
+ * Drives the materialize (one shared uniform): the moment the descent's counter reads 100% and the room's files are
+ * in, the whole room plays in over REVEAL_S (scene/dissolve.ts), whatever the scroll does; scrolled back above that
+ * point, it plays back out into the particles. With reduced motion there is no edge to watch: the room is simply
+ * there once the journey has left the story (the veil fades it).
  */
 function Reveal({ reduced }: { reduced: boolean }) {
   const { store } = useWorld();
-  useFrame(() => {
+  const invalidate = useThree((s) => s.invalidate);
+  const builtFor = useRef(0);
+  useFrame((_, dt) => {
     const f = store.frames;
-    dissolve.reveal.value = reduced
-      ? store.getCoarse().current === "intro"
-        ? -1
-        : FIELD_MAX + 1
-      : f.workbench.current
-        ? FIELD_MAX + 1
-        : revealAt(f.workshop.arrive);
+    if (reduced || f.workbench.current) {
+      const shown = f.workbench.current || store.getCoarse().current !== "intro";
+      materialize.p = shown ? 1 : 0;
+      dissolve.reveal.value = shown ? FIELD_MAX + 1 : -1;
+      return;
+    }
+    const built = builtAt(f.descent.t);
+    builtFor.current = built ? builtFor.current + dt : 0;
+    const p = stepReveal(materialize.p, built && (loadProgress() >= 1 || builtFor.current > LOAD_GRACE_S), dt);
+    // Frames keep coming while it plays (the world otherwise draws on demand).
+    if (p !== materialize.p || (built && p < 1)) invalidate();
+    materialize.p = p;
+    dissolve.reveal.value = revealOf(p);
   }, -0.5);
   return null;
 }
@@ -89,7 +103,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
   // Cartridges answer the pointer only while the workshop (or the machine beside it) is in view,
   // and not while one is open. Not while the room is still materializing either.
   const active = useCallback(
-    () => store.frames.workshop.current && store.frames.workshop.arrive >= LAMPS_AT && store.getCoarse().branch === null && spiral.selected < 0,
+    () => store.frames.workshop.current && roomWhole() && store.getCoarse().branch === null && spiral.selected < 0,
     [store],
   );
   const browsing = useCallback(() => shelf.open, []);

@@ -4,7 +4,7 @@ import { buildWrecks, modelFromScene } from "./robotWrecks";
 import type { RobotSpot, RobotTier } from "./forestRobots";
 import type { LodMesh } from "./robotLod";
 
-/** A stand-in model: a 0.2 x 0.6 x 0.2 m column standing on the origin, finely divided so the grid can merge it. */
+/** A stand-in model: a 0.2 x 0.6 x 0.2 m column standing on the origin, finely divided so it has triangles to give up. */
 function column(color: [number, number, number] = [1, 1, 1]): LodMesh {
   const g = new THREE.BoxGeometry(0.2, 0.6, 0.2, 8, 24, 8).translate(0, 0.3, 0);
   const n = g.attributes.position.count;
@@ -17,7 +17,7 @@ function column(color: [number, number, number] = [1, 1, 1]): LodMesh {
 }
 
 const spot = (over: Partial<RobotSpot>): RobotSpot => ({ id: "franka", pose: "lying_side", x: 2, z: -3, yaw: 0, scale: 1, sink: 0.3, footprint: 1, ...over });
-const TIER: RobotTier = { ids: ["franka", "piper", "ur5e"], coarse: 0.05, detail: 0, near: 5, band: 1.5 };
+const TIER: RobotTier = { ids: ["franka", "piper", "ur5e"], coarse: 200, detail: 0, near: 5, band: 1.5, far: 1000 };
 const FLOOR = 100;
 
 function box(g: THREE.BufferGeometry, from: number, count: number) {
@@ -55,7 +55,7 @@ describe("the real robots lying in the moss, as geometry", () => {
   });
 
   it("carries the parts' colours, the model's own height in uv.x (the panel seams) and the level in uv.y", () => {
-    const w = buildWrecks({ franka: column([0.25, 0.25, 0.25]) }, [spot({})], { ...TIER, detail: 0.02 }, FLOOR);
+    const w = buildWrecks({ franka: column([0.25, 0.25, 0.25]) }, [spot({})], { ...TIER, detail: 800 }, FLOOR);
     const c = w.geometry.attributes.color;
     const uv = w.geometry.attributes.uv;
     let lo = Infinity, hi = -Infinity;
@@ -73,7 +73,7 @@ describe("the real robots lying in the moss, as geometry", () => {
 
   it("draws far robots coarse and near ones in detail, dissolving in between, as one index list", () => {
     const spots = [spot({}), spot({ id: "piper", x: 30 })];
-    const w = buildWrecks({ franka: column(), piper: column() }, spots, { ...TIER, detail: 0.02 }, FLOOR);
+    const w = buildWrecks({ franka: column(), piper: column() }, spots, { ...TIER, detail: 800 }, FLOOR);
     const far = w.update(new THREE.Vector3(15, FLOOR + 2, 200));
     const atFirst = w.update(new THREE.Vector3(2, FLOOR + 2, -3));
     const band = w.update(new THREE.Vector3(2 + 4.2, FLOOR + 0.4, -3));
@@ -95,7 +95,8 @@ describe("the real robots lying in the moss, as geometry", () => {
   it("slides a leaning robot against its trunk's bark", () => {
     const trunk = { x: 2.6, z: -3, radius: 0.3 };
     const s = spot({ pose: "leaning", yaw: 0, sink: 0.1, lean: trunk });
-    const w = buildWrecks({ franka: column() }, [s], TIER, FLOOR);
+    // Placed against the full model; drawn here at the full model too (a coarse level may have no vertex at the touch).
+    const w = buildWrecks({ franka: column() }, [s], { ...TIER, coarse: 1e6 }, FLOOR);
     const p = w.geometry.attributes.position;
     let gap = Infinity;
     for (let i = 0; i < p.count; i++) if (p.getY(i) > FLOOR + 0.05) gap = Math.min(gap, Math.hypot(p.getX(i) - trunk.x, p.getZ(i) - trunk.z) - trunk.radius);

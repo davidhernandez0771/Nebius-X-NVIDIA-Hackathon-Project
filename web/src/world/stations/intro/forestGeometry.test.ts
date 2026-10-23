@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { FOREST_TIERS, buildForest, fernGeometry, trunkGeometry, tube } from "./forestGeometry";
+import { BACKDROP_R, FOREST_TIERS, buildForest, fernGeometry, trunkBend, trunkGeometry, tube } from "./forestGeometry";
 import { FOREST } from "./layout";
 
 const tris = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position.count) / 3;
@@ -43,6 +43,37 @@ describe("the forest's geometry", () => {
       }
     });
   }
+
+  it("puts branches on the near and mid trunks, high up and on the trunk (where its shader has bent it)", () => {
+    const f = buildForest("high");
+    const canopy = f.pieces.find((p) => p.name === "canopy")!;
+    const near = f.layout.trees.filter((t) => t.layer === 0).length;
+    const mid = f.layout.trees.filter((t) => t.layer === 1).length;
+    expect(canopy.instances).toBe((near * 4 + mid * 2) * 2);
+    for (const m of canopy.matrices!) {
+      const p = new THREE.Vector3().setFromMatrixPosition(m);
+      expect(p.y).toBeGreaterThan(FOREST.floor + FOREST.canopy * 0.25);
+      // On a trunk: off some near or mid trunk's straight axis by no more than its bend there (turned with the
+      // trunk) and its lean, plus a little.
+      const ok = f.layout.trees.filter((t) => t.layer < 2).some((t) => {
+        const y = (p.y - FOREST.floor) / t.height;
+        const bend = Math.hypot(...trunkBend(t.tint, y)) * t.radius;
+        const lean = Math.hypot(t.lean[0], t.lean[1]) * t.height * y;
+        return Math.hypot(p.x - t.x, p.z - t.z) <= bend + lean + 0.3;
+      });
+      expect(ok).toBe(true);
+    }
+  });
+
+  it("rings the forest with a backdrop beyond its last trunks, the forest going on in the fog", () => {
+    const f = buildForest("high");
+    const back = f.pieces.find((p) => p.name === "backdrop")!;
+    back.geometry.computeBoundingBox();
+    const b = back.geometry.boundingBox!;
+    expect((b.max.x - b.min.x) / 2).toBeCloseTo(BACKDROP_R, 0);
+    const far = Math.max(...f.layout.far.map((t) => Math.hypot(t.x - FOREST.center[0], t.z - FOREST.center[1]) + t.radius));
+    expect(BACKDROP_R).toBeGreaterThan(far);
+  });
 
   it("gives the low tier (and phones) less of everything than high, the same places", () => {
     const low = buildForest("low");

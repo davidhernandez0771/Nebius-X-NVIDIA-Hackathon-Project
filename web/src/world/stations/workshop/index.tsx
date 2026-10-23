@@ -1,6 +1,6 @@
-// Workshop: the room the descent builds out of particles, and where the scroll ends. Its travel is the
-// materialize: the camera pushes in a little while the real room appears over the particles through a
-// glowing noise edge (scene/dissolve.ts), then the lamps flicker on and the hub is live. From here the site is a
+// Workshop: the room the descent builds out of particles, and where the scroll ends. The moment the descent has
+// built it, the real room plays in over the particles through a glowing noise edge (scene/dissolve.ts, a short
+// timed materialize), then the lamps flicker on and the hub is live; the travel is the camera's push in. From here the site is a
 // game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and four things to
 // click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
 // and projects the robot), the bench (make a new cartridge) and the robot wall (the robots catalog).
@@ -52,8 +52,8 @@ const workshop: StationModule = {
   owner: "T6",
   kind: "rail",
   anchor: [0, 0, 0],
-  // The materialize (scene/dissolve.ts revealAt), from just behind the room view (descent/path.ts).
-  travel: 1.4,
+  // The push in from just behind the room view (descent/path.ts); the room is already there (scene/dissolve.ts).
+  travel: 0.8,
   // The end of the scroll: the room view. From here it's clicks (the shelf, the machine, the bench).
   length: 0.25,
   camera: still(HUB),

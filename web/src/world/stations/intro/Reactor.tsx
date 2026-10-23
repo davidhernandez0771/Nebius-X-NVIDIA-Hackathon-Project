@@ -58,7 +58,7 @@ const coreFrag = /* glsl */ `
 uniform float uPower, uFlow; uniform vec3 uTeal;
 void main(){
   vec3 v = normalize(cameraPosition - vW);
-  float fres = pow(1. - abs(dot(normalize(vN), v)), 2.);
+  float fres = pow(max(1. - abs(dot(normalize(vN), v)), 0.), 2.);
   float bands = fbm2(vec2(vUv.x * 9., vW.y * .32 - uFlow));
   float streak = smoothstep(.5, .9, bands);
   float lit = .04 + uPower * (.4 + .6 * streak);
@@ -78,7 +78,7 @@ void main(){
   float face = max(0., dot(n, toAxis / max(d, .001)));
   vec3 c = vec3(.006, .0065, .0075) * (.7 + .6 * fbm3(vW * 3.));
   c += uTeal * face * (.01 + uPower * .35) / (1. + d * d * .15);
-  c += vec3(.03, .04, .045) * pow(1. - max(0., dot(n, v)), 3.) * (.3 + .7 * uPower);
+  c += vec3(.03, .04, .045) * pow(max(1. - max(0., dot(n, v)), 0.), 3.) * (.3 + .7 * uPower);
   c += vec3(.02, .025, .028) * max(0., n.y);
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
@@ -88,7 +88,7 @@ const ringFrag = /* glsl */ `
 uniform float uPower; uniform vec3 uTeal;
 void main(){
   vec3 v = normalize(cameraPosition - vW);
-  float rim = pow(1. - max(0., dot(normalize(vN), v)), 3.);
+  float rim = pow(max(1. - max(0., dot(normalize(vN), v)), 0.), 3.);
   vec3 c;
   if (vUv.y < -.5) {
     // A bolt head: bright steel catching the core's light.
@@ -128,10 +128,10 @@ void main(){
   float front = smoothstep(on - .04, on + .06, uPower);
   float s = vUv.x;
   float charged = smoothstep(front + .02, front - .02, s) * step(.001, front);
-  float head = exp(-pow((s - front) * 30., 2.)) * step(.001, front) * (1. - step(.999, front));
-  float pulse = pow(.5 + .5 * sin(s * 34. - uPulse * 6.2832 * 2. + vCable * 1.7), 12.);
+  float head = exp(-pow(abs((s - front) * 30.), 2.)) * step(.001, front) * (1. - step(.999, front));
+  float pulse = pow(max(.5 + .5 * sin(s * 34. - uPulse * 6.2832 * 2. + vCable * 1.7), 0.), 12.);
   vec3 v = normalize(cameraPosition - vW);
-  vec3 c = vec3(.004, .0045, .005) + vec3(.025, .03, .033) * pow(1. - max(0., dot(normalize(vN), v)), 3.);
+  vec3 c = vec3(.004, .0045, .005) + vec3(.025, .03, .033) * pow(max(1. - max(0., dot(normalize(vN), v)), 0.), 3.);
   vec3 energy = mix(uTeal, vec3(1.), .2);
   c += energy * charged * (.06 + .14 * lit + .8 * pulse * lit) * (.55 + .45 * s);
   c += mix(energy, vec3(1.), .5) * head * .9;
@@ -156,7 +156,7 @@ void main(){
   c += vec3(.04, .045, .05) * bolt;
   float edge = smoothstep(.03, 0., min(x, 1. - x));
   c += uTeal * edge * .25 * uPower;
-  c += vec3(.03, .036, .04) * pow(1. - max(0., abs(dot(n, v))), 3.);
+  c += vec3(.03, .036, .04) * pow(max(1. - max(0., abs(dot(n, v))), 0.), 3.);
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
 }`;
@@ -168,7 +168,7 @@ void main(){
   vec3 n = normalize(vN);
   vec3 v = normalize(cameraPosition - vW);
   vec3 c = vec3(.0055, .006, .007) * (.7 + .6 * fbm3(vW * 3.));
-  c += vec3(.03, .036, .04) * pow(1. - max(0., dot(n, v)), 3.);
+  c += vec3(.03, .036, .04) * pow(max(1. - max(0., dot(n, v)), 0.), 3.);
   if (vUv.y > 1.5) {
     float on = .06 + .8 * (vUv.x * 4.) / max(1., uN - 1.);
     float lit = smoothstep(on, on + .08, uPower);
