@@ -225,3 +225,42 @@ at the stage's start. Any code change between stages is listed here, with its di
 - **This prereg is committed before either branch's code exists**, because the design, seeds, rules and gripper spec
   are what must come before the data. The code guards above are requirements on `pm/bigtest`. They are checked and
   logged here before Stage A runs.
+
+## Log
+
+### The held human re-execution: code and k (before its GPU run)
+
+**The code: `pm/held-human` `c799064`** (T3, `C:\dev\pm-t3-hh`). It is one commit on `a17f231`, made at 15:07:25, after
+this prereg (`9dcc19e`, 15:01:09). The full pytest run: 2758 passed, 35 skipped (T3).
+- **Checked here:** 4 files, +635 lines and no deletions:
+  - `sim_eval/held_human.py` (`HumanPathTeacher`, `choose_k`, `K_CHOICES = (1.0, 1.25, 1.5, 2.0)`);
+  - `sim_eval/scripts/held_human_rollouts.py`;
+  - its test;
+  - T3's note `2026-10-23-held-human.md`.
+- **What it does:**
+  - **The source:** the 110 episodes of `mouse20261020` `perfected_multiply_10`, the 10 mouse demos plus 100 SANT
+    variants.
+  - **The path:** each episode's commanded path is slowed by one k for all episodes. It is capped as the RL env caps
+    (`rl_teacher.cap_speed`: 0.5 m/s and 2.5 rad/s from the previous target, then within `DELTA_M` of the tool).
+  - **The orientation:** pointing down, turned by the capped yaw. The human quaternions are at most 1.5° off that.
+  - **The executor:** the held one, through `sim_eval.distill.rollout(teacher_execution="held")`.
+  - **What is kept:** only `check_success` passes, with the "after" (B) pairing. Their `trajectory.json` is the
+    achieved path.
+  - **The episode's time limit:** the slowed path's length plus `SETTLE_S` (`held_human.max_seconds`).
+- **Its seeds** are the human scenes' own (0–4009). No selection, test or DAgger seed is involved.
+
+**k = 2, by the rule fixed above.** The rule is computed on the CPU before any GPU run, from the speed cap alone. The
+lag is |capped target − commanded|, taking each episode's maximum, over the 110 episodes:
+
+| k | Median | p95 | Max | Episodes over 2 cm | Yaw-lag p95 |
+|---|---|---|---|---|---|
+| 1 | 5.58 cm | 15.94 cm | 20.93 cm | 81 | 0.564 rad |
+| 1.25 | 1.79 cm | 10.83 cm | 14.32 cm | 50 | 0.422 rad |
+| 1.5 | 0.04 cm | 6.90 cm | 9.56 cm | 28 | 0.315 rad |
+| **2** | **0.00 cm** | **1.59 cm** | 3.58 cm | 3 | 0.143 rad |
+
+- **k = 2 is the smallest k with p95 ≤ 2 cm** (1.5 gives 6.90 cm). It applies to all 110 episodes.
+- **Disclosed:** yaw is capped (at 2.5 rad/s) but is not part of the rule. Its p95 lag at k = 2 is 0.143 rad.
+- **The cost:** the human paths average 5.71 s (max 8.38 s), so the re-executed episodes take about twice as long.
+- **The GPU run starts now** (T3). Its start line, with the commit, goes in `run_log.txt`. When I checked at 15:08, there
+  was no `run_log.txt` and no `gpu.lock` yet. The pass count and the floor decision are logged when it ends.
