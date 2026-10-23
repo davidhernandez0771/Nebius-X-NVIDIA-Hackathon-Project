@@ -19,6 +19,9 @@ export interface PlaceFog {
   mist: string;
 }
 
+/** How many small lights (the forest's lantern fireflies) a place's surfaces take. */
+export const PLACE_GLOWS = 8;
+
 /** One place's shared uniforms: write `uLight` (and the others) once and every material follows. */
 export function placeUniforms(f: PlaceFog) {
   return {
@@ -35,6 +38,9 @@ export function placeUniforms(f: PlaceFog) {
     uBandT: { value: new THREE.Vector3(1, 1, 1) },
     uBandK: { value: new THREE.Vector3() },
     uBandV: { value: new THREE.Vector3() },
+    // Small lights (xyz, strength 0–1) and their colours: the forest's lantern fireflies (fireflies.ts); off elsewhere.
+    uGlowP: { value: Array.from({ length: PLACE_GLOWS }, () => new THREE.Vector4()) },
+    uGlowC: { value: Array.from({ length: PLACE_GLOWS }, () => new THREE.Vector3()) },
   };
 }
 export type PlaceUniforms = ReturnType<typeof placeUniforms>;
@@ -54,8 +60,11 @@ float fbm3(vec3 p){ float s = 0., a = .5; for (int i = 0; i < 3; i++){ s += a * 
 /** The place's light and fog over a lit colour at world point `wp`. */
 export const PLACE_GLSL = /* glsl */ `
 uniform float uLight, uTime, uFogK, uMistY, uMistK; uniform vec3 uBg, uFog, uMist;
+uniform vec4 uGlowP[${PLACE_GLOWS}]; uniform vec3 uGlowC[${PLACE_GLOWS}];
 ${MIST_GLSL}
 vec3 place(vec3 c, vec3 wp){
+  // The small lights: a soft pool round each (no shadows), before the fog takes the far ones.
+  for (int i = 0; i < ${PLACE_GLOWS}; i++){ vec3 g = wp - uGlowP[i].xyz; c += uGlowC[i] * (uGlowP[i].w * .03 / (1. + dot(g, g) * 4.)); }
   float d = distance(wp, cameraPosition);
   float fog = 1. - exp(-d * uFogK);
   float mist = exp(-max(0., wp.y - uMistY) * uMistK) * (1. - exp(-d * uFogK * 1.8));

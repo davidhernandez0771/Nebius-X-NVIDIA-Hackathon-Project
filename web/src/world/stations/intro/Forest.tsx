@@ -149,45 +149,39 @@ void main(){
   ${OUT}
 }`;
 
-// The robots (robotWrecks.ts): the surface varyings, plus each part's paint and the dissolve between the two
-// levels of detail, from the robot's distance to the camera (robotLod.ts: inside uNear, over its last uBand).
+// The robots (robotWrecks.ts): the surface varyings and each part's paint. The levels of detail switch outright
+// (robotLod.ts): the old per-pixel dissolve between them read as speckle up close.
 const robotVert = /* glsl */ `
-attribute vec3 color; attribute vec3 aSpot; uniform float uNear, uBand;
-varying vec3 vW; varying vec3 vN; varying vec2 vUv; varying vec3 vCol; varying float vFade;
+attribute vec3 color;
+varying vec3 vW; varying vec3 vN; varying vec2 vUv; varying vec3 vCol;
 void main(){
   vec4 w = modelMatrix * vec4(position, 1.);
   vW = w.xyz;
   vN = normalize(mat3(modelMatrix) * normal);
   vUv = uv;
   vCol = color;
-  vFade = uNear > 0. ? 1. - smoothstep(uNear - uBand, uNear, distance(cameraPosition, aSpot)) : 0.;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
 const partFrag = /* glsl */ `
 uniform vec3 uMoon, uTeal; uniform float uFloor;
-varying vec3 vCol; varying float vFade;
+varying vec3 vCol;
 void main(){
-  // The two levels dissolve into each other: the detailed one (uv.y 1) takes the pixels the coarse one gives up.
-  float d = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
-  if (vUv.y > .5 ? d >= vFade : d < vFade) discard;
   vec3 n = normalize(vN) * (gl_FrontFacing ? 1. : -1.);
   vec3 v = normalize(cameraPosition - vW);
   float grime = fbm3(vW * 2.2);
-  // The robot's own paint (white shells, dark joints), dulled and darkened by the years in the forest, dirty, lit
-  // only by the moon: pale shapes in the dark.
-  // Black parts stay a dark grey, so a black robot still reads as a shape.
+  // The robot's own paint (white shells, dark joints), dulled by the years in the forest and dirty: pale shapes in the
+  // dark. Black parts stay a dark grey, so a black robot still reads as a shape.
   vec3 paint = mix(vec3(dot(vCol, vec3(.2126, .7152, .0722))), vCol, .55);
-  vec3 shell = max(paint, vec3(.3)) * vec3(.4, .42, .39) * (.55 + .6 * grime);
-  vec3 c = shell * (.04 + .3 * max(0., dot(n, uMoon)));
+  vec3 shell = max(paint, vec3(.3)) * vec3(.4, .42, .39) * (.6 + .5 * grime);
+  // The moon, plus a little night sky from above and the moss's bounce from below, so the side away from the moon
+  // keeps its form instead of going flat black.
+  float sky = .5 + .5 * n.y;
+  vec3 c = shell * (.025 + .3 * max(0., dot(n, uMoon)) + mix(vec3(.012, .016, .014), vec3(.03, .038, .046), sky));
   vec3 h = normalize(uMoon + v);
-  c += vec3(.16, .19, .21) * pow(max(0., dot(n, h)), 30.);
+  c += vec3(.16, .19, .21) * pow(max(0., dot(n, h)), 30.) * (.5 + .5 * grime);
   float rim = pow(1. - max(0., dot(n, v)), 3.);
   c += mix(vec3(.035, .045, .05), uTeal * .08, .4) * rim;
-  // Panel seams round the joint axis, one of them still faintly powered.
-  float f = abs(fract(vUv.x * 9.) - .5);
-  c *= 1. - .6 * smoothstep(.44, .49, f);
-  c += uTeal * .09 * smoothstep(.46, .5, abs(fract(vUv.x * 3. + .25) - .5));
   // Moss creeping up from where it's buried (higher in patches), and over the top where it has lain.
   float mossy = 1. - smoothstep(uFloor - .05, uFloor + .3 + .45 * fbm2(vW.xz * 3.), vW.y);
   mossy = max(mossy, smoothstep(.55, .95, n.y) * smoothstep(.5, .72, fbm2(vW.xz * 4.)) * .85);
@@ -389,6 +383,9 @@ export function useForest(quality: QualityTier): ForestHandle {
     const phone = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 600px)").matches;
     const flies = makeFireflies(fireflies(fireflyCount(tier, phone), layout, ROBOT_TIERS[tier].ids));
     add(flies.points, "forest:fireflies");
+    // The lantern fireflies light every forest surface round them (placeShaders.ts place()).
+    u.uGlowP.value = flies.glows.position;
+    u.uGlowC.value = flies.glows.color;
     disposables.push(flies);
 
     // The robots: empty until their GLBs have loaded (after the loader; the low tier fetches four). Each frame the
@@ -397,24 +394,37 @@ export function useForest(quality: QualityTier): ForestHandle {
     const partMat = new THREE.ShaderMaterial({
       vertexShader: robotVert,
       fragmentShader: surfaceFrag(partFrag),
-      uniforms: { ...u, uMoon: { value: MOON }, uTeal: { value: TEAL }, uFloor: { value: F }, uNear: { value: robotTier.near }, uBand: { value: robotTier.band } },
+      uniforms: { ...u, uMoon: { value: MOON }, uTeal: { value: TEAL }, uFloor: { value: F } },
       side: THREE.DoubleSide,
     });
     const wrecks = add(new THREE.Mesh<THREE.BufferGeometry>(new THREE.BoxGeometry(0.01, 0.01, 0.01).translate(0, F - 1, 0), partMat), "forest:robots");
     const eye = new THREE.Vector3();
+    const view = new THREE.Frustum();
+    const vp = new THREE.Matrix4();
     let robots: Wrecks | null = null;
-    wrecks.onBeforeRender = (_r, _s, camera) => robots?.update(eye.setFromMatrixPosition(camera.matrixWorld));
+    // Only the robots in view are drawn (each at its level by distance).
+    wrecks.onBeforeRender = (_r, _s, camera) =>
+      robots?.update(eye.setFromMatrixPosition(camera.matrixWorld), view.setFromProjectionMatrix(vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)));
     let live = true;
-    import("./robotWrecks")
-      .then(async (w) => {
+    let maker: { dispose(): void } | null = null;
+    Promise.all([import("./robotWrecks"), import("./robotLevelsClient")])
+      .then(async ([w, c]) => {
         const loader = new GLTFLoader();
+        const lm = c.levelMaker();
+        maker = lm;
+        // Each model's levels are simplified in a worker as it arrives (robotLevelsClient.ts), off the main thread.
         const loaded = await Promise.all(robotTier.ids.map((id) =>
-          loader.loadAsync(BASE + robotUrl(id)).then((g) => [id, w.modelFromScene(g.scene)] as const, (e) => {
+          loader.loadAsync(BASE + robotUrl(id)).then(async (g) => {
+            const model = w.modelFromScene(g.scene);
+            return [id, model, await lm.make(id, model, robotTier)] as const;
+          }, (e) => {
             console.warn(`world: the forest's ${id} didn't load`, e);
             return null;
           })));
+        lm.dispose();
         if (!live) return;
-        robots = w.buildWrecks(Object.fromEntries(loaded.filter((x) => x !== null)), layout.robots, robotTier, F);
+        const ok = loaded.filter((x) => x !== null);
+        robots = w.buildWrecks(Object.fromEntries(ok.map(([id, m]) => [id, m])), layout.robots, robotTier, F, Object.fromEntries(ok.map(([id, , l]) => [id, l])));
         wrecks.geometry.dispose();
         wrecks.geometry = robots.geometry;
       })
@@ -438,6 +448,7 @@ export function useForest(quality: QualityTier): ForestHandle {
       },
       dispose() {
         live = false;
+        maker?.dispose();
         wrecks.geometry.dispose();
         crack.dispose();
         disposables.forEach((d) => d.dispose());

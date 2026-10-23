@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { POSES, ROBOT_BOUNDS, ROBOT_IDS, ROBOT_TIERS, robotSpots, robotUrl, HEROIC } from "./forestRobots";
+import { POSES, ROBOT_BOUNDS, ROBOT_IDS, FOREST_SKIP, ROBOT_TIERS, robotSpots, robotUrl, HEROIC } from "./forestRobots";
 import { inCrack, logs, trees } from "./forestPlan";
 import { cameraAt, walkXZ } from "./path";
 import { FOREST } from "./layout";
@@ -118,8 +118,11 @@ describe("the real robots lying in the moss", () => {
   it("shows fewer robots, coarser and never in detail on the low tier (phones)", () => {
     expect(ROBOT_TIERS.low.ids.length).toBeLessThan(ROBOT_IDS.length);
     expect(ROBOT_TIERS.low.near).toBe(0);
-    expect(ROBOT_TIERS.high.ids).toEqual([...ROBOT_IDS]);
-    expect(ROBOT_TIERS.ultra.ids).toEqual([...ROBOT_IDS]);
+    // Every robot but those waiting for a clean export.
+    const forest = ROBOT_IDS.filter((id) => !FOREST_SKIP.includes(id));
+    expect(ROBOT_TIERS.high.ids).toEqual(forest);
+    expect(ROBOT_TIERS.ultra.ids).toEqual(forest);
+    expect(FOREST_SKIP).toEqual(["fr3"]);
     for (const t of Object.values(ROBOT_TIERS)) for (const id of t.ids) expect(ROBOT_IDS).toContain(id);
   });
 });

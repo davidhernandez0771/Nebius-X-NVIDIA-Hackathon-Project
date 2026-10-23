@@ -160,18 +160,27 @@ export function robotSpots(walk: readonly XZ[], forest: readonly Tree[], fallen:
 export interface RobotTier {
   /** The robots shown. */
   ids: readonly RobotId[];
-  /** The far level's grid (model metres; robotLod.ts). */
+  /** The far level: each robot simplified to this many triangles (robotSimplify.ts). */
   coarse: number;
-  /** The near level's grid (0: the model as it is). */
+  /** The near level's triangles (0: no near level). */
   detail: number;
-  /** Within this distance (m) a robot is drawn in detail (0: never), the last `band` m dissolving. */
+  /** Beyond this distance (m) a robot isn't drawn at all (the fog has it). */
+  far: number;
+  /** Within this distance (m) a robot is drawn in detail (0: never); `band` > 0 draws both levels over its last metres. */
   near: number;
   band: number;
 }
 
+/**
+ * Robots left out of the forest until their GLB is re-exported clean: fr3.glb is a triangle soup (69% of its edges
+ * open, cracks everywhere), which reads as speckled shards at any detail (notes/2026-10-22-site-intro-forest.md).
+ */
+export const FOREST_SKIP: readonly RobotId[] = ["fr3"];
+const FOREST_IDS = ROBOT_IDS.filter((id) => !FOREST_SKIP.includes(id));
+
 export const ROBOT_TIERS: Record<TierName, RobotTier> = {
   // Phones and slow GPUs: four robots, spaced along the walk, coarse only (one level, no dissolve).
-  low: { ids: ["franka", "piper", "ur5e", "xarm6"], coarse: 0.025, detail: 0, near: 0, band: 0 },
-  high: { ids: ROBOT_IDS, coarse: 0.025, detail: 0.012, near: 3.5, band: 1 },
-  ultra: { ids: ROBOT_IDS, coarse: 0.02, detail: 0.012, near: 3.5, band: 1 },
+  low: { ids: ["franka", "piper", "ur5e", "xarm6"], coarse: 1600, detail: 0, near: 0, band: 0, far: 24 },
+  high: { ids: FOREST_IDS, coarse: 2200, detail: 5000, near: 4.5, band: 0, far: 26 },
+  ultra: { ids: FOREST_IDS, coarse: 2800, detail: 7000, near: 5, band: 0, far: 30 },
 };
