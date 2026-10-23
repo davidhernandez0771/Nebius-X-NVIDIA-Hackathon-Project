@@ -3,7 +3,7 @@ r"""The human demos re-executed held, cameras on, written as training episodes (
     C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\held_human_rollouts.py --k 2 ^
         --grid C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json --cell perfected_multiply_10 ^
         --start-state C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 ^
-        --out data\held_human\mouse20261020 [--no-lock] [--run-log <file>]
+        --out data\held_human\mouse20261020 [--grip-settle-m 0.005] [--no-lock] [--run-log <file>]
 
 Every episode of the cell is replayed by sim_eval.held_human.HumanPathTeacher (its commanded path slowed by --k,
 speed-capped) through sim_eval.distill.rollout with teacher_execution="held"; only check_success passes are written,
@@ -37,6 +37,10 @@ parser.add_argument("--grid", type=Path, required=True, help="the SANT grid with
 parser.add_argument("--cell", required=True, help="its label or <condition>_<n_human>")
 parser.add_argument("--start-state", type=Path, required=True, help="start_state.json or the dataset root with it")
 parser.add_argument("--out", type=Path, required=True)
+parser.add_argument("--grip-settle-m", type=float, default=None,
+                    help="grasp wait: at each gripper change the path waits until the tool is this close to the target "
+                         "(HumanPathTeacher; default off)")
+parser.add_argument("--grip-settle-max-s", type=float, default=1.0, help="the longest grasp wait per gripper change")
 parser.add_argument("--no-lock", action="store_true", help="don't take gpu.lock (a parent process holds it)")
 parser.add_argument("--run-log", type=Path, default=None, help="append start/end lines with the code commit here")
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
@@ -104,7 +108,8 @@ def main() -> int:
     todo = [ep for ep in sources if paths[ep].demo_id not in rows]
     code = code_version(REPO)
     log(f"{len(sources)} human episodes from {a.grid} [{a.cell}], k {a.k}; {len(rows)} done, {len(todo)} to go -> {out}")
-    run_log(f"start: code {code}; k {a.k}; {len(rows)} done, {len(todo)} to go; out {out}")
+    run_log(f"start: code {code}; k {a.k}; grip_settle_m {a.grip_settle_m}; {len(rows)} done, {len(todo)} to go; "
+            f"out {out}")
     if todo:
         start_pose, start_check = resolve_start("dataset", start_state=a.start_state)
         ok, gate = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib(), gpu_pids=gpu_pids())
@@ -131,21 +136,28 @@ def main() -> int:
                             dest = out / "_stale" / f"{stale.name}_{datetime.now():%Y%m%d%H%M%S}"
                             dest.parent.mkdir(parents=True, exist_ok=True)
                             shutil.move(str(stale), str(dest))
-                        teacher = HumanPathTeacher(path, a.k)
+                        teacher = HumanPathTeacher(path, a.k, grip_settle_m=a.grip_settle_m,
+                                                   grip_settle_max_s=a.grip_settle_max_s)
+                        settle_s = a.grip_settle_max_s if a.grip_settle_m is not None else 0.0
                         cfg = RolloutConfig(driver="teacher", teacher_execution="held",
-                                            max_seconds=max_seconds(path, a.k))
+                                            max_seconds=max_seconds(path, a.k, settle_s))
                         r = rollout(env, scene, teacher, cfg)
-                        written = write_held_episode(out, r, scene, source=ep, k=a.k, teacher_name=teacher.name)
+                        written = write_held_episode(out, r, scene, source=ep, k=a.k, teacher_name=teacher.name,
+                                                     extra={"grip_settle_m": a.grip_settle_m,
+                                                            "grip_settle_max_s": settle_s or None,
+                                                            "grip_waits": list(teacher.waits)})
                         row = {"demo_id": path.demo_id, "source_episode": str(ep), "seed": scene.seed, "k": a.k,
                                "success": r.success, "ended_by": r.ended_by, "reasons": list(r.reasons),
                                "steps": len(r.records), "episode": written["name"] if written else None,
                                "frames": written["n_steps"] if written else 0,
-                               "error": r.error, "wall_s": round(time.time() - t1, 1)}
+                               "teacher": teacher.name, "grip_settle_m": a.grip_settle_m,
+                               "grip_waits": list(teacher.waits), "error": r.error,
+                               "wall_s": round(time.time() - t1, 1)}
                         append_row(rows_path, row)
                         rows[path.demo_id] = row
                         log(f"{i + 1}/{len(todo)} {path.demo_id} seed={scene.seed} success={r.success} "
                             f"ended_by={r.ended_by} reasons={row['reasons']} steps={row['steps']} "
-                            f"frames={row['frames']} wall={row['wall_s']} s" + (f" error={r.error}" if r.error else ""))
+                            f"frames={row['frames']} waits={row['grip_waits']} wall={row['wall_s']} s" + (f" error={r.error}" if r.error else ""))
                     finish(out, sources, paths, rows, n_human, code, t0)
                     if lock is not None:  # before the app closes (closing it ends the process)
                         lock.release()
@@ -172,6 +184,8 @@ def finish(out: Path, sources, paths, rows, n_human: int, code: dict, t0: float)
                           name=f"held_human_{out.name}")
         (out / "grid.json").write_text(json.dumps(grid, indent=1), encoding="utf-8")
     summary = {"kept": len(kept), "attempted": len(sources), "frames": sum(r["frames"] for r in kept), "k": a.k,
+               "grip_settle_m": a.grip_settle_m,
+               "grip_settle_max_s": a.grip_settle_max_s if a.grip_settle_m is not None else None,
                "failures": failures, "cell": LABEL if kept else None, "source_grid": str(a.grid),
                "source_cell": a.cell, "execution": "held", "pairing": "after", "trajectory": "achieved",
                "code": code, "wall_s": round(time.time() - t0, 1),

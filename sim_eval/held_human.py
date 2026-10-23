@@ -123,40 +123,63 @@ def choose_k(max_lags: dict[float, list[float]], *, limit: float = LAG_LIMIT_M, 
 class HumanPathTeacher:
     """sim_eval.teacher.Teacher replaying one human path, slowed by k and capped as the RL teacher's env caps it.
     Its first step caps from the observed tool (after a reset, as RLTeacher), every later one from its own previous
-    target. Never abstains: after the path it holds the last point until the rollout ends."""
+    target. Never abstains: after the path it holds the last point until the rollout ends.
+
+    grip_settle_m (off by default): at each change of the human's gripper command, the path's clock stops (the
+    previous target and gripper held) until the tool is within grip_settle_m of the target, at most grip_settle_max_s;
+    then the change runs. A held step leaves the tool short of its target (the held RL teacher's episodes: 24 mm at its
+    close), so without it the fingers close where the human's tool would be, not where the tool is."""
 
     execution = "held"  # sim_eval.teacher.execution_mismatch: only a held rollout may run it
 
-    def __init__(self, path: HumanPath, k: float, *, v_max: float = rt.V_MAX, yaw_rate_max: float = rt.YAW_RATE_MAX):
+    def __init__(self, path: HumanPath, k: float, *, v_max: float = rt.V_MAX, yaw_rate_max: float = rt.YAW_RATE_MAX,
+                 grip_settle_m: float | None = None, grip_settle_max_s: float = 1.0):
         self.path, self.k, self.v_max, self.yaw_rate_max = path, float(k), v_max, yaw_rate_max
-        self.name = f"held-human-k{self.k:g}"
-        self._prev: tuple[np.ndarray, np.ndarray] | None = None
+        self.grip_settle_m, self.grip_settle_max = grip_settle_m, int(round(grip_settle_max_s / STEP_S))
+        self.name = f"held-human-k{self.k:g}" + (f"-settle{grip_settle_m * 1000:g}mm" if grip_settle_m else "")
+        self.waits: list[int] = []  # steps waited at each gripper change (this rollout)
+        self.reset(None)
 
-    def reset(self, scene: Scene) -> None:
-        self._prev = None
+    def reset(self, scene: Scene | None) -> None:
+        self._prev: tuple[np.ndarray, np.ndarray] | None = None
+        self._j = 0  # the path's clock (control steps); state.k when nothing waits
+        self._grip: int | None = None  # the gripper last commanded
+        self._wait = 0
+        self.waits = []
 
     def act(self, state) -> TeacherAction:
-        pos, yaw, grip = self.path.at(state.k, self.k)
         tcp = np.asarray(state.tcp_pos, dtype=np.float64).reshape(1, 3)
         if self._prev is None:
             self._prev = (tcp, rt.tool_yaw(np.asarray(state.tcp_quat_wxyz, dtype=np.float64).reshape(1, 4)))
+        pos, yaw, grip = self.path.at(self._j, self.k)
+        if (self.grip_settle_m is not None and self._grip is not None and grip != self._grip
+                and self._wait < self.grip_settle_max
+                and float(np.linalg.norm(tcp[0] - self._prev[0][0])) > self.grip_settle_m):
+            self._wait += 1  # hold the previous target and gripper; the path's clock waits
+            return TeacherAction(ee_pos=self._prev[0][0], ee_quat_wxyz=rt._down_turned(self._prev[1])[0],
+                                 gripper=self._grip)
+        if self._grip is not None and grip != self._grip and self.grip_settle_m is not None:
+            self.waits.append(self._wait)
+        self._wait = 0
+        self._j += 1
         cpos, cyaw = rt.cap_speed(pos.reshape(1, 3), np.array([yaw]), *self._prev, tcp, self.v_max,
                                   self.yaw_rate_max)
-        self._prev = (cpos, cyaw)
+        self._prev, self._grip = (cpos, cyaw), grip
         return TeacherAction(ee_pos=cpos[0], ee_quat_wxyz=rt._down_turned(cyaw)[0], gripper=grip)
 
 
-def max_seconds(path: HumanPath, k: float) -> float:
-    """The rollout's time limit: the slowed path plus SETTLE_S."""
-    return path.t[-1] * k + SETTLE_S
+def max_seconds(path: HumanPath, k: float, grip_settle_max_s: float = 0.0) -> float:
+    """The rollout's time limit: the slowed path plus SETTLE_S, plus the longest wait at each gripper change."""
+    return path.t[-1] * k + SETTLE_S + grip_settle_max_s * int(np.count_nonzero(np.diff(path.gripper)))
 
 
 def write_held_episode(root: Path, r: Rollout, scene: Scene, *, source: Path, k: float, teacher_name: str,
                        v_max: float = rt.V_MAX, yaw_rate_max: float = rt.YAW_RATE_MAX, robot: str = "franka",
-                       save_image=_save_png) -> dict | None:
+                       extra: dict | None = None, save_image=_save_png) -> dict | None:
     """The rollout as one training episode in <root>/episodes/held_<source demo id>/, if it passed check_success
     (else None): write_rollout's teacher episode ("after" pairing) under the source's lineage + this name, with the
-    achieved tool path as trajectory.json and distill.json (provenance: kind "held_human", source, k, the caps)."""
+    achieved tool path as trajectory.json and distill.json (provenance: kind "held_human", source, k, the caps, and
+    extra: the grasp wait's settings and waits)."""
     if not r.success or r.verdict is None or r.driver != "teacher" or r.teacher_execution != "held":
         return None
     src = EpisodeMeta.model_validate_json((Path(source) / "episode.json").read_text(encoding="utf-8"))
@@ -197,6 +220,7 @@ def write_held_episode(root: Path, r: Rollout, scene: Scene, *, source: Path, k:
         "rollout": {"success": r.success, "ended_by": r.ended_by, "reasons": list(r.reasons),
                     "steps": len(r.records), "arm_disagreement": arm, "gripper_disagreement": gdis},
         "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        **(extra or {}),
     }
     (ep / "distill.json").write_text(json.dumps(prov, indent=1), encoding="utf-8")
     return {"name": name, "ep_dir": str(ep), "n_steps": len(lab)}

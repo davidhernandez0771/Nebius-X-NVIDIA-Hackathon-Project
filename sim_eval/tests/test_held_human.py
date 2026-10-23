@@ -153,7 +153,7 @@ def test_a_passing_held_rollout_is_written_as_a_human_episode_with_its_achieved_
                                                    max_seconds=max_seconds(path, 1.25)))
     assert r.success and env.teacher_steps == []  # held: every step through env.step, never step_teacher
     row = write_held_episode(tmp_path / "out", r, scene, source=src, k=1.25, teacher_name=teacher.name,
-                             save_image=lambda p, img: p.write_bytes(b""))
+                             extra={"grip_waits": [0, 2]}, save_image=lambda p, img: p.write_bytes(b""))
     ep = Path(row["ep_dir"])
     assert ep.name == "held_human_20261020183738_00ab_rules_home_m3100"
     meta, steps, _ = load_episode(ep)
@@ -170,7 +170,7 @@ def test_a_passing_held_rollout_is_written_as_a_human_episode_with_its_achieved_
     prov = json.loads((ep / "distill.json").read_text())
     assert (prov["kind"], prov["k"], prov["pairing"], prov["teacher_execution"], prov["v_max"]) == (
         "held_human", 1.25, "after", "held", rt.V_MAX)
-    assert prov["source_demo_id"] == "human_20261020183738_00ab_rules_home_m3100"
+    assert prov["source_demo_id"] == "human_20261020183738_00ab_rules_home_m3100" and prov["grip_waits"] == [0, 2]
     tnpz = np.load(ep / "teacher.npz")
     assert (tnpz["obs_step"] == tnpz["label_step"] + 1).all()
 
@@ -192,3 +192,44 @@ def test_the_grid_is_one_valid_cell_of_the_passing_episodes(tmp_path):
     assert grid.cells[0].name == "held_human_10" and len(grid.cells[0].episode_dirs) == 2
     with pytest.raises(ValueError):
         human_grid([], n_human=10, name="x")
+
+
+def test_the_grasp_wait_pauses_the_path_at_a_gripper_change_until_the_tool_arrives():
+    p = path_of(straight(0.25, 0.1), [0, 0, 0, 1, 1, 1])  # 5 mm per step; the human closes at point 3
+    t = HumanPathTeacher(p, 1.0, grip_settle_m=0.005, grip_settle_max_s=0.06)  # at most 3 steps
+    assert t.name == "held-human-k1-settle5mm"
+    acts = [t.act(state(0, [0.45, 0.0, 0.35]))]
+    acts += [t.act(state(k, [0.45 + 0.005 * (k - 1), 0.0, 0.35])) for k in (1, 2)]  # the tool one step behind
+    assert [a.gripper for a in acts] == [0, 0, 0] and acts[-1].ee_pos[0] == pytest.approx(0.46)
+    far = t.act(state(3, [0.452, 0.0, 0.35]))  # 8 mm from the target: wait, the previous target and gripper held
+    assert far.gripper == 0 and far.ee_pos[0] == pytest.approx(0.46)
+    near = t.act(state(4, [0.457, 0.0, 0.35]))  # within 5 mm: the change runs, the path resumes at point 3
+    assert near.gripper == 1 and near.ee_pos[0] == pytest.approx(0.465) and t.waits == [1]
+    t2 = HumanPathTeacher(p, 1.0, grip_settle_m=0.005, grip_settle_max_s=0.06)
+    for k in range(3):
+        t2.act(state(k, [0.45, 0.0, 0.35]))
+    stuck = [t2.act(state(k, [0.40, 0.0, 0.35])).gripper for k in range(3, 7)]
+    assert stuck == [0, 0, 0, 1] and t2.waits == [3]  # never more than the longest wait
+    t2.reset(None)
+    assert t2.waits == [] and t2.act(state(0, [0.45, 0.0, 0.35])).gripper == 0
+
+
+def test_without_the_flag_the_gripper_changes_on_the_humans_clock():
+    p = path_of(straight(0.25, 0.1), [0, 0, 0, 1, 1, 1])
+    t = HumanPathTeacher(p, 1.0)
+    assert [t.act(state(k, [0.30, 0.0, 0.35])).gripper for k in range(5)] == [0, 0, 0, 1, 1] and t.waits == []
+
+
+def test_the_time_limit_grows_by_the_longest_wait_per_gripper_change():
+    p = path_of(straight(0.25, 0.1), [0, 1, 1, 0, 0, 1])
+    assert max_seconds(p, 2.0) == pytest.approx(0.2 + 4.0)
+    assert max_seconds(p, 2.0, 1.0) == pytest.approx(0.2 + 4.0 + 3 * 1.0)
+
+
+def test_a_grasp_wait_rollout_still_passes_in_the_toy(tmp_path):
+    scene = sample_scene(np.random.default_rng(3102), "franka", 3102)
+    path = HumanPath.from_episode(source_episode(tmp_path, scene))
+    teacher = HumanPathTeacher(path, 2.0, grip_settle_m=0.005)
+    r = rollout(ToyEnv(), scene, teacher, RolloutConfig(driver="teacher", teacher_execution="held",
+                                                       max_seconds=max_seconds(path, 2.0, 1.0)))
+    assert r.success and teacher.waits == [0, 0]  # the toy's tool is always at its target
