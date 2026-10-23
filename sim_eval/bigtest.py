@@ -2,9 +2,10 @@
 on pm/live-13). Pure parts; sim_eval/scripts/bigtest.py runs it under C:\\dev\\gpu.lock with the PC kept awake.
 
 Recipe v2, one combined arm, the same task:
-  human    T3's held re-execution of round 0's human demos (pm/held-human, its own command and lock). The chain starts
-           after its done marker. kept >= 80 of 110: Stage A uses its cell held_human_10; below that the ORIGINAL
-           perfected_multiply_10 (change 2 dropped, disclosed). Decided once (human_choice.json).
+  human    never implicit (T7, 2026-10-23: run 1 and the settle rerun write to different folders). Either
+           --held-human-dir: that T3 run's done marker is judged, kept >= 80 of 110 -> its cell held_human_10, below
+           that the ORIGINAL perfected_multiply_10 (change 2 dropped, disclosed); or --human-grid/--human-cell: the
+           set the lead's go names, as given. Decided once (human_choice.json); a different choice later is refused.
   teacher  the @600 teacher rollouts REUSED: 565 held episodes on 4300-4899 (demo_v6h model_2697, sha256 checked),
            copied into this run's round 0 and verified file by file. No new teacher seeds.
   A        distill round 0 on human + teacher (1/3 : 2/3 by frame share), 180k steps at batch 8 from scratch,
@@ -30,7 +31,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
-from sim_eval.distill_round import BIGTEST_TEST_SEEDS, RoundConfig, plan_round
+from sim_eval.distill_round import BIGTEST_TEST_SEEDS, RoundConfig, human_episodes, plan_round
 from sim_eval.overnight import (
     Phase, PhaseFailed, Runner, count_successes, find_train_run, guard_final, results_complete, run_phases,
     subprocess_runner,
@@ -57,7 +58,8 @@ class BigTest:
     start_state: Path = Path(r"C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10")
     original_human: tuple[Path, str] = (Path(r"C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json"),
                                         "perfected_multiply_10")
-    held_human_dir: Path = Path(r"C:\dev\pm-t3-hh\data\held_human\mouse20261020")
+    held_human_dir: Path | None = None  # T3's held-human run folder to judge (no default: run 1 != the rerun)
+    human_override: tuple[Path, str] | None = None  # (grid, cell) named by the lead's go
     held_human_cell: str = "held_human_10"
     held_floor: int = HELD_FLOOR
     steps: int = 180_000
@@ -84,8 +86,8 @@ class BigTest:
         return self.dir / "run_log.txt"
 
     @property
-    def held_done(self) -> Path:
-        return self.held_human_dir / "held_human_done.json"
+    def held_done(self) -> Path | None:
+        return None if self.held_human_dir is None else self.held_human_dir / "held_human_done.json"
 
     @property
     def test_run_id(self) -> str:
@@ -115,23 +117,57 @@ def sha256(path: Path) -> str:
 
 # --- human: T3's held re-execution, or the original set below the floor -----------------------------------------------
 
+def _counts(folder: Path) -> dict:
+    marker = Path(folder) / "held_human_done.json"
+    if not marker.exists():
+        return {}
+    done = _read(marker)
+    return {"kept": int(done["kept"]), "attempted": int(done["attempted"]), "frames": done.get("frames"),
+            "k": done.get("k")}
+
+
 def human_choice(bt: BigTest) -> dict:
-    """Decided once, from T3's done marker: {grid, cell, kept, attempted, held}. Raises PhaseFailed without it."""
+    """The human set, decided once (human_choice.json): {grid, cell, held, decided_by, kept, attempted, ...}.
+    bt.human_override (grid, cell) is taken as given; else bt.held_human_dir's done marker is judged against the
+    floor. Neither: refused. A recorded choice is returned; a different one asked for later is refused."""
     path = bt.dir / "human_choice.json"
     if path.exists():
-        return _read(path)
-    if not bt.held_done.exists():
-        raise PhaseFailed(f"human: T3's held-human run has no done marker yet ({bt.held_done})")
-    done = _read(bt.held_done)
-    kept, attempted = int(done["kept"]), int(done["attempted"])
-    held = kept >= bt.held_floor and (bt.held_human_dir / "grid.json").exists()
-    grid, cell = ((bt.held_human_dir / "grid.json", bt.held_human_cell) if held else bt.original_human)
-    choice = {"held": held, "grid": str(grid), "cell": cell, "kept": kept, "attempted": attempted,
-              "frames": done.get("frames"), "k": done.get("k"), "floor": bt.held_floor,
-              "reason": (f"held re-execution kept {kept}/{attempted} >= {bt.held_floor}" if held else
-                         f"held re-execution kept {kept}/{attempted} < {bt.held_floor}: the ORIGINAL human set "
-                         f"(change 2 dropped, disclosed)"),
-              "decided": datetime.now().isoformat(timespec="seconds")}
+        rec = _read(path)
+        if bt.human_override is not None and (rec["grid"], rec["cell"]) != (str(bt.human_override[0]),
+                                                                         bt.human_override[1]):
+            raise PhaseFailed(f"human: already decided {rec['cell']} from {rec['grid']} ({path}); "
+                              f"not changing it to {bt.human_override[1]} from {bt.human_override[0]}")
+        if bt.human_override is None and bt.held_human_dir is not None and \
+                rec.get("held_human_dir") != str(bt.held_human_dir):
+            raise PhaseFailed(f"human: already decided from {rec.get('held_human_dir') or rec['decided_by']} "
+                              f"({path}); not re-judging {bt.held_human_dir}")
+        return rec
+    now = datetime.now().isoformat(timespec="seconds")
+    if bt.human_override is not None:
+        grid, cell = Path(bt.human_override[0]), bt.human_override[1]
+        try:
+            human_episodes(grid, cell)
+        except (OSError, ValueError) as e:
+            raise PhaseFailed(f"human: {e}") from e
+        held = Path(grid).resolve() != Path(bt.original_human[0]).resolve()
+        choice = {"held": held, "grid": str(grid), "cell": cell, **_counts(grid.parent), "floor": bt.held_floor,
+                  "decided_by": "--human-grid/--human-cell (the lead's go)",
+                  "reason": f"named by the lead's go: {cell} from {grid}", "decided": now}
+    elif bt.held_human_dir is not None:
+        if not bt.held_done.exists():
+            raise PhaseFailed(f"human: T3's held-human run has no done marker yet ({bt.held_done})")
+        counts = _counts(bt.held_human_dir)
+        kept, attempted = counts["kept"], counts["attempted"]
+        held = kept >= bt.held_floor and (bt.held_human_dir / "grid.json").exists()
+        grid, cell = ((bt.held_human_dir / "grid.json", bt.held_human_cell) if held else bt.original_human)
+        choice = {"held": held, "grid": str(grid), "cell": cell, **counts, "floor": bt.held_floor,
+                  "held_human_dir": str(bt.held_human_dir), "decided_by": f"--held-human-dir {bt.held_human_dir}",
+                  "reason": (f"held re-execution kept {kept}/{attempted} >= {bt.held_floor}" if held else
+                             f"held re-execution kept {kept}/{attempted} < {bt.held_floor}: the ORIGINAL human set "
+                             f"(change 2 dropped, disclosed)"),
+                  "decided": now}
+    else:
+        raise PhaseFailed("human: no human set given; pass --held-human-dir or --human-grid/--human-cell")
     _write(path, choice)
     return choice
 

@@ -1,8 +1,11 @@
 r"""The 2026-10-23 big test, the whole chain in one restartable command (sim_eval/bigtest.py has the stages).
 
-    C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\bigtest.py [--dry-run] [--prepare] [--stop-after A]
+    C:\isaac\env_isaaclab\Scripts\python.exe sim_eval\scripts\bigtest.py ^
+        (--human-grid <grid.json> --human-cell <cell> | --held-human-dir <T3 run folder>) [--dry-run] [--stop-after A]
+    ... --prepare      (CPU only, no human set needed)
 
-Waits for T3's held-human done marker, then takes C:\dev\gpu.lock for the whole chain (A, B, the test) and keeps the
+The human set is never implicit: --human-grid/--human-cell as the lead's go names it, or --held-human-dir (that
+run's done marker against the 80/110 floor; the chain waits for it). Then the chain takes C:\dev\gpu.lock for the whole chain (A, B, the test) and keeps the
 PC awake; the lock is released on any exit, failure and Ctrl+C included. The same command after a crash skips the
 finished stages (and inside a stage the finished phases; a crashed training run resumes in its own folder).
 --prepare: CPU only, no lock: check the teacher checkpoint's sha256 and copy the reused teacher rollouts now.
@@ -39,9 +42,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dry-run", action="store_true", help="print the stages and what is done; run nothing")
     p.add_argument("--prepare", action="store_true", help="CPU only: teacher sha256 + copy the teacher rollouts")
     p.add_argument("--stop-after", choices=("human+teacher", "A", "B", "test"), default=None)
+    p.add_argument("--human-grid", type=Path, default=None, help="the human set named by the lead's go: its grid")
+    p.add_argument("--human-cell", default=None, help="... and its cell label")
+    p.add_argument("--held-human-dir", type=Path, default=None,
+                   help="T3's held-human run folder (held_human_done.json, grid.json) to judge against the floor")
     p.add_argument("--poll-s", type=float, default=60.0, help="how often to look for T3's done marker")
     args = p.parse_args(argv)
-    bt = BigTest(repo=REPO)
+    if (args.human_grid is None) != (args.human_cell is None):
+        p.error("--human-grid and --human-cell go together")
+    if args.human_grid is not None and args.held_human_dir is not None:
+        p.error("give --human-grid/--human-cell or --held-human-dir, not both")
+    bt = BigTest(repo=REPO, held_human_dir=args.held_human_dir,
+                 human_override=(args.human_grid, args.human_cell) if args.human_grid else None)
+    if not (args.prepare or args.dry_run or args.human_grid or args.held_human_dir
+            or (bt.dir / "human_choice.json").exists()):
+        p.error("no human set: pass --human-grid/--human-cell (the lead's go) or --held-human-dir")
 
     def log(msg: str) -> None:
         line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}"
@@ -73,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     status = {"started": datetime.now().isoformat(timespec="seconds"), "status": "waiting for T3"}
     status_path.write_text(json.dumps(status, indent=1), encoding="utf-8")
     try:
-        if not (bt.dir / "human_choice.json").exists():
+        if not (bt.dir / "human_choice.json").exists() and bt.held_done is not None:
             waited = 0.0
             while not bt.held_done.exists():
                 if waited % 1800 < args.poll_s:

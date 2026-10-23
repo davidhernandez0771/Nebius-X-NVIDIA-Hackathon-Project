@@ -219,3 +219,42 @@ def test_the_test_runs_once(tmp_path):
 
 def test_wilson():
     assert wilson(15, 40) == (0.242, 0.53)
+
+
+def test_the_human_set_is_never_implicit(tmp_path):
+    """T7 (2026-10-23): run 1's folder must not be read by default; the rerun lands in another folder. Without
+    --held-human-dir or --human-grid/--human-cell the chain refuses to decide."""
+    bt = make_bigtest(tmp_path).with_(held_human_dir=None)
+    assert BigTest(repo=tmp_path).held_human_dir is None and BigTest(repo=tmp_path).human_override is None
+    with pytest.raises(PhaseFailed, match="--held-human-dir or --human-grid"):
+        human_choice(bt)
+    assert not (bt.dir / "human_choice.json").exists()
+
+
+def test_the_held_dir_given_is_judged_and_recorded(tmp_path):
+    bt = make_bigtest(tmp_path, kept=95)
+    choice = human_choice(bt)
+    assert choice["held"] is True and choice["held_human_dir"] == str(bt.held_human_dir)
+    assert choice["decided_by"].startswith("--held-human-dir")
+
+
+def test_an_explicit_human_set_wins_and_is_recorded(tmp_path):
+    """The lead's go names the exact grid and cell (run 1, the settle rerun, or the original 110)."""
+    bt = make_bigtest(tmp_path, kept=40)
+    grid, cell = bt.original_human
+    choice = human_choice(bt.with_(human_override=(grid, cell)))
+    assert choice["grid"] == str(grid) and choice["cell"] == cell and choice["held"] is False
+    assert choice["decided_by"].startswith("--human-grid/--human-cell")
+    held = make_bigtest(tmp_path / "h", kept=40)
+    c2 = human_choice(held.with_(human_override=(held.held_human_dir / "grid.json", "held_human_10")))
+    assert c2["held"] is True and c2["kept"] == 40 and c2["attempted"] == 110  # the counts of the folder named
+    with pytest.raises(PhaseFailed, match="no cell"):
+        human_choice(make_bigtest(tmp_path / "x").with_(human_override=(grid, "no_such_cell")))
+
+
+def test_a_recorded_choice_refuses_a_different_one(tmp_path):
+    bt = make_bigtest(tmp_path, kept=100)
+    first = human_choice(bt)
+    assert human_choice(bt) == first
+    with pytest.raises(PhaseFailed, match="already decided"):
+        human_choice(bt.with_(human_override=bt.original_human))
