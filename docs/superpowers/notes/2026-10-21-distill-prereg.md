@@ -1086,3 +1086,363 @@ non-gate seeds, and the gate seeds 5450–5499 are untouched.
 - **A note from T3:** each `rl_eval_teacher` run re-exports `exported\policy.pt` from `model_2697`. It is the same
   checkpoint, so it is the same policy, but the file's modification time changes. Tonight's gate (b) uses that file,
   so T3 leaves it alone until gate (b) ends.
+
+## 2026-10-22: Amendment 5's morning steps
+
+**Step 1 (diagnostic only): the replay check on 7000–7031 under the achieved recording**
+(`data\rl\eval\v6h_replaycheck_7000_achieved`). It used `model_2697`, the held execution and code `6101243`.
+
+| Measure | Achieved recording (step 1) | Commanded recording (last night) |
+|---|---|---|
+| In the env | 30/32 (7016 collision; 7023 collision and dropped) | 30/32 |
+| **SANT's replay verify** | **29/32** (Wilson 0.758–0.968) | 22/32 |
+| Agreement, in-env vs replay | 31/32 | 24/32 |
+
+- **The replay failures:** 7006 (not in the bin, and dropped), 7016 (collision) and 7023 (collision and dropped).
+- **The replay durations:** 6.96 / 8.16 / 11.98 s (T3's figures).
+- **Timing:** the eval ran 07:46:48–07:47:23. The verify took and released its lock at 07:47:25 and was done at
+  07:56:51.
+- **Checked here:**
+  - `in_env.json` (07:47:22) has `execution: held`, `trajectory: achieved` and 30/32 on `model_2697`;
+  - `verify.json` (07:56:50) has 29/32 (Wilson 0.758–0.968), agreement 31, and failure counts not_in_bin 1, dropped 2,
+    collision 2;
+  - there are 32 scenes, 7000–7031.
+- **Diagnostic only:** these are the seeds that motivated Amendment 5, so this result decides nothing.
+
+**Step 2, the decision test on fresh seeds 7100–7131,** started at about 07:57, into
+`data\rl\eval\v6h_check_7100_achieved`. Gate (a) runs only if its SANT replay verify is ≥ 29/32.
+
+**Step 2, THE DECISION TEST, on fresh seeds 7100–7131: PASSED, with SANT's replay at 30/32** (Wilson 0.799–0.983),
+against the bar of ≥ 29/32. It used `data\rl\eval\v6h_check_7100_achieved`, `model_2697`, the held execution, the
+achieved recording and code `6101243`.
+- **In the env:** 29/32 (7104 collision; 7115 collision and dropped; 7118 collision).
+- **The replay failures:** 7104 (collision) and 7115 (not in the bin, and dropped).
+- **Agreement, in-env vs replay: 31/32.** The only disagreement is 7118, which fails in the env and succeeds in replay.
+- **The replay durations:** 7.08 / 8.32 / 11.98 s (T3's figures).
+- **Timing:** the eval ran 07:57:14–07:58:05. The verify took and released its lock at 07:58:06 and was done at
+  08:09:14.
+- **Checked here:**
+  - `in_env.json` (07:58:05) has `execution: held`, `trajectory: achieved` and 29/32 on `model_2697`;
+  - `verify.json` (08:09:14) has 30/32 (Wilson 0.799–0.983), agreement 31, and failures collision 1, not_in_bin 1,
+    dropped 1;
+  - there are 32 scenes, 7100–7131.
+
+**So gate (a) runs, as Amendment 5 says.** It started once, on 5450–5499, into `data\rl\eval\v6h_gate_a`.
+- **Checked here:** the folder was created at 08:09:35, after the decision test's verify had finished (08:09:14).
+  `gpu.lock` reads `rl-eval:v6h_gate_a`, taken at 08:09:35.
+- The teacher gate under Amendment 4 needs both parts; part (b) passed at 48/50.
+
+**Gate (a): PASSED, run once on 5450–5499. SANT's replay verify: 48/50** (Wilson 0.865–0.989), against the bar of
+≥ 45/50.
+- **Run:** `data\rl\eval\v6h_gate_a`, with `model_2697` (run `2026-10-21_21-33-14_demo_v6h`), the held execution, the
+  achieved recording and code `6101243`.
+- **The replay failures:** 5454 (collision) and 5463 (not in the bin, and dropped).
+- **The first 30 seeds (5450–5479):** 28/30 (Wilson 0.787–0.982).
+- **In the env:** 49/50 (5454 collision).
+- **Agreement:** 49/50. 5463 succeeds in the env and fails in replay.
+- **The replay durations:** 6.88 / 7.72 / 11.98 s (T3's figures).
+- **Timing:** the eval ran 08:09:32–08:10:22. The verify took and released its lock at 08:10:23 and was done at
+  08:25:32.
+- **Checked here:**
+  - `in_env.json` (08:10:21) has `execution: held`, `trajectory: achieved` and 49/50 on `model_2697`;
+  - `verify.json` (08:25:32) has 48/50 (Wilson 0.865–0.989), agreement 49, and failures collision 1, not_in_bin 1,
+    dropped 1;
+  - there are 50 scenes, 5450–5499.
+- **The export:** `exported\policy.pt` was re-exported from `model_2697` at 08:09:47 by the gate's eval, as T3 noted
+  last night. It is the same checkpoint, so it is the same policy. Gate (b) ran on the previous export of the same
+  checkpoint.
+
+**THE TEACHER GATE UNDER AMENDMENTS 4–5 IS PASSED:** part (a) replay 48/50 on 5450–5499, and part (b) in the camera env
+48/50 on 4950–4999.
+- **The teacher:** `demo_v6h` `model_2697`, with the held execution.
+- **The final teacher code** (Amendment 4 A): **`6101243`** on `pm/rl-teacher`. It is unchanged since the gate's runs.
+  T3's notes commit with the gate results is **`314613e`**. It is docs only (checked: it adds 24 lines to T3's gate
+  note, and no code), so `pm/rl-teacher`'s tip is `314613e` while the teacher's code stays `6101243`. T3's training
+  totals: 2698 iterations, 7271 s.
+- **Next:** T6's held round 0 on 4300–4599, on the lead's go; then selection on 5301–5329 (≥ 18/29); then, if it
+  passes, the test on 5020–5059, once.
+
+**Round 0 under the held execution (Amendment 4 C) started** at 08:26:40 (PID 46044, T6), and took `gpu.lock` at
+08:26:47.
+- **The run:** run id `distill_mouse_held`, `--teacher-execution held`.
+- **Seeds:** teacher 4300–4599; selection 5301–5329 (29 seeds, bar ≥ 18/29).
+- **The recipe is unchanged:** 60k steps, batch 8, candidates 40k and 60k, weights 0.25 / 0.5 / 0.25 (1/3 : 2/3 in
+  round 0, which has no DAgger source), and no extra training or inference arguments.
+- **The code:** `pm/distill-dagger` `95663cb`, clean. It merges T3's `6101243`, which touches only T3's eval script.
+  - Checked here: the commit is on the branch, and the lock reads `distill_mouse_held_r0`, taken at 08:26:47.
+- **The teacher:** `demo_v6h` `model_2697`, through `exported\policy.pt`, whose `make()` declares the held execution.
+- **The test seeds 5020–5059 are untouched.**
+
+**Disclosed: the teacher file's bytes differ from gate (b)'s.**
+- **Round 0's file:** gate (a)'s eval re-exported `exported\policy.pt` from `model_2697.pt` at 08:09:47. Its sha256 is
+  `811382a3…77aa2`, which I re-computed here and which matches T6's figure.
+- **Gate (b)'s file:** last night's export, from the same checkpoint, had sha256 `b67476d9…` (T6's figure). It was
+  overwritten in place by the re-export.
+- **So:** both files come from the same checkpoint. Gate (a) ran from `model_2697.pt` itself, and round 0 uses the
+  export made at gate (a)'s start.
+- **T6's weights check** (CPU, while round 0 ran on the GPU):
+  - **Method:** today's `policy.pt` (`811382a3…`) was loaded with `torch.jit`. All its parameters and buffers were
+    compared with `torch.equal` against `model_2697.pt`'s `actor_state_dict`.
+  - **Result:** **12/12 tensors bit-identical**: the four MLP layers' weights and biases, and the observation
+    normaliser's `_mean`, `_var`, `_std` and `count`.
+  - **The control:** `model_2650` matches 0/12, which shows the check can fail.
+  - **So** round 0's teacher file is exactly `model_2697`'s actor and observation normaliser.
+- **Last night's file can't be compared directly:** no copy survives.
+  - **What is known:** it was exported from `model_2697.pt` by T3's breakdown and replay-check run. It was written at
+    22:03:20, after `model_2697.pt` (22:00:28), the run's last checkpoint.
+  - **The inference (not a direct check):** it carried the same 12 tensors, and the byte difference comes from the
+    TorchScript archive's metadata.
+- **Closed (T3, checked on the CPU): last night's export carried the same 12 tensors.**
+  - **The exporter is deterministic apart from the zip metadata.** T3 exported `model_2697` twice, the way
+    `rsl_rl`'s `export_policy_to_jit` does. The two files have different sha256s (`cda8abc3…`, `c87e3604…`), but every
+    zip entry's content is identical, and identical to the current `policy.pt` (`811382a3…`). Only the TorchScript
+    container's metadata differs.
+  - **The current file's 12 tensors equal `model_2697`'s actor and normaliser** (max abs diff 0.0). Its outputs on 100
+    random observations differ by 0.0 from a fresh export, and by 0.0 from the eager actor.
+  - **`model_2697.pt`** (sha256 `49af0e9a…`) was written at 22:00:28, at the end of training, and is unchanged since.
+    Last night's export was made from it at 22:03, by the same code.
+    - Checked here: the file's time is 22:00:28, and its sha256 starts `49af0e9a`.
+  - **So gate (b), gate (a) and round 0 all used the same teacher, `model_2697`.** T3's report is `export_check\report.json` in T3's scratchpad.
+
+**Held round 0's teacher rollouts: 289/300 (96.3%) on 4300–4599**, held execution, 115,111 teacher frames, 08:26:47 →
+09:42:54 (wall 4,564 s).
+- **The 11 failures, all at the time limit:** 4354, 4360, 4401, 4433, 4451, 4456, 4500, 4511, 4557, 4595, 4598. No
+  failed rollout enters the training data.
+- **The mix (grid `distill_mouse_held_r0_t300`):** human 110 episodes, 31,536 frames ×1.8251 = share 0.3341; teacher
+  289 episodes, 115,111 frames ×1.0 = share 0.6659; target 1/3 : 2/3.
+- **data_check is clean:** human seeds 0–4009, teacher seeds 4300–4599. None touches the selection seeds 5301–5329, the
+  DAgger seeds 5210–5249 or the test seeds 5020–5059.
+- **The code:** `pm/distill-dagger` `95663cb`, clean, for both the rollouts and the round.
+- **Training started at 09:42:54:** ACT, 60k steps, candidates 40k and 60k, as fixed in Amendment 4 C. Next is selection
+  on 5301–5329 (bar ≥ 18/29).
+- **Checked here:**
+  - `rollouts_done.json`: 289/300, 115,111 frames, `ended_by` success 289 / time_limit 11, teacher
+    `rl-2026-10-21_21-33-14_demo_v6h` through `exported\policy.pt`, `teacher_execution: held`, `beta` 0.0, code
+    `95663cb` clean;
+  - `rollouts.jsonl`: 300 rows, seeds 4300–4599 each once, the 11 failures above, and 115,111 frames over the
+    successes;
+  - `round_t300.json`: the mix and data_check above;
+  - `distill_round.log`: the lock taken at 08:26:47, rollouts exit 0 and training started at 09:42:54. `gpu.lock` still
+    reads `distill_mouse_held_r0`.
+
+**Held round 0 @300: SELECTION FAILED on 5301–5329.** 40k scored 10/29 and 60k scored 12/29, against the bar of
+≥ 18/29 (Amendment 4 D). 60k is the picked checkpoint.
+- **Timeline:** training ran 09:42:54 → 11:36:37 (exit 0). Selection of 40k ran 11:36:37 → 12:03:44, and of 60k
+  → 12:28:57. The GPU lock was released at 12:28:57.
+- **The failures, all at the time limit:**
+  - 60k, 17 failures: dropped 15, not_in_bin 14, collision 9, gripper_closed 7. A failure can carry several reasons.
+  - 40k, 19 failures: dropped 18, not_in_bin 14, collision 11, gripper_closed 6.
+- **For comparison:** round 0 @300 under the old execution scored 0/30 at both checkpoints, on 5300–5329.
+- **The code:** `pm/distill-dagger` `95663cb`, clean. No inference arguments.
+- **So, per Amendment 4 D:** round 0 is extended to 600 teacher runs on 4300–4899, retrained and reselected on
+  5301–5329 with the same bar. The test seeds 5020–5059 stay untouched.
+- **Checked here:**
+  - `selection_t300.json`: counts 40000 10/29 and 60000 12/29, `chosen_step` 60000, seeds 5301–5329, code `95663cb`
+    clean;
+  - both `*.episodes.jsonl` files: 29 episodes each, seeds 5301–5329 each once, and the failure counts above;
+  - `distill_round.log`: the times above.
+
+**A diagnostic trace of the 60k pick, and a seed error caught before any episode ran.**
+- **The error:** the lead's standing orders put a ≤ 15 min closed-loop trace on practice seeds 5210–5214. Those seeds
+  are inside DAgger round 1's range, 5210–5249 (Amendment 4 D), which was moved off 5200–5209 because diagnosis had seen
+  those. The cause is the lead's error, as the lead said.
+- **Two attempts on 5210–5214 were stopped during startup:** 12:29:47–12:30:55 and 12:31:25–12:31:32 (T6). Neither ran
+  an episode.
+  - **Checked here:** `data\evals\distill_held_diag_r0_t300` holds only startup files:
+    - `gate_checks.jsonl`, `trace_run.log` and `picked_s60000.server.log` (the policy server came up at 12:30:55);
+    - `picked_s60000.eval.log`, which is empty.
+    - There is no episodes file and no trace file.
+- **So DAgger round 1 stays at 5210–5249 with `--dagger-seed0 5210`, as Amendment 4 D says.** A move to 5215–5254 was
+  considered for a few minutes and is cancelled, since no 5210+ seed was seen.
+- **The trace runs instead on 5200–5204**, practice seeds already spent on diagnostics.
+  - **The run:** run id `distill_held_diag_r0_t300_p5200`, started 12:31:52 (`gpu.lock` `distill_held_diag`).
+  - **The policy:** the 60k pick, with plain flags and `--trace`.
+  - **What it can change:** it is a diagnostic only. It can stop the extension only if it shows a new systematic bug.
+    Otherwise the extension to 600 runs as fixed: teacher 4300–4899, selection 5301–5329, bar ≥ 18/29.
+  - **Its findings are added here.** The run's `gpu.lock` was taken at 12:31:52 by PID 41060.
+
+**The trace (diagnostic only): 3/5 on 5200–5204, 12:31:52 → 12:36:24.** It used the 60k pick, plain flags and
+`--trace`. **No new systematic bug** (T6).
+- **5201 dropped:** the cube was lifted to 0.15 m, dropped, and then the policy looped regrasping.
+- **5204 not_in_bin + gripper_closed + dropped:** 10 gripper closes, 5–12 cm off the cube.
+- **The tracking lag:** median 0.016–0.039 rad, the teacher's own scale.
+- **Checked here:** `distill_held_diag_r0_t300_p5200\picked_s60000.episodes.jsonl` has 5200 ✓, 5201 dropped,
+  5202 ✓, 5203 ✓, and 5204 not_in_bin / gripper_closed / dropped, each at the time limit; traces are in
+  `picked_s60000_traces`.
+- It fixes nothing, and it changes nothing in the plan.
+
+**The extension to 600 (Amendment 4 C/D) started at 12:36:41-42** (PID 28096, T6). It took `gpu.lock` at 12:36:49.
+- **The run:** the same run id, `distill_mouse_held`, with `--teacher-execution held`, `--teacher-seed0 4300` and
+  `--teacher-n 600`.
+  - The teacher seeds are 4300–4899. The 300 existing rows resume, and 4600–4899 are new.
+- **The selection:** 5301–5329, bar ≥ 18/29. The recipe and the candidates (40k, 60k) are unchanged.
+- **The code:** `95663cb`, clean.
+- **The teacher:** `exported\policy.pt`, sha256 `811382a3…77aa2`, unchanged since 08:09:47.
+- **Checked here:**
+  - the sha256 and the file time;
+  - `distill_round.log`: the lock at 12:36:49, and "teacher rollouts on seeds 4300-4899";
+  - `rollouts.jsonl` still holds its 300 rows (09:42:53), and `round_t300.json` and `selection_t300.json` are kept;
+  - **no file** in any worktree's `data/` uses a seed in 4600–4899, so the new teacher seeds are fresh.
+
+**The extension's teacher rollouts: 565/600 (94.2%) on 4300–4899**, held execution, 224,435 teacher frames. They ran
+12:36:49 → 13:58:16 (wall 4,884 s for the 300 new seeds).
+- **The new seeds 4600–4899:** 276/300 (92.0%). The 300 resumed rows on 4300–4599 are unchanged: 289/300, with the same
+  11 failures as before.
+- **The 35 failures, all at the time limit:**
+  - 4300–4599: 4354, 4360, 4401, 4433, 4451, 4456, 4500, 4511, 4557, 4595, 4598;
+  - 4600–4899: 4623, 4630, 4645, 4647, 4655, 4659, 4662, 4682, 4683, 4707, 4715, 4723, 4734, 4749, 4763, 4768, 4775,
+    4787, 4841, 4842, 4857, 4867, 4877, 4885.
+- **The mix (`round_t600.json`):**
+  - human: 110 episodes, 31,536 frames ×3.5584, share 0.3335;
+  - teacher: 565 episodes, 224,435 frames ×1.0, share 0.6665;
+  - target 1/3 : 2/3.
+- **data_check is clean:** human seeds 0–4009, teacher seeds 4300–4899.
+- **The code:** `95663cb`, clean, for both the rollouts and the round.
+- **The @300 files** (`round_t300.json`, `selection_t300.json`) are kept as they were, dated 12:28:57.
+- **Training started at 13:58:17:** ACT, 60k steps, candidates 40k and 60k. Next is selection on 5301–5329 (bar
+  ≥ 18/29), which T6 expects around 17:30–18:00.
+- **Checked here:**
+  - `rollouts_done.json`: 565/600, 224,435 frames, success 565 / time_limit 35, held, code `95663cb` clean;
+  - `rollouts.jsonl`: 600 rows, seeds 4300–4899 each once, the 35 failures above, and 276 successes on 4600–4899;
+  - `round_t600.json`: the mix and data_check above;
+  - `distill_round.log`: training started at 13:58:17. The lock is still the extension's, from 12:36:49.
+
+**Fixed in advance, before the @600 selection result exists: T3's DAgger relabel hook, `cap_from_tool`.** It applies to
+DAgger round 1 only, if that round is ever needed.
+- **The commits:** `pm/rl-teacher` `c75d3da` (14:06:22, the hook) and `681e8dd` (14:08:36, `make()` passes the flag
+  through). The parent is `314613e`. Not pushed.
+  - The diff touches only `sim_worker/rl_policy.py` (+23 / −4) and `tests/test_rl_policy.py` (+42).
+- **The flag:** `cap_from_tool`, default `False`, on `RLTeacher(...)` and `rl_policy.make(...)`. There are also two
+  one-step hooks, `forget_prev_target()` and `observe_executed(tcp_pos, tcp_quat_wxyz)`.
+- **What it changes, with the flag on:** each label's speed cap (1 cm/step = 0.5 m/s; yaw 0.05 rad/step = 2.5 rad/s)
+  is measured from the tool pose the state actually has, which is what the teacher already does on its first step
+  after a reset.
+  - **What it doesn't change:** the previous action fed back in the policy's observation stays the teacher's own last
+    action. Nothing else changes.
+- **Why it enables the run (T3's case, the lead's request):** when the student drives, the teacher's own previous
+  target is where the teacher would have been, not where the tool is.
+  - So, without the flag, a label can be up to two capped steps from the student's tool. That breaks the 0.5 m/s cap
+    the teacher was trained and gated under, relative to the state the label is for.
+  - T3's test case: the last target is 0.46 and the tool is at 0.40. The default label is 0.42, which is 2 cm, or
+    1 m/s, from the tool. With the flag, the label is 0.41, one capped step.
+- **Default off, so nothing already run changes:** round 0 (@300 and @600) and gates (a) and (b) never set the flag.
+  - The run going on now uses `pm/distill-dagger` `95663cb`, which doesn't contain these commits.
+- **The tests (T3):** SANT 2610 passed / 36 skipped; the Isaac venv's `test_rl_*.py` 55 passed / 1 skipped.
+- **Checked here:**
+  - the two commits, their times and parents;
+  - the diff (`act()` calls `forget_prev_target()` only when `cap_from_tool` is set);
+  - `pm/distill-dagger` doesn't yet reference `cap_from_tool`.
+- **Still to fix before any DAgger data exists:** for DAgger round 1 to use the flag, `pm/distill-dagger` must merge
+  `681e8dd` and pass `cap_from_tool=True` to the teacher in DAgger rounds only, never in round 0.
+  - That merge and wiring is a separate commit, made by T6 in a scratch worktree while selection runs. It is logged
+    here when T6 sends its hash.
+  - If it isn't in place before DAgger round 1 starts, round 1 runs with the default labels, and that is disclosed.
+
+**Held round 0 @600: SELECTION PASSED on 5301–5329.** 60k scored **21/29** (72.4%, Wilson 0.543–0.853), against the bar
+of ≥ 18/29 (Amendment 4 D). 40k scored 15/29 (Wilson 0.344–0.686). **60k is picked, and it is the FINAL MODEL.** No
+DAgger round is run.
+- **Timeline:** training ran 13:58:17 → 17:05:44 (exit 0). Selection of 40k ran 17:05:44 → 17:29:25, and of 60k
+  → 17:47:42. The GPU lock was released at 17:47:42.
+- **The failures, all at the time limit:**
+  - 60k, 8 failures (5302, 5305, 5307, 5316, 5320, 5321, 5322, 5329): dropped 8, not_in_bin 6, gripper_closed 2,
+    collision 1. A failure can carry several reasons.
+  - 40k, 14 failures: not_in_bin 14, dropped 13, gripper_closed 6, collision 5.
+- **The steps so far:**
+
+  | Arm | Teacher runs | 40k | 60k |
+  |---|---|---|---|
+  | round 0 @300, old execution | 300 | 0/30 | 0/30 |
+  | held round 0 @300 | 300 | 10/29 | 12/29 |
+  | held round 0 @600 | 600 | 15/29 | **21/29** |
+
+- **The final model:** `data\experiments\distill_mouse_held_r0_t600_20261022_135818\train\distill_r0\checkpoints\060000\pretrained_model`
+  (T6). The code is `pm/distill-dagger` `95663cb`, clean, with no inference arguments.
+- **The selection used the same start settings as the test** (`--start-state ...hx_mouse20261020_20261020_164411\datasets\raw_10
+  --start-pose dataset`), according to `select_60000.log`.
+- **Checked here:**
+  - `selection_t600.json`: counts 40000 15/29 and 60000 21/29, `chosen_step` 60000, teacher seeds 4300–4899, code
+    `95663cb` clean;
+  - both `*.episodes.jsonl` files: 29 episodes each, seeds 5301–5329 each once, and the failure counts above;
+  - `distill_round.log`: the times above.
+- **The @300 records are kept** (`selection_t300.json`, 12:28:57).
+- **T3's `cap_from_tool` hook is not used,** since no DAgger round runs.
+
+**THE FINAL TEST STARTED, ONCE, at 17:48:15** (PID 6056, `gpu.lock` `T6 6056 distill_mouse_final`, T6).
+- **The command is the prereg's "The test", unchanged:**
+
+  ```text
+  eval_cells.py --run-id distill_mouse_final --checkpoint distill_final=<the final model above> --seed0 5020 --n 40 ^
+    --start-state <DATA_DIR>\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset --trace
+  ```
+
+  It runs with no inference flags and the unchanged `check_success`.
+- **The code:** `95663cb`, clean.
+- **Checked here:** the lock, and that `data\evals\distill_mouse_final` was created at 17:48:15–16.
+- **The result is added here** as success/40 with its Wilson 95% CI, the goal of ≥ 24/40, Fisher exact vs mouse SANT
+  3/40 and vs raw 0/40, and the scripted multiply 17/40 as a reference only.
+
+## RESULT: the final test, run once on 5020–5059
+
+**15/40 (37.5%), Wilson 95% CI 0.242–0.530. THE GOAL OF ≥ 24/40 (60%) IS NOT MET.**
+
+| Comparison (two-sided Fisher exact, α = 0.05) | Arm | p | |
+|---|---|---|---|
+| **vs the mouse SANT arm** (same data, no teacher) | 3/40 | **0.0025** | significant (needed ≥ 11/40) |
+| **vs the mouse raw arm** | 0/40 | **1.2 × 10⁻⁵** | significant (needed ≥ 6/40) |
+| the scripted multiply, **a reference only** (not a pre-registered comparison) | 17/40 | 0.82 | no detectable difference |
+
+- **The model:** the camera ACT student, held round 0 @600, 60k
+  (`distill_mouse_held_r0_t600_20261022_135818\...\checkpoints\060000\pretrained_model`). It is the SANT mouse data
+  (`mouse20261020`, `perfected_multiply_10`) plus the RL teacher `demo_v6h` `model_2697`, held execution, 565 teacher
+  episodes on 4300–4899.
+- **The run:**
+  - lock 17:48:15 → 18:24:12; `eval_cells` exit 0, `distill_final: evaluated`;
+  - the prereg's command, unchanged: `--seed0 5020 --n 40`, the start state from `raw_10` (`--start-pose dataset`,
+    dataset mean chosen), `--trace`;
+  - no inference flags, and the unchanged `check_success`;
+  - code `pm/distill-dagger` `95663cb`, clean.
+- **No sim_error or policy_error, so no episode was re-run.** The test ran once.
+- **The 25 failures, all at the time limit; every one includes `dropped`:**
+  - dropped 25, not_in_bin 22, gripper_closed 8, collision 7. A failure can carry several reasons.
+  - The seeds: 5022, 5023, 5024, 5025, 5028, 5029, 5030, 5031, 5032, 5034, 5037, 5038, 5039, 5043, 5045, 5046, 5047,
+    5048, 5049, 5050, 5051, 5054, 5055, 5057, 5058.
+  - **So the grasp that doesn't hold is again the bottleneck,** as in every earlier arm on these seeds.
+- **Selection vs test:** 21/29 (72%) on selection, 15/40 (37.5%) on test.
+  - The Wilson intervals don't overlap: selection 0.543–0.853, test 0.242–0.530.
+  - The selection figure is expected to be optimistic. It is the better of two candidates, picked on the same 29
+    seeds it is scored on (the winner's curse), with a wide interval at n = 29.
+  - **The gap is larger than that alone readily explains:** 21/29 vs 15/40 gives two-sided Fisher p = 0.007.
+    - Recomputed here, at the pooled rate 36/69 = 0.52, assuming independent candidates: P(the better of two
+      ≥ 21/29) ≈ 4%, and P(test ≤ 15/40) ≈ 4%. T6's figures are ≈ 5% and ≈ 6%.
+    - So it is an unlucky draw at both ends, or a difference not found yet.
+  - **T6's gap analysis** (CPU, `pm/distill-dagger` `9d8621e`) found no mechanism:
+    - **The scenes:** both sets are regenerated with the same `sample_scene`. The medians of cube x, cube–bin
+      distance, cube radius and yaw are nearly equal.
+    - **The bin side:** it differs (bins on +y: selection 16/29, test 14/40), but it doesn't predict success.
+      Test is 5/14 vs 10/26, selection 12/16 vs 9/13, pooled Fisher p = 0.63.
+    - **No feature** separates successes from failures.
+    - **The run conditions** are identical apart from `--trace`, and the tracer is passive.
+  - **The test is the one figure reported, as run.**
+- **Checked here:**
+  - `distill_final.episodes.jsonl`: 40 episodes, seeds 5020–5059 each once, no errors, and the failure seeds and
+    reasons above;
+  - `distill_final.json`'s summary: 15/40 and the same counts; its checkpoint is the selected one;
+  - the runner log: one cell, evaluated once; 80 trace files;
+  - the Wilson CI and both Fisher p-values, re-computed here, match T6's.
+
+**What it means, in plain terms:** distilling the RL teacher into the camera student took this data from 3/40 (SANT
+alone) and 0/40 (raw) to 15/40 on the same unseen seeds. Both differences are significant. The 60% goal is not reached,
+and the student shows no detectable difference from the scripted multiply (17/40, p = 0.82).
+
+**Not run:**
+- **DAgger:** the rule ends at selection, which passed.
+- **The secondary no-demo teacher arm** (`SANT-PickPlace-Franka-RL-NoDemo-v0`): there was no time for it.
+
+**The test seeds 5020–5059 are now spent for this arm.** Any further experiment, such as DAgger or more teacher
+data, is a NEW experiment. It needs its own preregistration and fresh test seeds, and can't be run on 5020–5059.
+
+**The code used (the prereg's "record the commits"):**
+- **`pm/rl-teacher`:** teacher code `6101243`; branch tip `681e8dd`, which adds only the unused, off-by-default
+  `cap_from_tool`;
+- **`pm/distill-dagger`:** code `95663cb`; branch tip `9d8621e` (notes only on top: the results and the gap
+  analysis).

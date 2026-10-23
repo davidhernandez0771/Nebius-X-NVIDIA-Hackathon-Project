@@ -32,3 +32,11 @@ def high_qos() -> bool:
     state = _ThrottlingState(THROTTLING_VERSION, EXECUTION_SPEED | IGNORE_TIMER_RESOLUTION, 0)
     return bool(kernel32.SetProcessInformation(kernel32.GetCurrentProcess(), PROCESS_POWER_THROTTLING,
                                                ctypes.byref(state), ctypes.sizeof(state)))
+
+
+def full_speed() -> bool:
+    """high_qos(), logged to stderr (stdout stays the caller's): for every process of a long GPU run (a distill round,
+    an eval), which Windows throttles in the background, and the opt-out is per process. True if Windows accepted it."""
+    ok = high_qos()
+    print(f"[qos] Windows power throttling off: {ok}", file=sys.stderr, flush=True)
+    return ok

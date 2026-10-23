@@ -1,0 +1,10 @@
+{
+ "success": false,
+ "reasons": [
+  "collision"
+ ],
+ "duration": 8.76,
+ "path_length": 3.1470778962108095,
+ "max_contact_force": 93.99374389648438,
+ "settle_time": 0.5
+}
