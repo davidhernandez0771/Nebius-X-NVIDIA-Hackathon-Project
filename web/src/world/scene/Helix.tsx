@@ -13,6 +13,7 @@ import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { QualityTier } from "../core/quality";
+import { GAP_INSET, GAP_PUSH, gap, gapShift } from "./armTask";
 import { CARTRIDGE_URL } from "./assets";
 import { cartridgeParts, labelAtlas, offRedraw, slotMatrix, tileAttribute } from "./cartridge";
 import { DRAFT_TILE, ITEM_TILE0, SAVED_TILE0 } from "./labels";
@@ -77,6 +78,19 @@ export function slotLook(slot: number): { tile: number; shell: THREE.Color } {
   return k < 0 ? { tile: 0, shell: new THREE.Color().setRGB(...GRAPHITE, THREE.LinearSRGBColorSpace) } : { tile: TILES[k], shell: shells[k] };
 }
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+const _turn = new THREE.Matrix4();
+
+/** Move a spiral cartridge's matrix aside for the arm (armTask.ts gap): round the axis, and in a little. */
+function partFor(m: THREE.Matrix4): void {
+  const e = m.elements;
+  const turn = gapShift(Math.atan2(e[12], e[14]), e[13]);
+  if (turn === 0) return;
+  const r = Math.hypot(e[12], e[14]);
+  const inset = r > 1e-6 ? Math.max(0, r - GAP_INSET * Math.min(1, Math.abs(turn) / GAP_PUSH)) / r : 1;
+  e[12] *= inset;
+  e[14] *= inset;
+  m.premultiply(_turn.makeRotationY(turn));
+}
 
 /** Metres out of the slot per unit of pop, and up. */
 const OUT_M = 1.1;
@@ -120,7 +134,7 @@ export function Helix({ quality, reduced, active, browsing, onPick, onGrab, held
   const invalidate = useThree((s) => s.invalidate);
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
   const proxyRef = useRef<THREE.InstancedMesh | null>(null);
-  const st = useMemo(() => ({ pop: new Float32Array(N), dim: new Float32Array(N).fill(1), shown: -1, held: -1, bench: false, landing: -1, benchShell: "", first: true }), []);
+  const st = useMemo(() => ({ pop: new Float32Array(N), dim: new Float32Array(N).fill(1), shown: -1, held: -1, gap: 0, bench: false, landing: -1, benchShell: "", first: true }), []);
 
   const parts = useMemo(() => {
     const atlas = labelAtlas();
@@ -175,7 +189,10 @@ export function Helix({ quality, reduced, active, browsing, onPick, onGrab, held
     const benchOn = bench?.shown() ?? false;
     const landing = bench?.landing() ?? -1;
     const front = browsing();
-    let moving = st.first || away !== st.shown || inHand !== st.held || benchOn !== st.bench || landing !== st.landing;
+    // The arm opening the spiral moves its cartridges aside every frame it is open, and once more as it shuts.
+    const parting = gap.level > 0 || st.gap > 0;
+    st.gap = gap.level;
+    let moving = parting || st.first || away !== st.shown || inHand !== st.held || benchOn !== st.bench || landing !== st.landing;
     let recolor = st.first;
     st.shown = away;
     st.held = inHand;
@@ -236,6 +253,7 @@ export function Helix({ quality, reduced, active, browsing, onPick, onGrab, held
             m4.elements[13] += o3.y * OUT_M * pop + UP_M * pop;
             m4.elements[14] += o3.z * OUT_M * pop;
           }
+          partFor(m4);
           mat = m4;
         }
         meshes.current.forEach((m) => m?.setMatrixAt(k, mat));
