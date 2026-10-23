@@ -48,7 +48,7 @@ void main(){
   gl_PointSize = min(uSize * uPR * (.55 + aRand.w * .9) * (30. / max(.5, -mv.z)), 3.2 * uPR);
   // Landed, each takes its surface's colour, lifted: the baked atlas is lit for a dark room.
   vC = mix(mix(uTeal, uWhite, step(.86, aRand.w)), aColor * 2.4 + uTeal * .07, e2);
-  float twinkle = .55 + .45 * pow(.5 + .5 * sin(uTime * (1.5 + 3. * aRand.z) + aRand.w * 80.), 4.);
+  float twinkle = .55 + .45 * pow(max(.5 + .5 * sin(uTime * (1.5 + 3. * aRand.z) + aRand.w * 80.), 0.), 4.);
   float born = smoothstep(0., .025, uP);
   float f = dField(position);
   float gone = smoothstep(f - .01, f + .02, uReveal);

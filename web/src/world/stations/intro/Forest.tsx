@@ -97,7 +97,7 @@ vec3 bark(vec3 n0, float around, float tint){
   vec3 c = mix(vec3(.0042, .004, .0038), vec3(.0064, .005, .0038), tint) * (.5 + .7 * grain) * (.35 + .95 * h);
   c += vec3(.014, .019, .024) * max(0., dot(n, uMoon)) * (.45 + .55 * h);
   vec3 v = normalize(cameraPosition - vW);
-  c += vec3(.012, .017, .022) * pow(1. - max(0., dot(n, v)), 3.);
+  c += vec3(.012, .017, .022) * pow(max(1. - max(0., dot(n, v)), 0.), 3.);
   float lichen = smoothstep(.6, .74, fbm2(vec2(around * 14. + tint * 5., vW.y * 1.1))) * smoothstep(.35, .75, h)
                * (.35 + .65 * smoothstep(0., .6, dot(n0, uMoon))) * step(uFloor + 1.2, vW.y);
   c = mix(c, vec3(.015, .018, .02) * (.7 + .5 * grain), lichen * .65);
@@ -182,11 +182,11 @@ float seg(vec2 p, vec2 a, vec2 b, float r){ vec2 pa = p - a, ba = b - a; float h
 void main(){
   vec2 uv = vUv;
   float wob = .05 * sin(uv.x * 6. + vW.y * .7 + vW.x);
-  float limbY = .1 + .5 * pow(uv.x, 1.35) + wob;
+  float limbY = .1 + .5 * pow(max(uv.x, 0.), 1.35) + wob;
   float d = abs(uv.y - limbY) - (.05 * (1. - uv.x) + .007);
   for (int k = 1; k < 7; k++){
     float u0 = float(k) / 7.;
-    vec2 a = vec2(u0, .1 + .5 * pow(u0, 1.35) + .05 * sin(u0 * 6. + vW.y * .7 + vW.x));
+    vec2 a = vec2(u0, .1 + .5 * pow(max(u0, 0.), 1.35) + .05 * sin(u0 * 6. + vW.y * .7 + vW.x));
     float side = mod(float(k), 2.) < .5 ? 1. : -.7;
     d = min(d, seg(uv, a, a + vec2(.1 + .06 * u0, side * .25 * (1.15 - u0)), .004 + .012 * (1. - u0)));
   }
@@ -232,7 +232,7 @@ void main(){
   vec3 c = vec3(.0055, .011, .008) * (.55 + .9 * fuzz);
   c += vec3(.006, .01, .011) * max(0., dot(n, uMoon)) * (.6 + .4 * fuzz);
   vec3 v = normalize(cameraPosition - vW);
-  c += vec3(.004, .009, .008) * pow(1. - max(0., dot(n, v)), 2.);
+  c += vec3(.004, .009, .008) * pow(max(1. - max(0., dot(n, v)), 0.), 2.);
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
 }`;
@@ -268,7 +268,7 @@ void main(){
   vec3 c = shell * (.025 + .3 * max(0., dot(n, uMoon)) + mix(vec3(.012, .016, .014), vec3(.03, .038, .046), sky));
   vec3 h = normalize(uMoon + v);
   c += vec3(.16, .19, .21) * pow(max(0., dot(n, h)), 30.) * (.5 + .5 * grime);
-  float rim = pow(1. - max(0., dot(n, v)), 3.);
+  float rim = pow(max(1. - max(0., dot(n, v)), 0.), 3.);
   c += mix(vec3(.035, .045, .05), uTeal * .08, .4) * rim;
   // Moss creeping up from where it's buried (higher in patches), and over the top where it has lain.
   float mossy = 1. - smoothstep(uFloor - .05, uFloor + .3 + .45 * fbm2(vW.xz * 3.), vW.y);
@@ -301,7 +301,7 @@ float vn2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
 void main(){
   float edge = smoothstep(0., .4, vUv.x) * smoothstep(1., .6, vUv.x);
   // Brightest a little above the floor, fading up into the canopy's dark.
-  float fall = smoothstep(0., .05, vUv.y) * pow(1. - vUv.y, 1.4);
+  float fall = smoothstep(0., .05, vUv.y) * pow(max(1. - vUv.y, 0.), 1.4);
   float flick = .7 + .3 * vn2(vec2(vUv.x * 3. + uTime * .05, vUv.y * 2. - uTime * .03));
   float streak = .75 + .25 * vn2(vec2(vUv.x * 11., vUv.y * .7));
   float d = distance(vW, cameraPosition);

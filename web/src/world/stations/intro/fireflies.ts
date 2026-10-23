@@ -75,7 +75,7 @@ void main(){
   vec4 mv = modelViewMatrix * vec4(p, 1.);
   gl_Position = projectionMatrix * mv;
   float d = max(.3, -mv.z);
-  float oldBlink = .2 + .8 * pow(.5 + .5 * sin(uTime * (.5 + 2.4 * aRand.x) + ph * 3.), 4.);
+  float oldBlink = .2 + .8 * pow(max(.5 + .5 * sin(uTime * (.5 + 2.4 * aRand.x) + ph * 3.), 0.), 4.);
   if (vSoft > .5) {
     gl_PointSize = clamp(14. * (.7 + .6 * aRand.w) * uPR * (6. / d), uPR, 90. * uPR);
     vA = oldBlink * lit * exp(-d * .03) * .22 * smoothstep(.6, 2.5, d);
