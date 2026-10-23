@@ -62,30 +62,60 @@ void main(){
   ${OUT}
 }`;
 
-// The bark: ridges running up the trunk, broken by noise; each trunk its own shade (aTint) and grain; moss climbing
-// the foot and the moon-facing side; a cold edge where the moon catches it; up into the dark above.
+// The bark: deep furrows running up the trunk between raised plates, the plates cracked across, a knot now and
+// then, all as relief (a bump from the height field, fading with distance so far trunks don't shimmer); each trunk its
+// own shade (aTint) and grain; pale lichen on the plates, more on the moon's side; moss climbing the foot; a cold
+// edge where the moon catches it; up into the dark above.
 const BARK = /* glsl */ `
 uniform vec3 uMoon; uniform float uFloor, uCanopy;
-vec3 bark(vec3 n, float around, float tint){
-  float ridge = abs(sin(around * 6.2832 * (7. + 5. * tint) + fbm2(vec2(around * 9., vW.y * .35)) * 5.));
+float barkH(float around, float tint){
+  float freq = floor(7. + 5. * tint);
+  float ridge = abs(sin(around * 6.2832 * freq + fbm2(vec2(around * 9., vW.y * .35)) * 5.));
+  float plate = smoothstep(.12, .6, ridge);
+  float cracks = smoothstep(.72, .92, vn2(vec2(around * freq * 2.3, vW.y * 1.7 + tint * 9.)));
+  float knot = smoothstep(.84, .97, vn2(vec2(around * 4. + tint * 3., vW.y * .22)));
+  return plate * (1. - .5 * cracks) + .45 * knot;
+}
+vec3 bumped(vec3 n, float h, float k){
+  vec3 dpdx = dFdx(vW), dpdy = dFdy(vW);
+  vec3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
+  float det = dot(dpdx, r1);
+  vec3 g = sign(det) * (dFdx(h) * k * r1 + dFdy(h) * k * r2);
+  return normalize(abs(det) * n - g);
+}
+vec3 bark(vec3 n0, float around, float tint){
+  float h = barkH(around, tint);
+  vec3 n = bumped(n0, h, .07 * (1. - smoothstep(8., 30., distance(cameraPosition, vW))));
   float grain = fbm2(vec2(around * 26. + tint * 17., vW.y * .55));
-  vec3 c = mix(vec3(.0042, .004, .0038), vec3(.006, .0048, .0036), tint) * (.45 + .8 * grain) * (.55 + .6 * smoothstep(.15, .9, ridge));
-  c += vec3(.012, .017, .022) * max(0., dot(n, uMoon));
+  vec3 c = mix(vec3(.0042, .004, .0038), vec3(.0064, .005, .0038), tint) * (.5 + .7 * grain) * (.35 + .95 * h);
+  c += vec3(.014, .019, .024) * max(0., dot(n, uMoon)) * (.45 + .55 * h);
   vec3 v = normalize(cameraPosition - vW);
-  c += vec3(.014, .02, .025) * pow(1. - max(0., dot(n, v)), 3.);
+  c += vec3(.012, .017, .022) * pow(1. - max(0., dot(n, v)), 3.);
+  float lichen = smoothstep(.6, .74, fbm2(vec2(around * 14. + tint * 5., vW.y * 1.1))) * smoothstep(.35, .75, h)
+               * (.35 + .65 * smoothstep(0., .6, dot(n0, uMoon))) * step(uFloor + 1.2, vW.y);
+  c = mix(c, vec3(.015, .018, .02) * (.7 + .5 * grain), lichen * .65);
   float mossy = (1. - smoothstep(uFloor, uFloor + 2.2 + 1.5 * tint, vW.y)) * .75
-              + smoothstep(.3, .9, dot(n, uMoon)) * smoothstep(.45, .7, fbm2(vec2(around * 5., vW.y * .25))) * .5;
-  c = mix(c, vec3(.0052, .0098, .0074) * (.6 + .8 * grain), clamp(mossy, 0., 1.));
+              + smoothstep(.3, .9, dot(n0, uMoon)) * smoothstep(.45, .7, fbm2(vec2(around * 5., vW.y * .25))) * .5;
+  c = mix(c, vec3(.0052, .0098, .0074) * (.6 + .8 * grain) * (.6 + .5 * h), clamp(mossy, 0., 1.));
   return mix(c, uFog, smoothstep(uFloor + uCanopy * .35, uFloor + uCanopy * .95, vW.y));
 }
 `;
 
+// Each trunk its own shape (from its tint): it wanders off its line as it rises (the foot stays put; forestGeometry.ts
+// trunkBend mirrors this, so the branch cards stay on it), its section fluted and uneven all the way up, its taper
+// its own.
 const trunkVert = /* glsl */ `
 attribute float aTint;
 varying vec3 vW; varying vec3 vN; varying vec2 vUv; varying float vTint;
 void main(){
+  vec3 p = position;
+  float y = clamp(p.y, 0., 1.);
+  float s = aTint * 61.7;
+  float a = atan(position.z, position.x);
+  p.xz *= (1. + .07 * sin(3. * a + s * 5. + y * 3.) + .04 * sin(7. * a + s * 2.)) * (1. - .28 * y * fract(s * 3.1));
+  p.xz += vec2(sin(y * 2.3 + s), cos(y * 1.9 + s * 1.3)) * 1.8 * y * y;
   mat4 m = modelMatrix * instanceMatrix;
-  vec4 w = m * vec4(position, 1.);
+  vec4 w = m * vec4(p, 1.);
   vW = w.xyz;
   vN = normalize(transpose(inverse(mat3(m))) * normal);
   vUv = uv;
@@ -133,6 +163,57 @@ void main(){
   vec3 c = mix(vec3(.0035, .0085, .0062), vec3(.006, .014, .01), along) * (.7 + .5 * fbm2(vW.xz * 3.));
   c += vec3(.008, .012, .014) * max(0., dot(normalize(vN), uMoon)) + vec3(.002, .004, .003) * vein;
   gl_FragColor = vec4(place(c, vW), 1.);
+  ${OUT}
+}`;
+
+// The canopy's branch cards (forestGeometry.ts canopyMatrices): uv.x runs out along the branch, uv.y up the card. A
+// rising limb thinning to its tip, twigs off it, clumps of leaves round them, cut out of the card (alpha-tested, so
+// no sorting): dark shapes against the fog high above, the far ones dissolving into it.
+const canopyFrag = /* glsl */ `
+uniform vec3 uMoon;
+float seg(vec2 p, vec2 a, vec2 b, float r){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.); return length(pa - ba * h) - r; }
+void main(){
+  vec2 uv = vUv;
+  float wob = .05 * sin(uv.x * 6. + vW.y * .7 + vW.x);
+  float limbY = .1 + .5 * pow(uv.x, 1.35) + wob;
+  float d = abs(uv.y - limbY) - (.05 * (1. - uv.x) + .007);
+  for (int k = 1; k < 7; k++){
+    float u0 = float(k) / 7.;
+    vec2 a = vec2(u0, .1 + .5 * pow(u0, 1.35) + .05 * sin(u0 * 6. + vW.y * .7 + vW.x));
+    float side = mod(float(k), 2.) < .5 ? 1. : -.7;
+    d = min(d, seg(uv, a, a + vec2(.1 + .06 * u0, side * .25 * (1.15 - u0)), .004 + .012 * (1. - u0)));
+  }
+  // Leaf clumps: noise round the twigs, thicker toward the branch's end.
+  float clump = fbm2(uv * vec2(10., 7.) + vW.xz * .21) + .38 * smoothstep(.15, .9, uv.x) - .32 * smoothstep(0., .14, d) - .7;
+  if (min(d, -clump * .3) > 0. || uv.y > .97 || uv.y < .02) discard;
+  vec3 n = normalize(vN);
+  vec3 c = vec3(.0032, .004, .0038) + vec3(.004, .006, .008) * abs(dot(n, uMoon));
+  gl_FragColor = vec4(place(c, vW), 1.);
+  ${OUT}
+}`;
+
+// The backdrop ring (forestGeometry.ts BACKDROP_R): rows of trunks deeper in the fog than the forest's last ones,
+// each row fainter, rising into the dark: the forest goes on. Its own fog (place() would wash it out entirely).
+const backdropFrag = /* glsl */ `
+void main(){
+  float u = vUv.x, y = vUv.y;
+  vec3 c = uFog;
+  for (int k = 2; k >= 0; k--){
+    float fk = float(k);
+    float n = 60. + 45. * fk;
+    float cell = floor(u * n);
+    float r = h21(vec2(cell, fk * 7.1 + 3.));
+    float x = fract(u * n) - .5 - (r - .5) * .5;
+    float w = (.1 + .16 * fract(r * 13.7)) * (1. - .35 * y) + .03 * vn2(vec2(cell, y * 6.));
+    float trunk = (1. - smoothstep(w - .02, w + .02, abs(x))) * step(.35, fract(r * 5.3));
+    float row = mix(.42, .14, fk / 2.);
+    c = mix(c, uFog * (1. - row), trunk * (1. - smoothstep(.45, .95, y)));
+  }
+  // The canopy over them: a ragged dark band high up, fading into the night.
+  float crown = smoothstep(.55, .75, y + .12 * fbm2(vec2(u * 40., y * 3.)));
+  c = mix(c, mix(uFog, uBg, .5), crown * .6);
+  c = mistBands(c, vW);
+  gl_FragColor = vec4(mix(uBg, c, uLight), 1.);
   ${OUT}
 }`;
 
@@ -272,6 +353,8 @@ const MESH_PIECE: Record<string, (u: PlaceUniforms) => THREE.Material> = {
   logs: (u) => surfaceMaterial(u, { uMoon: { value: MOON }, uFloor: { value: F }, uCanopy: { value: FOREST.canopy } }, logFrag),
   ferns: (u) => surfaceMaterial(u, { uMoon: { value: MOON } }, fernFrag, { side: THREE.DoubleSide }),
   moss: (u) => surfaceMaterial(u, { uMoon: { value: MOON } }, mossFrag),
+  canopy: (u) => surfaceMaterial(u, { uMoon: { value: MOON } }, canopyFrag, { side: THREE.DoubleSide }),
+  backdrop: (u) => surfaceMaterial(u, {}, backdropFrag, { side: THREE.BackSide, depthWrite: false }),
 };
 
 function pieceObject(p: ForestPiece, u: PlaceUniforms): { object: THREE.Object3D; material: THREE.Material } {
