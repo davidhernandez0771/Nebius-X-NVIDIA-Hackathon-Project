@@ -1,0 +1,47 @@
+[
+  {
+    "name": "hub",
+    "hub": true,
+    "station": "workshop",
+    "errors": [],
+    "shot": "lift201-hub"
+  },
+  {
+    "name": "drag-press-burst",
+    "start": [
+      640,
+      144
+    ],
+    "frames": 4,
+    "back": 6,
+    "hub": true,
+    "station": "workshop",
+    "errors": [],
+    "shot": "lift202-drag-press-burst"
+  },
+  {
+    "name": "plug-in-burst",
+    "at": [
+      640,
+      144
+    ],
+    "ok": true,
+    "frames": 10,
+    "state": {
+      "y": 0,
+      "ov": "",
+      "station": null,
+      "hub": false
+    },
+    "station": null,
+    "errors": [],
+    "shot": "lift203-plug-in-burst"
+  },
+  {
+    "name": "back-in-hub",
+    "hub": false,
+    "station": null,
+    "errors": [],
+    "shot": "lift204-back-in-hub"
+  }
+]
