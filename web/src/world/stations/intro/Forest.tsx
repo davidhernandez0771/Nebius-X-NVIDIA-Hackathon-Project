@@ -18,6 +18,7 @@ import { crackFireflyCount, fireflies, fireflyCount } from "./fireflyPlan";
 import { makeFireflies } from "./fireflies";
 import { MIST_BANDS } from "./forestPlan";
 import { ROBOT_TIERS, robotUrl } from "./forestRobots";
+import { BARK_ALBEDO_URL, BARK_NORMAL_URL, LEAVES_URL, TREES_URL, mergeTrees, treeMeshes, treePlan } from "./forestTrees";
 import type { Wrecks } from "./robotWrecks";
 import { bandK } from "./mistBands";
 import { FOREST } from "./layout";
@@ -355,6 +356,62 @@ function motes(positions: readonly (readonly number[])[], u: PlaceUniforms, pr: 
   return p;
 }
 
+// The modelled trees (forestTrees.ts, the lead's trees.glb): the baked bark (albedo times the baked AO in the vertex
+// colour, the normal map read through screen-space derivatives, so no tangents), each tree's tint, moss at the foot,
+// the moon and the rim, up into the fog above, in the forest's own light and mist (place()).
+const treeVert = /* glsl */ `
+attribute vec3 color; attribute float aTint;
+varying vec3 vW; varying vec3 vN; varying vec2 vUv; varying vec3 vAo; varying float vTint;
+void main(){
+  vec4 w = modelMatrix * vec4(position, 1.);
+  vW = w.xyz;
+  vN = normalize(mat3(modelMatrix) * normal);
+  vUv = uv;
+  vAo = color;
+  vTint = aTint;
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+
+const treeFrag = /* glsl */ `
+uniform sampler2D uAlbedo, uNormal; uniform vec3 uMoon; uniform float uFloor, uCanopy;
+varying vec3 vAo; varying float vTint;
+vec3 perturb(vec3 n, vec3 p, vec2 uv, vec3 m){
+  vec3 q0 = dFdx(p), q1 = dFdy(p);
+  vec2 st0 = dFdx(uv), st1 = dFdy(uv);
+  vec3 q1p = cross(q1, n), q0p = cross(n, q0);
+  vec3 T = q1p * st0.x + q0p * st1.x, B = q1p * st0.y + q0p * st1.y;
+  float det = max(dot(T, T), dot(B, B));
+  float k = det == 0. ? 0. : inversesqrt(det);
+  return normalize(T * (m.x * k) + B * (m.y * k) + n * m.z);
+}
+void main(){
+  vec3 n0 = normalize(vN) * (gl_FrontFacing ? 1. : -1.);
+  vec3 m = texture2D(uNormal, vUv).xyz * 2. - 1.;
+  // The relief flattens with distance, so far bark doesn't shimmer.
+  m.xy *= 1. - smoothstep(12., 40., distance(cameraPosition, vW));
+  vec3 n = perturb(n0, vW, vUv, m);
+  vec3 alb = texture2D(uAlbedo, vUv).rgb * vAo.r * (.75 + .5 * vTint);
+  vec3 c = alb * (.022 + .075 * max(0., dot(n, uMoon)));
+  vec3 v = normalize(cameraPosition - vW);
+  c += vec3(.011, .016, .021) * pow(max(1. - max(0., dot(n, v)), 0.), 3.);
+  float mossy = (1. - smoothstep(uFloor, uFloor + 1.8 + 1.4 * vTint, vW.y)) * .7;
+  c = mix(c, vec3(.0052, .0098, .0074) * (.6 + .8 * vAo.r), mossy);
+  c = mix(c, uFog, smoothstep(uFloor + uCanopy * .35, uFloor + uCanopy * .95, vW.y));
+  gl_FragColor = vec4(place(c, vW), 1.);
+  ${OUT}
+}`;
+
+// The crown's leaf cards (alpha cut out of leaves.png, not blended): dark clumps against the fog high above.
+const leafFrag = /* glsl */ `
+uniform sampler2D uLeaves; uniform vec3 uMoon;
+void main(){
+  vec4 t = texture2D(uLeaves, vUv);
+  if (t.a < .5) discard;
+  vec3 c = t.rgb * (.016 + .045 * abs(dot(normalize(vN), uMoon)));
+  gl_FragColor = vec4(place(c, vW), 1.);
+  ${OUT}
+}`;
+
 const MESH_PIECE: Record<string, (u: PlaceUniforms) => THREE.Material> = {
   roots: (u) => surfaceMaterial(u, { uMoon: { value: MOON }, uFloor: { value: F }, uCanopy: { value: FOREST.canopy } }, rootFrag),
   logs: (u) => surfaceMaterial(u, { uMoon: { value: MOON }, uFloor: { value: F }, uCanopy: { value: FOREST.canopy } }, logFrag),
@@ -484,6 +541,64 @@ export function useForest(quality: QualityTier): ForestHandle {
     u.uGlowC.value = flies.glows.color;
     disposables.push(flies);
 
+    // The modelled trees (forestTrees.ts): their materials made now, on stand-in triangles, so the loader's warm-up
+    // compiles them; once trees.glb and its textures are in, every tree of a level is merged into one draw and they
+    // replace the procedural trunks, roots and branch cards (retired: never shown again).
+    const blank = (rgba: number[]) => {
+      const t = new THREE.DataTexture(new Uint8Array(rgba), 1, 1);
+      t.needsUpdate = true;
+      return t;
+    };
+    const barkMat = new THREE.ShaderMaterial({
+      vertexShader: treeVert,
+      fragmentShader: surfaceFrag(treeFrag),
+      uniforms: { ...u, uAlbedo: { value: blank([60, 55, 50, 255]) }, uNormal: { value: blank([128, 128, 255, 255]) }, uMoon: { value: MOON }, uFloor: { value: F }, uCanopy: { value: FOREST.canopy } },
+    });
+    const leafMat = surfaceMaterial(u, { uLeaves: { value: blank([20, 30, 25, 0]) }, uMoon: { value: MOON } }, leafFrag, { side: THREE.DoubleSide });
+    const standIn = new THREE.BufferGeometry();
+    standIn.setAttribute("position", new THREE.Float32BufferAttribute([0, F - 5, 0, 0.001, F - 5, 0, 0, F - 5, 0.001], 3));
+    standIn.setAttribute("normal", new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+    standIn.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1], 2));
+    standIn.setAttribute("color", new THREE.Float32BufferAttribute([1, 1, 1, 1, 1, 1, 1, 1, 1], 3));
+    standIn.setAttribute("aTint", new THREE.Float32BufferAttribute([0, 0, 0], 1));
+    add(new THREE.Mesh(standIn, barkMat), "forest:trees:standin");
+    add(new THREE.Mesh(standIn, leafMat), "forest:leaves:standin");
+    const retired = new Set<THREE.Object3D>();
+    disposables.push(standIn, barkMat, leafMat);
+    const texture = (url: string, srgb: boolean) =>
+      new THREE.TextureLoader().loadAsync(BASE + url).then((t) => {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        t.anisotropy = 4;
+        return t;
+      });
+    Promise.all([new GLTFLoader().loadAsync(BASE + TREES_URL), texture(BARK_ALBEDO_URL, true), texture(BARK_NORMAL_URL, false), texture(LEAVES_URL, true)])
+      .then(async ([gltf, albedo, normal, leaves]) => {
+        // The merge in an idle moment (tens of milliseconds), not in a frame.
+        await new Promise<void>((ok) => (typeof requestIdleCallback === "function" ? requestIdleCallback(() => ok(), { timeout: 800 }) : setTimeout(ok, 30)));
+        if (!live) return;
+        const merged = mergeTrees(treePlan(layout, tier), treeMeshes(gltf.scene));
+        barkMat.uniforms.uAlbedo.value.dispose();
+        barkMat.uniforms.uNormal.value.dispose();
+        leafMat.uniforms.uLeaves.value.dispose();
+        barkMat.uniforms.uAlbedo.value = albedo;
+        barkMat.uniforms.uNormal.value = normal;
+        leafMat.uniforms.uLeaves.value = leaves;
+        disposables.push(albedo, normal, leaves);
+        for (const { lod, geometry } of merged.bark) {
+          const m = add(new THREE.Mesh(geometry, barkMat), `forest:trees:lod${lod}`);
+          m.frustumCulled = false;
+          disposables.push(geometry);
+        }
+        if (merged.leaves) {
+          const m = add(new THREE.Mesh(merged.leaves, leafMat), "forest:trees:leaves");
+          m.frustumCulled = false;
+          disposables.push(merged.leaves);
+        }
+        for (const c of group.children) if (/^forest:(trunks:|roots$|canopy$|trees:standin$|leaves:standin$)/.test(c.name)) retired.add(c);
+      })
+      .catch((e) => console.warn("world: the forest's trees didn't load; keeping the procedural ones", e));
+
     // The robots: empty until their GLBs have loaded (after the loader; the low tier fetches four). Each frame the
     // index list holds every robot's coarse level and, near the camera, its detailed one (robotWrecks.ts).
     const robotTier = ROBOT_TIERS[tier];
@@ -541,7 +656,7 @@ export function useForest(quality: QualityTier): ForestHandle {
         flies.update({ time: s.time, light: s.light, drop: s.drop, swirl: near * near * (3 - 2 * near), pr: s.pr, still: !!s.still });
         // Through the fall the forest is out: only the crack's walls and the fireflies falling with the camera.
         group.visible = s.light > 0 || s.drop > 0;
-        for (const c of group.children) c.visible = c === crack.group || c === flies.points || s.light > 0;
+        for (const c of group.children) c.visible = !retired.has(c) && (c === crack.group || c === flies.points || s.light > 0);
       },
       dispose() {
         live = false;
