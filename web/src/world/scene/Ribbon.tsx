@@ -3,10 +3,12 @@
 // from the slots). A smooth curve runs through the cartridges' bottom edges; the band is that curve
 // widened toward and away from the axis. The light is a soft-edged line (materials.ts softLine): from
 // the room view it is about two pixels tall, and drawn as hard geometry it crawled with the mouse look.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { HELIX } from "./layout";
 import { withSoftEdge } from "./materials";
+import { liftOffset } from "./lift";
 import { addGlow } from "./power";
 
 /** Half a cartridge's height: a slot's position is the cartridge's centre. */
@@ -92,8 +94,13 @@ export function Ribbon() {
       edge.dispose();
     };
   }, [band, edge, bandMat, edgeMat]);
+  // It rises with the cartridges when the spiral lifts out of the arm's way (lift.ts; Helix asks for the frames).
+  const group = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (group.current) group.current.position.y = liftOffset();
+  });
   return (
-    <group name="ribbon">
+    <group ref={group} name="ribbon">
       <mesh geometry={band} material={bandMat} raycast={() => null} />
       <mesh geometry={edge} material={edgeMat} raycast={() => null} />
     </group>

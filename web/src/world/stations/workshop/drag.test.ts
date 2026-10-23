@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { BENCH_PIVOT, stop } from "../../scene/layout";
 import { ABOVE_PORT, PLUGGED_Q } from "../../scene/plugSequence";
-import { DRAG_PX, DROP_ZONE, MAGNET, backPose, cancel, drag, hiddenInstance, move, onPlane, press, rayHitsBox, release, resetDrag, settle, wasDrag } from "./drag";
+import { DRAG_PX, DROP_ZONE, MAGNET, cancel, drag, hiddenInstance, move, onPlane, press, rayHitsBox, release, resetDrag, settle, wasDrag } from "./drag";
+import { CARRY_V, PICK, PICK_S, backStep, backTravelS, carryStep, gripOf, pickStep, type PickStep, type Pose } from "./drag";
+import { solveArm, wristAbove } from "../../scene/armIk";
+import { SPIRAL_R, cartridgeBody, clear } from "../../scene/collide";
+import { slotAt } from "../../scene/layout";
+
+const step = (): PickStep => ({ pose: { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }, grip: new THREE.Vector3(), closed: 0 });
+const slotPoseOf = (k: number): Pose => { const s = slotAt(k); return { position: new THREE.Vector3(...s.position), quaternion: new THREE.Quaternion(...s.quaternion) }; };
 
 const HUB = stop("Workshop intro");
 const v = (a: readonly number[]) => new THREE.Vector3(a[0], a[1], a[2]);
@@ -103,24 +110,65 @@ describe("dragging a cartridge: the 3D", () => {
     expect(MAGNET.quaternion.angleTo(PLUGGED_Q)).toBe(0);
   });
 
-  it("floats back in an arc that starts where it was let go and ends in its slot", () => {
-    const from = { position: new THREE.Vector3(4, 5, 6), quaternion: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 1) };
-    const to = { position: new THREE.Vector3(1, 7, 1), quaternion: new THREE.Quaternion() };
-    const out = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() };
-    backPose(from, to, 0, out);
-    expect(out.position.distanceTo(from.position)).toBeLessThan(1e-9);
-    expect(out.quaternion.angleTo(from.quaternion)).toBeLessThan(1e-6);
-    backPose(from, to, 1, out);
-    expect(out.position.distanceTo(to.position)).toBeLessThan(1e-9);
-    expect(out.quaternion.angleTo(to.quaternion)).toBeLessThan(1e-6);
-    // Lifted over the straight line halfway, and no jumps along the way.
-    backPose(from, to, 0.5, out);
-    expect(out.position.y).toBeGreaterThan((from.position.y + to.position.y) / 2);
-    let prev = from.position.clone();
-    for (let u = 0.01; u <= 1.0001; u += 0.01) {
-      backPose(from, to, u, out);
-      expect(out.position.distanceTo(prev)).toBeLessThan(0.25);
-      prev = out.position.clone();
+  it("picks: the hand comes down onto the slot's top edge, closes, and the cartridge comes out clear of the spiral", () => {
+    const slot = slotPoseOf(12);
+    const hand = new THREE.Vector3(0.5, 7, 0.8);
+    const out = step();
+    pickStep(slot, hand, 0, out);
+    expect(out.grip.distanceTo(hand)).toBeLessThan(1e-9);
+    expect(out.closed).toBe(0);
+    pickStep(slot, hand, PICK.reach + PICK.close * 0.999, out);
+    expect(out.grip.distanceTo(gripOf(slot))).toBeLessThan(1e-9);
+    expect(out.pose.position.distanceTo(slot.position)).toBe(0);
+    expect(out.closed).toBeGreaterThan(0.99);
+    pickStep(slot, hand, PICK_S, out);
+    expect(Math.hypot(out.pose.position.x, out.pose.position.z)).toBeGreaterThanOrEqual(SPIRAL_R);
+    expect(out.pose.quaternion.equals(slot.quaternion)).toBe(true);
+    // The fingertips stay on the edge as it comes out, and nothing jumps.
+    let prev = pickStep(slot, hand, 0, step()).grip.clone();
+    for (let t = 0.01; t <= PICK_S; t += 0.01) {
+      pickStep(slot, hand, t, out);
+      expect(out.grip.distanceTo(prev)).toBeLessThan(0.3);
+      prev = out.grip.clone();
+      if (t > PICK.reach + PICK.close) expect(out.grip.distanceTo(gripOf(out.pose))).toBeLessThan(1e-9);
     }
+  });
+
+  it("carries: at most CARRY_V a second, within the arm's reach, never into a table or the spiral", () => {
+    const q = new THREE.Quaternion();
+    let at = new THREE.Vector3(2, 7, -5);
+    const out = new THREE.Vector3();
+    // Toward a point down inside the bench, then across into the spiral, then far out of reach.
+    for (const target of [new THREE.Vector3(-9, 1, -0.5), new THREE.Vector3(0, 5, 0), new THREE.Vector3(18, 6, 9)]) {
+      for (let i = 0; i < 90; i++) {
+        carryStep(at, target, q, 1 / 60, out);
+        expect(out.distanceTo(at)).toBeLessThanOrEqual(CARRY_V / 60 + 0.25 + 1e-6);
+        expect(clear(out, cartridgeBody(1))).toBe(true);
+        expect(solveArm(wristAbove(gripOf({ position: out, quaternion: q }))).reachable).toBe(true);
+        at = out.clone();
+      }
+    }
+  });
+
+  it("puts back: round the outside of the spiral to its slot, in, and lets go", () => {
+    const slot = slotPoseOf(5);
+    const from = { position: new THREE.Vector3(6, 7, 3), quaternion: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 1) };
+    const out = step();
+    const first = backStep(from, slot, 0, out);
+    expect(out.pose.position.distanceTo(from.position)).toBeLessThan(1e-6);
+    expect(out.closed).toBe(1);
+    let prev = out.pose.position.clone();
+    const travel = backTravelS(from.position, slot);
+    for (let t = 0.01; t < first.total + 0.05; t += 0.01) {
+      const r = backStep(from, slot, t, out);
+      expect(out.pose.position.distanceTo(prev)).toBeLessThan(0.3);
+      prev = out.pose.position.clone();
+      if (t < travel) expect(Math.hypot(out.pose.position.x, out.pose.position.z)).toBeGreaterThanOrEqual(SPIRAL_R - 1e-6);
+      if (r.done) break;
+    }
+    const end = backStep(from, slot, first.total, out);
+    expect(end.done).toBe(true);
+    expect(out.pose.position.distanceTo(slot.position)).toBeLessThan(1e-9);
+    expect(out.closed).toBe(0);
   });
 });

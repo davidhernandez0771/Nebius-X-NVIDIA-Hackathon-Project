@@ -13,6 +13,7 @@ import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { QualityTier } from "../core/quality";
+import { liftOffset, spiralLift } from "./lift";
 import { CARTRIDGE_URL } from "./assets";
 import { cartridgeParts, labelAtlas, offRedraw, slotMatrix, tileAttribute } from "./cartridge";
 import { DRAFT_TILE, ITEM_TILE0, SAVED_TILE0 } from "./labels";
@@ -120,7 +121,7 @@ export function Helix({ quality, reduced, active, browsing, onPick, onGrab, held
   const invalidate = useThree((s) => s.invalidate);
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
   const proxyRef = useRef<THREE.InstancedMesh | null>(null);
-  const st = useMemo(() => ({ pop: new Float32Array(N), dim: new Float32Array(N).fill(1), shown: -1, held: -1, bench: false, landing: -1, benchShell: "", first: true }), []);
+  const st = useMemo(() => ({ pop: new Float32Array(N), dim: new Float32Array(N).fill(1), shown: -1, held: -1, lift: 0, bench: false, landing: -1, benchShell: "", first: true }), []);
 
   const parts = useMemo(() => {
     const atlas = labelAtlas();
@@ -175,7 +176,12 @@ export function Helix({ quality, reduced, active, browsing, onPick, onGrab, held
     const benchOn = bench?.shown() ?? false;
     const landing = bench?.landing() ?? -1;
     const front = browsing();
-    let moving = st.first || away !== st.shown || inHand !== st.held || benchOn !== st.bench || landing !== st.landing;
+    // The whole spiral rising out of the arm's way, or coming back down (lift.ts).
+    const parting = spiralLift.level !== st.lift;
+    st.lift = spiralLift.level;
+    // The whole spiral rises out of the arm's way while it carries one (lift.ts).
+    const up = liftOffset();
+    let moving = parting || st.first || away !== st.shown || inHand !== st.held || benchOn !== st.bench || landing !== st.landing;
     let recolor = st.first;
     st.shown = away;
     st.held = inHand;
@@ -236,6 +242,7 @@ export function Helix({ quality, reduced, active, browsing, onPick, onGrab, held
             m4.elements[13] += o3.y * OUT_M * pop + UP_M * pop;
             m4.elements[14] += o3.z * OUT_M * pop;
           }
+          m4.elements[13] += up;
           mat = m4;
         }
         meshes.current.forEach((m) => m?.setMatrixAt(k, mat));
