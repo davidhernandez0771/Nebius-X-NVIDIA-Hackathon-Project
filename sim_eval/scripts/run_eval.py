@@ -38,7 +38,7 @@ from sim_worker.own_code import check_own_code  # noqa: E402
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
-from lerobot_tools.inference import GripperBinarizer, InferenceOptions, add_inference_args, served_problems  # noqa: E402
+from lerobot_tools.inference import InferenceOptions, add_inference_args, served_problems, wrap_gripper  # noqa: E402
 
 parser = argparse.ArgumentParser(description="Evaluate a served policy on seeded test scenes.")
 parser.add_argument("--checkpoint-url", default="http://127.0.0.1:8765", help="policy server URL")
@@ -221,7 +221,7 @@ def main() -> None:
         print(f"[eval] scene built in {build_s:.1f} s; joints {env.joint_names}", flush=True)
 
         retrying = RetryingPolicy(client)  # absorbs Windows loopback connection resets; see sim_eval/retry.py
-        policy = GripperBinarizer(retrying) if inference.binarize_gripper else retrying
+        policy = wrap_gripper(retrying, inference)
         retries_per_episode = []
 
         def progress(i, ep):

@@ -15,11 +15,13 @@ import pytest
 from lerobot_tools.inference import (
     GRIPPER_THRESHOLD,
     GripperBinarizer,
+    GripperHysteresis,
     InferenceOptions,
     add_inference_args,
     apply_to_config,
     binarize_gripper,
     served_problems,
+    wrap_gripper,
 )
 
 
@@ -124,3 +126,75 @@ def test_served_problems_compares_the_server_with_the_request():
     assert served_problems(InferenceOptions(n_action_steps=20), plain)
     assert served_problems(InferenceOptions(n_action_steps=20), {})  # an old server that can't say
     assert served_problems(InferenceOptions(), {}) == []  # but a plain eval of an old server is fine
+
+
+# --- the teacher's deadband (the 2026-10-23 big test) ----------------------------------------------------------------
+
+def _fingers(f: float) -> np.ndarray:
+    return np.array([0.1] * 7 + [f, f])
+
+
+class _Seq:
+    """A policy that sends the given finger targets, one per act()."""
+
+    def __init__(self, fingers):
+        self.fingers, self.i, self.resets = list(fingers), 0, 0
+
+    def reset(self):
+        self.resets += 1
+
+    def act(self, state, images):
+        self.i += 1
+        return _fingers(self.fingers[self.i - 1])
+
+
+def test_the_deadband_flag_parses_reaches_run_eval_only_and_is_recorded():
+    opts = _parse("--gripper-deadband", "0.25")
+    assert opts == InferenceOptions(gripper_deadband=0.25) and not opts.is_default
+    assert opts.server_args() == []  # eval side, like --binarize-gripper
+    assert opts.run_eval_args() == ["--gripper-deadband", "0.25"]
+    assert opts.record() == {"binarize_gripper": False, "n_action_steps": None, "temporal_ensemble_coeff": None,
+                             "gripper_deadband": 0.25}
+    assert "gripper_deadband" not in InferenceOptions().record()  # older evals' records stay as they were
+
+
+@pytest.mark.parametrize("bad", [InferenceOptions(gripper_deadband=-0.1), InferenceOptions(gripper_deadband=1.0),
+                                 InferenceOptions(gripper_deadband=0.25, binarize_gripper=True)])
+def test_bad_deadbands_are_refused(bad):
+    with pytest.raises(ValueError):
+        bad.validate()
+
+
+def test_the_deadband_is_the_teachers_hysteresis_in_finger_metres():
+    """0.25 of the half range around 20 mm: closed below 15 mm, open above 25 mm, in between the last state holds;
+    every episode starts open. Output is exactly 0.0 or 0.04 m on both fingers; the arm is untouched."""
+    seq = [0.030, 0.016, 0.0149, 0.020, 0.0249, 0.0251, 0.017, 0.010, 0.040]
+    want = [0.04, 0.04, 0.0, 0.0, 0.0, 0.04, 0.04, 0.0, 0.04]
+    inner = _Seq(seq + [0.020])
+    policy = GripperHysteresis(inner, 0.25)
+    policy.reset()
+    got = []
+    for _ in seq:
+        out = policy.act(np.zeros(9), {})
+        np.testing.assert_array_equal(out[:7], [0.1] * 7)
+        assert out[7] == out[8]
+        got.append(out[7])
+    assert got == want
+    assert policy.thresholds == pytest.approx((0.015, 0.025))
+    policy.reset()  # a new episode starts open, whatever the last one ended with
+    assert inner.resets == 2 and policy.act(np.zeros(9), {})[7] == 0.04
+
+
+def test_a_deadband_of_zero_is_the_midpoint_binarizer():
+    seq = [0.0201, 0.0199, 0.02, 0.0201]
+    a, b = GripperHysteresis(_Seq(seq), 0.0), GripperBinarizer(_Seq(seq))
+    a.reset(), b.reset()
+    assert [a.act(None, {})[7] for _ in seq] == [b.act(None, {})[7] for _ in seq] == [0.04, 0.0, 0.0, 0.04]
+
+
+def test_wrap_gripper_picks_the_wrapper_the_options_ask_for():
+    inner = _Seq([0.01])
+    assert wrap_gripper(inner, InferenceOptions()) is inner
+    assert isinstance(wrap_gripper(inner, InferenceOptions(binarize_gripper=True)), GripperBinarizer)
+    w = wrap_gripper(inner, InferenceOptions(gripper_deadband=0.25))
+    assert isinstance(w, GripperHysteresis) and w.deadband == 0.25

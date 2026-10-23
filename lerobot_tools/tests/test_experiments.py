@@ -134,7 +134,7 @@ def test_dry_run_writes_nothing_and_reports_invalid_cells(grid_file, tmp_path, c
 
 def test_budget_is_enforced_before_any_work(grid_file):
     with pytest.raises(SystemExit):
-        main(["--grid", str(grid_file), "--steps", "100001", "--dry-run"])
+        main(["--grid", str(grid_file), "--steps", "200001", "--dry-run"])
     with pytest.raises(SystemExit):
         main(["--grid", str(grid_file), "--steps", "1000", "--save-freq", "0", "--dry-run"])
 
@@ -243,3 +243,10 @@ def test_the_cli_takes_the_options_and_80k_steps(grid_file, capsys):
                  "--dilation", "--dry-run"]) == 0
     plan = json.loads(capsys.readouterr().out)
     assert plan["steps"] == 80000 and plan["train_options"] == {"augment": "shift", "dilation": True}
+
+
+def test_the_big_test_runs_180k_steps(grid_file, capsys):
+    # 2026-10-23 big test: 180k steps, checkpoints every 10k (candidates 60k/120k/180k); 200001 is over the cap
+    assert main(["--grid", str(grid_file), "--steps", "180000", "--save-freq", "10000", "--dry-run"]) == 0
+    with pytest.raises(SystemExit):
+        main(["--grid", str(grid_file), "--steps", "200001", "--dry-run"])

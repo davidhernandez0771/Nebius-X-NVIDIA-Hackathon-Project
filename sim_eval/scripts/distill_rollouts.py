@@ -34,7 +34,7 @@ from sim_worker.own_code import check_own_code  # noqa: E402
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
-from lerobot_tools.inference import GripperBinarizer, InferenceOptions, add_inference_args  # noqa: E402
+from lerobot_tools.inference import InferenceOptions, add_inference_args, wrap_gripper  # noqa: E402
 
 parser = argparse.ArgumentParser(description="Teacher or DAgger rollouts written as training episodes.")
 parser.add_argument("--kind", choices=("teacher", "dagger"), required=True)
@@ -126,7 +126,7 @@ def main() -> None:
         out.mkdir(parents=True, exist_ok=True)
         server = ec.start_server(str(a.checkpoint), a.port, out / "policy_server.log", inference)
         client = RetryingPolicy(PolicyClient(f"http://127.0.0.1:{a.port}", timeout=60))
-        policy = GripperBinarizer(client) if inference.binarize_gripper else client
+        policy = wrap_gripper(client, inference)
         log(f"student {a.checkpoint} served on :{a.port}; inference {inference.record()}; beta {a.beta}")
     if not todo:
         finish(out, rows, t0, rows[a.seed0]["teacher"])
