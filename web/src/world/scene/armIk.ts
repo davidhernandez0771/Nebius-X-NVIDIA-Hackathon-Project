@@ -23,6 +23,8 @@ export const ARM = {
 /** Fingertips below a cartridge's top edge when they hold it (the palm rests just above it). */
 export const GRIP_DEPTH = 0.18;
 
+const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
+
 /** The shoulder's lowest and highest heights (world y). */
 export const SHOULDER_MIN = ARM.floor + ARM.foot + ARM.topMin;
 export const SHOULDER_MAX = ARM.floor + ARM.foot + ARM.topMax;
@@ -30,6 +32,15 @@ export const SHOULDER_MAX = ARM.floor + ARM.foot + ARM.topMax;
 export const COMFORT = 0.78 * (ARM.upper + ARM.fore);
 /** Hanging nearly straight down from high above: the elbow stays close to the axis (the idle pose, inside the spiral). */
 export const HANG = 0.96 * (ARM.upper + ARM.fore);
+/**
+ * The stretch for a wrist `r` from the axis: hanging straight down near the axis (so the elbow stays in
+ * the spiral's hollow core, clear of its cartridges while it rises or comes down: lift.ts), easing to the
+ * comfortable stretch further out.
+ */
+export function stretchFor(r: number): number {
+  const k = clamp((r - 1.2) / 1.8, 0, 1);
+  return HANG + (COMFORT - HANG) * k * k * (3 - 2 * k);
+}
 /** The longest stretch the arm makes, its sleeve all the way out (short of locking straight). */
 export const STRETCH_MAX = 0.98 * (ARM.upper + ARM.fore + ARM.extMax);
 
@@ -50,15 +61,15 @@ export interface ArmPose {
 
 export const armPose = (): ArmPose => ({ yaw: 0, shoulderY: SHOULDER_MIN, shoulder: 0, elbow: 0, wrist: Math.PI, ext: 0, reachable: true });
 
-const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 
 /**
  * The joints that put the wrist on `wrist` (world). The mast lifts the shoulder above the wrist by
- * as much as a comfortable stretch allows (high above a near point, level with a far one), the
+ * as much as the stretch allows (stretchFor: straight down near the axis, level with a far point), the
  * sleeve slides out only when the arm alone is too short, and the elbow bends upward.
  */
-export function solveArm(wrist: THREE.Vector3, out: ArmPose = armPose(), stretch = COMFORT): ArmPose {
+export function solveArm(wrist: THREE.Vector3, out: ArmPose = armPose(), stretchAt?: number): ArmPose {
   const r = Math.hypot(wrist.x, wrist.z);
+  const stretch = stretchAt ?? stretchFor(r);
   out.yaw = r > 1e-6 ? Math.atan2(wrist.x, wrist.z) : out.yaw;
   // High enough over the wrist for a comfortable stretch (a little, at least, so the arm reaches down).
   const lift = r < stretch ? Math.sqrt(stretch * stretch - r * r) : 0.25;

@@ -27,8 +27,8 @@ describe("the plug-in", () => {
     let prev = cartridgePose(0, 0).position.clone();
     for (let u = 0.002; u <= 1; u += 0.002) {
       const p = cartridgePose(0, u).position;
-      // The flight is quicker now the spiral is out of its way (0.26 of the timeline): ~17 m/s at its fastest.
-      expect(p.distanceTo(prev)).toBeLessThan(0.15);
+      // The flight is quick (0.26 of the timeline, from the spiral's core to the port): ~19 m/s at its fastest.
+      expect(p.distanceTo(prev)).toBeLessThan(0.17);
       prev = p.clone();
     }
   });

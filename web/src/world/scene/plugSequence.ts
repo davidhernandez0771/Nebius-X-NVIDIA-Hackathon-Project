@@ -7,7 +7,7 @@
 import * as THREE from "three";
 import { MACHINE_PIVOT, slotAt } from "./layout";
 import { liftOfPlug } from "./lift";
-import { cartridgeBody, hitsFurniture } from "./collide";
+import { ARM, GRIP_DEPTH, HANG, SHOULDER_MAX } from "./armIk";
 
 export const PLUG_S = 3.6;
 
@@ -54,11 +54,17 @@ export const ABOVE_PORT: Readonly<THREE.Vector3> = ABOVE;
  */
 export const PLUGGED_Q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), MACHINE_PIVOT.yaw - Math.PI / 2);
 
-/** Out of the slot: up a little and out, clear of its neighbours (as a drag's pick, drag.ts pulledPose). */
+/**
+ * Out of the slot it comes INTO the spiral's hollow core, beside the arm's mast: up a little, in along
+ * its bearing to CORE_R, and down inside the core if the arm couldn't hang straight down to it there.
+ * In the core, the arm and the cartridge are clear of the spiral's ring (its cartridges and band), so
+ * the spiral can rise past them, and come back down round them, without touching (lift.ts).
+ */
 export const PULL_UP = 0.35;
-export const PULL_OUT = 0.6;
-/** And at least this far from the axis: clear of the spiral's ring, so it rises past without touching. */
-const PULL_R = 4.6;
+/** Where a pulled cartridge's centre waits from the axis: its corners inside the band's inner edge (1.68 m), its back clear of the mast. */
+export const CORE_R = 0.8;
+/** The highest it waits in the core: the arm hangs straight down to it from the top of its mast (armIk.ts HANG). */
+export const CORE_TOP_Y = SHOULDER_MAX - HANG * 0.99 - ARM.hand - (HALF_H - GRIP_DEPTH);
 /** The port's angle and distance around the spiral's axis. */
 const PORT_A = Math.atan2(ABOVE.x, ABOVE.z);
 const PORT_R = Math.hypot(ABOVE.x, ABOVE.z);
@@ -83,41 +89,36 @@ export interface Pull {
   y1: number;
 }
 
-const BODY = cartridgeBody(1);
-const _probe = new THREE.Vector3();
-const _turned = new THREE.Quaternion();
-const Y = new THREE.Vector3(0, 1, 0);
 const wrapPi = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const _q = new THREE.Quaternion();
 
-/**
- * Where a cartridge at `p` waits once it is out of its slot: straight out past the spiral's ring (so
- * the spiral can rise past it) and up a little; if the way out runs into the desk or the machine (the
- * low slots facing them), it bears round the axis as it comes out, the nearer way, just enough.
- */
+/** Where a cartridge at `p` waits once it is out of its slot: in the core, on its own bearing (see CORE_R). */
 export function pullOf(p: THREE.Vector3): Pull {
   const r0 = Math.hypot(p.x, p.z);
   const a0 = Math.atan2(p.x, p.z);
-  const r1 = Math.max(r0 + PULL_OUT, PULL_R);
-  const y1 = p.y + PULL_UP;
-  const pull: Pull = { a0, a1: a0, r0, r1, y0: p.y, y1 };
-  for (let k = 0; k <= 24; k++) {
-    // 0, +0.1, -0.1, +0.2, -0.2, ...
-    pull.a1 = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.1;
-    let ok = true;
-    for (let i = 1; i <= 20 && ok; i++) ok = !hitsFurniture(pullAt(pull, i / 20, _probe), BODY);
-    if (ok) return pull;
-  }
-  pull.a1 = a0;
-  return pull;
+  return { a0, a1: a0, r0, r1: CORE_R, y0: p.y, y1: Math.min(p.y + PULL_UP, CORE_TOP_Y) };
 }
 
-/** Along a pull at a (0 in the slot, 1 out): out from the axis and round it together, rising a little. */
+const Y = new THREE.Vector3(0, 1, 0);
+const _core = new THREE.Quaternion();
+
+/**
+ * How it is turned along a pull: from its slot's turn to facing straight out from the axis, so its
+ * width lies across the core (its corners inside it) however its slot stood.
+ */
+export function pullQuat(pull: Pull, slotQ: THREE.Quaternion, a: number, out: THREE.Quaternion): THREE.Quaternion {
+  _core.setFromAxisAngle(Y, pull.a1);
+  return out.slerpQuaternions(slotQ, _core, smooth(clamp01(a / 0.6)));
+}
+
+/** Along a pull at a (0 in the slot, 1 in the core): up a little, in toward the axis, then down inside the core if it must. */
 export function pullAt(pull: Pull, a: number, out: THREE.Vector3): THREE.Vector3 {
-  const kr = smooth(clamp01(a));
-  const ka = kr;
+  const kr = smooth(clamp01(a / 0.6));
   const r = pull.r0 + (pull.r1 - pull.r0) * kr;
-  const ang = pull.a0 + wrapPi(pull.a1 - pull.a0) * ka;
-  return out.set(r * Math.sin(ang), pull.y0 + (pull.y1 - pull.y0) * smooth(clamp01(a)), r * Math.cos(ang));
+  const ang = pull.a0 + wrapPi(pull.a1 - pull.a0) * kr;
+  const up = pull.y0 + PULL_UP * smooth(clamp01(a / 0.35));
+  const y = up + (pull.y1 - (pull.y0 + PULL_UP)) * smooth(clamp01((a - 0.55) / 0.45));
+  return out.set(r * Math.sin(ang), y, r * Math.cos(ang));
 }
 
 function slotPose(slot: number) {
@@ -140,23 +141,21 @@ export function cartridgePose(slot: number, u: number, out: CartridgePose = { po
     out.quaternion.copy(PLUGGED_Q);
     return out;
   }
-  const { p, q: q0, pull, pulled } = slotPose(slot);
-  // Turned with it round the axis, if the pull goes round (pullOf).
-  const q = _turned.setFromAxisAngle(Y, wrapPi(pull.a1 - pull.a0)).multiply(q0);
+  const { p, q: slotQ, pull, pulled } = slotPose(slot);
+  const q = pullQuat(pull, slotQ, 1, _q);
   const a = span(u, PHASE.pull);
   const f = span(u, PHASE.fly);
   const d = span(u, PHASE.insert);
   if (u <= PHASE.lift[1]) {
-    // In its slot while the arm reaches it, then out past the spiral's ring, where it waits while the
+    // In its slot while the arm reaches it, then into the spiral's core, where it waits while the
     // spiral rises away.
     if (a <= 0) out.position.copy(p);
     else pullAt(pull, a, out.position);
-    const ka = smooth(clamp01(a));
-    out.quaternion.setFromAxisAngle(Y, wrapPi(pull.a1 - pull.a0) * ka).multiply(q0);
+    pullQuat(pull, slotQ, a, out.quaternion);
   } else if (u <= PHASE.fly[1]) {
-    // The spiral is up out of the way: round the axis the short way to the port, never closer to it
-    // than its slot was (clear of the arm's mast), within the arm's reach. Going up, the height leads
-    // (clear of the desk and the machine before it gets there); coming down from high up it follows.
+    // The spiral is up out of the way: out of the core and round the axis the short way to the port,
+    // within the arm's reach; it turns edge-on once it is well clear of the mast. Going up, the height
+    // leads (clear of the desk and the machine before it gets there); coming down from high up it follows.
     const a0 = Math.atan2(pulled.x, pulled.z);
     const r0 = Math.hypot(pulled.x, pulled.z);
     let turn = PORT_A - a0;
@@ -164,12 +163,12 @@ export function cartridgePose(slot: number, u: number, out: CartridgePose = { po
     while (turn < -Math.PI) turn += 2 * Math.PI;
     const ang = a0 + turn * smooth(f);
     const down = pulled.y > ABOVE.y + 1;
-    const lead = smooth(clamp01(f / 0.45));
-    const follow = smooth(clamp01((f - 0.35) / 0.65));
-    const rr = r0 + (PORT_R - r0) * follow;
+    const lead = smooth(clamp01(f / 0.4));
+    const follow = smooth(clamp01((f - 0.3) / 0.7));
+    const rr = r0 + (PORT_R - r0) * smooth(clamp01((f - 0.05) / 0.75));
     const y = pulled.y + (ABOVE.y - pulled.y) * (down ? follow : lead);
     out.position.set(rr * Math.sin(ang), y, rr * Math.cos(ang));
-    out.quaternion.slerpQuaternions(q, PLUGGED_Q, smooth(clamp01((f - 0.2) / 0.6)));
+    out.quaternion.slerpQuaternions(q, PLUGGED_Q, smooth(clamp01((f - 0.4) / 0.5)));
   } else {
     out.position.lerpVectors(ABOVE, PLUGGED, easeIn(d));
     out.quaternion.copy(PLUGGED_Q);

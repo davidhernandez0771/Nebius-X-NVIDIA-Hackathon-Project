@@ -2,7 +2,10 @@
 // the machine), the whole spiral (its cartridges, the band they stand on) rises straight up through
 // the ceiling's opening and out of view, so only the arm and the one cartridge are left; when the arm
 // is done, it comes back down into place. One level, 0 down to 1 up, eased where it is applied.
-// Written by the arm each frame (Arm.tsx), read by the spiral (Helix.tsx, Ribbon.tsx). Pure, tested.
+// Written by the arm each frame (Arm.tsx), read by the spiral (Helix.tsx, Ribbon.tsx). It only moves
+// while the arm and its cartridge are wholly inside the spiral's hollow core (clearOfSpiral), so
+// nothing of the spiral ever passes through them. Pure, tested.
+import * as THREE from "three";
 
 /** Metres the spiral rises: its lowest cartridge's bottom (0.2 m) clears the ceiling (14.4 m) with room. */
 export const LIFT_H = 18;
@@ -37,4 +40,36 @@ export function liftOfPlug(u: number, up: readonly [number, number], down: reado
   const rise = held ? 1 : clamp01((u - up[0]) / (up[1] - up[0]));
   const fall = clamp01((u - down[0]) / (down[1] - down[0]));
   return Math.min(rise, 1 - fall);
+}
+
+/**
+ * The spiral's hollow core: nothing of it comes closer to its axis than its band's inner edge (the
+ * innermost slot, 2.30 m out, less the band's 0.62 m half width), less a hair.
+ */
+export const CORE_CLEAR = 1.66;
+/** How thick each of the arm's segments is, round its line (joint drums, links, the palm): shoulder–elbow, elbow–wrist, wrist–fingertips. */
+const LINK_R = [0.45, 0.36, 0.5] as const;
+const _a = new THREE.Vector3();
+const _c = new THREE.Vector3();
+
+/**
+ * Whether the arm (its joints at `points`: shoulder, elbow, wrist, fingertips) and the cartridge it
+ * holds (2.3 × 2.5 × 0.34 m, if any) are wholly inside the spiral's core, so the spiral can move past
+ * them without touching: the only time it rises or comes down (Arm.tsx).
+ */
+export function clearOfSpiral(points: readonly THREE.Vector3[], held?: { position: THREE.Vector3; quaternion: THREE.Quaternion } | null): boolean {
+  for (let s = 0; s < 3; s++) {
+    for (let i = 0; i <= 10; i++) {
+      _a.lerpVectors(points[s], points[s + 1], i / 10);
+      if (Math.hypot(_a.x, _a.z) + LINK_R[s] >= CORE_CLEAR) return false;
+    }
+  }
+  if (held) {
+    for (const x of [-1.15, 1.15])
+      for (const z of [-0.17, 0.17]) {
+        _c.set(x, 0, z).applyQuaternion(held.quaternion).add(held.position);
+        if (Math.hypot(_c.x, _c.z) >= CORE_CLEAR) return false;
+      }
+  }
+  return true;
 }

@@ -12,7 +12,7 @@ import { GRIP_DEPTH, clampReach } from "../../scene/armIk";
 import { MAST_R, SPIRAL_R, cartridgeBody, resolve, sweep, type Body } from "../../scene/collide";
 import { LIFT_S } from "../../scene/lift";
 import { MACHINE_PIVOT } from "../../scene/layout";
-import { ABOVE_PORT, PLUGGED_Q, pullAt, pullOf, type Pull } from "../../scene/plugSequence";
+import { ABOVE_PORT, PLUGGED_Q, pullAt, pullOf, pullQuat, type Pull } from "../../scene/plugSequence";
 
 export type PointerKind = "mouse" | "touch" | "pen";
 
@@ -209,18 +209,17 @@ export function centreUnder(grip: THREE.Vector3, q: THREE.Quaternion, out = new 
  * its slot past the spiral's ring (plugSequence.ts pullOf, the plug-in's own way out). Then the spiral
  * rises out of the way (lift.ts) and the carry starts once it is mostly up (Dragged.tsx).
  */
-export const PICK = { reach: 0.42, close: 0.14, pull: 0.36 } as const;
+export const PICK = { reach: 0.42, close: 0.14, pull: 0.5 } as const;
 export const PICK_S = PICK.reach + PICK.close + PICK.pull;
-/** The carry starts once the spiral is this far up (its ring is no longer in the way). */
-export const CARRY_FROM_LIFT = 0.6;
+/** The carry starts once the spiral is all the way up: nothing of it is left round the arm. */
+export const CARRY_FROM_LIFT = 0.999;
 
-const Y = new THREE.Vector3(0, 1, 0);
 
 /** A slot's cartridge part of the way (k, 0–1) out of its slot, turned with it if its way out goes round. */
 function pulledAt(slot: Pose, pull: Pull, k: number, out: Pose): Pose {
   if (k <= 0) out.position.copy(slot.position);
   else pullAt(pull, k, out.position);
-  out.quaternion.setFromAxisAngle(Y, wrap(pull.a1 - pull.a0) * smooth(k)).multiply(slot.quaternion);
+  pullQuat(pull, slot.quaternion, k, out.quaternion);
   return out;
 }
 

@@ -163,6 +163,22 @@ Three findings came back from the user, through the lead.
 ### 4. A NaN in the drop light (from T1)
 The drop target's beam took `pow(1.0 - vUp, 1.8)`. A base a hair under zero gives NaN on D3D, and bloom turns that into flickering rings. It is now clamped: `pow(max(1.0 - vUp, 0.0), 1.8)`. My other `pow()`s already take `abs()` or `max()`.
 
+### Round 3: nothing of the spiral passes through the arm
+- **The finding:** the user called the lift, the return and the drop "perfect", but "the spiral thingy goes through the robot when picking it up". The arm's links, and the cartridge held outside the ring, crossed the spiral's ring. As the spiral rose (or came down on a put-back), its cartridges and band swept through them.
+- **The fix,** in the spirit of option (c) but from inside: the spiral only ever moves while the arm and its cartridge are wholly inside the spiral's hollow core.
+  - **Pick, and the click's pull:** the arm draws the cartridge out of its slot inward, into the core beside its mast (0.8 m from the axis, `plugSequence.ts CORE_R`).
+    - It squares up to face straight out, so its 2.3 m width lies across the core and its corners stay inside it.
+    - It comes down inside the core if the arm couldn't otherwise hang straight down to it (`CORE_TOP_Y`).
+  - **The arm near the axis:** it hangs straight down from its mast, easing to its comfortable stretch further out (`armIk.ts stretchFor`), so its elbow stays in the core. Its idle hand now waits 1.0 m out (was 1.55).
+  - **The gate:** `lift.ts clearOfSpiral` checks that every segment of the arm (with its thickness) and every corner of the held cartridge are inside 1.66 m. Only then does the arm move the spiral (`Arm.tsx`); otherwise the spiral waits where it is. That covers the pick, the click, the spiral coming down after a drop (it waits until the arm has come home), and the put-back.
+  - **Carry:** starts once the spiral is all the way up. Only the mast is left in the middle (`collide.ts MAST_R` 0.78).
+  - **Put-back:** the arm takes it round into the core by its slot, the spiral comes down round them, then the arm pushes it out into its slot. It's the same rhythm the user liked, now with nothing crossing.
+- **Found on the way:** the band cut straight across the helix's two big gaps (the empty places for saved cartridges). One chord came within 0.40 m of the axis, through the core at about 10 m up. `Ribbon.tsx ribbonCurve` now runs through the empty places too, so the band follows the helix all the way round; its inner edge never comes closer than 1.675 m. Saved cartridges now stand on the band like the rest.
+- **The test** (`scene/liftClear.test.ts`):
+  - For every slot, it sweeps the lift in 41 steps, 0 to 1 (the put-back's descent passes through the same positions in reverse).
+  - At each step it checks every spiral cartridge (an OBB, lifted) against the held cartridge's OBB and against each arm segment's thick line, and every band vertex against both.
+  - It also checks the click's lift phase at every step for every slot, that the band stays outside the core, and that `clearOfSpiral` refuses an arm reaching through the ring or a cartridge held outside the core.
+
 ### Round 2 checks
 - **Web:** 210 files, **1869 passed**, 1 skipped. `tsc -b` and `vite build` pass.
 - **New tests:** lift 3, bay 4, materializeAll 2, plugSequence +1 (in reach all the way, lift at u). Rewritten: plugSequence's clearance test, where the other cartridges now rise with the spiral. armTask's gap tests went with the gap.
@@ -211,7 +227,10 @@ Round 2 (SwiftShader, the page's clock slowed for the pick):
 | ![](2026-10-22-workshop-interact/20-r2-before-port.jpg) 20 before: the cartridge sat on the dock's plate | ![](2026-10-22-workshop-interact/21-r2-click-bay.jpg) 21 after, a click: the bay on the dock (machine view), the arm coming |
 | ![](2026-10-22-workshop-interact/22-r2-click-into-bay.jpg) 22 the arm lowering it into the bay | ![](2026-10-22-workshop-interact/23-r2-put-back-round.jpg) 23 let go: taken round to its slot, the spiral still up |
 | ![](2026-10-22-workshop-interact/24-r2-spiral-down.jpg) 24 the spiral down round it, then pushed home | ![](2026-10-22-workshop-interact/25-r2-reveal-particles.jpg) 25 the descent: no mat standing among the particles |
-| ![](2026-10-22-workshop-interact/26-r2-reveal-mat-dissolves.jpg) 26 the room materializing: the bench's mat comes in with it | |
+| ![](2026-10-22-workshop-interact/26-r2-reveal-mat-dissolves.jpg) 26 the room materializing: the bench's mat comes in with it | ![](2026-10-22-workshop-interact/27-r3-lift-round-the-core.jpg) 27 round 3: the cartridge waits in the core beside the mast, the arm hanging straight down to it, while the spiral rises past |
+| ![](2026-10-22-workshop-interact/28-r3-put-back-spiral-down.jpg) 28 round 3: the spiral back down round them, the arm pushing it out into its slot | |
+
+Round 3 checks: web 211 files, 1872 passed, 1 skipped. One run of the full suite had a timeout in `site/data/DataPage.test.tsx`, which this branch doesn't touch; it passes 3/3 alone. `tsc -b` passes. `liftClear.test.ts`: 4 tests, every slot, 41 lift steps.
 
 ## Not done / for the user to check
 - **The insert as seen from the machine.** The "Plug in" camera frames the port, so the arm lowering the cartridge in is mostly above the frame (shot 10). The machine's camera is T1's station shot; widening it is their call.

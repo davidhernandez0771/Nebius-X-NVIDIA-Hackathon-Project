@@ -22,8 +22,8 @@ export const ROOM = { floor: -0.6, ceiling: 14.4, x: [-19.4, 19.4], z: [-20.2, 1
 export const PEDESTAL = { radius: 4.6, top: -0.22 } as const;
 /** The spiral: a carried cartridge's centre stays this far from the axis (its cartridges stand 2.3–4.1 m out, facing out, 0.34 m deep). */
 export const SPIRAL_R = 4.35;
-/** With the spiral lifted out of the way (lift.ts), only the arm's mast and base stand in the middle. */
-export const MAST_R = 1.6;
+/** With the spiral lifted out of the way (lift.ts), only the arm's mast stands in the middle (a cartridge waits beside it at 0.8 m, plugSequence.ts CORE_R). */
+export const MAST_R = 0.78;
 
 const turnedOffset = (yaw: number, x: number, z: number): [number, number] => [x * Math.cos(yaw) + z * Math.sin(yaw), -x * Math.sin(yaw) + z * Math.cos(yaw)];
 
@@ -132,10 +132,3 @@ export function clear(p: THREE.Vector3, body: Body, spiralR = SPIRAL_R): boolean
   return q.distanceTo(p) < 1e-3;
 }
 
-/** Whether the body at `p` overlaps a table or the machine (the furniture alone: not the spiral, walls or floor). */
-export function hitsFurniture(p: THREE.Vector3, body: Body): boolean {
-  return BLOCKS.some((b) => {
-    const [lx, lz] = local(b, p);
-    return Math.abs(lx) < b.half[0] + body.radius && Math.abs(lz) < b.half[1] + body.radius && p.y - body.half < b.top + CLEAR && p.y + body.half > b.bottom;
-  });
-}
