@@ -587,3 +587,56 @@ v1 only in:
 - new selection seeds.
 
 Stage B adds DAgger r1.
+
+### The stop: the chain was stopped at 22:06:07 in Stage A's selection, by the user's request, to resume 10-24
+
+**The user asked for the stop** (in chat, relayed by the lead to T6). That is the prereg's guard ("a stop needs the
+user's OK"), met. T6's `run_log.txt` line (22:07:35) reads: "stopped at 22:06:07 in stage A select (60k 13/29 and
+120k 17/29 done; 180k partial: seeds 5500-5505 finished, 4/6) by the user's request (chat), to resume 10-24".
+Checked here, from `C:\dev\pm-t6-big\data\distill\bigtest` and `C:\dev\pm-t6-big\data\evals\bigtest_r0_t600`:
+- **`bigtest_status.json`:** started 16:14:10, stopped 22:06:07, stage "A select", "stopped by the user (chat), to
+  resume 10-24".
+- **The process tree** of launcher 39496 was killed (`taskkill /T`). `C:\dev\gpu.lock` is gone. It was moved aside, not
+  deleted, to `data\distill\bigtest\gpu.lock.stopped-20261023_220720` (it holds `T6 45256 bigtest 2026-10-23T16:14:17`).
+- **Code:** `pm/bigtest` HEAD is still `c6bae0a` (`c6bae0ae1505…`), clean. No code changed. Nothing was deleted.
+
+**Stage A so far:**
+
+| Step | Time | What |
+|---|---|---|
+| Export | 16:14:18 → ~18:06:47 (~1.9 h) | `distill_r0`: 956 episodes, 336,729 frames; human 112,294 (×3.5584, 33%) + teacher 224,435 (67%) |
+| Train | ~18:06:47 → 21:15:19 (3.14 h) | ACT, 180,000 steps, batch 8, checkpoints every 10k; `train_time_s` 11,311.5, final loss 0.071; exit 0 |
+| Select 60k | 21:15:19 → 21:40:15 | 13/29 on 5500–5528 |
+| Select 120k | 21:40:15 → 22:01:01 | 17/29 on 5500–5528 |
+| Select 180k | 22:01:01 → stopped 22:06:07 | partial: 6/29 episodes, 4 successes |
+
+The training start is derived: 21:15:19 minus `train_time_s`. `train.log` has no line of its own for the end of the export.
+
+**The selection episodes** (`*.episodes.jsonl`, all with `gripper_deadband` 0.25, no errors):
+- **60k:** 13/29, seeds 5500–5528, each once. Failure reasons (one episode can have several): dropped 16, not_in_bin 15,
+  collision 13, gripper_closed 2.
+- **120k:** 17/29, seeds 5500–5528, each once. Failure reasons: dropped 12, not_in_bin 10, collision 5, gripper_closed 3.
+- **180k, partial:** seeds 5500–5505. 5500, 5501, 5503 and 5505 succeeded. 5502 failed (not_in_bin, gripper_closed,
+  dropped) and 5504 failed (not_in_bin, dropped). The eval log ends at episode 6/29. Seed 5506 was running when the
+  process was killed and has no record.
+
+**No step has been chosen, and no decision has been made.** Stage A's pick needs the full 180k count. By the prereg's
+rule, ties go to the later checkpoint.
+
+**The resume, as T6 states it and as checked in the code:**
+- It is the same chain command, on the same code. The export, the training and the 60k/120k counts are reused.
+- 180k's selection runs with `run_eval --resume`: it keeps 5500–5505 and runs 5506–5528 with the same checkpoint and
+  settings.
+- `EpisodeLog.open` (`sim_eval/progress.py`) refuses to resume if the header differs in any of `checkpoint`, `seed0`,
+  `max_seconds`, `cameras`, `reset_pose` or `inference` (the deadband is part of `inference`).
+- Only episodes that ended in `sim_error` or `policy_error` are rerun. Neither occurs in the 6 finished ones.
+- Then Stage B and the test run as preregistered.
+
+**Disclosed:**
+- **s180000's 29 selection episodes span two sessions:** 6 on 10-23 (5500–5505) and 23 on 10-24 (5506–5528). They use
+  the same checkpoint, settings and code. The Isaac and policy-server processes are restarted between the two parts.
+- **The partial 180k result (4/6) is known before the rest runs.** Nothing can be changed because of it: the checkpoint,
+  the settings and the pick rule are all fixed, and the resume refuses any change to them.
+- **The selection counts are selection-only.** They are inflated by the best-of-3 pick (v1's was 21/29 on selection
+  against 15/40 on the test). Only the test on 5400–5439 estimates the rate.
+- **The test seeds 5400–5439 have not been touched.**
