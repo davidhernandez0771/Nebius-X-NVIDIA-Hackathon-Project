@@ -640,3 +640,60 @@ rule, ties go to the later checkpoint.
 - **The selection counts are selection-only.** They are inflated by the best-of-3 pick (v1's was 21/29 on selection
   against 15/40 on the test). Only the test on 5400–5439 estimates the rate.
 - **The test seeds 5400–5439 have not been touched.**
+
+### 10-24: the resume, Stage A's pick and DAgger round 1 (the lead; T6/T7 sessions were not running)
+
+**The resume (16:04:53, on the user's go in chat).** The same chain command was run on the same code, `pm/bigtest`
+`c6bae0a`, clean. The lead ran it in a terminal tab; GPU idle, no `gpu.lock`, CARLA closed. The chain took
+`gpu.lock` at 16:05:04 and reused the export, the training and the 60k/120k counts. 180k's selection resumed at seed 5506.
+
+**Stage A, complete (selection on 5500–5528, `gripper_deadband` 0.25):**
+
+| Checkpoint | Successes | Failure reasons (an episode can have several) |
+|---|---|---|
+| 60k | 13/29 | dropped 16, not_in_bin 15, collision 13, gripper_closed 2 |
+| 120k | 17/29 | dropped 12, not_in_bin 10, collision 5, gripper_closed 3 |
+| **180k** | **21/29** | not_in_bin 8, dropped 7, collision 4, gripper_closed 2 |
+
+- **The pick:** by the rule (most successes), the A-best is **180k** (`stageA_pick.json`). It finished at 16:19:12.
+- **180k's 29 episodes span two sessions:** 6 on 10-23 and 23 on 10-24, as disclosed above.
+- **These counts are selection only and inflated by the best-of-3 pick.** v1 also scored 21/29 on selection, and 15/40 on
+  its test.
+
+**DAgger round 1 (16:19:13 → 16:47:48):**
+- **Student:** the A-best (180k) drove 40 episodes on 5210–5249 (beta 0), with the held teacher relabelling every step
+  (`cap_from_tool`).
+- **Student success: 28/40 (70%)**; 12 hit the time limit.
+- **Failure reasons:** not_in_bin 11, dropped 11, collision 6, gripper_closed 2.
+- **Frames:** 29,600 labelled.
+- **The stop rule:** off, as pre-registered. Its verdict, "continue", is recorded in `decision.json`.
+- **A caveat on the 28/40:** these seeds were not used for any pick, but it is not a test. The seeds are practice
+  seeds, and 5210–5219 were seen on 10-18 by a different policy (disclosed in the seed section).
+- **Stage B mix:** human 31,536 ×3.5584 (25%), teacher 224,435 ×1.0 (50%), DAgger 29,600 ×3.7911 (25%).
+- **Stage B export:** 16:47:49 → ~19:18.
+- **Stage B training:** started ~19:18.
+
+**The second stop (21:24:48, by the user's request in chat).**
+- The user was asked first, after the lead had pointed out that training was half done. They chose "Stop now,
+  resume tomorrow".
+- The stop came during Stage B's training. The last checkpoint was 090000 of 180,000.
+- `taskkill /T` was run on chain PID 39540, which included the training process.
+- The stale `gpu.lock` was moved aside to `data\distill\bigtest\gpu.lock.stopped-20261024_212443`. Nothing was deleted.
+
+**The second resume (10-25 11:25:41, on the user's go).**
+- Same command, same code `c6bae0a`, clean.
+- The chain skipped human+teacher, A, DAgger and the grid. Its training resumed the unfinished run
+  `bigtest_r1_20261024_164749` via `find_unfinished_run` → `lerobot_tools.experiments --resume-run`.
+- The training log shows the remaining 90,000 steps counting from 0/90000 at ~16 steps/s, i.e. a resume from
+  checkpoint 090000, not a restart.
+- **Disclosed:** Stage B's training spans two sessions, 0–90k on 10-24 and 90k–180k on 10-25. This was the first real
+  use of the resume path (until now it was only unit-tested). Selection of 60k/120k/180k and the test follow as
+  pre-registered.
+
+**The raw results** are copied into `2026-10-23-bigtest/results/`:
+- the Stage A selection episodes and summaries, plus the pick;
+- the DAgger rollouts, `rollouts_done.json` and `decision.json`;
+- `run_log.txt`;
+- `human_choice.json`.
+
+The test seeds 5400–5439 have still not been touched.

@@ -1,0 +1,14 @@
+{
+ "round": 1,
+ "student_rate": 0.7,
+ "new_frames": 29600,
+ "rules": {
+  "target_rate": 0.9,
+  "min_gain": 0.05,
+  "min_new_frames": 5000
+ },
+ "stop": false,
+ "reason": "stop rule off (pre-registered); the rule says: continue",
+ "stop_rule": false,
+ "rule_would_stop": false
+}
