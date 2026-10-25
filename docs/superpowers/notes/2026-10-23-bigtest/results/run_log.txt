@@ -81,3 +81,38 @@
 [2026-10-25 11:25:48] [B] [overnight] skip grid (already done)
 [2026-10-25 11:25:48] [B] [overnight] start train: ACT, 180000 steps
 [2026-10-25 11:25:48] [B] [distill]   resuming the unfinished training run C:\dev\pm-t6-big\data\experiments\bigtest_r1_20261024_164749
+[2026-10-25 13:11:31] [B] [distill]   exit 0: C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.experiments ... (log train.log)
+[2026-10-25 13:11:31] [B] [overnight] done train
+[2026-10-25 13:11:31] [B] [overnight] start select: candidates [60000, 120000, 180000] on seeds 5529-5557
+[2026-10-25 13:34:13] [B] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_60000.log)
+[2026-10-25 13:34:13] [B] [distill]   distill_r1_s60000: 16/29 on selection seeds
+[2026-10-25 14:07:50] [B] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_120000.log)
+[2026-10-25 14:07:50] [B] [distill]   distill_r1_s120000: 7/29 on selection seeds
+[2026-10-25 14:19:23] [lead] STOPPED by the user's request (chat, 10-25 ~14:19: "im running a game rn can we stop this pls"), during stage B selection: 60k 16/29 and 120k 7/29 done, 180k selection in progress (partial). taskkill /T of bigtest 47120; stale gpu.lock moved aside to data\distill\bigtest\gpu.lock.stopped-*. Nothing deleted. Resume = the same command (selection resumes per seed; test not started; seeds 5400-5439 untouched).
+[2026-10-25 17:38:29] [lead] RESUME on the user's go (chat, 10-25 ~17:38: "ok u can continue now"). Same command, code c6bae0a clean; no gpu.lock. Expect: skip A, skip B train, reuse B 60k/120k selection, resume B 180k selection from its partial log, pick, then the test on 5400-5439 once.
+[2026-10-25 17:38:34] [bigtest] chain start; code {'commit': 'c6bae0ae1505ba4afcc54e1a59b17511210a4ada', 'branch': 'pm/bigtest', 'dirty': False}
+[2026-10-25 17:38:41] [gpulock] taken: 'T6 54848 bigtest 2026-10-25T17:38:41'
+[2026-10-25 17:38:41] [overnight] skip human+teacher (already done)
+[2026-10-25 17:38:41] [overnight] skip A (already done)
+[2026-10-25 17:38:41] [overnight] start B: round 1: DAgger on 5210-5249, export, train 180000, select on 5529-5557
+[2026-10-25 17:38:41] [B] [overnight] start preflight: inputs, the previous round, disk
+[2026-10-25 17:38:41] [B] [overnight] done preflight
+[2026-10-25 17:38:41] [B] [overnight] skip rollouts (already done)
+[2026-10-25 17:38:41] [B] [overnight] skip decide (already done)
+[2026-10-25 17:38:41] [B] [overnight] skip grid (already done)
+[2026-10-25 17:38:41] [B] [overnight] skip train (already done)
+[2026-10-25 17:38:41] [B] [overnight] start select: candidates [60000, 120000, 180000] on seeds 5529-5557
+[2026-10-25 17:38:41] [B] [distill]   distill_r1_s60000: 16/29 on selection seeds
+[2026-10-25 17:38:41] [B] [distill]   distill_r1_s120000: 7/29 on selection seeds
+[2026-10-25 17:58:18] [B] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_180000.log)
+[2026-10-25 17:58:18] [B] [distill]   distill_r1_s180000: 8/29 on selection seeds
+[2026-10-25 17:58:18] [B] [overnight] done select
+[2026-10-25 17:58:18] [bigtest] stage B: selection {'60000': [16, 29], '120000': [7, 29], '180000': [8, 29]} on [5529, 5557], chose 60000; times {'train_run': 'C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r1_20261024_164749', 'export_done': '2026-10-24T19:18:47', 'checkpoint_60000': '2026-10-24T20:38:58', 'checkpoint_120000': '2026-10-25T12:02:11', 'checkpoint_180000': '2026-10-25T13:11:29'}
+[2026-10-25 17:58:18] [overnight] done B
+[2026-10-25 17:58:18] [overnight] start test: the final model on 5400-5439, once
+[2026-10-25 17:58:18] [bigtest] final model: stage A step 180000 (A [21, 29], B [16, 29]; a tie goes to B): C:\dev\pm-t6-big\data\experiments\bigtest_r0_t600_20261023_161418\train\distill_r0\checkpoints\180000\pretrained_model
+[2026-10-25 17:58:18] [bigtest] test command: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id bigtest_test --checkpoint bigtest_final=C:\dev\pm-t6-big\data\experiments\bigtest_r0_t600_20261023_161418\train\distill_r0\checkpoints\180000\pretrained_model --seed0 5400 --n 40 --start-state C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset --port 8766 --gripper-deadband 0.25 --trace
+[2026-10-25 18:21:16] [bigtest] RESULT 30/40 on 5400-5439; Wilson 95% 0.598-0.858
+[2026-10-25 18:21:16] [overnight] done test
+[2026-10-25 18:21:16] [gpulock] released
+[2026-10-25 18:21:16] [bigtest] done; GPU lock released

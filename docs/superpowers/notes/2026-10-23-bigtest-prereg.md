@@ -697,3 +697,77 @@ rule, ties go to the later checkpoint.
 - `human_choice.json`.
 
 The test seeds 5400–5439 have still not been touched.
+
+### 10-25: Stage B, the third stop, the pick and THE TEST
+
+**Stage B training finished** (resumed from 090000; 180,000 steps at 13:11:29).
+
+**The third stop (14:18:59, the user's request in chat: "im running a game rn can we stop this pls").**
+- It came during Stage B's selection. 60k (16/29) and 120k (7/29) were done; 180k was partial (3/10).
+- `taskkill /T` was run on chain PID 47120. The stale lock was moved aside; nothing was deleted.
+- The resume ran at 17:38:34 on the user's go ("ok u can continue now"). The command and the code (`c6bae0a`, clean) were
+  unchanged. 180k's selection resumed per seed.
+
+**Stage B selection (5529–5557, deadband 0.25):**
+
+| Checkpoint | Successes | Failure reasons |
+|---|---|---|
+| **60k** | **16/29** | dropped 12, not_in_bin 11, gripper_closed 7, collision 4 |
+| 120k | 7/29 | not_in_bin 22, dropped 21, gripper_closed 13, collision 7 |
+| 180k | 8/29 | not_in_bin 21, dropped 20, gripper_closed 7, collision 5 |
+
+- **The pick:** by the rule, the B-best is **60k**.
+- **Disclosed:** the 120k and 180k checkpoints were the first trained after the 10-24 stop and resume. They fell from
+  16/29 to 7–8/29.
+- **Checked by the lead:**
+  - The training loss is continuous across the resume: 0.084 at 90K → 0.082 at 91K. The step counter continued from
+    90K. The LR is a constant 1e-5.
+  - The 120k selection ran ~20% slower in wall time (median wall/sim 2.89 vs ~2.4). The user's game may have been
+    running during it.
+  - But 180k ran later with an idle GPU and still scored 8/29. So the game does not explain the drop.
+- **The cause is unknown.** Candidates:
+  - (a) the resume path breaks something the loss doesn't show (e.g. data-sampler or RNG state);
+  - (b) longer training on the DAgger-mixed data genuinely hurts.
+- **Not tested.** Stage B's result therefore says nothing reliable about DAgger.
+
+**THE PICK (pre-registered rule):** A-best 21/29 (180k) vs B-best 16/29 (60k). **The final model is Stage A's 180k**:
+`bigtest_r0_t600_20261023_161418\train\distill_r0\checkpoints\180000`. It is the same human + teacher data as v1, trained
+3× longer, with the gripper deadband at inference.
+
+**THE TEST**
+- Run once on 5400–5439, 17:58:18 → 18:21:16.
+- The command, exactly as logged: `eval_cells.py --run-id bigtest_test --checkpoint
+  bigtest_final=<A 180k> --seed0 5400 --n 40 --start-state <raw_10> --start-pose dataset --gripper-deadband 0.25 --trace`.
+
+| | Result |
+|---|---|
+| **Success** | **30/40 (75%), Wilson 95% CI 0.598–0.858** |
+| **Goal ≥ 24/40 (60%)** | **MET** |
+| vs v1 15/40 (two-sided Fisher, descriptive: different seeds) | p = 0.0014 |
+| vs mouse SANT 3/40 (descriptive) | p = 5.4 × 10⁻¹⁰ |
+| vs mouse raw 0/40 (descriptive) | p = 1.9 × 10⁻¹³ |
+| vs scripted multiply 17/40 (reference only) | p = 0.006 |
+
+- **Failures:** 10, all at the time limit. Reasons: dropped 10, not_in_bin 9, collision 5, gripper_closed 2.
+  Failed seeds: 5400, 5402, 5408, 5409, 5413, 5421, 5427, 5433, 5437, 5439.
+- **No errors.** All 40 seeds ran once. The trace is on disk (`bigtest_final_traces`).
+- **This time, selection did not overstate the test:** 21/29 (72%) on selection vs 30/40 (75%) on the test.
+
+**What it shows, and what it doesn't:**
+- **Shown:** the v2 recipe, as it actually ran, reached the 60% goal on fresh, untouched seeds.
+  - "As it actually ran" means: v1's exact data, 180k steps instead of 60k, and the stateful gripper deadband.
+  - Change 2 was dropped (held-human floor failed), and DAgger lost the pick.
+- **Not shown:**
+  - which of the two surviving changes caused it, since there was one combined arm and no ablation;
+  - anything about DAgger, since Stage B was confounded (see above).
+- **Plausible but untested:** Stage A's selection rose steadily with training length (13 → 17 → 21 / 29), which points at
+  the longer training.
+- **The comparisons with v1/SANT/raw are descriptive:** the test seeds differ (5400–5439 vs 5020–5059).
+- **One run, one training seed.**
+
+**The test seeds 5400–5439 are now SPENT.**
+
+**Queued diagnostics (post-test, not part of this result):**
+- the k = 5 held-human pilot (T3);
+- the Stage B resume drop. For example, retrain B 90k→180k without a stop, or eval A-180k with the deadband off on
+  practice seeds, to split the two changes.
