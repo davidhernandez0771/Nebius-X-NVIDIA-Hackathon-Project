@@ -287,6 +287,57 @@ describe("the browser's Back and Forward in the workshop (no WebGL)", () => {
   });
 });
 
+// site-nav (2026-10-26, the user): a reload in the story or the descent starts where the visitor was, not at the top.
+describe("a reload resumes the journey (no WebGL)", () => {
+  const reloadNav = (type: string) =>
+    vi.spyOn(performance, "getEntriesByType").mockImplementation(((t: string) => (t === "navigation" ? [{ type }] : [])) as never);
+  beforeEach(() => {
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+  const ys = () => vi.mocked(window.scrollTo).mock.calls.map((c) => (c[0] as ScrollToOptions).top ?? 0);
+
+  it("keeps where the page is when it goes away, and comes back there on a reload", () => {
+    const { unmount } = renderWorld();
+    const y = window.innerHeight * (INTRO + 1.5);
+    scrollTo(y);
+    expect(current()).toBe("descent");
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    unmount();
+    // A reload opens at the top of the page, before the world puts it back.
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    vi.mocked(window.scrollTo).mockClear();
+    reloadNav("reload");
+    renderWorld();
+    expect(current()).toBe("descent");
+    expect(Math.abs(Math.max(...ys()) - y)).toBeLessThan(2);
+  });
+
+  it("a new visit (not a reload) still starts at the top", () => {
+    sessionStorage.setItem("world.spot", JSON.stringify({ u: 0.5 }));
+    reloadNav("navigate");
+    renderWorld();
+    expect(current()).toBe("intro");
+    expect(ys().filter((y) => y > 0)).toEqual([]);
+  });
+
+  it("a place in the URL wins over the spot", () => {
+    sessionStorage.setItem("world.spot", JSON.stringify({ u: 0.1 }));
+    window.history.replaceState(null, "", "/#robots");
+    reloadNav("reload");
+    renderWorld();
+    expect(current()).toBe("robots");
+  });
+});
+
 describe("the spiral's filters (no WebGL)", () => {
   beforeEach(() => {
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });

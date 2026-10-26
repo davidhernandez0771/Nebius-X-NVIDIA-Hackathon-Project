@@ -9,6 +9,7 @@ import { navigateWithTransition } from "../../sant/motion/viewTransition";
 import { STATIONS } from "../stations";
 import { FIRE_AT, saveReturn, takeReturn } from "./handoff";
 import { hashOfBranch, placeOfHash, syncOp } from "./placeHash";
+import { isReload, resumeSpot, saveSpot } from "./resume";
 import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
 import { Hud } from "./Hud";
@@ -238,9 +239,16 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
 
   // Back from a 2D route: the machine, with the projection still lit, just before the zoom. Or a place in the
   // URL (a reload, a link, Back to its entry: placeHash.ts): the room view with that place open.
+  // Otherwise, on a reload, where the journey was (resume.ts): the story or the descent at the same point.
   useLayoutEffect(() => {
     const back = takeReturn(session()) ?? placeOfHash(window.location.hash);
-    if (!back) return;
+    if (!back) {
+      const y = resumeSpot(session(), isReload(), store.rail.total);
+      if (y === null) return;
+      scrollToY(y, false);
+      store.jump(y);
+      return;
+    }
     // The workshop's end (the room view), with the machine open and already played: the hologram up.
     const span = store.rail.spans.find((s) => s.id === "workshop");
     if (!span) return;
@@ -249,6 +257,13 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     store.jump(y);
     if (stations.some((s) => s.id === back && s.kind === "branch")) store.setBranch(back as StationId, 1);
   }, [store, stations]);
+
+  // Keep the spot when the page goes away (a reload among others), for the resume above.
+  useEffect(() => {
+    const keep = () => saveSpot(session(), store.targetY, store.rail.total);
+    window.addEventListener("pagehide", keep);
+    return () => window.removeEventListener("pagehide", keep);
+  }, [store]);
 
   // The open place follows the URL's hash (placeHash.ts): opening one adds a history entry, so the browser's
   // Back (a phone's back gesture) closes it instead of leaving the site, and Forward opens it again; its own
