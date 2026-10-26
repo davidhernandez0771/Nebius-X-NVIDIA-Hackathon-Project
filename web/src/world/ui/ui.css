@@ -527,13 +527,14 @@
   transition: none;
 }
 
-/* The way out of a place in the workshop (StationBar.tsx), top centre where the room view's hub bar sits:
-   the holo look of the work pages (site/holo): a see-through strip with a hairline, mono capitals, the
-   back button a squared teal box. Shown only while its place is open, so there is one at a time. */
+/* The way out of a place in the workshop (StationBar.tsx), top left under the SANT mark (site-nav, 2026-10-26:
+   it sat top centre, away from where the eye is; the places' own panels and the 2D pages' "Back to workshop"
+   are all on the left): the holo look of the work pages (site/holo): a see-through strip with a hairline, mono
+   capitals, the back button a squared teal box. Shown only while its place is open, so there is one at a time. */
 .world-stationbar {
   position: fixed;
-  left: 50%;
-  top: 18px;
+  left: 24px;
+  top: 52px;
   z-index: 7;
   display: flex;
   align-items: center;
@@ -547,13 +548,12 @@
   border: 1px solid rgb(25 245 194 / 0.16);
   border-radius: 2px;
   backdrop-filter: blur(8px);
-  transform: translateX(-50%);
   animation: world-stationbar-in 0.35s ease both;
 }
 @keyframes world-stationbar-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -6px);
+    transform: translateY(-6px);
   }
 }
 .sant.world .world-stationbar__btn {
@@ -578,6 +578,12 @@
   outline: 2px solid var(--w-teal);
   outline-offset: 2px;
 }
+/* A finger's size on touch screens. */
+@media (pointer: coarse) {
+  .sant.world .world-stationbar__btn {
+    min-height: 44px;
+  }
+}
 .sant.world .world-stationbar__btn--step {
   color: var(--w-ink);
   border-color: rgb(25 245 194 / 0.28);
@@ -597,8 +603,12 @@
   border: 1px solid rgb(25 245 194 / 0.28);
   border-radius: 2px;
 }
-/* Below 1600 px the place's name goes (its own panel says it): the bar then clears the brand top left at
-   1280. A phone: full width under the top edge, the hint on its own line under the buttons. */
+/* The detail view's own "Scroll to close" (top centre) says what the bar's hint says: one is enough. */
+.sant.world:has(.world-stationbar) .world-detail-hint {
+  display: none;
+}
+/* Below 1600 px the place's name goes (its own panel says it). A phone (the brand is hidden there): full width
+   under the top edge, the hint on its own line under the buttons. */
 @media (max-width: 1599px) {
   .world-stationbar__where {
     display: none;

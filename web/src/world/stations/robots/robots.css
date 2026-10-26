@@ -3,7 +3,8 @@
 
 .world-robots {
   position: absolute;
-  top: clamp(56px, 9vh, 88px);
+  /* Under the way out (ui/StationBar, top left under the SANT mark). */
+  top: 108px;
   left: clamp(16px, 3vw, 40px);
   bottom: clamp(16px, 4vh, 40px);
   width: min(30rem, 36vw);

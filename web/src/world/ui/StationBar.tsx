@@ -1,7 +1,9 @@
-// The way out of every place you can enter in the workshop (the shelf, the machine, the projection, the
-// bench, the robot wall), top centre where the room view's hub bar sits: a real "← Back to room" button,
-// where you are, and one line on what to do here, with Escape. A step inside a place (a robot's close-up)
-// adds its own way back first. Shown only while the place is open, so there is one at a time.
+// The way out of every place you can enter in the workshop (the shelf and a cartridge's detail, the machine,
+// the projection, the bench, the robot wall), top left under the SANT mark, where the 2D pages put their
+// "← Back to workshop" (sant/components/BackToWorkshop) and beside the places' own panels: a real
+// "← Back to room" button, where you are, and one line on what to do here, with Escape. A step inside a place
+// (a robot's close-up, a cartridge's detail) adds its own way back first. Shown only while the place is open,
+// so there is one at a time.
 import type { ReactNode } from "react";
 
 export function StationBar({

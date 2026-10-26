@@ -415,6 +415,27 @@ describe("the spiral's filters (no WebGL)", () => {
       expect(document.documentElement.style.overflow).toBe("");
     });
 
+    // site-nav: the detail view had no way back in the one place every other view has it (its Close sat in
+    // its card, bottom left). The same bar now: a step back to the shelf first, then the room.
+    it("from a detail view by the same bar: Back to shelf first, then Back to room", async () => {
+      const { spiral } = await import("../scene/spiral");
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.keyDown(window, { key: "Enter" });
+      expect(spiral.selected).toBeGreaterThanOrEqual(0);
+      const bar = screen.getByRole("group", { name: "The shelf: the way out" });
+      expect(within(bar).getAllByRole("button").map((b) => b.textContent)).toEqual(["← Back to shelf", "← Back to room"]);
+      expect(bar.textContent).toContain("Esc steps back");
+      fireEvent.click(within(bar).getByRole("button", { name: "Back to shelf" }));
+      expect(spiral.selected).toBe(-1);
+      expect(shelf.open).toBe(true);
+      fireEvent.keyDown(window, { key: "Enter" });
+      fireEvent.click(within(screen.getByRole("group", { name: "The shelf: the way out" })).getByRole("button", { name: "Back to room" }));
+      expect(spiral.selected).toBe(-1);
+      expect(shelf.open).toBe(false);
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
     it("to the robot wall and out on Escape: the same", async () => {
       renderWorld();
       const shelf = await openShelf();
