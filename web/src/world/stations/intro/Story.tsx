@@ -9,6 +9,8 @@
 // webcam demos (0/10 passed physics → 3 repaired → 24 verified variants; 9 pressed into the bin at up to 927 N),
 // Nemotron's labels (40/40).
 import { useRef, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { LEAD } from "../../../site/results/proofData";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { scramble } from "../../ui/scramble";
 import { PROOF } from "./proof";
@@ -34,6 +36,18 @@ const COPY: BeatCopy[] = [
     items: [
       <p key="a">One human demo, by webcam or keyboard teleop, becomes robot training data.</p>,
       <p key="b">Physics-checked. Repaired. Multiplied. Labelled by Nemotron.</p>,
+      // Straight to the proof, for whoever wants it now (site-nav, 2026-10-26): quiet, under the copy. The number is
+      // the Results page's lead (proofData.ts LEAD), not typed here.
+      <p key="c" className="intro-proof">
+        <Link className="intro-proof__link world-u" to="/site/results#proof">
+          See the result
+          <span className="intro-proof__what">
+            {" "}
+            · {LEAD.result.k}/{LEAD.result.n} on unseen scenes, pre-registered
+          </span>
+          <span aria-hidden="true"> →</span>
+        </Link>
+      </p>,
     ],
   },
   {

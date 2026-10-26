@@ -69,6 +69,15 @@ describe("WorldRoot (no WebGL)", () => {
     expect(parseFloat(track.style.height)).toBeGreaterThan(window.innerHeight * 10);
   });
 
+  // site-nav (2026-10-26, the user): a judge can go straight to the proof from the first screen.
+  it("offers a quiet See the result link in the hero, to the proof on the Results page", () => {
+    renderWorld();
+    const hero = document.querySelector<HTMLElement>(".intro-beat--hero")!;
+    const link = within(hero).getByRole("link", { name: /^See the result/ });
+    expect(link.getAttribute("href")).toBe("/site/results#proof");
+    expect(link.textContent).toContain("30/40");
+  });
+
   it("tells the story beside the logo one beat at a time, then hands over to the descent", () => {
     renderWorld();
     const h = window.innerHeight;

@@ -301,6 +301,31 @@
   color: #a9c9c1;
 }
 
+/* "See the result" (site-nav): a quiet mono link under the hero's copy, to the Results page's lead. The beat
+   lets clicks through to the 3D; the link takes them. */
+.intro-proof__link {
+  pointer-events: auto;
+  display: inline-block;
+  padding: 6px 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--w-teal);
+  text-decoration: underline;
+  text-decoration-color: rgb(25 245 194 / 0.4);
+  text-underline-offset: 4px;
+}
+.intro-proof__link:hover {
+  color: var(--w-ink);
+  text-decoration-color: currentColor;
+}
+.intro-proof__link:focus-visible {
+  outline: 2px solid var(--w-teal);
+  outline-offset: 3px;
+}
+.intro-proof__what {
+  color: var(--w-dim);
+}
+
 .intro-item {
   padding-left: 14px;
   border-left: 1px solid var(--w-line);
