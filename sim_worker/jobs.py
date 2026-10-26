@@ -49,7 +49,16 @@ def variant_name(prefix: str, seed: int) -> str:
 
 
 def multiply_seeds(req: MultiplyRequest) -> list[int]:
+    if req.scenes is not None:
+        return [s.seed for s in req.scenes]
     return list(range(req.seed0, req.seed0 + req.n))
+
+
+def multiply_scenes(req: MultiplyRequest) -> list[Scene]:
+    """The given scenes, else sample_scene for each seed (the scenes multiply has always used)."""
+    if req.scenes is not None:
+        return list(req.scenes)
+    return [sample_scene(np.random.default_rng(seed), req.robot, seed) for seed in multiply_seeds(req)]
 
 
 def _check(robot: str, record_cameras: bool, worker_robot: str, worker_cameras: bool) -> None:
@@ -117,8 +126,8 @@ def run_multiply(req: MultiplyRequest, replay_fn: ReplayFn, *, root: Path, worke
     _check(req.robot, req.record_cameras, worker_robot, worker_cameras)
     t0 = time.time()
     variants = []
-    for seed in multiply_seeds(req):
-        scene = sample_scene(np.random.default_rng(seed), req.robot, seed)
+    for scene in multiply_scenes(req):
+        seed = scene.seed
         traj = transform_trajectory(req.trajectory, req.scene, scene)
         ep = (episodes_dir(root) / variant_name(req.out_prefix, seed)).resolve()
         stored = _stored_variant(ep, scene)

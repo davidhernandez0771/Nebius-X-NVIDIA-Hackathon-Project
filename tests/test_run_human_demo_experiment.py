@@ -524,6 +524,45 @@ def test_the_data_fixes_are_frozen_only_when_set_and_reach_the_repair_and_the_va
     assert any(retimed)  # the stand-ins swoop: the retime really ran
 
 
+def _scene_recipe() -> dict:
+    return {"summary": "s", "hypotheses": [], "mechanism": [], "fixes": [], "uniform_share": 0.4,
+            "regions": [{"name": "right_bin", "targets": ["dropped"], "cube_x": [0.40, 0.60], "cube_y": [0.0, 0.20],
+                         "cube_yaw_deg": [-45, 45], "bin_x": [0.45, 0.65], "bin_y": [-0.30, -0.10], "share": 0.6,
+                         "rationale": "r"}]}
+
+
+def test_a_scene_recipe_is_frozen_and_gives_the_variants_their_scenes(hx, tmp_path):
+    from demo_pipeline.data_recipe import DataRecipe, recipe_scene
+
+    recipe = _scene_recipe()
+    exp, _, _ = _exp(hx, tmp_path, name="recipe")
+    sr = {"path": "recipe_nemotron.json", "sha256": "0" * 64, "recipe": recipe}
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "variants": 6, "scene_recipe": sr})
+    exp.run(until="grid")
+    root = tmp_path / "human_exp" / "recipe"
+    assert json.loads((root / "config.json").read_text())["scene_recipe"] == sr
+    assert "scene recipe" in (root / "preregistration.md").read_text()
+    regions = []
+    for id in IDS:
+        mult = json.loads((root / "stages" / "multiply" / f"{id}.json").read_text())
+        for a in mult["attempts"]:
+            want, region = recipe_scene(DataRecipe.model_validate(recipe), a["seed"])
+            assert a["region"] == region
+            regions.append(region)
+            if a["id"]:
+                assert exp.store.get_demo(a["id"]).scene == want
+    assert {"right_bin", "uniform"} <= set(regions)
+
+
+def test_a_bad_scene_recipe_is_refused_before_anything_runs(hx, tmp_path):
+    bad = _scene_recipe()
+    bad["regions"][0]["bin_y"] = [-0.9, -0.1]
+    path = tmp_path / "recipe.json"
+    path.write_text(json.dumps(bad))
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--scene-recipe", str(path)])
+
+
 @pytest.mark.parametrize("bad", ["0", "-0.01", "0.2"])
 def test_the_approach_offset_must_be_a_small_radius(hx, bad):
     with pytest.raises(SystemExit):
@@ -584,7 +623,7 @@ def test_the_default_recipe_adds_no_flags(hx, tmp_path):
     ["--select-steps", "1500", "--save-freq", "1000", "--steps", "2000"],  # 1500 is never saved
     ["--select-steps", "4000", "--save-freq", "1000", "--steps", "2000"],  # past the end of training
     ["--select-steps", "2000", "--save-freq", "1000", "--steps", "2000", "--practice-seed0", "5030"],  # overlaps 5020-5059
-    ["--steps", "100001"],
+    ["--steps", "200001"],  # over MAX_STEPS (200k since the 2026-10-23 big test)
     ["--temporal-ensemble", "0.01", "--n-action-steps", "20"],
 ])
 def test_the_cli_refuses_an_impossible_recipe(hx, bad):

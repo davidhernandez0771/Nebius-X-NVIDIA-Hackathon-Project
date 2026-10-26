@@ -68,9 +68,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--teacher-execution", choices=("tracking", "held"), default="tracking",
                    help="teacher-executed steps: its RL env's tracking, or one held 9-joint target as the student's "
                         "(option A); a held round needs its own --run-id")
-    p.add_argument("--select-seed0", type=int, default=5300,
-                   help="first selection seed (Amendment 4: 5301, 5300 excluded)")
-    p.add_argument("--select-n", type=int, default=30)
+    p.add_argument("--select-seed0", type=int, default=5500,
+                   help="first selection seed (the big test: Stage A 5500, Stage B 5529)")
+    p.add_argument("--select-n", type=int, default=29)
     p.add_argument("--steps", type=int, default=60000)
     p.add_argument("--save-freq", type=int, default=10000)
     p.add_argument("--candidates", type=int, nargs="+", default=[40000, 60000])
@@ -78,6 +78,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--target-rate", type=float, default=0.9)
     p.add_argument("--min-gain", type=float, default=0.05)
     p.add_argument("--min-new-frames", type=int, default=5000)
+    p.add_argument("--no-stop-rule", action="store_true",
+                   help="DAgger rounds: record the stop rule's verdict but always go on (the big test's Stage B)")
+    p.add_argument("--gpu-log-s", type=int, default=600, help="nvidia-smi interval during training (0: off)")
     p.add_argument("--inference-args", default="", help='e.g. "--binarize-gripper --n-action-steps 20"')
     p.add_argument("--train-args", default="", help='e.g. "--augment shift"')
     p.add_argument("--isaac-py", default=r"C:\isaac\env_isaaclab\Scripts\python.exe")
@@ -99,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
                       select_seed0=args.select_seed0, select_n=args.select_n, steps=args.steps,
                       save_freq=args.save_freq, candidates=tuple(args.candidates), min_teacher=args.min_teacher,
                       target_rate=args.target_rate, min_gain=args.min_gain, min_new_frames=args.min_new_frames,
+                      stop_rule=not args.no_stop_rule, gpu_log_s=args.gpu_log_s,
                       inference_args=tuple(args.inference_args.split()), train_args=tuple(args.train_args.split()))
     log_path = cfg.round_dir() / "distill_round.log"
 

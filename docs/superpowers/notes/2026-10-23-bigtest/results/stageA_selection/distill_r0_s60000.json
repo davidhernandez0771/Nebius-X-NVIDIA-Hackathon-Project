@@ -1,0 +1,788 @@
+{
+  "run": {
+    "cell": "distill_r0_s60000",
+    "checkpoint_url": "http://127.0.0.1:8766",
+    "checkpoint": "C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r0_t600_20261023_161418\\train\\distill_r0\\checkpoints\\060000\\pretrained_model",
+    "policy_type": "act",
+    "policy_device": "cuda",
+    "n": 29,
+    "seed0": 5500,
+    "max_seconds": 30.0,
+    "cameras": true,
+    "started": "2026-10-24T01:16:31+00:00",
+    "start_check": {
+      "available": true,
+      "mode": "dataset",
+      "source": "C:\\dev\\pm-t6\\data\\experiments\\hx_mouse20261020_20261020_164411\\datasets\\raw_10",
+      "n_episodes": 10,
+      "threshold_rad": 0.1,
+      "dataset_mean": [
+        -0.015627605840563774,
+        -0.33840309679508207,
+        0.01444644359871745,
+        -2.3849708795547486,
+        0.004373459238559007,
+        2.104912519454956,
+        0.7789263606071473,
+        0.039999980479478836,
+        0.039999980479478836
+      ],
+      "reset_default": [
+        0.0,
+        -0.569,
+        0.0,
+        -2.81,
+        0.0,
+        3.037,
+        0.741,
+        0.04,
+        0.04
+      ],
+      "abs_diff": [
+        0.015627605840563774,
+        0.23059690320491788,
+        0.01444644359871745,
+        0.42502912044525143,
+        0.004373459238559007,
+        0.9320874805450439,
+        0.03792636060714727
+      ],
+      "max_abs_diff": 0.9320874805450439,
+      "worst_joint": 5,
+      "dataset_spread": 2.0503997802734375e-05,
+      "differs": true,
+      "chosen": "dataset_mean",
+      "reset_pose": [
+        -0.015627605840563774,
+        -0.33840309679508207,
+        0.01444644359871745,
+        -2.3849708795547486,
+        0.004373459238559007,
+        2.104912519454956,
+        0.7789263606071473,
+        0.039999980479478836,
+        0.039999980479478836
+      ]
+    },
+    "gate": {
+      "other_isaac": [],
+      "idle_isaac": [],
+      "free_mib": 13330,
+      "min_free_mib": 8192,
+      "ok": true,
+      "reason": null
+    },
+    "episode_log": "C:\\dev\\pm-t6-big\\data\\evals\\bigtest_r0_t600\\distill_r0_s60000.episodes.jsonl",
+    "resumed_episodes": 0,
+    "inference": {
+      "binarize_gripper": false,
+      "n_action_steps": null,
+      "temporal_ensemble_coeff": null,
+      "gripper_deadband": 0.25,
+      "served": {
+        "overrides": {},
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "temporal_ensemble_coeff": null
+      }
+    },
+    "row_checkpoint": null,
+    "selection": null,
+    "groups": {
+      "unseen": [
+        5500,
+        5501,
+        5502,
+        5503,
+        5504,
+        5505,
+        5506,
+        5507,
+        5508,
+        5509,
+        5510,
+        5511,
+        5512,
+        5513,
+        5514,
+        5515,
+        5516,
+        5517,
+        5518,
+        5519,
+        5520,
+        5521,
+        5522,
+        5523,
+        5524,
+        5525,
+        5526,
+        5527,
+        5528
+      ]
+    },
+    "group_summaries": {
+      "unseen": {
+        "n": 29,
+        "successes": 13,
+        "success_rate": 0.4482758620689655,
+        "reasons": {
+          "not_in_bin": 15,
+          "collision": 13,
+          "dropped": 16,
+          "gripper_closed": 2
+        },
+        "ended_by": {
+          "success": 13,
+          "time_limit": 16
+        },
+        "mean_wall_s": 48.10490709310598,
+        "mean_steps": 998.2758620689655,
+        "seeds": [
+          5500,
+          5501,
+          5502,
+          5503,
+          5504,
+          5505,
+          5506,
+          5507,
+          5508,
+          5509,
+          5510,
+          5511,
+          5512,
+          5513,
+          5514,
+          5515,
+          5516,
+          5517,
+          5518,
+          5519,
+          5520,
+          5521,
+          5522,
+          5523,
+          5524,
+          5525,
+          5526,
+          5527,
+          5528
+        ]
+      }
+    },
+    "scene_build_s": 18.4,
+    "wall_s_total": 1423.1,
+    "wall_s_per_episode": [
+      32.31,
+      18.37,
+      71.81,
+      18.6,
+      18.75,
+      72.54,
+      17.26,
+      15.69,
+      21.69,
+      18.31,
+      23.36,
+      71.05,
+      71.61,
+      71.04,
+      71.13,
+      19.51,
+      71.58,
+      72.62,
+      71.1,
+      16.23,
+      70.67,
+      16.73,
+      19.21,
+      70.47,
+      70.14,
+      70.5,
+      70.79,
+      71.1,
+      70.89
+    ],
+    "connection_retries_per_episode": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "vram_baseline_mib": 2648,
+    "vram_peak_mib": 7030
+  },
+  "summary": {
+    "n": 29,
+    "successes": 13,
+    "success_rate": 0.4482758620689655,
+    "reasons": {
+      "not_in_bin": 15,
+      "collision": 13,
+      "dropped": 16,
+      "gripper_closed": 2
+    },
+    "ended_by": {
+      "success": 13,
+      "time_limit": 16
+    },
+    "mean_wall_s": 48.10490709310598,
+    "mean_steps": 998.2758620689655,
+    "seeds": [
+      5500,
+      5501,
+      5502,
+      5503,
+      5504,
+      5505,
+      5506,
+      5507,
+      5508,
+      5509,
+      5510,
+      5511,
+      5512,
+      5513,
+      5514,
+      5515,
+      5516,
+      5517,
+      5518,
+      5519,
+      5520,
+      5521,
+      5522,
+      5523,
+      5524,
+      5525,
+      5526,
+      5527,
+      5528
+    ]
+  },
+  "episodes": [
+    {
+      "seed": 5500,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 375,
+      "sim_s": 7.48,
+      "wall_s": 32.30649569997331,
+      "error": null,
+      "final_cube_pos": [
+        0.5810804963111877,
+        -0.2175004631280899,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5501,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 375,
+      "sim_s": 7.48,
+      "wall_s": 18.36558949999744,
+      "error": null,
+      "final_cube_pos": [
+        0.5711461901664734,
+        -0.2552899122238159,
+        0.03499962016940117
+      ]
+    },
+    {
+      "seed": 5502,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.81362490000902,
+      "error": null,
+      "final_cube_pos": [
+        0.38208630681037903,
+        0.0852842926979065,
+        0.02499961107969284
+      ]
+    },
+    {
+      "seed": 5503,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 375,
+      "sim_s": 7.48,
+      "wall_s": 18.596468600037042,
+      "error": null,
+      "final_cube_pos": [
+        0.6285412907600403,
+        -0.18804717063903809,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5504,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 375,
+      "sim_s": 7.48,
+      "wall_s": 18.7517446000129,
+      "error": null,
+      "final_cube_pos": [
+        0.5994802117347717,
+        0.27920883893966675,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5505,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.5430914000026,
+      "error": null,
+      "final_cube_pos": [
+        0.4960460960865021,
+        -0.08083201944828033,
+        0.02499961294233799
+      ]
+    },
+    {
+      "seed": 5506,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 350,
+      "sim_s": 6.98,
+      "wall_s": 17.256703799997922,
+      "error": null,
+      "final_cube_pos": [
+        0.5178990364074707,
+        0.1677938997745514,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5507,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 325,
+      "sim_s": 6.48,
+      "wall_s": 15.691108800005168,
+      "error": null,
+      "final_cube_pos": [
+        0.44836536049842834,
+        -0.18504787981510162,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5508,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 450,
+      "sim_s": 8.98,
+      "wall_s": 21.692707500013057,
+      "error": null,
+      "final_cube_pos": [
+        0.45880478620529175,
+        -0.2931860089302063,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5509,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 375,
+      "sim_s": 7.48,
+      "wall_s": 18.306407600000966,
+      "error": null,
+      "final_cube_pos": [
+        0.4382539987564087,
+        0.2928495705127716,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5510,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 475,
+      "sim_s": 9.48,
+      "wall_s": 23.357469500042498,
+      "error": null,
+      "final_cube_pos": [
+        0.5663778185844421,
+        -0.31309300661087036,
+        0.03499962016940117
+      ]
+    },
+    {
+      "seed": 5511,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.0459058000124,
+      "error": null,
+      "final_cube_pos": [
+        0.5749719738960266,
+        0.13936851918697357,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5512,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.60685619997093,
+      "error": null,
+      "final_cube_pos": [
+        0.49274763464927673,
+        -0.11419045925140381,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5513,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.03921959997388,
+      "error": null,
+      "final_cube_pos": [
+        0.4485216438770294,
+        0.0631558820605278,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5514,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.12898189999396,
+      "error": null,
+      "final_cube_pos": [
+        0.5137192010879517,
+        -0.06452644616365433,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5515,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 400,
+      "sim_s": 7.98,
+      "wall_s": 19.514052300015464,
+      "error": null,
+      "final_cube_pos": [
+        0.6002674102783203,
+        -0.22331658005714417,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5516,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.57924120000098,
+      "error": null,
+      "final_cube_pos": [
+        0.4624999165534973,
+        -0.01502323430031538,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5517,
+      "success": false,
+      "reasons": [
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.61520869995002,
+      "error": null,
+      "final_cube_pos": [
+        0.5619592666625977,
+        -0.21218162775039673,
+        0.03499962016940117
+      ]
+    },
+    {
+      "seed": 5518,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.10195739998017,
+      "error": null,
+      "final_cube_pos": [
+        0.47330614924430847,
+        -0.20599104464054108,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5519,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 325,
+      "sim_s": 6.48,
+      "wall_s": 16.232680100016296,
+      "error": null,
+      "final_cube_pos": [
+        0.663931667804718,
+        0.27942681312561035,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5520,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.66922079998767,
+      "error": null,
+      "final_cube_pos": [
+        0.5175954103469849,
+        -0.1546643227338791,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5521,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 350,
+      "sim_s": 6.98,
+      "wall_s": 16.734188300033566,
+      "error": null,
+      "final_cube_pos": [
+        0.565907895565033,
+        -0.2308666855096817,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5522,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 400,
+      "sim_s": 7.98,
+      "wall_s": 19.20571700000437,
+      "error": null,
+      "final_cube_pos": [
+        0.5524812936782837,
+        -0.22175361216068268,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5523,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.4650020999834,
+      "error": null,
+      "final_cube_pos": [
+        0.4857243001461029,
+        0.041648413985967636,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5524,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.14059850003105,
+      "error": null,
+      "final_cube_pos": [
+        0.4987163543701172,
+        -0.0392717644572258,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5525,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.49768839997705,
+      "error": null,
+      "final_cube_pos": [
+        0.5559101104736328,
+        0.06710883229970932,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5526,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.7907367000007,
+      "error": null,
+      "final_cube_pos": [
+        0.4490918517112732,
+        -0.11389369517564774,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5527,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.10490710003069,
+      "error": null,
+      "final_cube_pos": [
+        0.5249500870704651,
+        -0.19793519377708435,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5528,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.88873170001898,
+      "error": null,
+      "final_cube_pos": [
+        0.4878489077091217,
+        -0.08212067931890488,
+        0.024999618530273438
+      ]
+    }
+  ]
+}

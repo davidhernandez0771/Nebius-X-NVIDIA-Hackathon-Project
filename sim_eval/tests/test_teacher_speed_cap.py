@@ -87,6 +87,23 @@ def test_the_cap_holds_through_our_teacher_rollouts(tmp_path, scene):
     assert d_pos.max() > 2 * STEP_M and d_yaw.max() == pytest.approx(rt.DELTA_YAW)
 
 
+def test_dagger_labels_cap_from_the_tool_the_student_reached(scene):
+    """In a DAgger rollout the student drives the tool away from where the teacher's own targets go. With T3's
+    cap_from_tool every label stays one capped step (1 cm) from the tool the state reports; without it the teacher
+    caps from its own previous target and its labels end up further from the tool."""
+    from sim_eval.tests.test_distill import StubStudent
+
+    def run(flag):
+        teacher = rl_policy.RLTeacher(fast_policy(), name="rl-test", v_max=rt.V_MAX, yaw_rate_max=rt.YAW_RATE_MAX,
+                                      cap_from_tool=flag)
+        r = rollout(YawToyEnv(), scene, teacher, RolloutConfig(driver="student", max_seconds=0.6),
+                    student=StubStudent())
+        return np.linalg.norm(r.teacher_ee[:, :3] - r.tcp_pos, axis=1)  # label vs the tool it was computed at
+
+    assert run(True).max() <= STEP_M + TOL
+    assert run(False).max() > STEP_M + 1e-3
+
+
 def test_make_reads_the_cap_from_the_run(tmp_path, scene):
     """make() itself, as distill_rollouts.py calls it (Isaac Lab's Python has torch; skipped elsewhere)."""
     torch = pytest.importorskip("torch")

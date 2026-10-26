@@ -1,0 +1,37 @@
+{
+ "counts": {
+  "60000": [
+   13,
+   29
+  ],
+  "120000": [
+   17,
+   29
+  ],
+  "180000": [
+   21,
+   29
+  ]
+ },
+ "chosen_step": 180000,
+ "checkpoint": "C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r0_t600_20261023_161418\\train\\distill_r0\\checkpoints\\180000\\pretrained_model",
+ "train_run": "C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r0_t600_20261023_161418",
+ "seeds": [
+  5500,
+  5528
+ ],
+ "inference_args": [
+  "--gripper-deadband",
+  "0.25"
+ ],
+ "grid": "C:\\dev\\pm-t6-big\\data\\experiments\\grids\\bigtest_r0_t600.json",
+ "teacher_seeds": [
+  4300,
+  4899
+ ],
+ "code": {
+  "commit": "c6bae0ae1505ba4afcc54e1a59b17511210a4ada",
+  "branch": "pm/bigtest",
+  "dirty": false
+ }
+}

@@ -80,6 +80,7 @@ from app.jobs import (EDITS_REPAIRER, HYBRID_REPAIRER, _copy_episode, is_infrast
                       stored_raw)
 from app.sim_client import SimWorkerClient, SimWorkerError  # noqa: E402
 from demo_pipeline import PIPELINE_VERSION  # noqa: E402
+from demo_pipeline.data_recipe import DataRecipe, recipe_scene, validate_recipe  # noqa: E402
 from demo_pipeline.multiply import sample_scene  # noqa: E402
 from demo_pipeline.results import build_results  # noqa: E402
 from demo_pipeline.schemas import Demo, Passport, Trajectory, VerificationResult  # noqa: E402
@@ -405,7 +406,12 @@ class Experiment:
                 seed = variant_seed(i, j)
                 if seed in done:
                     continue
-                dst = sample_scene(np.random.default_rng(seed), ROBOT, seed)
+                region = None
+                if self.config.get("scene_recipe"):  # the failure analyst's recipe (scripts/analyze_failures.py)
+                    dst, region = recipe_scene(DataRecipe.model_validate(self.config["scene_recipe"]["recipe"]),
+                                               seed, ROBOT)
+                else:
+                    dst = sample_scene(np.random.default_rng(seed), ROBOT, seed)
                 vid = f"{src_id}_m{seed:04d}"
                 offset = self.config.get("approach_offset_m")
                 try:
@@ -421,6 +427,8 @@ class Experiment:
                            "reasons": v.reasons}
                     if offset:  # whether the centered approach applied (a source with no hover keeps its own)
                         row["centred"] = find_hover(src.trajectory) is not None
+                    if region is not None:
+                        row["region"] = region
                 except SimWorkerError as e:
                     if is_infrastructure(e):
                         _write_json(path, mark)
@@ -844,6 +852,14 @@ def data_fixes_text(config: dict) -> str:
                      f"{config['approach_offset_m'] * 100:g} cm and turned up to 35 degrees (seeded per variant), then "
                      "centers and aligns before the descent; a variant whose source was not retimed has no hover and "
                      "keeps its own approach")
+    if config.get("scene_recipe"):
+        sr = config["scene_recipe"]
+        regions = sr["recipe"]["regions"]
+        what = (", ".join(f"{r['name']} {r['share']:.0%}" for r in regions) + f", uniform {sr['recipe']['uniform_share']:.0%}"
+                if regions else "uniform 100%")
+        fixes.append(f"**scene recipe** (variants): each variant's scene comes from the failure analyst's recipe "
+                     f"`{sr['path']}` (sha256 {sr['sha256'][:12]}, frozen in config.json): {what}; each seed's own "
+                     "draw picks its region (demo_pipeline.data_recipe.recipe_scene)")
     if not fixes:
         return ""
     return "\n\n**Data fixes** (2026-10-20 research note; the same for every seed):\n" + "\n".join(f"- {f};" for f in fixes)
@@ -1070,6 +1086,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="repair: the rules also retime a swoop grasp (hover, slow last 4 cm, stop, close, hold, lift)")
     p.add_argument("--approach-offset", type=float, default=None, metavar="M",
                    help="multiply: the centered approach at the retimed grasp's hover, offsets up to M m (0.04)")
+    p.add_argument("--scene-recipe", type=Path, default=None, metavar="JSON",
+                   help="variant scenes from a failure analyst's recipe (recipe_*.json from scripts/analyze_failures.py)"
+                        " instead of sample_scene; the same seeds, frozen in the config")
     p.add_argument("--augment", choices=("off", "shift"), default=None, help="training image augmentation (default off)")
     p.add_argument("--dilation", action="store_true", help="training: replace ResNet's final stride with dilation")
     p.add_argument("--select-steps", type=int, nargs="+", default=None, metavar="STEP",
@@ -1102,6 +1121,17 @@ def main(argv: list[str] | None = None) -> int:
         if not 0 < args.approach_offset <= 0.05:
             p.error("--approach-offset is a radius in m, 0 < r <= 0.05 (the note suggests 0.04)")
         settings["approach_offset_m"] = args.approach_offset
+    if args.scene_recipe is not None:  # likewise; the recipe itself is frozen, so a later edit to the file can't change a run
+        try:
+            text = args.scene_recipe.read_text(encoding="utf-8")
+            recipe = DataRecipe.model_validate_json(text)
+        except (OSError, ValueError) as e:
+            p.error(f"--scene-recipe {args.scene_recipe}: {e}")
+        problems = validate_recipe(recipe, robot=ROBOT)
+        if problems:
+            p.error(f"--scene-recipe {args.scene_recipe}: " + "; ".join(problems))
+        settings["scene_recipe"] = {"path": str(args.scene_recipe), "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                                    "recipe": recipe.model_dump()}
     # The improved recipe (research note Stage 1), likewise only when set
     if args.augment and args.augment != "off":
         settings["augment"] = args.augment

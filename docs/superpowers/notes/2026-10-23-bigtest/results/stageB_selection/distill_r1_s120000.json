@@ -1,0 +1,811 @@
+{
+  "run": {
+    "cell": "distill_r1_s120000",
+    "checkpoint_url": "http://127.0.0.1:8766",
+    "checkpoint": "C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r1_20261024_164749\\train\\distill_r1\\checkpoints\\120000\\pretrained_model",
+    "policy_type": "act",
+    "policy_device": "cuda",
+    "n": 29,
+    "seed0": 5529,
+    "max_seconds": 30.0,
+    "cameras": true,
+    "started": "2026-10-25T17:35:25+00:00",
+    "start_check": {
+      "available": true,
+      "mode": "dataset",
+      "source": "C:\\dev\\pm-t6\\data\\experiments\\hx_mouse20261020_20261020_164411\\datasets\\raw_10",
+      "n_episodes": 10,
+      "threshold_rad": 0.1,
+      "dataset_mean": [
+        -0.015627605840563774,
+        -0.33840309679508207,
+        0.01444644359871745,
+        -2.3849708795547486,
+        0.004373459238559007,
+        2.104912519454956,
+        0.7789263606071473,
+        0.039999980479478836,
+        0.039999980479478836
+      ],
+      "reset_default": [
+        0.0,
+        -0.569,
+        0.0,
+        -2.81,
+        0.0,
+        3.037,
+        0.741,
+        0.04,
+        0.04
+      ],
+      "abs_diff": [
+        0.015627605840563774,
+        0.23059690320491788,
+        0.01444644359871745,
+        0.42502912044525143,
+        0.004373459238559007,
+        0.9320874805450439,
+        0.03792636060714727
+      ],
+      "max_abs_diff": 0.9320874805450439,
+      "worst_joint": 5,
+      "dataset_spread": 2.0503997802734375e-05,
+      "differs": true,
+      "chosen": "dataset_mean",
+      "reset_pose": [
+        -0.015627605840563774,
+        -0.33840309679508207,
+        0.01444644359871745,
+        -2.3849708795547486,
+        0.004373459238559007,
+        2.104912519454956,
+        0.7789263606071473,
+        0.039999980479478836,
+        0.039999980479478836
+      ]
+    },
+    "gate": {
+      "other_isaac": [],
+      "idle_isaac": [],
+      "free_mib": 13723,
+      "min_free_mib": 8192,
+      "ok": true,
+      "reason": null
+    },
+    "episode_log": "C:\\dev\\pm-t6-big\\data\\evals\\bigtest_r1\\distill_r1_s120000.episodes.jsonl",
+    "resumed_episodes": 0,
+    "inference": {
+      "binarize_gripper": false,
+      "n_action_steps": null,
+      "temporal_ensemble_coeff": null,
+      "gripper_deadband": 0.25,
+      "served": {
+        "overrides": {},
+        "chunk_size": 100,
+        "n_action_steps": 100,
+        "temporal_ensemble_coeff": null
+      }
+    },
+    "row_checkpoint": null,
+    "selection": null,
+    "groups": {
+      "unseen": [
+        5529,
+        5530,
+        5531,
+        5532,
+        5533,
+        5534,
+        5535,
+        5536,
+        5537,
+        5538,
+        5539,
+        5540,
+        5541,
+        5542,
+        5543,
+        5544,
+        5545,
+        5546,
+        5547,
+        5548,
+        5549,
+        5550,
+        5551,
+        5552,
+        5553,
+        5554,
+        5555,
+        5556,
+        5557
+      ]
+    },
+    "group_summaries": {
+      "unseen": {
+        "n": 29,
+        "successes": 7,
+        "success_rate": 0.2413793103448276,
+        "reasons": {
+          "not_in_bin": 22,
+          "dropped": 21,
+          "gripper_closed": 13,
+          "collision": 7
+        },
+        "ended_by": {
+          "success": 7,
+          "time_limit": 22
+        },
+        "mean_wall_s": 66.65039867240984,
+        "mean_steps": 1237.9310344827586,
+        "seeds": [
+          5529,
+          5530,
+          5531,
+          5532,
+          5533,
+          5534,
+          5535,
+          5536,
+          5537,
+          5538,
+          5539,
+          5540,
+          5541,
+          5542,
+          5543,
+          5544,
+          5545,
+          5546,
+          5547,
+          5548,
+          5549,
+          5550,
+          5551,
+          5552,
+          5553,
+          5554,
+          5555,
+          5556,
+          5557
+        ]
+      }
+    },
+    "scene_build_s": 8.2,
+    "wall_s_total": 1945.5,
+    "wall_s_per_episode": [
+      32.2,
+      71.86,
+      72.13,
+      72.31,
+      71.69,
+      18.3,
+      71.53,
+      72.73,
+      72.47,
+      72.44,
+      70.67,
+      70.79,
+      72.5,
+      89.2,
+      92.17,
+      90.85,
+      27.12,
+      91.89,
+      90.75,
+      27.17,
+      88.67,
+      86.71,
+      88.38,
+      24.2,
+      86.11,
+      25.73,
+      24.28,
+      86.6,
+      71.43
+    ],
+    "connection_retries_per_episode": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "vram_baseline_mib": 2255,
+    "vram_peak_mib": 7528
+  },
+  "summary": {
+    "n": 29,
+    "successes": 7,
+    "success_rate": 0.2413793103448276,
+    "reasons": {
+      "not_in_bin": 22,
+      "dropped": 21,
+      "gripper_closed": 13,
+      "collision": 7
+    },
+    "ended_by": {
+      "success": 7,
+      "time_limit": 22
+    },
+    "mean_wall_s": 66.65039867240984,
+    "mean_steps": 1237.9310344827586,
+    "seeds": [
+      5529,
+      5530,
+      5531,
+      5532,
+      5533,
+      5534,
+      5535,
+      5536,
+      5537,
+      5538,
+      5539,
+      5540,
+      5541,
+      5542,
+      5543,
+      5544,
+      5545,
+      5546,
+      5547,
+      5548,
+      5549,
+      5550,
+      5551,
+      5552,
+      5553,
+      5554,
+      5555,
+      5556,
+      5557
+    ]
+  },
+  "episodes": [
+    {
+      "seed": 5529,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 400,
+      "sim_s": 7.98,
+      "wall_s": 32.195336299948394,
+      "error": null,
+      "final_cube_pos": [
+        0.6033433079719543,
+        -0.25263652205467224,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5530,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.86032229999546,
+      "error": null,
+      "final_cube_pos": [
+        0.5946633219718933,
+        0.1977919191122055,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5531,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.13153740006965,
+      "error": null,
+      "final_cube_pos": [
+        0.43145543336868286,
+        -0.06666193157434464,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5532,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.31319680006709,
+      "error": null,
+      "final_cube_pos": [
+        0.5759254693984985,
+        -0.10937966406345367,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5533,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.68731119995937,
+      "error": null,
+      "final_cube_pos": [
+        0.4414389133453369,
+        0.14340415596961975,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5534,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 375,
+      "sim_s": 7.48,
+      "wall_s": 18.29555869998876,
+      "error": null,
+      "final_cube_pos": [
+        0.4156392812728882,
+        0.1381375938653946,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5535,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.53223619994242,
+      "error": null,
+      "final_cube_pos": [
+        0.4892001450061798,
+        0.07726781815290451,
+        0.02499961666762829
+      ]
+    },
+    {
+      "seed": 5536,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.73320869996678,
+      "error": null,
+      "final_cube_pos": [
+        0.4014713168144226,
+        0.08780290186405182,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5537,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.46704689995386,
+      "error": null,
+      "final_cube_pos": [
+        0.5530834197998047,
+        0.15718096494674683,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5538,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.44012789998669,
+      "error": null,
+      "final_cube_pos": [
+        0.48647263646125793,
+        0.12141632288694382,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5539,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.67207930004224,
+      "error": null,
+      "final_cube_pos": [
+        0.5849519371986389,
+        0.15145282447338104,
+        0.02499961666762829
+      ]
+    },
+    {
+      "seed": 5540,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 70.78633910010103,
+      "error": null,
+      "final_cube_pos": [
+        0.4785432517528534,
+        -0.15978045761585236,
+        0.02499961666762829
+      ]
+    },
+    {
+      "seed": 5541,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 72.50023770006374,
+      "error": null,
+      "final_cube_pos": [
+        0.4644756019115448,
+        0.07110468298196793,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5542,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 89.1994123000186,
+      "error": null,
+      "final_cube_pos": [
+        0.5701720714569092,
+        0.14342059195041656,
+        0.02499961666762829
+      ]
+    },
+    {
+      "seed": 5543,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 92.17130899999756,
+      "error": null,
+      "final_cube_pos": [
+        0.44125425815582275,
+        -0.06414809077978134,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5544,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 90.84691910003312,
+      "error": null,
+      "final_cube_pos": [
+        0.5045620799064636,
+        0.19352076947689056,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5545,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 450,
+      "sim_s": 8.98,
+      "wall_s": 27.115793299977668,
+      "error": null,
+      "final_cube_pos": [
+        0.4122810959815979,
+        -0.19513651728630066,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5546,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "collision"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 91.8855391999241,
+      "error": null,
+      "final_cube_pos": [
+        0.49440330266952515,
+        -0.017527837306261063,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5547,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 90.75024160009343,
+      "error": null,
+      "final_cube_pos": [
+        0.5843633413314819,
+        0.18388864398002625,
+        0.02499961666762829
+      ]
+    },
+    {
+      "seed": 5548,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 450,
+      "sim_s": 8.98,
+      "wall_s": 27.17315409996081,
+      "error": null,
+      "final_cube_pos": [
+        0.6395403742790222,
+        0.2530331015586853,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5549,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 88.66799590003211,
+      "error": null,
+      "final_cube_pos": [
+        0.412784218788147,
+        -0.15405237674713135,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5550,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 86.71189409994986,
+      "error": null,
+      "final_cube_pos": [
+        0.5356380939483643,
+        -0.08150695264339447,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5551,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 88.37809859996196,
+      "error": null,
+      "final_cube_pos": [
+        0.46235400438308716,
+        -0.1972169131040573,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5552,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 400,
+      "sim_s": 7.98,
+      "wall_s": 24.20271640003193,
+      "error": null,
+      "final_cube_pos": [
+        0.4661066234111786,
+        0.17777180671691895,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5553,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "collision",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 86.10846899996977,
+      "error": null,
+      "final_cube_pos": [
+        0.5246998071670532,
+        -0.15176734328269958,
+        0.024999618530273438
+      ]
+    },
+    {
+      "seed": 5554,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 425,
+      "sim_s": 8.48,
+      "wall_s": 25.725363299949095,
+      "error": null,
+      "final_cube_pos": [
+        0.4498954713344574,
+        0.2507278323173523,
+        0.03499961644411087
+      ]
+    },
+    {
+      "seed": 5555,
+      "success": true,
+      "reasons": [],
+      "ended_by": "success",
+      "steps": 400,
+      "sim_s": 7.98,
+      "wall_s": 24.280175699968822,
+      "error": null,
+      "final_cube_pos": [
+        0.40514233708381653,
+        0.2904382050037384,
+        0.03499962016940117
+      ]
+    },
+    {
+      "seed": 5556,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "gripper_closed",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 86.5994041999802,
+      "error": null,
+      "final_cube_pos": [
+        0.45707857608795166,
+        -0.11587105691432953,
+        0.02499961666762829
+      ]
+    },
+    {
+      "seed": 5557,
+      "success": false,
+      "reasons": [
+        "not_in_bin",
+        "dropped"
+      ],
+      "ended_by": "time_limit",
+      "steps": 1500,
+      "sim_s": 29.98,
+      "wall_s": 71.43053719995078,
+      "error": null,
+      "final_cube_pos": [
+        0.4680544435977936,
+        0.07771925628185272,
+        0.024999618530273438
+      ]
+    }
+  ]
+}

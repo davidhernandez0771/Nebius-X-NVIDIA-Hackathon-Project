@@ -144,3 +144,14 @@ def test_an_old_log_without_inference_resumes_as_a_default_eval(tmp_path):
     old = {"checkpoint": "ck", "seed0": 5020, "max_seconds": 30.0, "cameras": True, "reset_pose": None}
     path.write_text(json.dumps({"header": old}) + "\n", encoding="utf-8")
     EpisodeLog.open(path, {**old, "inference": None}, resume=True)  # a default eval writes inference None
+
+
+def test_the_gripper_deadband_reaches_run_eval_and_not_the_server(tmp_path):
+    """The big test (2026-10-23) runs selection and the test with --gripper-deadband 0.25 (eval side, stateful)."""
+    drv = _load_driver()
+    opts = InferenceOptions(gripper_deadband=0.25)
+    cmd = drv.run_eval_command(python="py", port=8765, n=29, seed0=5500, cell="c", out=tmp_path / "o.json",
+                               registry=None, inference=opts)
+    assert cmd[cmd.index("--gripper-deadband") + 1] == "0.25"
+    assert {a for a in cmd if a.startswith("--")} <= _declared_by_run_eval()
+    assert "--gripper-deadband" not in drv.server_command("ck", 8765, opts)

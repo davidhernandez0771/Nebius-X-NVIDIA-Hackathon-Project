@@ -203,3 +203,66 @@ For comparison, step 1's seeds under the commanded recording gave replay 22/32 w
 - `make()` reports `execution="held"`.
 - Training: 2698 iterations, 7271 s (v6 3953 + v6c2 1903 + v6h 1415).
 - With T6's gate (b) at 48/50 (4950–4999, held execution), both parts are passed.
+
+
+## The no-demo control (2026-10-22 evening, prereg Amendment 6, c9d48f9 on pm/live-13)
+
+**Question:** without human demos, does the same RL recipe learn the task? The test: demo_v6 trained again with every episode starting from home (`nodemo_v6`).
+
+**Same code and command.**
+- **Code:** demo_v6's exact commit, `d9cf2a7`, with no commit added. It lives in the worktree `C:\dev\pm-t3-nodemo`, on the local branch `pm/rl-nodemo-control`, which is d9cf2a7 itself.
+  - It runs at d9cf2a7 and not on this branch because `bf56c20` (11:50, after demo_v6 launched) moved the success bonus to check_success's exact 0.50 s settle. demo_v6 trained with it one step early.
+- **Bank file:** the bank `data/rl/bank_mouse20261020.npz` was copied into the worktree (same sha256, 52076b83…).
+  - d9cf2a7's `rl_train.py` refuses to start without it.
+  - At `demo_prob` 0 it is never loaded (`reset_rl_scene`, line 330).
+- **Command:** demo_v6's, word for word (`data/rl/demo_v6.log`, line 1), with `--run_name nodemo_v6` and one added override, `env.events.reset_scene.params.demo_prob=0.0`.
+  - It went through d9cf2a7's `rl_train.py` wrapper, with the GPU lock and KeepAwake, detached.
+- **Settings diff** against demo_v6's (`params/`):
+  - `env.yaml`:
+    - `demo_prob` 0.5 → 0.0.
+    - `bank_path`: the same file under `pm-t3-nodemo`; inert.
+    - `log_dir`.
+  - `agent.yaml`: only `run_name`.
+  - `git/IsaacLab.diff`: identical.
+- **Kept as in demo_v6 (inert or not start-related):**
+  - the demo-start curriculum and the held-start grace;
+  - `uniform_share`;
+  - the stock lift reward-weight curriculum.
+- **Run:** started 18:59:14 and ended 20:08:38.
+  - Training time 3913 s at 2.75 s per iteration; demo_v6 took 3953 s.
+  - Run folder: `C:\dev\pm-t3-nodemo\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-22_18-59-23_nodemo_v6`.
+
+**Measurement.**
+- **Breakdown:** today's `scripts/rl_start_breakdown.py` (pm/rl-teacher 681e8dd), run on both runs with `--n 128 --demo-prob 0.0 --seed 7`, so 128 home starts in the same scenes.
+- **In-training tags:** `Metrics/check_success`, `Episode_Termination/success`, `Stages/lifted` and `Stages/centred_grasp`, at the same iteration.
+- **Caveats on the tags:**
+  - demo_v6's average over all its starts, about half of them demo states.
+  - Both runs' `check_success` undercounts in the same way (the bonus one step early).
+- **Where the results are:**
+  - per breakdown: `data/rl/breakdown/home_<run>_<it>/breakdown.json`;
+  - logs: `data/rl/breakdown_home_<run>_<it>.log`;
+  - the driver's log: `data/rl/nodemo_breakdowns.log`;
+  - the table: `data/rl/breakdown/nodemo_control_table.json`.
+
+**Results.**
+
+| it | run | home success (Wilson 95%) | grasped | lifted | check_success | term. success | lifted (train) | centred grasp (train) |
+|---|---|---|---|---|---|---|---|---|
+| 300 | demo_v6 | 0/128 [0.000–0.029] | 0 | 0 | 0.050 | 0.254 | 0.022 | 0.010 |
+| 300 | nodemo_v6 | 0/128 [0.000–0.029] | 0 | 0 | 0.000 | 0.000 | 0.000 | 0.000 |
+| 600 | demo_v6 | 10/128 [0.043–0.138] | 5 | 21 | 0.176 | 0.337 | 0.036 | 0.015 |
+| 600 | nodemo_v6 | 0/128 [0.000–0.029] | 6 | 0 | 0.000 | 0.000 | 0.000 | 0.006 |
+| 900 | demo_v6 | 99/128 [0.694–0.837] | 77 | 126 | 0.428 | 0.721 | 0.140 | 0.061 |
+| 900 | nodemo_v6 | 0/128 [0.000–0.029] | 0 | 0 | 0.000 | 0.000 | 0.000 | 0.000 |
+| 1200 | demo_v6 | 109/128 [0.780–0.903] | 93 | 128 | 0.477 | 0.894 | 0.229 | 0.124 |
+| 1200 | nodemo_v6 | 0/128 [0.000–0.029] | 0 | 0 | 0.000 | 0.000 | 0.000 | 0.000 |
+| **1499** | **demo_v6** | **113/128 [0.816–0.928]** | 96 | 128 | 0.524 | 0.903 | 0.229 | 0.121 |
+| **1499** | **nodemo_v6** | **0/128 [0.000–0.029]** | 0 | 0 | 0.000 | 0.000 | 0.000 | 0.000 |
+
+The "grasped" and "lifted" columns count breakdown episodes that ever had a centred grasp or lifted the cube.
+
+**The primary number** is home-start success at iteration 1499: demo_v6 113/128, nodemo_v6 0/128.
+- Over all 1500 iterations, nodemo_v6's maxima were 0.0 for `check_success`, `Episode_Termination/success` and `Stages/lifted`. `Stages/centred_grasp` peaked at 0.058, at iteration 556.
+- nodemo_v6's 1499 breakdown failures: not_in_bin 128, not_settled 7, collision 5.
+- demo_v6's 1499 breakdown failures: dropped 10, collision 7.
+- **Disclosed:** the earlier `v6_1499` breakdown (`--demo-prob 0.5`, home 61/67) had already been seen. This one replaces it.
