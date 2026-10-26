@@ -1189,6 +1189,32 @@
     aspect-ratio: 4 / 3;
   }
 
+  /* Driving (keyboard or mouse) there is no camera frame to keep at 4:3, and the key table is taller than a phone's
+     4:3 pane: the pane grows with the panel, and Start sits in the flow under it, clear of the keys and the hint
+     line (site-nav, 2026-10-26: at 390 px they were drawn over each other). */
+  .rg-cam:has(.rg-drive) {
+    aspect-ratio: auto;
+  }
+
+  .rg-cam:has(.rg-drive) .rg-cam__media {
+    position: relative;
+    inset: auto;
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    padding: 40px 12px 40px;
+    container-type: normal;
+  }
+
+  .rg-cam:has(.rg-drive) .rg-camfoot {
+    white-space: normal;
+  }
+
+  /* (the pane's class too: the base rule for it comes later in this file) */
+  .rg-cam .rg-drive__start {
+    position: static;
+  }
+
   .rg-side {
     grid-template-rows: 400px 180px;
   }
