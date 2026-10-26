@@ -182,6 +182,114 @@
   color: var(--holo-ink);
 }
 
+/* A failed run is told apart by more than its colour: a tinted cell with a cross in its corner. */
+.tt .tt-run[data-ok="false"] {
+  position: relative;
+  background: rgba(255, 90, 31, 0.1);
+}
+
+.tt .tt-run[data-ok="false"]::after {
+  content: "✕";
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tt .tt-run[data-ok="false"][aria-pressed="true"] {
+  border-color: #ff8a5c;
+  background: rgba(255, 90, 31, 0.24);
+}
+
+/* ---- the filter: all, verified, failed */
+
+.tt-show {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tt .tt-show__btn {
+  flex: 1 1 auto;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--holo-line-dim);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--holo-ink-2);
+  font: 12px/1 var(--holo-mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tt .tt-show__btn:hover,
+.tt .tt-show__btn:focus-visible {
+  border-color: var(--holo-teal);
+  color: var(--holo-ink);
+}
+
+.tt .tt-show__btn[aria-pressed="true"] {
+  border-color: var(--holo-teal);
+  background: rgba(25, 245, 194, 0.14);
+  color: var(--holo-ink);
+}
+
+.tt .tt-show__btn[data-show="failed"][aria-pressed="true"] {
+  border-color: #ff8a5c;
+  background: rgba(255, 90, 31, 0.18);
+}
+
+/* ---- why each failed run failed */
+
+.tt-fails {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-fail {
+  display: grid;
+  grid-template-columns: 4.6em minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tt .tt-fail__seed {
+  min-height: 24px;
+  padding: 2px 4px;
+  border: 1px solid rgba(255, 90, 31, 0.6);
+  border-radius: 2px;
+  background: transparent;
+  color: #ff8a5c;
+  font: 12px/1 var(--holo-mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tt .tt-fail__seed:hover,
+.tt .tt-fail__seed:focus-visible,
+.tt .tt-fail__seed[aria-pressed="true"] {
+  border-color: #ff8a5c;
+  background: rgba(255, 90, 31, 0.2);
+  color: var(--holo-ink);
+}
+
+.tt-fail__why {
+  color: var(--holo-ink-2);
+}
+
+.tt-note {
+  margin: 0;
+  color: var(--holo-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* ---- the stage: the arena with its tags, then the transport */
 
 .tt-stage {
