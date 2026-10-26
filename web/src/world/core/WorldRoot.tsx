@@ -74,6 +74,11 @@ function scrollToY(top: number, smooth: boolean) {
   }
 }
 
+/** The rail is in the workshop's room view (arrived), where the branches are. */
+function inRoom(store: ReturnType<typeof createWorldStore>): boolean {
+  return store.getCoarse().current === "workshop" && store.frames.workshop.arrive >= 1;
+}
+
 const FORCED = new Set(["low", "high", "ultra", "medium", "stills", "static"]);
 
 /**
@@ -193,6 +198,18 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
         // Anywhere else lets go of a held shot (the shelf, a detail view, the tour): Back lands in the room view.
         store.setOverride(null);
         if (m.kind === "branch") {
+          // A branch is a place in the workshop's room. Opened from anywhere else on the rail (the journey
+          // rail's MACHINE, WORKBENCH or ROBOTS from the story or the descent), the rail first cuts to the room
+          // view under it, as Skip the intro does: the room is built and lit around the place, and Back lands
+          // in the room. Before, the place opened over the story: the room not built yet (black), and Back
+          // went back up into the story.
+          if (!inRoom(store)) {
+            const y = dwellStart(store.rail, "workshop");
+            if (y !== null) {
+              store.jump(y);
+              scrollToY(y, false);
+            }
+          }
           store.setBranch(id);
           return;
         }

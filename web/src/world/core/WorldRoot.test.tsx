@@ -176,6 +176,25 @@ describe("WorldRoot (no WebGL)", () => {
     expect(on()).toMatch(/stills\/workshop\.webp$/);
   });
 
+  // site-nav (2026-10-26), the user's bug 2: the journey rail's MACHINE (or WORKBENCH, ROBOTS) straight from the
+  // story opened the place over an unbuilt room (black), and Back to room landed back in the story.
+  it.each([
+    ["Machine", "machine"],
+    ["Workbench", "workbench"],
+    ["Robots", "robots"],
+  ])("opens %s from the story inside the room: the rail cuts to the workshop first, and Back lands in the room", (label, id) => {
+    renderWorld();
+    expect(current()).toBe("intro");
+    const room = window.innerHeight * (INTRO + 3 + 0.8);
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Journey" })).getByRole("button", { name: label }));
+    expect(current()).toBe(id);
+    // The page went to the room view under the place (the workshop's dwell), with no glide.
+    const ys = vi.mocked(window.scrollTo).mock.calls.map((c) => (c[0] as ScrollToOptions).top ?? 0);
+    expect(Math.max(...ys)).toBeGreaterThanOrEqual(room - 1);
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).at(-1)!);
+    expect(current()).toBe("workshop");
+  });
+
   it("comes back from a 2D route to the machine, without leaving again", () => {
     sessionStorage.setItem("world.return", "machine");
     renderWorld();
