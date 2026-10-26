@@ -113,3 +113,17 @@ describe("sources", () => {
     for (const d of DID_NOT_WORK) expect(d.sources.length).toBeGreaterThan(0);
   });
 });
+
+// site-nav (2026-10-26, the user): the page leads with this. Its numbers are the climb's v2 and the demos the
+// distill pre-registration names, never typed twice.
+describe("the lead", () => {
+  it("is 10 human mouse demos to v2's one-shot 30/40, built from the data", async () => {
+    const { LEAD } = await import("./proofData");
+    const v2 = CLIMB.find((s) => s.key === "v2")!;
+    expect(LEAD.demos).toBe(10);
+    expect(LEAD.result).toBe(v2);
+    expect(LEAD.headline).toBe(`${LEAD.demos} human mouse demos → ${v2.k}/${v2.n} (75%) on unseen scenes`);
+    expect(LEAD.demosSource).toEqual({ note: "distill", lines: "9" });
+    expect(LEAD.goal).toBe(GOAL);
+  });
+});

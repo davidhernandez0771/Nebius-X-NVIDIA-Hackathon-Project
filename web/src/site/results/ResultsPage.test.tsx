@@ -50,12 +50,29 @@ afterEach(() => {
 });
 
 describe("Results page", () => {
-  it("leads with the confirmatory result, its CIs and p", () => {
+  // site-nav (2026-10-26, the user): lead with the proof, the newest pre-registered one-shot result.
+  it("leads with the proof: 10 human mouse demos to 30/40, pre-registered and run once, with its CI, goal and source", () => {
     stubReducedMotion(true);
     page();
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
-      "Multiplying 10 demos made the robot better. Tripling the copies didn't help more.",
-    );
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1.textContent).toBe("10 human mouse demos → 30/40 (75%) on unseen scenes");
+    const lead = screen.getByRole("region", { name: h1.textContent! });
+    expect(lead.id).toBe("proof");
+    expect(lead.textContent).toMatch(/Pre-registered/);
+    expect(lead.textContent).toMatch(/run once/);
+    expect(lead.textContent).toMatch(/59\.8–85\.8%/);
+    expect(lead.textContent).toMatch(/at least 24\/40/);
+    expect(lead.textContent).toMatch(/5400–5439/);
+    expect(lead.textContent).toMatch(/note, lines? \d/);
+    // The proof band follows it, then the earlier scripted result.
+    const order = [...document.querySelectorAll("#proof, .sant-proof, #results-title")];
+    expect(order.map((e) => e.id || e.className.split(" ")[1])).toEqual(["proof", "sant-proof", "results-title"]);
+  });
+
+  it("keeps the earlier scripted result further down, its CIs and p", () => {
+    stubReducedMotion(true);
+    page();
+    expect(screen.getByRole("heading", { level: 2, name: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more." })).toBeTruthy();
     expect(screen.getByRole("group", { name: /^17\/40 / })).toBeTruthy();
     const ledger = screen.getByRole("table", { name: /headline result/i });
     for (const ci of ["2.6–19.9%", "28.5–57.8%", "26.3–55.4%"]) expect(within(ledger).getByText(ci)).toBeTruthy();
@@ -244,7 +261,7 @@ describe("The proof band: the pre-registered results as charts", () => {
     return ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ").trim();
   }
 
-  it("renders the four sections, each under its heading, after the headline", () => {
+  it("renders the four sections, each under its heading, after the lead and before the earlier result", () => {
     stubReducedMotion(true);
     page();
     const band = proof();
@@ -252,8 +269,11 @@ describe("The proof band: the pre-registered results as charts", () => {
       const s = within(band).getByRole("region", { name });
       expect(within(s).getByRole("heading", { level: 3, name })).toBeTruthy();
     }
-    const headline = screen.getByRole("region", { name: /Multiplying 10 demos/ });
-    expect(headline.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // site-nav: the lead (the h1) comes first, the band next, the earlier scripted result after it.
+    const lead = screen.getByRole("region", { name: /human mouse demos/ });
+    expect(lead.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const earlier = screen.getByRole("region", { name: /Multiplying 10 demos/ });
+    expect(band.compareDocumentPosition(earlier) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("gives each chart an accessible name, a description and a data table", () => {

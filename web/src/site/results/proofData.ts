@@ -89,6 +89,23 @@ export const CLIMB: ClimbStep[] = [
 /** The pre-registered goal for v2: at least 24/40. */
 export const GOAL = { k: 24, n: 40, source: { note: "bigtest", lines: "745" } as ProofSource };
 
+// ------------------------------------------------------------------ the lead (the page's headline)
+
+const V2 = CLIMB.find((s) => s.key === "v2")!;
+const DEMOS = 10;
+
+/**
+ * What the page leads with (site-nav, 2026-10-26): the human demos the whole climb starts from (the distill
+ * pre-registration's "Few human demos: the 10 mouse demos.") and v2's one-shot result, from the climb above.
+ */
+export const LEAD = {
+  demos: DEMOS,
+  demosSource: { note: "distill", lines: "9" } as ProofSource,
+  result: V2,
+  goal: GOAL,
+  headline: `${DEMOS} human mouse demos → ${V2.k}/${V2.n} (${Math.round((100 * V2.k) / V2.n)}%) on unseen scenes`,
+};
+
 export const CLIMB_FOOTNOTE =
   "Each bar is its own pre-registered test, run once. v2 was tested on fresh seeds 5400–5439; the others on 5020–5059, so the comparisons are descriptive.";
 export const CLIMB_FOOTNOTE_SOURCE: ProofSource = { note: "bigtest", lines: "765" };

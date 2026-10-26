@@ -56,7 +56,7 @@ describe("App routes", () => {
     );
     at("/pm/results");
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more." }, { timeout: 8000 }),
+      await screen.findByRole("heading", { level: 1, name: "10 human mouse demos → 30/40 (75%) on unseen scenes" }, { timeout: 8000 }),
     ).toBeTruthy();
     expect(screen.queryByText(/sample data/i)).toBeNull();
   });
