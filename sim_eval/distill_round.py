@@ -12,19 +12,21 @@ Round 0 (behaviour cloning on the teacher):
              Refuses if fewer than --min-teacher teacher rollouts passed. round.json records the teacher gate (the
              research note's day-4 gate: >= 90% of the teacher's rollouts pass in our env)
   train      lerobot_tools.experiments on that grid (ACT, the usual recipe + --train-args)
-  select     each candidate checkpoint on selection seeds 5300-5329 (never the test seeds 5020-5059, never the DAgger
-             seeds); the most successes wins, a tie goes to the later step (overnight.pick_step)
+  select     each candidate checkpoint on selection seeds 5500-5557 (the 2026-10-23 big test's two blocks; never a
+             test seed, never the DAgger seeds); the most successes wins, a tie goes to the later step
+             (overnight.pick_step)
 Round r = 1, 2 (DAgger):
   preflight  round r-1's selected checkpoint exists (the student that visits the states)
   dagger     that student drives on its own practice seeds (round 1: 5200-5239, round 2: 5240-5279 by default); the
              teacher labels every visited state (relabel, not replace) (distill_rollouts.py --kind dagger)
   decide     the stop rule (stop_decision) on the student's own rollout successes and the new labelled frames;
-             a stop skips the rest of the round
+             a stop skips the rest of the round (stop_rule=False: recorded, never applied; the big test's Stage B)
   grid       human + teacher + every DAgger round so far, mixed by frame share
   train      as round 0, from scratch on the aggregate (DAgger's "aggregate and retrain")
   select     as round 0
-Each round writes data/distill/<run>/r<r>/round.json: sources, mix, gate or decision, selection. The final test on
-5020-5059 is not part of any round (pre-register the arm first; the note has the command).
+Each round writes data/distill/<run>/r<r>/round.json: sources, mix, gate or decision, selection. A test is not part
+of any round (pre-register the arm first; the big test's is sim_eval/scripts/bigtest.py). Training runs under an
+nvidia-smi log (logs/gpu.csv, every 10 min), and a training run that crashed resumes in its own folder.
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ import json
 import math
 import os
 import shutil
+import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -47,7 +50,12 @@ from sim_eval.overnight import (
 
 SOURCES = ("human", "teacher", "dagger")
 TEACHER_SEEDS = range(4000, 5000)  # training side (< 5000), clear of the homeset sources/variants (3000-3999)
-SELECT_SEEDS = range(5300, 5400)  # eval_cells' own practice-selection seeds; neither test nor DAgger seeds
+SELECT_SEEDS = range(5500, 5558)  # the big test's selection: Stage A 5500-5528, Stage B 5529-5557 (T7's prereg)
+RETIRED_SELECT_SEEDS = range(5300, 5400)  # Amendment 4's selection + T3's teacher gates (v6_gate, v6c2_gate2)
+BIGTEST_TEST_SEEDS = range(5400, 5440)  # the big test's test, run once (sim_eval/scripts/bigtest.py)
+TEST_SETS = (TEST_SEEDS, BIGTEST_TEST_SEEDS)
+#: Never training data: every test set, the selection blocks, and the retired selection / teacher-gate seeds.
+EVAL_ONLY_SEEDS = frozenset().union(*TEST_SETS, SELECT_SEEDS, RETIRED_SELECT_SEEDS)
 MAX_ROUND = 2
 DEFAULT_WEIGHTS = {"human": 0.25, "teacher": 0.5, "dagger": 0.25}
 
@@ -175,8 +183,8 @@ class RoundConfig:
     dagger_seed0: int | None = None  # default: round r takes the r-th block of dagger_n practice seeds from 5200
     dagger_n: int = 40
     beta: float = 0.0
-    select_seed0: int = 5300
-    select_n: int = 30
+    select_seed0: int = 5500
+    select_n: int = 29
     steps: int = 60000
     save_freq: int = 10000
     candidates: tuple[int, ...] = (40000, 60000)
@@ -185,6 +193,8 @@ class RoundConfig:
     target_rate: float = 0.9
     min_gain: float = 0.05
     min_new_frames: int = 5000
+    stop_rule: bool = True  # False: decide records what the rule says but the round always goes on (big test, B)
+    gpu_log_s: int = 600  # nvidia-smi sampling interval during training (logs/gpu.csv)
     inference_args: tuple[str, ...] = ()  # lerobot_tools.inference flags, for the DAgger student and the selection
     train_args: tuple[str, ...] = ()  # lerobot_tools.experiments options, e.g. ("--augment", "shift")
     port: int = 8766
@@ -266,7 +276,7 @@ def _within(seed0: int, n: int, allowed: range, what: str) -> None:
     seeds = range(seed0, seed0 + n)
     if n <= 0 or not set(seeds) <= set(allowed):
         raise ValueError(f"{what} use seeds {allowed.start}-{allowed.stop - 1} only, not {seed0}-{seed0 + n - 1}")
-    if set(seeds) & set(TEST_SEEDS):
+    if any(set(seeds) & set(t) for t in TEST_SETS):
         raise ValueError(f"{what}: seeds {seed0}-{seed0 + n - 1} touch the test seeds")
 
 
@@ -335,7 +345,7 @@ def _episode_seed(ep: Path) -> int:
     return int(Path(ep).name.split("_")[2])
 
 
-TRAINING_SIDE = range(0, 5000)  # every eval-side seed (test 5020-5059, practice 5200-5279, selection 5300-5399) is above
+TRAINING_SIDE = range(0, 5000)  # every eval-side seed (tests, practice 5200-5279, selection) is above
 
 
 def _rl_folder(ep: Path) -> bool:
@@ -348,8 +358,8 @@ def check_training_episodes(sources: dict[str, list[Path]], *, teacher_seeds: tu
                             folders: dict[str, list[Path]]) -> dict:
     """Refuse training data that saw an evaluation seed. Every episode must carry its scene.json seed, and none may sit
     in a data/rl tree. Human: training-side seeds (< 5000). Teacher: this round's teacher range, inside round 0's
-    episodes folder. DAgger: the practice seeds, inside its round's episodes folder. The selection and test seeds are
-    refused everywhere. folders: {"teacher": [...], "dagger": [...]}. Returns {source: {episodes, seeds [min, max]}};
+    episodes folder. DAgger: the practice seeds, inside its round's episodes folder. EVAL_ONLY_SEEDS (both test sets,
+    the selection blocks, the retired selection / teacher-gate seeds) are refused everywhere. folders: {"teacher": [...], "dagger": [...]}. Returns {source: {episodes, seeds [min, max]}};
     raises ValueError naming the first offending episode."""
     t0, t1 = teacher_seeds
     allowed = {"human": TRAINING_SIDE, "teacher": range(t0, t1 + 1), "dagger": PRACTICE_SEEDS}
@@ -366,7 +376,7 @@ def check_training_episodes(sources: dict[str, list[Path]], *, teacher_seeds: tu
             if not scene.is_file():
                 raise ValueError(f"{src} episode {ep} has no scene.json: its seed cannot be checked")
             seed = int(json.loads(scene.read_text(encoding="utf-8"))["seed"])
-            if seed in SELECT_SEEDS or seed in TEST_SEEDS:
+            if seed in EVAL_ONLY_SEEDS:
                 raise ValueError(f"{src} episode {ep} is on seed {seed}, a selection/test seed")
             if seed not in allowed[src]:
                 raise ValueError(f"{src} episode {ep} is on seed {seed}, outside its seeds "
@@ -377,13 +387,66 @@ def check_training_episodes(sources: dict[str, list[Path]], *, teacher_seeds: tu
     return report
 
 
+class GpuSampler:
+    """nvidia-smi into a CSV every interval_s while the block runs (the lead, 2026-10-23: training's 10k blocks slowed
+    from 12.3 to 14.5 min on 10-22 with full_speed on; clocks, utilisation, power and throttle reasons tell why next time).
+    A missing or failing nvidia-smi never stops what it samples."""
+
+    QUERY = ("timestamp,clocks.sm,clocks.mem,clocks.max.sm,utilization.gpu,utilization.memory,temperature.gpu,"
+             "power.draw,memory.used,clocks_throttle_reasons.active")
+
+    def __init__(self, path: Path, interval_s: int = 600, cmd: list[str] | None = None):
+        self.path, self.interval_s, self._cmd, self.proc, self._f = Path(path), int(interval_s), cmd, None, None
+
+    def command(self) -> list[str]:
+        return self._cmd or ["nvidia-smi", f"--query-gpu={self.QUERY}", "--format=csv", "-l", str(self.interval_s)]
+
+    def __enter__(self) -> "GpuSampler":
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._f = self.path.open("a", encoding="utf-8")
+        try:
+            self.proc = subprocess.Popen(self.command(), stdout=self._f, stderr=subprocess.STDOUT)
+        except OSError:
+            self.proc = None
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        if self.proc is not None and self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait()
+        self._f.close()
+        return False
+
+
+def find_unfinished_run(experiments: Path, grid_name: str, label: str, steps: int) -> Path | None:
+    """The latest training run of this grid that started (it has a datasets folder) but has no final checkpoint: a
+    restart resumes it (lerobot_tools.experiments --resume-run) instead of exporting and training anew."""
+    pat = re.compile(rf"^{re.escape(grid_name)}_\d{{8}}_\d{{6}}$")
+    runs = sorted((p for p in Path(experiments).glob(f"{grid_name}_*") if pat.match(p.name)), reverse=True)
+    for run in runs:
+        if (run / "train" / label / "checkpoints" / f"{steps:06d}" / "pretrained_model").is_dir():
+            return None  # the latest started run finished; nothing to resume
+        if (run / "datasets").is_dir():
+            return run
+    return None
+
+
 def _read(path: Path) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None = None,
-               stop_after: str | None = None) -> list[Phase]:
-    """stop_after: the last phase to run (e.g. "rollouts" to check the teacher gate on a few seeds first)."""
+               stop_after: str | None = None, gpu_sampler: Callable[[Path], object] | None = None) -> list[Phase]:
+    """stop_after: the last phase to run (e.g. "rollouts" to check the teacher gate on a few seeds first).
+    gpu_sampler(path): a context manager around training (default: GpuSampler with the real runner, none with a
+    test's runner)."""
+    if gpu_sampler is None and runner is None and c.gpu_log_s > 0:
+        def gpu_sampler(path: Path):
+            return GpuSampler(path, c.gpu_log_s)
     if runner is None:
         def runner(cmd, env, log_file):
             rc = subprocess_runner(cmd, env, log_file, cwd=c.repo)
@@ -447,6 +510,10 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
     def decide() -> None:
         dec = stop_decision(history(), target_rate=c.target_rate, min_gain=c.min_gain,
                             min_new_frames=c.min_new_frames)
+        dec["stop_rule"] = c.stop_rule
+        if not c.stop_rule:
+            dec.update(rule_would_stop=dec["stop"], stop=False,
+                       reason=f"stop rule off (pre-registered); the rule says: {dec['reason']}")
         d = _read(c.done_file(r))
         c.round_file.write_text(json.dumps({
             "run_id": c.run_id, "round": r, "teacher": c.teacher, "teacher_checkpoint": str(c.teacher_checkpoint),
@@ -503,7 +570,20 @@ def plan_round(c: RoundConfig, log: Callable[[str], None], runner: Runner | None
         return find_train_run(c.data / "experiments", c.grid_name, c.label, c.steps)
 
     def train() -> None:
-        if runner(train_cmd(c), env(), logs / "train.log") != 0:
+        cmd = train_cmd(c)
+        unfinished = find_unfinished_run(c.data / "experiments", c.grid_name, c.label, c.steps)
+        if unfinished is not None:
+            log(f"[distill]   resuming the unfinished training run {unfinished}")
+            cmd += ["--resume-run", str(unfinished)]
+        sampling = gpu_sampler(logs / "gpu.csv") if gpu_sampler is not None else None
+        if sampling is not None:
+            sampling.__enter__()
+        try:
+            rc = runner(cmd, env(), logs / "train.log")
+        finally:
+            if sampling is not None:
+                sampling.__exit__(None, None, None)
+        if rc != 0:
             raise PhaseFailed("train: lerobot_tools.experiments failed; see logs/train.log")
 
     def select() -> None:

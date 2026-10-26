@@ -215,6 +215,15 @@ through our rollout loop.
 - **Open DAgger item (the lead, 2026-10-21):** if round 1 runs, add a forget-prev-target hook in T3's adapter so labels
   cap from the student's tool. It is only needed if r0@600 misses. `RLTeacher.reset()` can't be reused, because it
   also zeroes the policy's previous-action observation. Log it for T7 as a run-enabling DAgger detail when made.
+- **Done (2026-10-22), run-enabling, DAgger only.** T3's pm/rl-teacher 681e8dd: `make(..., cap_from_tool=True)` caps
+  each label from the state's tool (the pose the student reached). The previous-action observation is untouched.
+  - **Wiring:** `sim_eval.teacher.load_teacher_for(kind, ...)` passes the flag for `--kind dagger` only. It refuses a
+    DAgger teacher that does not report `cap_from_tool is True`, since an older `make()` swallows unknown keywords, and
+    refuses a round-0 teacher that has it on.
+  - **Recorded:** `distill_rollouts` records `teacher_cap_from_tool` in `rollouts_done.json`.
+  - **Tests:** the loader's rules (stub factories); a real `RLTeacher` in a student-driven toy rollout. With the flag,
+    every label is ≤ 1 cm from the tool it was computed at; without it, further.
+  - **Built** in the scratch worktree while round 0 @600 ran. Merged into pm/distill-dagger after its selection.
 
 `round.json` records the result as `data_check` (episodes and seed range per source). No code reads `data\rl` for
 training: the sources are only the human grid's cell and our own round folders. The guard makes that a checked fact.

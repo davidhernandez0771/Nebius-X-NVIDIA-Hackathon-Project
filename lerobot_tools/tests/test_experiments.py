@@ -134,7 +134,7 @@ def test_dry_run_writes_nothing_and_reports_invalid_cells(grid_file, tmp_path, c
 
 def test_budget_is_enforced_before_any_work(grid_file):
     with pytest.raises(SystemExit):
-        main(["--grid", str(grid_file), "--steps", "100001", "--dry-run"])
+        main(["--grid", str(grid_file), "--steps", "200001", "--dry-run"])
     with pytest.raises(SystemExit):
         main(["--grid", str(grid_file), "--steps", "1000", "--save-freq", "0", "--dry-run"])
 
@@ -243,3 +243,56 @@ def test_the_cli_takes_the_options_and_80k_steps(grid_file, capsys):
                  "--dilation", "--dry-run"]) == 0
     plan = json.loads(capsys.readouterr().out)
     assert plan["steps"] == 80000 and plan["train_options"] == {"augment": "shift", "dilation": True}
+
+
+def test_the_big_test_runs_180k_steps(grid_file, capsys):
+    # 2026-10-23 big test: 180k steps, checkpoints every 10k (candidates 60k/120k/180k); 200001 is over the cap
+    assert main(["--grid", str(grid_file), "--steps", "180000", "--save-freq", "10000", "--dry-run"]) == 0
+    with pytest.raises(SystemExit):
+        main(["--grid", str(grid_file), "--steps", "200001", "--dry-run"])
+
+
+
+class ResumeFakes(Fakes):
+    def train(self, dataset, out_dir, steps, batch_size, log_path, save_freq=None, options=None, resume=False):
+        self.resumed = getattr(self, "resumed", []) + [(dataset.name, resume)]
+        return super().train(dataset, out_dir, steps, batch_size, log_path, save_freq=save_freq, options=options)
+
+
+def test_a_resumed_run_keeps_a_finished_export_and_resumes_training_from_last_txt(grid_file, tmp_path):
+    """The big test's restart after a crash (2026-10-23): --resume-run reuses the run's folder. A finished export
+    (manifest.json is written last) is kept; a partial one is moved aside (never deleted) and exported again; training
+    resumes from checkpoints/last.txt, and a training folder without one is moved aside and starts over."""
+    run = tmp_path / "exp" / "tiny_20261023_200000"
+    done = run / "datasets" / "raw_2"
+    done.mkdir(parents=True)
+    (done / "manifest.json").write_text("{}", encoding="utf-8")
+    (run / "train" / "raw_2" / "checkpoints").mkdir(parents=True)
+    (run / "train" / "raw_2" / "checkpoints" / "last.txt").write_text("000100", encoding="utf-8")
+    (run / "datasets" / "raw_multiply_2" / "data").mkdir(parents=True)  # export crashed: no manifest
+    (run / "train" / "raw_multiply_2").mkdir(parents=True)  # training crashed before its first checkpoint
+    fakes, registry = ResumeFakes(), tmp_path / "registry.jsonl"
+    rows = run_grid(load_grid(grid_file), steps=200, batch_size=8, runs_root=tmp_path / "exp", registry=registry,
+                    assemble_fn=fakes.assemble, train_fn=fakes.train, resume_run=run)
+    assert fakes.assembled == ["raw_multiply_2"]
+    assert fakes.resumed == [("raw_2", True), ("raw_multiply_2", False)]
+    assert {r["run_id"] for r in rows} == {run.name} and all(r["resumed"] for r in rows)
+    aside = sorted(p.name for p in (run / "datasets").iterdir())
+    assert aside[0] == "raw_2" and aside[1] == "raw_multiply_2" and aside[2].startswith("raw_multiply_2.partial-")
+    assert any(p.name.startswith("raw_multiply_2.partial-") for p in (run / "train").iterdir())
+    assert [p.name for p in (tmp_path / "exp").iterdir()] == [run.name]  # no new run folder
+
+
+def test_the_resume_flag_reaches_lerobot_train(tmp_path):
+    from lerobot_tools.experiments import train_command
+
+    manifest = {"repo_id": "local/x"}
+    cmd = train_command(manifest, tmp_path / "ds", tmp_path / "out", steps=180000, batch_size=8, save_freq=10000,
+                        resume=True)
+    assert cmd[cmd.index("--resume-last") + 1] == str(tmp_path / "out")
+    assert "--resume-last" not in train_command(manifest, tmp_path / "ds", tmp_path / "out", steps=10, batch_size=8)
+
+
+def test_resume_run_must_exist(grid_file, tmp_path):
+    with pytest.raises(SystemExit):
+        main(["--grid", str(grid_file), "--steps", "200", "--resume-run", str(tmp_path / "nope")])
