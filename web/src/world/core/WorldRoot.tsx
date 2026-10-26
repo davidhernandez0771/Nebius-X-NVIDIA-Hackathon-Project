@@ -8,6 +8,7 @@ import { useMotion } from "../../sant/motion/MotionProvider";
 import { navigateWithTransition } from "../../sant/motion/viewTransition";
 import { STATIONS } from "../stations";
 import { FIRE_AT, saveReturn, takeReturn } from "./handoff";
+import { hashOfBranch, placeOfHash, syncOp } from "./placeHash";
 import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
 import { Hud } from "./Hud";
@@ -228,9 +229,17 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     [store, quality, reduced, mode, fail, stations],
   );
 
-  // Back from a 2D route: the machine, with the projection still lit, just before the zoom.
+  // The page's scroll is the world's to set (the rail, a return, a place's hash): the browser's own restoration
+  // on Back or Forward would put it somewhere else (the end of the rail, the room under a place's entry).
   useLayoutEffect(() => {
-    const back = takeReturn(session());
+    setScrollRestoration("manual");
+    return () => setScrollRestoration("auto");
+  }, []);
+
+  // Back from a 2D route: the machine, with the projection still lit, just before the zoom. Or a place in the
+  // URL (a reload, a link, Back to its entry: placeHash.ts): the room view with that place open.
+  useLayoutEffect(() => {
+    const back = takeReturn(session()) ?? placeOfHash(window.location.hash);
     if (!back) return;
     // The workshop's end (the room view), with the machine open and already played: the hologram up.
     const span = store.rail.spans.find((s) => s.id === "workshop");
@@ -239,8 +248,64 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     scrollToY(y, false);
     store.jump(y);
     if (stations.some((s) => s.id === back && s.kind === "branch")) store.setBranch(back as StationId, 1);
-    requestAnimationFrame(() => setScrollRestoration("auto"));
   }, [store, stations]);
+
+  // The open place follows the URL's hash (placeHash.ts): opening one adds a history entry, so the browser's
+  // Back (a phone's back gesture) closes it instead of leaving the site, and Forward opens it again; its own
+  // Back to room or Escape takes the entry back off.
+  const goToRef = useRef(api.goTo);
+  goToRef.current = api.goTo;
+  useEffect(() => {
+    const h = window.history;
+    const url = (hash: string) => window.location.pathname + window.location.search + hash;
+    let last: StationId | null = null;
+    // A history.back() of ours is on its way: its popstate only re-syncs (a place opened meanwhile stays open).
+    let popping = false;
+    // Applying a Back or Forward: what it changes is already in the URL.
+    let applying = false;
+    const sync = (force = false) => {
+      if (applying) return;
+      const branch = store.getCoarse().branch;
+      if (branch === last && !force) return;
+      last = branch;
+      const own = !!(h.state as { worldPlace?: boolean } | null)?.worldPlace;
+      const op = syncOp(branch, window.location.hash, own);
+      try {
+        if (op.op === "push") h.pushState({ ...(h.state ?? {}), worldPlace: true }, "", url(op.hash));
+        else if (op.op === "replace") h.replaceState(h.state, "", url(op.hash));
+        else if (op.op === "back") {
+          popping = true;
+          h.back();
+        }
+      } catch {
+        /* a sandboxed frame may refuse: the places still work, only without the history */
+      }
+    };
+    const onPop = () => {
+      if (popping) {
+        popping = false;
+        sync(true);
+        return;
+      }
+      const place = placeOfHash(window.location.hash);
+      if (hashOfBranch(store.getCoarse().branch) === hashOfBranch(place)) return;
+      applying = true;
+      try {
+        if (place) goToRef.current(place);
+        else store.setBranch(null);
+      } finally {
+        applying = false;
+      }
+      last = store.getCoarse().branch;
+    };
+    sync(true);
+    const off = store.subscribe(() => sync());
+    window.addEventListener("popstate", onPop);
+    return () => {
+      off();
+      window.removeEventListener("popstate", onPop);
+    };
+  }, [store]);
 
   useEffect(() => {
     const onScroll = () => {

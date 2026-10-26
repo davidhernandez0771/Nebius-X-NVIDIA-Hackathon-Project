@@ -41,6 +41,8 @@ describe("WorldRoot (no WebGL)", () => {
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     sessionStorage.clear();
+    // An open place is in the URL's hash (placeHash.ts): start each test without one.
+    window.history.replaceState(null, "", "/");
   });
   afterEach(() => {
     cleanup();
@@ -205,11 +207,81 @@ describe("WorldRoot (no WebGL)", () => {
   });
 });
 
+// site-nav (2026-10-26): the browser's own Back (a phone's back gesture) inside a place left the site, and a
+// reload dropped you at the top of the story. The open place is in the URL's hash now (placeHash.ts).
+describe("the browser's Back and Forward in the workshop (no WebGL)", () => {
+  const hub = () => scrollTo(window.innerHeight * HUB);
+  const goMachine = () => fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Machine" }));
+  beforeEach(() => {
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("opening a place adds a history entry: Back closes it, Forward opens it again", async () => {
+    renderWorld();
+    hub();
+    const before = window.history.length;
+    goMachine();
+    expect(current()).toBe("machine");
+    expect(window.location.hash).toBe("#machine");
+    expect(window.history.length).toBe(before + 1);
+    act(() => window.history.back());
+    await waitFor(() => expect(current()).toBe("workshop"));
+    expect(window.location.hash).toBe("");
+    act(() => window.history.forward());
+    await waitFor(() => expect(current()).toBe("machine"));
+  });
+
+  it("its own Back to room (or Escape) takes the entry back off, so the next Back doesn't reopen it", async () => {
+    renderWorld();
+    hub();
+    goMachine();
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).at(-1)!);
+    expect(current()).toBe("workshop");
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    // Into another place and out by Escape: the same.
+    fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Robots" }));
+    expect(window.location.hash).toBe("#robots");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(current()).toBe("workshop");
+    await waitFor(() => expect(window.location.hash).toBe(""));
+  });
+
+  it("into the projection stays on the machine's entry", () => {
+    renderWorld();
+    hub();
+    goMachine();
+    const len = window.history.length;
+    fireEvent.click(screen.getByRole("button", { name: "Into the projection →" }));
+    expect(current()).toBe("zoom");
+    expect(window.location.hash).toBe("#machine");
+    expect(window.history.length).toBe(len);
+  });
+
+  it("a reload (or a link) with a place in the URL opens it in the room", () => {
+    window.history.replaceState(null, "", "/#robots");
+    renderWorld();
+    expect(current()).toBe("robots");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(current()).toBe("workshop");
+    expect(window.location.hash).toBe("");
+  });
+});
+
 describe("the spiral's filters (no WebGL)", () => {
   beforeEach(() => {
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     sessionStorage.clear();
+    // An open place is in the URL's hash (placeHash.ts): start each test without one.
+    window.history.replaceState(null, "", "/");
   });
   afterEach(async () => {
     cleanup();
