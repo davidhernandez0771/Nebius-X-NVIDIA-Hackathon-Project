@@ -15,6 +15,7 @@ import { applyJoints, binParts, CUBE_SIZE, FRANKA, quat } from "../../twin/model
 import { parseEpisode, stateAt, type Episode } from "../../twin/replay";
 import type { QualityTier } from "../core/quality";
 import { SOFT_LINE_GLSL } from "./materials";
+import type { Projection } from "./projection";
 
 const EPISODE_URL = `${(import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "/")}world/demo-episode.json`;
 const TEAL = new THREE.Color("#19f5c2");
@@ -386,7 +387,8 @@ function usePanel(w: number, h: number, draw: (g: CanvasRenderingContext2D, W: n
 
 const MONO = '"Geist Mono", ui-monospace, Consolas, monospace';
 
-export function HoloTwin({ level, quality, label, position }: { level: () => number; quality: QualityTier; label: string; position: THREE.Vector3Tuple }) {
+export function HoloTwin({ level, quality, projection, position }: { level: () => number; quality: QualityTier; projection: Projection; position: THREE.Vector3Tuple }) {
+  const { title, line, cartridgeLine, own } = projection;
   const invalidate = useThree((s) => s.invalidate);
   const gl = useThree((s) => s.gl);
   const [holo, setHolo] = useState<Holo | null>(null);
@@ -429,16 +431,18 @@ export function HoloTwin({ level, quality, label, position }: { level: () => num
         g.fillText("REPLAY · VERIFIED COPY", 28, 48);
         g.font = `700 44px ${MONO}`;
         g.fillStyle = "#d8efe9";
-        g.fillText(label.toUpperCase(), 28, 106);
+        // The robot the hologram shows and its task (scene/projection.ts), then the cartridge plugged in.
+        g.fillText(title, 28, 106);
         g.font = `400 19px ${MONO}`;
         g.fillStyle = "#8fb0a8";
-        g.fillText("FRANKA FR3 · PICK CUBE → BIN", 28, 150);
-        g.fillText(`${episode ? episode.nSteps : "…"} STEPS · ${episode ? episode.fps : 30} HZ · ISAAC LAB`, 28, 180);
+        g.fillText(`${line} · ${episode ? episode.nSteps : "…"} STEPS · ${episode ? episode.fps : 30} HZ · ISAAC LAB`, 28, 150);
+        g.fillStyle = own ? "#8fb0a8" : "#d8efe9";
+        g.fillText(cartridgeLine, 28, 180);
         g.fillStyle = "#ffb000";
         g.fillText("PHYSICS CHECK: PASSED", 28, 216);
         void W;
       },
-      [label, episode],
+      [title, line, cartridgeLine, own, episode],
     ),
   );
   const joints = usePanel(

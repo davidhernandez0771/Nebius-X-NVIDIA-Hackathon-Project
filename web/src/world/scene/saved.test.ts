@@ -146,7 +146,7 @@ describe("saved cartridges", () => {
   it("go to the machine as their robot's cartridge, from their own place", () => {
     const r = saveCartridge(draft("Desk arm", "#323336", "S101"));
     if (!r.ok) throw new Error("save failed");
-    expect(cartridgeOfSaved(r.cartridge, r.place)).toEqual({ id: `mine-${r.cartridge.id}`, label: "Desk arm", route: "/pm/record", slot: HELIX.length });
+    expect(cartridgeOfSaved(r.cartridge, r.place)).toEqual({ id: `mine-${r.cartridge.id}`, label: "Desk arm", route: "/pm/record", slot: HELIX.length, robot: r.cartridge.robot });
     expect(ROBOTS.some((x) => x.code === r.cartridge.robot)).toBe(true);
   });
 });

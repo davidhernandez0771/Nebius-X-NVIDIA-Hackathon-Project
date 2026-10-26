@@ -19,6 +19,7 @@ import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR } from "../../core/layout";
 import { ambient } from "../../core/activity";
 import { useWorldState } from "../../core/WorldContext";
 import { HoloTwin } from "../../scene/HoloTwin";
+import { projectionOf } from "../../scene/projection";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL } from "../../scene/assets";
 import { Materialize } from "../../scene/Materialize";
@@ -168,7 +169,7 @@ function useHero(tier: StationSceneProps["quality"]) {
 const ANCHOR = new THREE.Vector3(...MACHINE_ANCHOR);
 
 export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
-  const label = useWorldState((c) => (c.cartridge ?? DEFAULT_CARTRIDGE).label);
+  const cartridge = useWorldState((c) => c.cartridge ?? DEFAULT_CARTRIDGE);
   const gltf = useGLTF(MACHINE_URL, false);
   const v2 = useGLTF(MACHINE_V2_URL, false);
   const invalidate = useThree((s) => s.invalidate);
@@ -240,7 +241,7 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     <Materialize>
       <primitive object={built.root} />
       <primitive object={hero.group} />
-      {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} label={label} position={[built.holoAt.x, built.holoAt.y, built.holoAt.z]} /> : null}
+      {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} projection={projectionOf(cartridge)} position={[built.holoAt.x, built.holoAt.y, built.holoAt.z]} /> : null}
     </Materialize>
   );
 }

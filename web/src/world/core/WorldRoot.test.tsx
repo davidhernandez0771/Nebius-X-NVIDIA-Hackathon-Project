@@ -131,6 +131,18 @@ describe("WorldRoot (no WebGL)", () => {
     expect(sessionStorage.getItem("world.return")).toBe("machine");
   });
 
+  // site-nav: the caption says what the hologram shows (scene/projection.ts), for the cartridge plugged in.
+  it("captions the machine with what it projects: the Franka's replay, honest about the SO-101", () => {
+    renderWorld();
+    scrollTo(window.innerHeight * HUB);
+    fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Machine" }));
+    const machine = document.querySelector('.world-station[data-station="machine"]')!;
+    expect(machine.textContent).toContain("SO-101 plugs in. The SO-101 has no verified replay yet, so the machine projects the Franka FR3's");
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).slice(-1)[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Franka FR3" }));
+    expect(machine.textContent).toContain("Franka FR3 plugs in, and the machine projects it");
+  });
+
   it("hands off now with the zoom's button, to Record with the SO-101 by default", () => {
     renderWorld();
     fireEvent.click(screen.getByRole("button", { name: "Open SO-101" }));

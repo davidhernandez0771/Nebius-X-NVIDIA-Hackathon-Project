@@ -60,6 +60,8 @@ export interface Cartridge {
   route: string;
   /** Which spiral slot (layout.json `helix`) it came from, so the machine flies that one in. */
   slot?: number;
+  /** The robot it is for, by its label code (scene/robots.ts: S101, FR3, PPR, RZ4, OPN); none for a job about no arm. */
+  robot?: string;
 }
 
 export interface StationSceneProps {
