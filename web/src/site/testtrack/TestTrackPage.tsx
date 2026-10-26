@@ -372,12 +372,6 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
               <SourcePicker sources={sources} current={source} onPick={(id) => go({ source: id, run: null, show: null })} />
               <p className="tt-summary">{summaryText(source)}</p>
               <p className="tt-what">{source.what}</p>
-              {source.note && <p className="tt-note">{source.note}</p>}
-              {source.checkpoint && (
-                <p className="tt-ckpt">
-                  <HoloTag>Checkpoint</HoloTag> <code>{source.checkpoint.split(/[\\/]/).slice(-3).join("/")}</code>
-                </p>
-              )}
               <RunGrid
                 source={source}
                 show={show}
@@ -386,6 +380,13 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
                 // the run on screen stays if the new filter shows it; else the filter opens on its first run
                 onShow={(s) => go({ source: source.id, show: s === "all" ? null : s, run: shownRuns(source.runs, s).some((r) => r.id === row.id) ? row.id : null })}
               />
+              {/* how the source was put together, after the runs so the grid sits high in the panel */}
+              {source.note && <p className="tt-note">{source.note}</p>}
+              {source.checkpoint && (
+                <p className="tt-ckpt">
+                  <HoloTag>Checkpoint</HoloTag> <code>{source.checkpoint.split(/[\\/]/).slice(-3).join("/")}</code>
+                </p>
+              )}
             </HoloPanel>
             <section className="tt-stage" aria-label={`Seed ${row.seed}`}>
               <div className="tt-arena">
