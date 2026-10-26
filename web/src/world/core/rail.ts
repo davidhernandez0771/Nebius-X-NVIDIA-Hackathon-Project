@@ -48,18 +48,24 @@ export function layoutRail(stations: readonly RailStation[], vh: number): Rail {
 
 const clamp01 = (u: number) => Math.min(1, Math.max(0, u));
 
+/**
+ * How far short of a station's start a scroll still counts as there (px). The browser keeps the scroll in whole
+ * (device) pixels, so a jump to a start that isn't a whole pixel (18.9 viewports) can land a hair short of it.
+ */
+const SNAP = 0.5;
+
 export function locate(rail: Rail, y: number): Place {
   const { spans } = rail;
   const yc = Math.min(rail.total, Math.max(0, y));
   let index = 0;
   for (let i = spans.length - 1; i >= 0; i--) {
-    if (yc >= spans[i].from) {
+    if (yc >= spans[i].from - SNAP) {
       index = i;
       break;
     }
   }
   const s = spans[index];
-  if (yc < s.start) {
+  if (yc < s.start - (s.start > s.from ? 0 : SNAP)) {
     const t = clamp01((yc - s.from) / (s.start - s.from));
     return { index, phase: "travel", t, current: t < 0.5 && index > 0 ? index - 1 : index };
   }

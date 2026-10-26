@@ -29,6 +29,16 @@ describe("locate", () => {
     expect(locate(rail, 275)).toEqual({ index: 1, phase: "travel", t: 0.75, current: 1 });
     expect(locate(rail, 350)).toEqual({ index: 1, phase: "dwell", t: 0.5, current: 1 });
   });
+  // intro-proof (2026-10-26): the browser keeps scroll in whole (device) pixels, so a jump to a station's start can
+  // land a rounding hair short of it (18.9 viewports is not a whole number of pixels at most heights).
+  it("counts a scroll within half a pixel short of a station's start as there", () => {
+    const tiny = layoutRail([{ ...a, length: 18.9 }, { ...b, travel: 0 }], 721);
+    const start = tiny.spans[1].start;
+    expect(locate(tiny, start - 0.4)).toEqual({ index: 1, phase: "dwell", t: 0, current: 1 });
+    expect(locate(tiny, start - 1)).toMatchObject({ index: 0, current: 0 });
+    // With a travel, the same: the travel has begun.
+    expect(locate(rail, 199.7)).toEqual({ index: 1, phase: "travel", t: 0, current: 0 });
+  });
   it("clamps above and below the rail", () => {
     expect(locate(rail, -50)).toEqual({ index: 0, phase: "dwell", t: 0, current: 0 });
     expect(locate(rail, 9999)).toEqual({ index: 2, phase: "dwell", t: 1, current: 2 });

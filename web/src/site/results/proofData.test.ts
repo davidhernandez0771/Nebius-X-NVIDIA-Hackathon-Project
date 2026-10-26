@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CLIMB, DID_NOT_WORK, GOAL, PROOF_NOTES, TEACHER, V2_FAILURES, proofCite, proofNoteUrl } from "./proofData";
+import { CLIMB, CLIMB_FOOTNOTE_SHORT, CLIMB_FOOTNOTE_SOURCE, DID_NOT_WORK, GOAL, PROOF_NOTES, TEACHER, TEACHER_GATE, V2_FAILURES, proofCite, proofNoteUrl } from "./proofData";
 import { wilson } from "./stats";
 
 /** The Wilson bounds the notes print are rounded to 3 places: each must be within 0.001 of a computed one. */
@@ -125,5 +125,61 @@ describe("the lead", () => {
     expect(LEAD.headline).toBe(`${LEAD.demos} human mouse demos → ${v2.k}/${v2.n} (75%) on unseen scenes`);
     expect(LEAD.demosSource).toEqual({ note: "distill", lines: "9" });
     expect(LEAD.goal).toBe(GOAL);
+  });
+});
+
+// intro-proof (2026-10-26): the story's proof beats show the teacher's speed gate as a before/after, so its numbers
+// are data here too, cited to the distill pre-registration and T3's gate note.
+describe("the teacher's speed gate", () => {
+  /** The gate's Wilson bounds are printed to 2 places: each within 0.005 of a computed one. */
+  function expectWilson2(k: number, n: number, ci: [number, number]) {
+    const [lo, hi] = wilson(k, n);
+    expect(Math.abs(ci[0] - lo)).toBeLessThanOrEqual(0.005);
+    expect(Math.abs(ci[1] - hi)).toBeLessThanOrEqual(0.005);
+  }
+
+  it("failed SANT's physics replay at 3/50 uncapped (median 1.73 m/s) and passed 50/50 capped at 0.5 m/s", () => {
+    const { before, after, passMark } = TEACHER_GATE;
+    expect([before.k, before.n, before.speed]).toEqual([3, 50, 1.73]);
+    expect([after.k, after.n, after.speed]).toEqual([50, 50, 0.5]);
+    expect([passMark.k, passMark.n]).toEqual([45, 50]);
+    expect(before.k).toBeLessThan(passMark.k);
+    expect(after.k).toBeGreaterThanOrEqual(passMark.k);
+    expectWilson2(before.k, before.n, before.ci);
+    expectWilson2(after.k, after.n, after.ci);
+  });
+
+  it("names the three seeds that passed, inside the first gate's fresh block, and the second gate's own block", () => {
+    const { before, after } = TEACHER_GATE;
+    expect(before.seeds).toEqual([5300, 5349]);
+    expect(after.seeds).toEqual([5350, 5399]);
+    expect(before.passedSeeds).toEqual([5303, 5308, 5313]);
+    expect(before.passedSeeds).toHaveLength(before.k);
+    for (const s of before.passedSeeds) {
+      expect(s).toBeGreaterThanOrEqual(before.seeds[0]);
+      expect(s).toBeLessThanOrEqual(before.seeds[1]);
+    }
+    expect(before.seeds[1] - before.seeds[0] + 1).toBe(before.n);
+    expect(after.seeds[1] - after.seeds[0] + 1).toBe(after.n);
+  });
+
+  it("cites both notes for each side", () => {
+    expect(PROOF_NOTES.gate.path).toBe("docs/superpowers/notes/2026-10-21-rl-teacher-gate.md");
+    expect(proofCite({ note: "gate", lines: "25" })).toBe("RL teacher gate note, line 25");
+    for (const side of [TEACHER_GATE.before, TEACHER_GATE.after]) expect(side.sources.map((s) => s.note)).toEqual(["distill", "gate"]);
+    expect(TEACHER_GATE.passMark.source.lines).toMatch(/^\d/);
+  });
+
+  it("is where the Results page's \"first teacher was too fast\" setback takes its numbers", () => {
+    const fast = DID_NOT_WORK.find((d) => d.key === "fast_teacher")!;
+    expect(fast.figure).toBe(`${TEACHER_GATE.before.k}/${TEACHER_GATE.before.n}`);
+    expect(fast.text).toBe("It moved at an unrealistic 1.7 m/s, so SANT's physics replay caught it (3/50). A 0.5 m/s cap fixed it (50/50).");
+  });
+});
+
+describe("the climb's short footnote", () => {
+  it("is the user's one line, from the same source as the long one", () => {
+    expect(CLIMB_FOOTNOTE_SHORT).toBe("Each bar is its own pre-registered test, run once; v2 on fresh seeds.");
+    expect(CLIMB_FOOTNOTE_SOURCE).toEqual({ note: "bigtest", lines: "765" });
   });
 });

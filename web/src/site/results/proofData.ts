@@ -5,6 +5,8 @@
 //   re-execution (0/110) and DAgger's Stage B drop;
 // - docs/superpowers/notes/2026-10-21-distill-prereg.md: v1's final test (15/40), the mouse raw and SANT arms
 //   (0/40, 3/40), the teacher's speed gate (3/50, then 50/50) and Amendment 6, with and without human demo starts.
+// The teacher's speed gate is also cited to T3's gate note, docs/superpowers/notes/2026-10-21-rl-teacher-gate.md
+// (line numbers as of this branch, pm/site-nav-fix), for the story's "SANT checks the teacher too" beat.
 // Wilson 95% bounds are as the notes print them (3 places); proofData.test.ts checks each against stats.ts's wilson().
 // Nothing on the page computes a number: it formats these.
 import { REPO_BLOB } from "./data";
@@ -12,6 +14,7 @@ import { REPO_BLOB } from "./data";
 export const PROOF_NOTES = {
   bigtest: { name: "Big-test pre-registration note", path: "docs/superpowers/notes/2026-10-23-bigtest-prereg.md" },
   distill: { name: "Distill pre-registration note", path: "docs/superpowers/notes/2026-10-21-distill-prereg.md" },
+  gate: { name: "RL teacher gate note", path: "docs/superpowers/notes/2026-10-21-rl-teacher-gate.md" },
 } as const;
 
 export type ProofNote = keyof typeof PROOF_NOTES;
@@ -109,6 +112,8 @@ export const LEAD = {
 export const CLIMB_FOOTNOTE =
   "Each bar is its own pre-registered test, run once. v2 was tested on fresh seeds 5400–5439; the others on 5020–5059, so the comparisons are descriptive.";
 export const CLIMB_FOOTNOTE_SOURCE: ProofSource = { note: "bigtest", lines: "765" };
+/** The same footnote in one line, for the story's proof beat (the user's words; the same source). */
+export const CLIMB_FOOTNOTE_SHORT = "Each bar is its own pre-registered test, run once; v2 on fresh seeds.";
 
 // ------------------------------------------------------------------ 2. the teacher side
 
@@ -132,6 +137,49 @@ export const TEACHER = {
   source: { note: "distill", lines: "1653–1657" } as ProofSource,
   finalSource: { note: "distill", lines: "1621–1622" } as ProofSource,
   setupSource: { note: "distill", lines: "1500–1503" } as ProofSource,
+};
+
+// ------------------------------------------------------------------ the teacher's speed gate (SANT checks the teacher too)
+
+export type GateSide = Rate & {
+  /** The arm's tool speed, m/s: the median it commanded (before) or the cap (after). */
+  speed: number;
+  /** The gate's fresh practice seeds, first and last. */
+  seeds: [number, number];
+  sources: ProofSource[];
+};
+
+/**
+ * The RL teacher had to pass SANT's own physics replay (the gate) before anything was distilled from it. Uncapped, its
+ * tool targets moved at a median 1.73 m/s and the replay passed it on 3 of 50 scenes (seeds 5303, 5308, 5313); with a
+ * 0.5 m/s cap, on fresh seeds, 50 of 50. The pass mark was at least 45/50. Wilson bounds as the notes print them
+ * (2 places).
+ */
+export const TEACHER_GATE = {
+  passMark: { k: 45, n: 50, source: { note: "distill", lines: "440" } as ProofSource },
+  before: {
+    k: 3,
+    n: 50,
+    ci: [0.02, 0.16],
+    speed: 1.73,
+    seeds: [5300, 5349],
+    passedSeeds: [5303, 5308, 5313],
+    sources: [
+      { note: "distill", lines: "439–441, 451" },
+      { note: "gate", lines: "22, 25, 37" },
+    ],
+  } as GateSide & { passedSeeds: number[] },
+  after: {
+    k: 50,
+    n: 50,
+    ci: [0.93, 1.0],
+    speed: 0.5,
+    seeds: [5350, 5399],
+    sources: [
+      { note: "distill", lines: "495, 546, 551" },
+      { note: "gate", lines: "76, 81, 105" },
+    ],
+  } as GateSide,
 };
 
 // ------------------------------------------------------------------ 3. why v2's failures failed
@@ -179,9 +227,9 @@ export const DID_NOT_WORK: Setback[] = [
   },
   {
     key: "fast_teacher",
-    figure: "3/50",
+    figure: `${TEACHER_GATE.before.k}/${TEACHER_GATE.before.n}`,
     title: "The first teacher was too fast",
-    text: "It moved at an unrealistic 1.7 m/s, so SANT's physics replay caught it (3/50). A 0.5 m/s cap fixed it (50/50).",
+    text: `It moved at an unrealistic ${TEACHER_GATE.before.speed.toFixed(1)} m/s, so SANT's physics replay caught it (${TEACHER_GATE.before.k}/${TEACHER_GATE.before.n}). A ${TEACHER_GATE.after.speed} m/s cap fixed it (${TEACHER_GATE.after.k}/${TEACHER_GATE.after.n}).`,
     sources: [
       { note: "distill", lines: "440, 451" },
       { note: "distill", lines: "495, 551" },
