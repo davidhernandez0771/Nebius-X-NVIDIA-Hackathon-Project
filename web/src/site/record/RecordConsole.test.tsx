@@ -444,7 +444,10 @@ describe("/record: settings drawer", () => {
 describe("/record: the hologram's top bar and boot", () => {
   it("ejects to the workshop, shows the live sim's robot cartridge and S as the current step", () => {
     renderPage();
-    expect(screen.getByRole("link", { name: /workshop/ }).getAttribute("href")).toBe("/");
+    // The way back (site-nav): "← Back to workshop", the first link after the mark, top left.
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(document.querySelector(".rg-top a")).toBe(back);
     expect(screen.getByText("FRANKA")).toBeTruthy();
     expect(screen.getByText("Franka Panda")).toBeTruthy();
     const steps = screen.getByRole("navigation", { name: "SANT steps" });

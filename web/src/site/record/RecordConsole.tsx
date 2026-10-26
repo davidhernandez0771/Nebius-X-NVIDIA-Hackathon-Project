@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { BackToWorkshop } from "../../sant/components/BackToWorkshop";
 import { Logo } from "../../sant/components/Logo";
 import type { TrackingStatus } from "../../hand/contracts";
 import { describeError, pmApi } from "../../pm/api";
@@ -237,9 +238,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           <span className="rg-brand">
             <Logo size="sm" lit="all" />
           </span>
-          <Link className="rg-btn rg-eject" to="/" title="Eject the cartridge and go back to the workshop">
-            <span aria-hidden="true">⏏</span> workshop
-          </Link>
+          <BackToWorkshop />
           <span className="rg-cart" title="The robot plugged in: the arm the live sim drives">
             <i aria-hidden="true" />
             <b>{LIVE_ROBOT.code}</b>

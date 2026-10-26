@@ -1152,8 +1152,29 @@
     overflow: visible;
   }
 
+  /* A row that wraps (site-nav, 2026-10-26): as a two-column grid the right group (status chips, record, clock,
+     settings) is wider than a phone and was drawn over the crumb, the way back to the workshop under it. */
   .rg-top {
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .rg-crumb {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .rg-right {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .rg-chips {
+    flex-wrap: wrap;
   }
 
   .rg-steps {

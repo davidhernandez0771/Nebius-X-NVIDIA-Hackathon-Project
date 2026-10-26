@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import Icon from "../legacy/components/Icon";
+import { BackToWorkshop } from "../sant/components/BackToWorkshop";
 import { Logo } from "../sant/components/Logo";
 import { useHandPointer } from "../hand/integration/useHandPointer";
 import { HandCursorOverlay } from "../hand/overlay/HandCursorOverlay";
@@ -21,10 +22,10 @@ export const STEPS = [
   { to: "/site/results", n: "04", label: "Results" },
 ] as const;
 
-/** Back into the world: land in the workshop, at the spiral, not at the top of the journey. */
+/** The brand: back into the world, in the workshop's room view, not at the top of the journey. */
 function backToWorkshop() {
   try {
-    window.sessionStorage.setItem("world.return", "descent");
+    window.sessionStorage.setItem("world.return", "workshop");
   } catch {
     /* blocked storage: the journey opens at the top */
   }
@@ -36,10 +37,14 @@ export function WorkShell() {
   return (
     <div className="work">
       <header className="work-top">
-        <Link to="/" className="work-brand work-u" onClick={backToWorkshop}>
-          <Logo size="sm" lit="all" />
-          <span className="work-brand__line">perfect, then multiply</span>
-        </Link>
+        <span className="work-top__left">
+          <Link to="/" className="work-brand work-u" onClick={backToWorkshop}>
+            <Logo size="sm" lit="all" />
+            <span className="work-brand__line">perfect, then multiply</span>
+          </Link>
+          {/* The way back, as on every page and in the world's places: right after the mark (site-nav). */}
+          <BackToWorkshop />
+        </span>
         <nav className="work-steps work-u" aria-label="Pipeline">
           {STEPS.map((s, i) => (
             <span key={s.to} className="work-steps__item">
@@ -50,9 +55,6 @@ export function WorkShell() {
             </span>
           ))}
         </nav>
-        <Link to="/" className="work-back work-u" onClick={backToWorkshop}>
-          ← Workshop
-        </Link>
       </header>
       <main className="work-main">
         <Outlet />

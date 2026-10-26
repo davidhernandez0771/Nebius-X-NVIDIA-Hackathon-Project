@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { MotionProvider } from "../../sant/motion/MotionProvider";
 import { RobotsPage } from "./RobotsPage";
 
@@ -15,7 +16,9 @@ afterEach(() => {
 async function renderPage() {
   render(
     <MotionProvider>
-      <RobotsPage />
+      <MemoryRouter initialEntries={["/robots"]}>
+        <RobotsPage />
+      </MemoryRouter>
     </MotionProvider>,
   );
   await act(async () => {});
@@ -29,6 +32,14 @@ describe("RobotsPage", () => {
     const nav = screen.getByRole("navigation", { name: "Robots" });
     expect(nav.querySelectorAll("button")).toHaveLength(6);
     expect(nav.textContent).toContain("OpenArmDesign flaw, 2026");
+  });
+
+  // site-nav (2026-10-26): the page had no way back at all (Escape only drops a picked robot).
+  it("has the way back to the workshop, top left after the mark", async () => {
+    await renderPage();
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(document.querySelector(".robots-top a")).toBe(back);
   });
 
   it("shows the verified-copies count in the top bar", async () => {

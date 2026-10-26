@@ -39,7 +39,10 @@ describe("App routes", () => {
     const nav = await screen.findByRole("navigation", { name: "Pipeline" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["01 Record", "02 Review", "03 Dataset", "04 Results"]);
     expect(within(nav).getByRole("link", { name: "03 Dataset" }).className).toContain("active");
-    expect(screen.getByRole("link", { name: "← Workshop" }).getAttribute("href")).toBe("/");
+    // The way back (site-nav): the shared "← Back to workshop", right after the brand top left.
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(document.querySelectorAll(".work-top a")[1]).toBe(back);
   });
 
   it("points 04 Results at the measured results page, and sends the old /pm/results there", async () => {

@@ -193,7 +193,7 @@ describe("WorldRoot (no WebGL)", () => {
     // The page went to the room view under the place (the workshop's dwell), with no glide.
     const ys = vi.mocked(window.scrollTo).mock.calls.map((c) => (c[0] as ScrollToOptions).top ?? 0);
     expect(Math.max(...ys)).toBeGreaterThanOrEqual(room - 1);
-    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).slice(-1)[0]);
     expect(current()).toBe("workshop");
   });
 
@@ -243,7 +243,7 @@ describe("the browser's Back and Forward in the workshop (no WebGL)", () => {
     renderWorld();
     hub();
     goMachine();
-    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).at(-1)!);
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).slice(-1)[0]);
     expect(current()).toBe("workshop");
     await waitFor(() => expect(window.location.hash).toBe(""));
     // Into another place and out by Escape: the same.
