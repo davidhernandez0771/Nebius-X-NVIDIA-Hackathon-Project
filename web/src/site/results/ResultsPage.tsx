@@ -1,7 +1,7 @@
 // The Results page (Field Notes): the headline result with its CIs and limits, the 0 → 100 →
 // 300 copies chart replayed scene by scene, the other measured experiments, the robot report card,
-// and what is still pending. Every number comes from ./results.json (via ./data.ts and ./facts.ts)
-// and sits next to its note and line. Spec: docs/design/content-spec.md §4.
+// and what is still pending. Every number comes from ./results.json (via ./data.ts and ./facts.ts), or, in the proof
+// band of pre-registered results (./ProofSection.tsx), from ./proofData.ts, and sits next to its note and line. Spec: docs/design/content-spec.md §4.
 import { ChartFrame } from "../../sant/components/ChartFrame";
 import { CountUpTiles } from "../../sant/components/CountUpTiles";
 import { SectionHeader } from "../../sant/components/SectionHeader";
@@ -11,6 +11,8 @@ import { Cite } from "./Cite";
 import { CopiesChart } from "./CopiesChart";
 import { RESULTS, experiment } from "./data";
 import { ExperimentSection } from "./ExperimentSection";
+import { ProofSection } from "./ProofSection";
+import { PROOF_NOTES } from "./proofData";
 import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, PLATEAU, PROOF_SO_FAR, REPORT_CARDS, SCENES, VERIFIED, cite } from "./facts";
 import { ReportCard } from "./ReportCard";
 import "./results.css";
@@ -248,10 +250,10 @@ function Sources() {
         id="results-sources"
         level={3}
         title="Where the numbers come from"
-        lede={`Every number on this page comes from web/src/site/results/results.json (as of ${RESULTS.asOf}) or, for the real demos, stores.json, generated read-only from the experiment stores by scripts/build_site_results.py (newest store file ${RESULTS.storesAsOf ?? "unknown"}). Each cites a line in one of these notes, or the store file it was read from. The notes are append-only, so the lines stay put.`}
+        lede={`Every number on this page comes from web/src/site/results/results.json (as of ${RESULTS.asOf}), from stores.json for the real demos, generated read-only from the experiment stores by scripts/build_site_results.py (newest store file ${RESULTS.storesAsOf ?? "unknown"}), or, for the pre-registered proof, from web/src/site/results/proofData.ts. Each cites a line in one of these notes, or the store file it was read from. The notes are append-only, so the lines stay put.`}
       />
       <ul>
-        {Object.values(NOTES).map((n) => (
+        {[...Object.values(NOTES), ...Object.values(PROOF_NOTES)].map((n) => (
           <li key={n.path}>
             {n.name}: <code>{n.path}</code>
           </li>
@@ -266,6 +268,7 @@ export function ResultsPage() {
     <StoryShell home="/site" links={LINKS} cta={CTA}>
       <div className="sant-results">
         <Headline />
+        <ProofSection />
         <Limits />
         <Real />
         <Copies />
