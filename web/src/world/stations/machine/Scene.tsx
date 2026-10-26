@@ -17,7 +17,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR } from "../../core/layout";
 import { ambient } from "../../core/activity";
-import { useWorld, useWorldState } from "../../core/WorldContext";
+import { useWorldState } from "../../core/WorldContext";
 import { HoloTwin } from "../../scene/HoloTwin";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL } from "../../scene/assets";
@@ -167,11 +167,7 @@ function useHero(tier: StationSceneProps["quality"]) {
 
 const ANCHOR = new THREE.Vector3(...MACHINE_ANCHOR);
 
-/** After PLUG IN: a breath with the hologram up, then into the projection (the zoom) to the page. */
-const AUTOPLAY_PAUSE_MS = 2200;
-
 export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
-  const { store, goTo } = useWorld();
   const label = useWorldState((c) => (c.cartridge ?? DEFAULT_CARTRIDGE).label);
   const gltf = useGLTF(MACHINE_URL, false);
   const v2 = useGLTF(MACHINE_V2_URL, false);
@@ -200,13 +196,8 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     }
     const u = s.clicked ? timeU(s.startedAt, now, reduced) : scrollU(frame.t);
     plug.progress = u;
-    // PLUG IN: once it is in and projecting, glide on through the zoom; the handoff opens the page.
-    if (s.clicked && u >= 1 && plug.autoplay) {
-      plug.autoplay = false;
-      setTimeout(() => {
-        if (store.getCoarse().branch === "machine") goTo("zoom");
-      }, reduced ? 0 : AUTOPLAY_PAUSE_MS);
-    }
+    // PLUG IN stops here, with the hologram up: the zoom (and the page after it) opens only from a click
+    // ("Into the projection →"), never by itself (site-nav, 2026-10-26).
 
     if (s.dressed !== plug.slot) {
       hero.dress(plug.slot);

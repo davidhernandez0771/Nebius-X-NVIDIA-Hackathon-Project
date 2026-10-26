@@ -324,8 +324,13 @@ describe("the spiral's filters (no WebGL)", () => {
     // Back on the shelf it came from.
     expect(shelf.open).toBe(true);
     fireEvent.keyDown(window, { key: "Enter" });
-    // Without the canvas there is no plug-in to watch: Plug in opens the page.
+    // site-nav (2026-10-26, the user): Plug in stops at the machine's projection; Record opens only from a button.
     fireEvent.click(screen.getByRole("button", { name: "Plug in →" }));
+    expect(screen.queryByRole("heading", { name: "Record page" })).toBeNull();
+    expect(current()).toBe("machine");
+    fireEvent.click(screen.getByRole("button", { name: "Into the projection →" }));
+    expect(current()).toBe("zoom");
+    fireEvent.click(screen.getByRole("button", { name: "Open RECORD" }));
     expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
   });
 

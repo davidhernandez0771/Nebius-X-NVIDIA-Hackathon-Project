@@ -21,7 +21,7 @@ export function useSend(): (slot: number, opts?: { held?: boolean }) => void {
   const { selectCartridge, goTo } = useWorld();
   return (slot, opts) => {
     selectCartridge(cartridgeForSlot(slot));
-    sendToMachine(slot, false, opts?.held ?? false);
+    sendToMachine(slot, opts?.held ?? false);
     goTo("machine");
   };
 }
