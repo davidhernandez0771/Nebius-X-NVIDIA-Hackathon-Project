@@ -34,7 +34,7 @@ export function projectionOf(c: Cartridge): Projection {
   return {
     title: REPLAY.robot.toUpperCase(),
     line: REPLAY.task.toUpperCase(),
-    cartridgeLine: own ? `CARTRIDGE · ${name.toUpperCase()}` : `CARTRIDGE · ${name.toUpperCase()} · NO REPLAY OF ITS OWN YET`,
+    cartridgeLine: own ? `CARTRIDGE · ${name.toUpperCase()}` : `CARTRIDGE · ${name.toUpperCase()} · NO OWN REPLAY`,
     own,
     lede,
   };

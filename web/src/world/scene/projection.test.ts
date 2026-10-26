@@ -50,7 +50,7 @@ describe("what the machine projects", () => {
     expect(DEFAULT_CARTRIDGE.robot).toBe("S101");
     expect(p.own).toBe(false);
     expect(p.lede).toBe("SO-101 plugs in. The SO-101 has no verified replay yet, so the machine projects the Franka FR3's: a real, physics-checked demo, replayed.");
-    expect(p.cartridgeLine).toBe("CARTRIDGE · SO-101 · NO REPLAY OF ITS OWN YET");
+    expect(p.cartridgeLine).toBe("CARTRIDGE · SO-101 · NO OWN REPLAY");
   });
 
   it("a job on the Franka and a robot-less job", () => {

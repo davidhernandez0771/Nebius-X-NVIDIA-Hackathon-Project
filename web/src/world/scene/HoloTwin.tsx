@@ -428,19 +428,24 @@ export function HoloTwin({ level, quality, projection, position }: { level: () =
       () => (g: CanvasRenderingContext2D, W: number) => {
         g.fillStyle = "#19f5c2";
         g.font = `500 20px ${MONO}`;
-        g.fillText("REPLAY · VERIFIED COPY", 28, 48);
-        g.font = `700 44px ${MONO}`;
+        // Each line shrinks to fit the panel (a saved cartridge's name can be long).
+        const fit = (text: string, y: number, px: number, weight = 400) => {
+          g.font = `${weight} ${px}px ${MONO}`;
+          const w = g.measureText(text).width;
+          if (w > W - 56) g.font = `${weight} ${Math.floor((px * (W - 56)) / w)}px ${MONO}`;
+          g.fillText(text, 28, y);
+        };
+        fit("REPLAY · VERIFIED COPY", 40, 20, 500);
         g.fillStyle = "#d8efe9";
         // The robot the hologram shows and its task (scene/projection.ts), then the cartridge plugged in.
-        g.fillText(title, 28, 106);
-        g.font = `400 19px ${MONO}`;
+        fit(title, 92, 44, 700);
         g.fillStyle = "#8fb0a8";
-        g.fillText(`${line} · ${episode ? episode.nSteps : "…"} STEPS · ${episode ? episode.fps : 30} HZ · ISAAC LAB`, 28, 150);
+        fit(`${line} · ISAAC LAB`, 126, 19);
+        fit(`${episode ? episode.nSteps : "…"} STEPS · ${episode ? episode.fps : 30} HZ`, 152, 19);
         g.fillStyle = own ? "#8fb0a8" : "#d8efe9";
-        g.fillText(cartridgeLine, 28, 180);
+        fit(cartridgeLine, 180, 19);
         g.fillStyle = "#ffb000";
-        g.fillText("PHYSICS CHECK: PASSED", 28, 216);
-        void W;
+        fit("PHYSICS CHECK: PASSED", 212, 19);
       },
       [title, line, cartridgeLine, own, episode],
     ),
