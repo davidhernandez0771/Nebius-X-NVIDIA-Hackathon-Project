@@ -6,8 +6,8 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useWorld } from "../core/WorldContext";
-import { roomWhole } from "./dissolve";
-import { FADE_S, OFF, POWER_ON_S, fadeOn, powerOn, sputter } from "./flicker";
+import { materialize, roomWhole } from "./dissolve";
+import { FADE_S, OFF, POWER_ON_S, fadeOn, lampsOnAt, powerOn, sputter } from "./flicker";
 import { loadProgress, power, setPower } from "./power";
 
 export function Lamps({ reduced }: { reduced: boolean }) {
@@ -33,8 +33,9 @@ export function Lamps({ reduced }: { reduced: boolean }) {
     }
     const progress = loadProgress();
     if (onAt.current === null && progress >= 1) {
-      onAt.current = now;
-      power.onAt = now;
+      // A room stood whole by a jump (Skip the intro, the rail, a return, a reload): on at once, no flicker.
+      onAt.current = lampsOnAt(now, materialize.snapped);
+      power.onAt = onAt.current;
     }
     let level: number;
     let playing: boolean;

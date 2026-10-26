@@ -42,3 +42,12 @@ describe("fadeOn", () => {
     expect(fadeOn(FADE_S)).toBeCloseTo(1, 6);
   });
 });
+
+// site-nav (2026-10-26): a room that stood whole by a jump (dissolve.ts revealStep) skips the power-on flicker.
+describe("the lamps after a jump", () => {
+  it("start already through the power-on: full at once", async () => {
+    const { lampsOnAt } = await import("./flicker");
+    expect(powerOn(10 - lampsOnAt(10, true))).toBe(1);
+    expect(lampsOnAt(10, false)).toBe(10);
+  });
+});

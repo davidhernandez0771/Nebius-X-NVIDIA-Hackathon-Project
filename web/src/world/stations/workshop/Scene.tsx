@@ -14,7 +14,7 @@ import { BAKED } from "../../scene/assets";
 import { Baked } from "../../scene/Baked";
 import { cutBakedBody } from "../../scene/machineV2";
 import { Arm } from "../../scene/Arm";
-import { builtAt, dissolve, FIELD_MAX, materialize, revealOf, roomWhole, stepReveal } from "../../scene/dissolve";
+import { builtAt, dissolve, FIELD_MAX, materialize, revealOf, revealStep, roomWhole } from "../../scene/dissolve";
 import { Helix, type BenchInstance } from "../../scene/Helix";
 import { FloorPools } from "../../scene/FloorPools";
 import { Haze } from "../../scene/Haze";
@@ -68,7 +68,11 @@ function Reveal({ reduced }: { reduced: boolean }) {
   const { store } = useWorld();
   const invalidate = useThree((s) => s.invalidate);
   const builtFor = useRef(0);
+  // store.jumps seen last frame (0 at first: a jump before the room's scene mounted, a return or a reload, counts).
+  const jumps = useRef(0);
   useFrame((_, dt) => {
+    const jumped = store.jumps !== jumps.current;
+    jumps.current = store.jumps;
     const f = store.frames;
     if (reduced || f.workbench.current) {
       const shown = f.workbench.current || store.getCoarse().current !== "intro";
@@ -78,7 +82,10 @@ function Reveal({ reduced }: { reduced: boolean }) {
     }
     const built = builtAt(f.descent.t);
     builtFor.current = built ? builtFor.current + dt : 0;
-    const p = stepReveal(materialize.p, built && (loadProgress() >= 1 || builtFor.current > LOAD_GRACE_S), dt);
+    const p = revealStep(materialize.p, { built, ready: loadProgress() >= 1 || builtFor.current > LOAD_GRACE_S, jumped }, dt);
+    // Stood whole by a jump: the lamps skip their flicker too (Lamps.tsx).
+    if (jumped && built) materialize.snapped = true;
+    else if (p < 1) materialize.snapped = false;
     // Frames keep coming while it plays (the world otherwise draws on demand).
     if (p !== materialize.p || (built && p < 1)) invalidate();
     materialize.p = p;

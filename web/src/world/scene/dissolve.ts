@@ -32,13 +32,23 @@ export function stepReveal(p: number, built: boolean, dt: number): number {
   return clamp01(built ? p + d : p - d);
 }
 
+/**
+ * The materialize's next progress. A jump past the descent (Skip the intro, the journey rail, a return from a 2D
+ * page, a reload) that lands with the room built stands it whole at once: whoever jumps wants to be there now, and
+ * the materialize is the descent's moment. Otherwise it plays (stepReveal) once the room is built and `ready`.
+ */
+export function revealStep(p: number, s: { built: boolean; ready: boolean; jumped: boolean }, dt: number): number {
+  if (s.jumped && s.built) return 1;
+  return stepReveal(p, s.built && s.ready, dt);
+}
+
 /** `reveal` at the materialize's progress: nothing at 0, the whole room (and no edge) at 1. */
 export function revealOf(p: number): number {
   return -0.03 + (FIELD_MAX + DISSOLVE_EDGE + 0.06) * smooth(0, 1, p);
 }
 
 /** The materialize's progress, shared: written by the workshop (stations/workshop/Scene.tsx), read by the lamps. */
-export const materialize = { p: 0 };
+export const materialize = { p: 0, snapped: false };
 
 /** The room stands whole: the lamps may start, the room may be used. */
 export const roomWhole = () => materialize.p >= 1;

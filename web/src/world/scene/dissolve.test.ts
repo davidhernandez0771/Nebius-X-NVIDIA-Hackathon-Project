@@ -86,3 +86,18 @@ describe("dissolvable materials", () => {
     expect(m.customProgramCacheKey()).toContain("dissolve");
   });
 });
+
+// site-nav (2026-10-26): after Skip the intro, a journey-rail jump, a return or a reload the room took seconds to
+// appear and light: the materialize (REVEAL_S, and each frame may step at most MAX_STEP_S, so a slow GPU plays it
+// longer), then the lamps' power-on. Whoever jumps past the descent wants to be there now.
+describe("landing in the room by a jump", () => {
+  it("stands the room whole at once when the jump lands with it built", async () => {
+    const { revealStep } = await import("./dissolve");
+    expect(revealStep(0, { built: true, ready: false, jumped: true }, 1 / 60)).toBe(1);
+    // Not built (a jump into the story): nothing to stand.
+    expect(revealStep(0, { built: false, ready: true, jumped: true }, 1 / 60)).toBe(0);
+    // Scrolled down into it, no jump: the materialize plays as before.
+    expect(revealStep(0, { built: true, ready: true, jumped: false }, 1 / 60)).toBe(stepReveal(0, true, 1 / 60));
+    expect(revealStep(0, { built: true, ready: false, jumped: false }, 1 / 60)).toBe(0);
+  });
+});
