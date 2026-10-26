@@ -35,7 +35,12 @@ export function StationBar({
       </button>
       <span className="world-stationbar__where">{title}</span>
       <span className="world-stationbar__hint">
-        {hint} · <kbd>Esc</kbd> {step ? "steps back" : "goes back"}
+        {hint}
+        {/* No keyboard on a touch screen: the Esc half goes there (ui.css). */}
+        <span className="world-stationbar__esc">
+          {" · "}
+          <kbd>Esc</kbd> {step ? "steps back" : "goes back"}
+        </span>
       </span>
     </div>
   );
