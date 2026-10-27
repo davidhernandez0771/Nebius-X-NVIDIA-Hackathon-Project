@@ -1,5 +1,5 @@
-// The room view's four things to click, in 3D: a tag floating over each (the shelf, the machine, the
-// bench, the robot wall) and an invisible box round the machine and the bench that takes the click (the
+// The room view's five things to click, in 3D: a tag floating over each (the shelf, the machine, the
+// bench, the robot wall, the proof wall) and an invisible box round the machine and the bench that takes the click (the
 // machine's is also where a dragged cartridge drops, drag.ts DROP_ZONE). The spiral and the wall take
 // their own clicks (Helix, RobotWall). Tags show only in the room view; the first visit numbers them as a
 // mini tutorial ("start here" on the shelf), and later visits show them plain. They are portalled into the
@@ -16,6 +16,7 @@ import * as THREE from "three";
 import { inHub } from "../../core/CameraRig";
 import { useWorld } from "../../core/WorldContext";
 import { BENCH_PIVOT, MACHINE_PIVOT } from "../../scene/layout";
+import { PROOF_WALL } from "../../scene/proofWallPlan";
 import { DROP_ZONE, hiddenInstance, subscribeDrag, wasDrag } from "./drag";
 import { HUB_TAGS, openHubItem, type HubItem } from "./hubItems";
 import { hubTagLayer } from "./hubTagLayer";
@@ -73,8 +74,10 @@ export function HubTags() {
       machine: up(MACHINE_PIVOT.position, 6.2),
       bench: up(BENCH_PIVOT.position, 5.4),
       // The left wall runs along the screen's edge from the room view: the tag floats in front of it,
-      // toward the back, clear of the bench's tag.
-      wall: new THREE.Vector3(-15, 9.5, -12),
+      // toward the back, clear of the bench's tag and left of the proof wall's.
+      wall: new THREE.Vector3(-19.5, 9.5, -13),
+      // Over the proof wall's screen, on the back wall: its stem points down at the board.
+      proof: new THREE.Vector3(PROOF_WALL.center[0], 12.0, PROOF_WALL.center[2] + 0.2),
     }),
     [],
   );

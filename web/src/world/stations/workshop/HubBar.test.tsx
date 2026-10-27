@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { WorldContext, type WorldApi } from "../../core/WorldContext";
 import type { WorldStore } from "../../core/store";
 import { HubBar } from "./HubBar";
+import { HUB_TAGS, openHubItem } from "./hubItems";
 
 const stepper = vi.hoisted(() => ({ scrollToStep: vi.fn() }));
 vi.mock("./stepper", () => stepper);
@@ -47,10 +48,21 @@ describe("the room view's bar", () => {
     expect(api.goTo).toHaveBeenCalledWith("workbench");
     fireEvent.click(go.getByRole("button", { name: "Robots" }));
     expect(api.goTo).toHaveBeenCalledWith("robots");
+    fireEvent.click(go.getByRole("button", { name: "Proof" }));
+    expect(api.goTo).toHaveBeenCalledWith("proof");
   });
 
-  it("names all four things to click, in the room's Tab order", () => {
+  it("names all five things to click, in the room's Tab order", () => {
     at();
-    expect(within(screen.getByRole("group", { name: "Go to" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Shelf", "Machine", "Bench", "Robots"]);
+    expect(within(screen.getByRole("group", { name: "Go to" })).getAllByRole("button").map((b) => b.textContent)).toEqual(["Shelf", "Machine", "Bench", "Robots", "Proof"]);
+  });
+
+  // proof-wall (2026-10-26): the proof wall is the fifth thing to click, its tag "05 The proof".
+  it("opens the proof wall from its hub tag's entry, as a place (#proof)", () => {
+    const goTo = vi.fn();
+    openHubItem("proof", {} as WorldStore, goTo);
+    expect(goTo).toHaveBeenCalledWith("proof");
+    expect(HUB_TAGS.map((t) => `${t.n} ${t.title}`)).toEqual(["01 The shelf", "02 The machine", "03 The bench", "04 The wall", "05 The proof"]);
+    expect(HUB_TAGS[4].line).toMatch(/30\/40/);
   });
 });

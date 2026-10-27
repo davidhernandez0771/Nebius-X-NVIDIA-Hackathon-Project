@@ -1,5 +1,6 @@
 // The workshop in 3D: the baked room around everything (unlit, one atlas per piece), the lamps that
-// switch it on, the live lights and reflections for the moving parts, the spiral and the robot wall.
+// switch it on, the live lights and reflections for the moving parts, the spiral, the robot wall and the
+// proof wall (the results board on the back wall).
 // Each file loads in its own Suspense. A cartridge can be dragged off the spiral onto the machine
 // (Dragged.tsx), and the bench's draft stands on its turntable as one more of the spiral's instances. All of it
 // materializes over the generator's particles the moment the descent has built it (scene/dissolve.ts: a short timed
@@ -25,6 +26,7 @@ import { ENV_INTENSITY } from "../../scene/materials";
 import { Pendants } from "../../scene/Pendants";
 import { addEnvironment, loadProgress } from "../../scene/power";
 import { Ribbon } from "../../scene/Ribbon";
+import { ProofWall } from "../../scene/ProofWall";
 import { RobotWall } from "../../scene/RobotWall";
 import { N_ITEMS, instanceSlot, spiral } from "../../scene/spiral";
 import { bench } from "../workbench/draft";
@@ -148,6 +150,7 @@ export function WorkshopScene({ quality, reduced }: StationSceneProps) {
         {quality.haze ? <Haze /> : null}
         <Arm quality={quality} reduced={reduced} />
         <RobotWall quality={quality} reduced={reduced} />
+        <ProofWall />
         <Ribbon />
         <HubTags />
         <Suspense fallback={null}>

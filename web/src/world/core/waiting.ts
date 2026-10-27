@@ -36,6 +36,9 @@ export function stationFiles(id: StationId, tier: TierName): string[] {
       return descentFiles();
     case "robots":
       return wallFiles(tier);
+    case "proof":
+      // The proof wall is drawn in code on the room's back wall: the room is all it needs.
+      return BAKED.map(bakedUrl);
     case "workbench":
       return uniq([...BAKED.map(bakedUrl), CARTRIDGE_URL]);
     case "machine":
@@ -54,7 +57,7 @@ export function prefetchOrder(tier: TierName): string[] {
 /** The rooms the builder mounts (core/rooms.ts), in the journey's order: the forest and the reactor inside
  *  the intro (not with reduced motion, which holds the hero), then the stations'. */
 export function roomOrder(reduced: boolean): string[] {
-  const later: StationId[] = ["descent", "workshop", "machine", "zoom", "workbench", "robots"];
+  const later: StationId[] = ["descent", "workshop", "machine", "zoom", "workbench", "robots", "proof"];
   return [...(reduced ? [] : ["intro:places"]), ...later];
 }
 
@@ -76,16 +79,17 @@ const LABEL: Record<StationId, string> = {
   zoom: "the machine",
   workbench: "the workbench",
   robots: "the robot wall",
+  proof: "the proof wall",
 };
 
 /**
  * Whose scene must stand for a station to be ready (core/standing.ts): the intro waits on its places, the
- * robot wall on the workshop (the wall is in the workshop's scene) and the zoom on the machine (it plays out
+ * robot wall and the proof wall on the workshop (the wall is in the workshop's scene) and the zoom on the machine (it plays out
  * of it). Neither of those two has a Scene of its own, so waiting on their own name never ended.
  */
 export function standKey(id: StationId): string {
   if (id === "intro") return "intro:places";
-  if (id === "robots") return "workshop";
+  if (id === "robots" || id === "proof") return "workshop";
   if (id === "zoom") return "machine";
   return id;
 }

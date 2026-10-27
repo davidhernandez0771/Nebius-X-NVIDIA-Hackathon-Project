@@ -2,15 +2,17 @@ import { describe, expect, it } from "vitest";
 import { hashOfBranch, placeOfHash, syncOp } from "./placeHash";
 
 describe("the open place in the URL", () => {
-  it("names the three places; the zoom counts as the machine, anything else is no place", () => {
+  it("names the four places; the zoom counts as the machine, anything else is no place", () => {
     expect(placeOfHash("#machine")).toBe("machine");
     expect(placeOfHash("#workbench")).toBe("workbench");
     expect(placeOfHash("robots")).toBe("robots");
+    expect(placeOfHash("#proof")).toBe("proof");
     expect(placeOfHash("#zoom")).toBeNull();
     expect(placeOfHash("#world-workshop")).toBeNull();
     expect(placeOfHash("")).toBeNull();
     expect(hashOfBranch("zoom")).toBe("#machine");
     expect(hashOfBranch("robots")).toBe("#robots");
+    expect(hashOfBranch("proof")).toBe("#proof");
     expect(hashOfBranch(null)).toBe("");
     expect(hashOfBranch("intro")).toBe("");
   });

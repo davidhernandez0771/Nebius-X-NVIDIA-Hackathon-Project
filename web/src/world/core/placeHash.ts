@@ -1,4 +1,4 @@
-// The open place in the URL's hash (#machine, #workbench, #robots), so the browser's own Back (a phone's back
+// The open place in the URL's hash (#machine, #workbench, #robots, #proof), so the browser's own Back (a phone's back
 // gesture, a mouse's back button) closes a place in the workshop instead of leaving the site, Forward opens it
 // again, and a reload (or a shared link) opens it in the room. Before, the places never touched the history:
 // Back from the machine left the site, and a reload dropped you at the top of the story.
@@ -6,7 +6,7 @@
 // Pure, so the rules are tested; WorldRoot applies them.
 import type { StationId } from "./types";
 
-const PLACES: readonly StationId[] = ["machine", "workbench", "robots"];
+const PLACES: readonly StationId[] = ["machine", "workbench", "robots", "proof"];
 
 /** The place a hash names, or null ("#zoom" too: it is never written). */
 export function placeOfHash(hash: string): StationId | null {

@@ -9,6 +9,7 @@ import * as THREE from "three";
 import type { TierName, WorldMode } from "../../core/quality";
 import { CARTRIDGE_HALF } from "../../scene/cartridge";
 import { BENCH_PIVOT, HELIX, MACHINE_PIVOT, stop } from "../../scene/layout";
+import { PROOF_WALL, wallCorners } from "../../scene/proofWallPlan";
 import { BOARDS, WALL } from "../../scene/wallPlan";
 import { DROP_ZONE } from "./drag";
 import { HUB_TAGS, type HubItem } from "./hubItems";
@@ -69,6 +70,19 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 const local = (p: readonly number[], x: number, y: number, z: number) => new THREE.Vector3(p[0] + x, p[1] + y, p[2] + z);
 
+/**
+ * How far forward (world z) the proof wall's label stands. Seen from the room view it sits just over the screen, but
+ * that far back a label is metres wide and turned to the camera (its right end sank into the back wall), and the
+ * spiral stands between it and the camera (it cut "05 THE PROOF" short): it stands in front of the spiral instead,
+ * on the line of sight to the same spot, so it is whole and nothing covers it.
+ */
+const PROOF_LABEL_Z = 8;
+/** The point on the line from the room view's eye through `p` at depth z: the same spot on screen, nearer. */
+function forward(p: THREE.Vector3, z: number): THREE.Vector3 {
+  const s = (z - EYE.z) / (p.z - EYE.z);
+  return EYE.clone().add(p.clone().sub(EYE).multiplyScalar(s));
+}
+
 /** The emitters and the labels' bottom-left corners (world metres): each beside its object, not over it. */
 const PLACES: { id: HubItem; emitter: THREE.Vector3; anchor: THREE.Vector3 }[] = [
   // The spiral: an emitter on its right-hand rim, the label off to the right of its upper turns.
@@ -79,6 +93,14 @@ const PLACES: { id: HubItem; emitter: THREE.Vector3; anchor: THREE.Vector3 }[] =
   { id: "bench", emitter: local(BENCH_PIVOT.position, -1.8, 3.335, 0.6), anchor: local(BENCH_PIVOT.position, -1.5, 5.4, 0.6) },
   // The wall: on the front edge of the left wall's top board, the label on the wall over its robots.
   { id: "wall", emitter: new THREE.Vector3(-WALL.inner, BOARDS[2], -9), anchor: new THREE.Vector3(-WALL.inner + 0.4, 9.2, -9) },
+  // The proof wall (proof-wall, 2026-10-26): on its screen's top edge, the label just over the screen on screen,
+  // right of the wall's label (which unfolds toward it) and clear of the screen's headline; it stands forward of the
+  // spiral (PROOF_LABEL_Z).
+  {
+    id: "proof",
+    emitter: local(PROOF_WALL.center, -1.2, PROOF_WALL.height / 2, 0.14),
+    anchor: forward(local(PROOF_WALL.center, -2.0, PROOF_WALL.height / 2 + 0.45, 0.14), PROOF_LABEL_Z),
+  },
 ];
 
 const _m = new THREE.Matrix4();
@@ -160,7 +182,7 @@ function boxPoints(c: THREE.Vector3, half: THREE.Vector3, yaw: number): THREE.Ve
 
 /**
  * What each label must not cover, as points whose screen box is the object: the spiral's cartridges,
- * the machine, the bench, the robots on the wall's middle shelf.
+ * the machine, the bench, the robots on the wall's middle shelf, the proof wall's screen.
  */
 export function objectPoints(id: HubItem): THREE.Vector3[] {
   if (id === "shelf") {
@@ -170,6 +192,7 @@ export function objectPoints(id: HubItem): THREE.Vector3[] {
   }
   if (id === "machine") return boxPoints(DROP_ZONE.center, DROP_ZONE.half, DROP_ZONE.yaw);
   if (id === "bench") return boxPoints(local(BENCH_PIVOT.position, 0, 2.0, 0), new THREE.Vector3(3.5, 2.25, 2), BENCH_PIVOT.yaw);
+  if (id === "proof") return wallCorners();
   return boxPoints(
     new THREE.Vector3(-(WALL.inner + WALL.outer) / 2, BOARDS[1] + 1.4, (WALL.z[0] + WALL.z[1]) / 2),
     new THREE.Vector3((WALL.outer - WALL.inner) / 2, 1.4, (WALL.z[1] - WALL.z[0]) / 2),
@@ -177,7 +200,7 @@ export function objectPoints(id: HubItem): THREE.Vector3[] {
   );
 }
 
-// ---------------------------------------------------------------- one geometry for all four
+// ---------------------------------------------------------------- one geometry for all of them
 
 /** What a vertex belongs to (the aKind attribute): the label, its beam, its emitter. */
 export const KIND = { panel: 0, cone: 1, emitter: 2 } as const;

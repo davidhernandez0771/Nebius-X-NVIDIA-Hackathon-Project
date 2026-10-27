@@ -2,10 +2,11 @@
 // standing whole while the rest of the room was still particles). Two checks: the materials take the
 // dissolve's patch on top of their own, and each new room mesh is mounted inside a <Materialize>.
 import * as THREE from "three";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { makeMat } from "../stations/workbench/mat";
 import { withBakedDetail } from "./bakedDetail";
 import { patchTree } from "./Materialize";
+import { makeProofWall } from "./proofWallPlan";
 import benchSrc from "../stations/workbench/Scene.tsx?raw";
 import workshopSrc from "../stations/workshop/Scene.tsx?raw";
 
@@ -33,14 +34,27 @@ describe("the new parts of the room materialize with it", () => {
     release();
   });
 
+  // proof-wall (2026-10-26): the proof wall's screen and its spill on the wall dissolve in with the room.
+  it("the proof wall's screen and spill take the dissolve too", () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+    const wall = makeProofWall();
+    patchTree(wall.group);
+    for (const m of [wall.screen.material, wall.halo.material] as THREE.Material[]) {
+      expect(m.userData.dissolve).toBe(true);
+      expect(shaderFor(m).fragmentShader).toContain("uDissolveColor");
+    }
+    wall.dispose();
+    vi.restoreAllMocks();
+  });
+
   /** The JSX between a file's <Materialize> and its </Materialize> (all of them). */
   const inside = (src: string) => {
     return [...src.matchAll(/<Materialize>([\s\S]*?)<\/Materialize>/g)].map((m) => m[1]).join("\n");
   };
 
-  it("mounts each new room mesh inside a <Materialize>: the arm, the spiral's band and cartridges, the baked room, the bench's mat", () => {
+  it("mounts each new room mesh inside a <Materialize>: the arm, the spiral's band and cartridges, the baked room, the bench's mat, the proof wall", () => {
     const workshop = inside(workshopSrc);
-    for (const part of ["<Baked ", "<Arm ", "<Ribbon", "<Helix "]) expect(workshop, part).toContain(part);
+    for (const part of ["<Baked ", "<Arm ", "<Ribbon", "<Helix ", "<ProofWall"]) expect(workshop, part).toContain(part);
     expect(inside(benchSrc)).toContain("b.mat.mesh");
   });
 });

@@ -11,7 +11,10 @@
   pointer-events: none;
 }
 
-.intro-pbeat {
+/* The figures' palette and type, shared with the workshop's proof wall (stations/proof/proof.css), which shows the
+   same figures (ui/proofFigures.tsx). */
+.intro-pbeat,
+.world-proof {
   --edge: max(28px, 6vw);
   --rail: clamp(120px, 12vw, 170px);
   --pb-hi: var(--w-teal);
@@ -19,6 +22,11 @@
   --pb-fail: var(--w-amber);
   --pb-ink: #e6f4f0;
   --pb-ink-2: #a9c9c1;
+  font-family: var(--w-mono);
+  color: var(--pb-ink);
+}
+
+.intro-pbeat {
   position: fixed;
   inset: 0;
   display: flex;
@@ -27,8 +35,6 @@
   padding: 76px var(--rail) 52px var(--edge);
   will-change: opacity, transform;
   outline: none;
-  font-family: var(--w-mono);
-  color: var(--pb-ink);
 }
 
 .intro-pbeat[data-shown="true"] :is(a, .intro-pbeat__panel) {
@@ -79,7 +85,7 @@
   outline-offset: 4px;
 }
 
-.intro-pbeat p {
+:is(.intro-pbeat, .world-proof) p {
   margin: 0;
 }
 

@@ -1,9 +1,10 @@
 // Workshop: the room the descent builds out of particles, and where the scroll ends. The moment the descent has
 // built it, the real room plays in over the particles through a glowing noise edge (scene/dissolve.ts, a short
 // timed materialize), then the lamps flicker on and the hub is live; the travel is the camera's push in. From here the site is a
-// game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and four things to
+// game: the room view (Blender's "Workshop intro" stop, with a little mouse look) and five things to
 // click: the spiral shelf (browse it in place, open a job, plug it in), the machine (it plugs one in
-// and projects the robot), the bench (make a new cartridge) and the robot wall (the robots catalog).
+// and projects the robot), the bench (make a new cartridge), the robot wall (the robots catalog) and the
+// proof wall (the story's proof, panel by panel).
 // Escape always goes back one level.
 import { lazy } from "react";
 import { still } from "../../core/layout";

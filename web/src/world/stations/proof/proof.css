@@ -1,0 +1,296 @@
+/* Inside the proof wall (Place.tsx). On a landscape screen the panel is laid exactly over the wall's screen (its
+   size comes from the camera: --proof-w and --proof-h, view.ts SCREEN_IN_VH), inside the screen's holo frame, which
+   the 3D draws; the screen goes blank behind it, so the figures read as the board's own content. Upright, and
+   without the 3D (the stills), it is a solid glass panel under the way out. The figures keep the story's look
+   (stations/intro/proofBeats.css, which also gives this place its palette). No backdrop blur (a full-screen pass
+   over the canvas every frame), no transitions on the graphs (the play writes them). */
+
+.world-proof {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.world-proof[data-on="true"] .world-proof__screen {
+  pointer-events: auto;
+}
+
+/* The panel: inside the screen's frame (the 3D draws its hairline 1.6% in and its corner brackets). */
+.world-proof .world-proof__screen {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(calc(var(--proof-w, 140vh) * 0.93), calc(100vw - 2 * var(--rail) - 16px));
+  height: calc(var(--proof-h, 70vh) * 0.89);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 24px 14px;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(25, 245, 194, 0.35) transparent;
+  /* The screen's own glass is behind it: only a faint veil, no border (the frame is the screen's). */
+  background: linear-gradient(rgba(3, 9, 9, 0.35), rgba(3, 7, 8, 0.55));
+  border: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+/* The story's corner ticks: the screen's own frame does that here. */
+.world-proof .world-proof__screen::before,
+.world-proof .world-proof__screen::after {
+  display: none;
+}
+
+/* It comes in as the camera lands in front of the wall (core/shot.ts: 1.1 s), not over the turn. */
+.world-proof[data-on="true"] .world-proof__screen {
+  animation: world-proof-in 0.35s ease-out 0.75s both;
+}
+
+@keyframes world-proof-in {
+  from {
+    opacity: 0;
+  }
+}
+
+[data-motion-world="reduced"] .world-proof[data-on="true"] .world-proof__screen {
+  animation: none;
+}
+
+.world-proof__panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.world-proof__panel[hidden] {
+  display: none;
+}
+
+.world-proof .intro-pbeat__kicker {
+  margin-bottom: 6px;
+}
+
+.world-proof .world-proof__head {
+  font-size: clamp(24px, 2.7vw, 40px);
+}
+
+/* The head says what the figure is: its title stays for screen readers. */
+.world-proof .intro-pbeat__figure-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Two columns as in the story (its one-column layout below 900 px stays), without the title's row. */
+@media (min-width: 901px) {
+  .world-proof .intro-pbeat__figure {
+    grid-template-areas:
+      "summary graph"
+      "caption graph";
+    grid-template-rows: auto 1fr;
+  }
+}
+
+.world-proof .intro-pbeat__summary {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.world-proof .intro-pbeat__caption {
+  font-size: 11.5px;
+}
+
+.world-proof .intro-pbeat__curve {
+  grid-template-rows: 150px auto;
+}
+
+/* ------------------------------------------------------------------ the steps and the links */
+
+.world-proof__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(25, 245, 194, 0.16);
+}
+
+.world-proof__nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.sant.world .world-proof__btn {
+  appearance: none;
+  margin: 0;
+  padding: 7px 12px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--w-teal);
+  background: rgb(25 245 194 / 0.06);
+  border: 1px solid rgb(25 245 194 / 0.55);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.sant.world .world-proof__btn:hover:not(:disabled) {
+  color: var(--w-ink);
+  background: rgb(25 245 194 / 0.16);
+}
+
+.sant.world .world-proof__btn:disabled {
+  color: var(--w-dim);
+  border-color: rgb(25 245 194 / 0.18);
+  background: none;
+  cursor: default;
+}
+
+.world-proof__dots {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A 28 px target round a short bar: the open panel's is long and teal. */
+.sant.world .world-proof__dot {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.world-proof__dot i {
+  display: block;
+  width: 10px;
+  height: 3px;
+  background: rgba(216, 239, 233, 0.3);
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.world-proof__dot[aria-current="step"] i {
+  width: 22px;
+  background: var(--pb-hi);
+  box-shadow: 0 0 10px rgba(25, 245, 194, 0.5);
+}
+
+.world-proof__dot:hover i {
+  background: var(--pb-ink-2);
+}
+
+.world-proof__count {
+  min-width: 4ch;
+  color: var(--pb-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.world-proof__btn, .world-proof__dot):focus-visible {
+  outline: 2px solid var(--w-teal);
+  outline-offset: 2px;
+}
+
+/* A finger's size on touch screens. */
+@media (pointer: coarse) {
+  .sant.world .world-proof__btn,
+  .sant.world .world-proof__dot {
+    min-height: 44px;
+  }
+
+  .sant.world .world-proof__dot {
+    width: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .world-proof__dot i {
+    transition: none;
+  }
+
+  .world-proof[data-on="true"] .world-proof__screen {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ a solid panel: upright, small, or no 3D */
+
+/* Without the canvas (the stills) there is no screen behind it: the panel carries its own glass. */
+.sant.world:has(.world-stills) .world-proof .world-proof__screen {
+  background: rgba(3, 7, 8, 0.94);
+  border: 1px solid rgba(25, 245, 194, 0.32);
+}
+
+/* Held upright (view.ts portrait) or narrow: the screen is a strip at the top of the view, so the panel takes the
+   room under the way out (two lines there) and Contact, clear of the rail's marks, and scrolls inside; the steps
+   and the links stay at its foot. */
+@media (max-aspect-ratio: 1/1), (max-width: 700px) {
+  .world-proof .world-proof__screen {
+    left: 12px;
+    right: 46px;
+    top: 150px;
+    bottom: 12px;
+    width: auto;
+    height: auto;
+    transform: none;
+    padding: 14px 12px 0;
+    gap: 12px;
+    background: rgba(3, 7, 8, 0.94);
+    border: 1px solid rgba(25, 245, 194, 0.32);
+  }
+
+  .world-proof .world-proof__head {
+    font-size: clamp(22px, 6.6vw, 30px);
+  }
+
+  .world-proof .intro-pbeat__figure {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "summary"
+      "graph"
+      "caption";
+    grid-template-rows: none;
+  }
+
+  .world-proof .intro-pbeat__curve {
+    grid-template-rows: 130px auto;
+  }
+
+  .world-proof__foot {
+    position: sticky;
+    bottom: 0;
+    margin: auto -12px 0;
+    padding: 10px 12px 12px;
+    background: rgb(3, 7, 8);
+  }
+
+  .world-proof__nav {
+    width: 100%;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .world-proof__count {
+    display: none;
+  }
+
+  .world-proof__links {
+    font-size: 11px;
+  }
+}

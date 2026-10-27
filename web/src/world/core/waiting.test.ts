@@ -37,7 +37,7 @@ describe("what each station needs", () => {
     const room = stationFiles("workshop", "high");
     for (const u of [...BAKED.map(bakedUrl), CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL]) expect(room).toContain(u);
     expect(room).toContain(`${BASE}world/models/robots/ur5e.glb`);
-    for (const id of ["machine", "workbench", "zoom", "robots"] as const) for (const u of stationFiles(id, "high")) expect(room).toContain(u);
+    for (const id of ["machine", "workbench", "zoom", "robots", "proof"] as const) for (const u of stationFiles(id, "high")) expect(room).toContain(u);
     // The low tier's wall leaves the extra robots out, so it doesn't wait for them.
     expect(stationFiles("workshop", "low")).not.toContain(`${BASE}world/models/robots/ur5e.glb`);
   });
@@ -73,6 +73,7 @@ describe("waiting in place", () => {
     expect(waitFor("workshop", 0, "high", false)?.label).toBe("the workshop");
     expect(waitFor("machine", 0, "high", false)?.label).toBe("the machine");
     expect(waitFor("robots", 0, "high", false)?.label).toBe("the robot wall");
+    expect(waitFor("proof", 0, "high", false)?.label).toBe("the proof wall");
     expect(waitFor("workshop", 0, "high", false)?.files).toEqual(stationFiles("workshop", "high"));
   });
 });
@@ -83,6 +84,12 @@ describe("whose scene a station waits on", () => {
   it("the robot wall stands with the workshop, the zoom with the machine", () => {
     expect(standKey("robots")).toBe("workshop");
     expect(standKey("zoom")).toBe("machine");
+  });
+
+  // The proof wall (proof-wall, 2026-10-26) is part of the workshop's scene too.
+  it("the proof wall stands with the workshop, and waits for no file of its own", () => {
+    expect(standKey("proof")).toBe("workshop");
+    expect(stationFiles("proof", "high")).toEqual(BAKED.map(bakedUrl));
   });
 
   it("the forest is the intro's places; every other station stands as itself", () => {

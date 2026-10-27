@@ -1,6 +1,6 @@
 // The room view's controls, top centre: how to play, and the way back up to the story. On a phone
-// held upright the camera frames only the shelf (the machine's and the bench's tags are off the
-// sides), so the bar also carries the three things to click as buttons; CSS shows them only there.
+// held upright the camera frames only the shelf (the other tags are off the sides), so the bar also
+// carries the things to click as buttons; CSS shows them only there.
 import { useEffect, useRef } from "react";
 import { inHub } from "../../core/CameraRig";
 import { useWorld } from "../../core/WorldContext";
@@ -11,6 +11,7 @@ const GO: { id: HubItem; label: string }[] = [
   { id: "machine", label: "Machine" },
   { id: "bench", label: "Bench" },
   { id: "wall", label: "Robots" },
+  { id: "proof", label: "Proof" },
 ];
 
 export function HubBar() {
