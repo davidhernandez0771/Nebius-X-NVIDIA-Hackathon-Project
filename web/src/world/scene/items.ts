@@ -54,7 +54,7 @@ export const ITEMS: readonly Item[] = [
   item("ACT 30K", "imitation policy", "train", "FR3", "An ACT policy trained on the multiplied demos for 30k steps."),
   item("ACT 60K", "run 2 · pending", "train", "FR3", "Longer training with recovery copies. The run is staged, not finished."),
   item("RECOVERY", "learn to re-grasp", "train", "FR3", "Copies that start from a slip, so the policy learns to recover."),
-  item("EVAL 40", "unseen seeds", "train", "FR3", "Every policy is tested on the same 40 unseen seeds, once, pre-registered."),
+  item("EVAL 40", "unseen seeds", "train", "FR3", "Every policy is tested once, pre-registered, on 40 scenes it has never seen."),
   item("BRING ROBOT", "urdf → report card", "robot", "ANY", "Upload a URDF. SANT builds the scene and prints a report card."),
   item("FRANKA", "30 / 30", "robot", "FR3", "Franka through the URDF path: 30/30."),
   item("OPENARM", "0 / 30 · report", "robot", "OPENARM", "OpenArm through the same path: 0/30. The report card shows where it fails."),
