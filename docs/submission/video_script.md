@@ -26,6 +26,19 @@
 - **[EDIT]:** a card made in the edit (text over a still), for things the site doesn't show.
 - **[CHECK]:** check the number on screen against the README right before recording.
 
+**The hackathon's video rules (submission checklist, 2026-10-27):**
+- Under 3 minutes, **public on YouTube**, showing the app actually working, and explaining the Nebius + NVIDIA usage.
+- **Physical AI needs at least 1 minute of footage of the robot actually operating.** The FAQ allows simulation
+  instead of hardware (`docs/superpowers/notes/2026-10-15-faq-physical-ai-simulation-allowed.jpg`), so this means at
+  least 60 s of the simulated arm moving. Count it on the cut:
+  - shot 1, the side-by-side (12 s);
+  - shot 6, live Record driving the arm (17 s);
+  - shot 9, the test-track runs (27 s);
+  - **plus Isaac Lab's own viewport:** about 15 s or more of a real Isaac Sim window, either the v2 policy running a
+    test scene or live teleop. That puts the total well over 60 s, and judges see the actual simulator, not only
+    the site's replays.
+- **Upload early:** the day it's recorded, not on Friday.
+
 **Rules for what's on screen:**
 - **Never show a number that isn't in the README or the prereg.**
 - **Comparisons are descriptive, never p-values.** 0/40 and 3/40 were tested on other seeds than 30/40. Say "imitating
