@@ -8,6 +8,8 @@ import { useMotion } from "../../sant/motion/MotionProvider";
 import { navigateWithTransition } from "../../sant/motion/viewTransition";
 import { STATIONS } from "../stations";
 import { FIRE_AT, saveReturn, takeReturn } from "./handoff";
+import { hashOfBranch, placeOfHash, syncOp } from "./placeHash";
+import { isReload, resumeSpot, saveSpot } from "./resume";
 import { checkGpu } from "./gpu";
 import { DEFAULT_CARTRIDGE } from "./layout";
 import { Hud } from "./Hud";
@@ -29,6 +31,7 @@ import { isStanding } from "./standing";
 import { prefetchOrder, waitFor } from "./waiting";
 import { Loader } from "../stations/intro/Loader";
 import { load } from "../stations/intro/progress";
+import { pageHeld } from "./pageHold";
 import { INTRO_VH } from "../stations/intro/storyPlan";
 
 const WorldCanvas = lazy(() => import("./WorldCanvas"));
@@ -71,6 +74,11 @@ function scrollToY(top: number, smooth: boolean) {
   } catch {
     /* jsdom has no scrollTo */
   }
+}
+
+/** The rail is in the workshop's room view (arrived), where the branches are. */
+function inRoom(store: ReturnType<typeof createWorldStore>): boolean {
+  return store.getCoarse().current === "workshop" && store.frames.workshop.arrive >= 1;
 }
 
 const FORCED = new Set(["low", "high", "ultra", "medium", "stills", "static"]);
@@ -189,7 +197,21 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       goTo(id) {
         const m = stations.find((s) => s.id === id);
         if (!m) return;
+        // Anywhere else lets go of a held shot (the shelf, a detail view, the tour): Back lands in the room view.
+        store.setOverride(null);
         if (m.kind === "branch") {
+          // A branch is a place in the workshop's room. Opened from anywhere else on the rail (the journey
+          // rail's MACHINE, WORKBENCH or ROBOTS from the story or the descent), the rail first cuts to the room
+          // view under it, as Skip the intro does: the room is built and lit around the place, and Back lands
+          // in the room. Before, the place opened over the story: the room not built yet (black), and Back
+          // went back up into the story.
+          if (!inRoom(store)) {
+            const y = dwellStart(store.rail, "workshop");
+            if (y !== null) {
+              store.jump(y);
+              scrollToY(y, false);
+            }
+          }
           store.setBranch(id);
           return;
         }
@@ -208,10 +230,25 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     [store, quality, reduced, mode, fail, stations],
   );
 
-  // Back from a 2D route: the machine, with the projection still lit, just before the zoom.
+  // The page's scroll is the world's to set (the rail, a return, a place's hash): the browser's own restoration
+  // on Back or Forward would put it somewhere else (the end of the rail, the room under a place's entry).
   useLayoutEffect(() => {
-    const back = takeReturn(session());
-    if (!back) return;
+    setScrollRestoration("manual");
+    return () => setScrollRestoration("auto");
+  }, []);
+
+  // Back from a 2D route: the machine, with the projection still lit, just before the zoom. Or a place in the
+  // URL (a reload, a link, Back to its entry: placeHash.ts): the room view with that place open.
+  // Otherwise, on a reload, where the journey was (resume.ts): the story or the descent at the same point.
+  useLayoutEffect(() => {
+    const back = takeReturn(session()) ?? placeOfHash(window.location.hash);
+    if (!back) {
+      const y = resumeSpot(session(), isReload(), store.rail.total);
+      if (y === null) return;
+      scrollToY(y, false);
+      store.jump(y);
+      return;
+    }
     // The workshop's end (the room view), with the machine open and already played: the hologram up.
     const span = store.rail.spans.find((s) => s.id === "workshop");
     if (!span) return;
@@ -219,8 +256,71 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     scrollToY(y, false);
     store.jump(y);
     if (stations.some((s) => s.id === back && s.kind === "branch")) store.setBranch(back as StationId, 1);
-    requestAnimationFrame(() => setScrollRestoration("auto"));
   }, [store, stations]);
+
+  // Keep the spot when the page goes away (a reload among others), for the resume above.
+  useEffect(() => {
+    const keep = () => saveSpot(session(), store.targetY, store.rail.total);
+    window.addEventListener("pagehide", keep);
+    return () => window.removeEventListener("pagehide", keep);
+  }, [store]);
+
+  // The open place follows the URL's hash (placeHash.ts): opening one adds a history entry, so the browser's
+  // Back (a phone's back gesture) closes it instead of leaving the site, and Forward opens it again; its own
+  // Back to room or Escape takes the entry back off.
+  const goToRef = useRef(api.goTo);
+  goToRef.current = api.goTo;
+  useEffect(() => {
+    const h = window.history;
+    const url = (hash: string) => window.location.pathname + window.location.search + hash;
+    let last: StationId | null = null;
+    // A history.back() of ours is on its way: its popstate only re-syncs (a place opened meanwhile stays open).
+    let popping = false;
+    // Applying a Back or Forward: what it changes is already in the URL.
+    let applying = false;
+    const sync = (force = false) => {
+      if (applying) return;
+      const branch = store.getCoarse().branch;
+      if (branch === last && !force) return;
+      last = branch;
+      const own = !!(h.state as { worldPlace?: boolean } | null)?.worldPlace;
+      const op = syncOp(branch, window.location.hash, own);
+      try {
+        if (op.op === "push") h.pushState({ ...(h.state ?? {}), worldPlace: true }, "", url(op.hash));
+        else if (op.op === "replace") h.replaceState(h.state, "", url(op.hash));
+        else if (op.op === "back") {
+          popping = true;
+          h.back();
+        }
+      } catch {
+        /* a sandboxed frame may refuse: the places still work, only without the history */
+      }
+    };
+    const onPop = () => {
+      if (popping) {
+        popping = false;
+        sync(true);
+        return;
+      }
+      const place = placeOfHash(window.location.hash);
+      if (hashOfBranch(store.getCoarse().branch) === hashOfBranch(place)) return;
+      applying = true;
+      try {
+        if (place) goToRef.current(place);
+        else store.setBranch(null);
+      } finally {
+        applying = false;
+      }
+      last = store.getCoarse().branch;
+    };
+    sync(true);
+    const off = store.subscribe(() => sync());
+    window.addEventListener("popstate", onPop);
+    return () => {
+      off();
+      window.removeEventListener("popstate", onPop);
+    };
+  }, [store]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -256,42 +356,31 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     });
   }, [store]);
 
-  // The scroll ends in the workshop: once the dive has landed, the page holds still and the room is a
-  // game (clicks, Escape). "↑ Story" (world:story) lets go and goes back to the top.
+  // The page holds still from one place (pageHold.ts): the loader, an open branch, a held shot (the shelf,
+  // the detail view, the tour), or in 3D the room view once the dive has landed (the room is a game: clicks,
+  // Escape). It writes whenever the page differs from that answer. "↑ Story" (world:story) goes back to
+  // the top, which lets go of it.
   useEffect(() => {
-    if (!run3D) return;
     const root = document.documentElement;
-    let locked = false;
-    const lock = (on: boolean) => {
-      if (on === locked) return;
-      locked = on;
-      root.style.overflow = on ? "hidden" : "";
+    let held = false;
+    const apply = () => {
+      held = pageHeld(store.getCoarse(), store.frames.workshop.arrive, run3D);
+      const want = held ? "hidden" : "";
+      if (root.style.overflow !== want) root.style.overflow = want;
     };
-    const off = store.onFrame(() => lock(store.getCoarse().current === "workshop" && store.frames.workshop.arrive >= 1));
-    const toStory = () => {
-      lock(false);
-      jumpRef.current("intro");
-    };
+    apply();
+    const offs = [store.subscribe(apply), store.onFrame(apply)];
+    const toStory = () => jumpRef.current("intro");
     window.addEventListener("world:story", toStory);
     return () => {
-      off();
+      offs.forEach((off) => off());
       window.removeEventListener("world:story", toStory);
-      lock(false);
+      if (held) root.style.overflow = "";
     };
   }, [store, run3D]);
 
-  // A held shot (the detail view, the tour) holds the page still too; its owner handles Escape.
-  useEffect(() => {
-    if (!coarse.override) return;
-    const root = document.documentElement;
-    const before = root.style.overflow;
-    root.style.overflow = "hidden";
-    return () => {
-      root.style.overflow = before;
-    };
-  }, [coarse.override]);
-
-  // An open branch holds the page still, closes on Escape, and takes focus; closing gives it back.
+  // An open branch closes on Escape (unless something inside it took the key: a robot's close-up steps
+  // back to the wall first) and takes focus; closing gives it back.
   const lastBranch = useRef(coarse.branch);
   useEffect(() => {
     if (lastBranch.current !== coarse.branch) {
@@ -300,15 +389,9 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       document.querySelector<HTMLElement>(`.world-station[data-station="${at}"]`)?.focus({ preventScroll: true });
     }
     if (!coarse.branch) return;
-    const root = document.documentElement;
-    const before = root.style.overflow;
-    root.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && store.setBranch(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && store.setBranch(null);
     window.addEventListener("keydown", onKey);
-    return () => {
-      root.style.overflow = before;
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [coarse.branch, store]);
 
   // The journey rail jumps behind the iris (iris.ts): it closes, the scroll and the camera cut to the
@@ -319,14 +402,16 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     (id: StationId) => {
       const m = stations.find((s) => s.id === id);
       const y = dwellStart(store.rail, id);
-      const { branch, current } = store.getCoarse();
-      if (!m || m.kind === "branch" || reduced || !iris.current || y === null || (current === id && branch === null)) {
+      const { branch, current, override } = store.getCoarse();
+      // Already there (and not on the shelf over it): nothing to cut.
+      if (!m || m.kind === "branch" || reduced || !iris.current || y === null || (current === id && branch === null && override === null)) {
         api.goTo(id);
         return;
       }
       runIris(iris.current, () => {
         const wasOpen = store.getCoarse().branch !== null;
         store.setBranch(null);
+        store.setOverride(null);
         store.jump(y);
         // A branch locks the page scroll; the unlock lands a frame later.
         if (wasOpen) requestAnimationFrame(() => scrollToY(y, false));

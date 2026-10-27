@@ -31,6 +31,10 @@ function createRobotsView() {
     pick(id: string) {
       set({ hot: id, picked: id, pickCount: state.pickCount + 1 });
     },
+    /** Back from the close-up to the whole wall. */
+    unpick() {
+      if (state.picked !== null) set({ ...state, picked: null });
+    },
     reset() {
       set(INITIAL);
     },

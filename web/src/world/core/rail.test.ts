@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { arcPose, fillFrames, layoutRail, locate, mixPose, poseAt, reducedPoseAt, restIndexAt, smoother, through, type RailStation } from "./rail";
 import type { CameraPose, StationFrame } from "./types";
+import { INTRO_VH } from "../stations/intro/storyPlan";
 
 const pose = (x: number): CameraPose => ({ position: [x, 0, 10], target: [x, 0, 0], fov: 40 });
 const a: RailStation = { id: "intro", anchor: [0, 0, 0], travel: 0, length: 2, camera: (t) => pose(t) };
@@ -28,6 +29,49 @@ describe("locate", () => {
     expect(locate(rail, 225)).toEqual({ index: 1, phase: "travel", t: 0.25, current: 0 });
     expect(locate(rail, 275)).toEqual({ index: 1, phase: "travel", t: 0.75, current: 1 });
     expect(locate(rail, 350)).toEqual({ index: 1, phase: "dwell", t: 0.5, current: 1 });
+  });
+  // intro-proof (2026-10-26): the browser keeps scroll in whole (device) pixels, so a jump to a station's start can
+  // land a rounding hair short of it (18.9 viewports is not a whole number of pixels at most heights).
+  it("counts a scroll within half a pixel short of a station's start as there", () => {
+    const tiny = layoutRail([{ ...a, length: 18.9 }, { ...b, travel: 0 }], 721);
+    const start = tiny.spans[1].start;
+    expect(locate(tiny, start - 0.4)).toEqual({ index: 1, phase: "dwell", t: 0, current: 1 });
+    expect(locate(tiny, start - 1)).toMatchObject({ index: 0, current: 0 });
+    // With a travel, the same: the travel has begun.
+    expect(locate(rail, 199.7)).toEqual({ index: 1, phase: "travel", t: 0, current: 0 });
+  });
+  // proof-wall (2026-10-26): the same hair short of the end of a travel left the camera "not arrived" (t 0.99999…):
+  // at 720, 900 and 1080 px tall, Skip the intro and the journey rail landed in the workshop's travel, so the room
+  // view's tags and hub bar never showed (CameraRig inHub wants arrive 1).
+  it("counts a scroll within half a pixel short of a dwell after a travel as arrived", () => {
+    const tall = layoutRail([{ ...a, length: 18.9 }, b, c], 720);
+    const start = tall.spans[2].start;
+    // The real case: the start is 16344.000000000002 px and the browser scrolls to 16344.
+    expect(locate(tall, start - 1e-9)).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
+    expect(locate(tall, start - 0.4)).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
+    expect(locate(tall, start - 2)).toMatchObject({ index: 2, phase: "travel" });
+  });
+  // site-bugs (2026-10-26): the same hair at the end of a travel. With the proof beats the intro is 18.9 viewports, so
+  // at 720 px the workshop's dwell starts at 16344.000000000002: the rail's WORKSHOP (and Skip the intro) scrolled to
+  // 16344, a hair short, so the room counted as still arriving (arrive 0.99999…) and the hub never came up: no tags,
+  // no hub bar, nothing to click in the room.
+  it("counts a scroll within half a pixel short of a travelled station's start as arrived", () => {
+    const real = layoutRail(
+      [
+        { ...a, length: INTRO_VH },
+        { ...b, travel: 0, length: 3 },
+        { ...c, travel: 0.8, length: 0.25 },
+      ],
+      720,
+    );
+    const start = real.spans[2].start;
+    expect(start).not.toBe(Math.round(start)); // the float the browser can't scroll to
+    expect(locate(real, Math.round(start))).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
+    const frames: StationFrame[] = [0, 1, 2].map(() => ({ t: 0, arrive: 0, current: false, near: false }));
+    fillFrames(real, Math.round(start), frames);
+    expect(frames[2].arrive).toBe(1);
+    // A whole pixel short is still the travel's end.
+    expect(locate(real, Math.round(start) - 1)).toMatchObject({ index: 2, phase: "travel" });
   });
   it("clamps above and below the rail", () => {
     expect(locate(rail, -50)).toEqual({ index: 0, phase: "dwell", t: 0, current: 0 });

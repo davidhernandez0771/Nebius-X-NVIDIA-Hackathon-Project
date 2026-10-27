@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { BENCH_PIVOT, MACHINE_PIVOT, stop } from "../../scene/layout";
 import { BOARDS, WALL } from "../../scene/wallPlan";
+import { PROOF_WALL } from "../../scene/proofWallPlan";
+import { SPIRAL_R } from "../../scene/collide";
 import {
   HOLO_TAGS,
   KIND,
@@ -33,10 +35,11 @@ function hubCamera(w = 1280, h = 720): THREE.PerspectiveCamera {
 const xz = (a: THREE.Vector3, p: readonly number[]) => Math.hypot(a.x - p[0], a.z - p[2]);
 const apart = (a: Rect, b: Rect, gap = 6) => a.x1 + gap < b.x0 || b.x1 + gap < a.x0 || a.y1 + gap < b.y0 || b.y1 + gap < a.y0;
 const area = (r: Rect) => (r.x1 - r.x0) * (r.y1 - r.y0);
+const box = (r: Rect) => [r.x0, r.y0, r.x1, r.y1].map(Math.round).join(",");
 
 describe("the room view's holographic labels: where they stand", () => {
-  it("are the four things to click, in the room's Tab order", () => {
-    expect(HOLO_TAGS.map((t) => t.id)).toEqual(["shelf", "machine", "bench", "wall"]);
+  it("are the five things to click, in the room's Tab order", () => {
+    expect(HOLO_TAGS.map((t) => t.id)).toEqual(["shelf", "machine", "bench", "wall", "proof"]);
   });
 
   it("each rise from an emitter on its own object, up to the label", () => {
@@ -51,8 +54,19 @@ describe("the room view's holographic labels: where they stand", () => {
     expect(wall.emitter.y).toBeCloseTo(BOARDS[2], 2);
     expect(-wall.emitter.x).toBeGreaterThanOrEqual(WALL.inner - 0.01);
     expect(-wall.emitter.x).toBeLessThanOrEqual(WALL.outer);
+    // The proof wall (proof-wall, 2026-10-26): on its screen's top edge, the label on the wall over it.
+    const proof = holoTag("proof");
+    expect(proof.emitter.z).toBeGreaterThan(PROOF_WALL.center[2]);
+    expect(proof.emitter.y).toBeCloseTo(PROOF_WALL.center[1] + PROOF_WALL.height / 2, 1);
+    expect(Math.abs(proof.emitter.x - PROOF_WALL.center[0])).toBeLessThan(PROOF_WALL.width / 2);
     // The shelf: on the spiral's rim (its cartridges stand 4.07 m out from the axis).
     expect(Math.hypot(holoTag("shelf").emitter.x, holoTag("shelf").emitter.z)).toBeLessThan(4.7);
+  });
+
+  // proof-wall (2026-10-26): a label by the back wall is metres wide and turned to the camera; the proof wall's first
+  // stood 0.1 m off the wall and its right end sank into it (seen in Chrome: "05 T", the rest hidden).
+  it("stand wholly inside the room, even unfolded: nothing of them behind the back wall", () => {
+    for (const t of HOLO_TAGS) for (const c of boxCorners(t, LABEL.openW, LABEL.openH)) expect(c.z, t.id).toBeGreaterThan(-20.6);
   });
 
   it("face the room view's camera, so their text reads square on", () => {
@@ -104,8 +118,14 @@ describe("the room view's holographic labels: on screen (1280×720)", () => {
       for (let j = 0; j < HOLO_TAGS.length; j++) {
         if (i === j) continue;
         expect(apart(rest[i].r, rest[j].r), `${rest[i].id} / ${rest[j].id}`).toBe(true);
-        expect(apart(open[i].r, rest[j].r), `${open[i].id} unfolded / ${rest[j].id}`).toBe(true);
+        expect(apart(open[i].r, rest[j].r), `${open[i].id} unfolded ${box(open[i].r)} / ${rest[j].id} ${box(rest[j].r)}`).toBe(true);
       }
+  });
+
+  // proof-wall: the spiral stands between the back wall and the camera; the proof wall's label stands in front of it,
+  // so the spiral can't cut it short (it did: "05 THE PROO").
+  it("stand the proof wall's label in front of the spiral, so nothing of it is hidden", () => {
+    for (const c of boxCorners(holoTag("proof"), LABEL.openW, LABEL.openH)) expect(c.z).toBeGreaterThan(SPIRAL_R + 0.5);
   });
 
   it("have a short beam from the emitter to the label's left edge", () => {
@@ -119,7 +139,7 @@ describe("the room view's holographic labels: on screen (1280×720)", () => {
   });
 });
 
-describe("the room view's holographic labels: one geometry for all four", () => {
+describe("the room view's holographic labels: one geometry for all five", () => {
   it("holds each label (its unfolded quad, with its rest size), its beam and its emitter", () => {
     const g = buildHoloGeometry(HOLO_TAGS);
     const pos = g.getAttribute("position");
@@ -134,9 +154,9 @@ describe("the room view's holographic labels: one geometry for all four", () => 
       const corners = boxCorners(t, LABEL.openW, LABEL.openH);
       panel.forEach((v, c) => expect(new THREE.Vector3().fromBufferAttribute(pos, v).distanceTo(corners[c])).toBeLessThan(1e-6));
       for (const v of panel) {
-        // Its atlas row: the row's bottom and top v.
-        expect(uv.getX(v)).toBeCloseTo(1 - (i + 1) / HOLO_TAGS.length, 9);
-        expect(uv.getY(v)).toBeCloseTo(1 - i / HOLO_TAGS.length, 9);
+        // Its atlas row: the row's bottom and top v (float32, so fifths aren't exact).
+        expect(uv.getX(v)).toBeCloseTo(1 - (i + 1) / HOLO_TAGS.length, 6);
+        expect(uv.getY(v)).toBeCloseTo(1 - i / HOLO_TAGS.length, 6);
         expect(rest.getX(v)).toBeCloseTo(t.restW / LABEL.openW, 6);
         expect(rest.getY(v)).toBeCloseTo(LABEL.restH / LABEL.openH, 6);
       }

@@ -15,6 +15,7 @@ import { applyJoints, binParts, CUBE_SIZE, FRANKA, quat } from "../../twin/model
 import { parseEpisode, stateAt, type Episode } from "../../twin/replay";
 import type { QualityTier } from "../core/quality";
 import { SOFT_LINE_GLSL } from "./materials";
+import type { Projection } from "./projection";
 
 const EPISODE_URL = `${(import.meta.env?.BASE_URL ?? "/").replace(/\/?$/, "/")}world/demo-episode.json`;
 const TEAL = new THREE.Color("#19f5c2");
@@ -386,7 +387,8 @@ function usePanel(w: number, h: number, draw: (g: CanvasRenderingContext2D, W: n
 
 const MONO = '"Geist Mono", ui-monospace, Consolas, monospace';
 
-export function HoloTwin({ level, quality, label, position }: { level: () => number; quality: QualityTier; label: string; position: THREE.Vector3Tuple }) {
+export function HoloTwin({ level, quality, projection, position }: { level: () => number; quality: QualityTier; projection: Projection; position: THREE.Vector3Tuple }) {
+  const { title, line, cartridgeLine, own } = projection;
   const invalidate = useThree((s) => s.invalidate);
   const gl = useThree((s) => s.gl);
   const [holo, setHolo] = useState<Holo | null>(null);
@@ -426,19 +428,26 @@ export function HoloTwin({ level, quality, label, position }: { level: () => num
       () => (g: CanvasRenderingContext2D, W: number) => {
         g.fillStyle = "#19f5c2";
         g.font = `500 20px ${MONO}`;
-        g.fillText("REPLAY · VERIFIED COPY", 28, 48);
-        g.font = `700 44px ${MONO}`;
+        // Each line shrinks to fit the panel (a saved cartridge's name can be long).
+        const fit = (text: string, y: number, px: number, weight = 400) => {
+          g.font = `${weight} ${px}px ${MONO}`;
+          const w = g.measureText(text).width;
+          if (w > W - 56) g.font = `${weight} ${Math.floor((px * (W - 56)) / w)}px ${MONO}`;
+          g.fillText(text, 28, y);
+        };
+        fit("REPLAY · VERIFIED COPY", 40, 20, 500);
         g.fillStyle = "#d8efe9";
-        g.fillText(label.toUpperCase(), 28, 106);
-        g.font = `400 19px ${MONO}`;
+        // The robot the hologram shows and its task (scene/projection.ts), then the cartridge plugged in.
+        fit(title, 92, 44, 700);
         g.fillStyle = "#8fb0a8";
-        g.fillText("FRANKA FR3 · PICK CUBE → BIN", 28, 150);
-        g.fillText(`${episode ? episode.nSteps : "…"} STEPS · ${episode ? episode.fps : 30} HZ · ISAAC LAB`, 28, 180);
+        fit(`${line} · ISAAC LAB`, 126, 19);
+        fit(`${episode ? episode.nSteps : "…"} STEPS · ${episode ? episode.fps : 30} HZ`, 152, 19);
+        g.fillStyle = own ? "#8fb0a8" : "#d8efe9";
+        fit(cartridgeLine, 180, 19);
         g.fillStyle = "#ffb000";
-        g.fillText("PHYSICS CHECK: PASSED", 28, 216);
-        void W;
+        fit("PHYSICS CHECK: PASSED", 212, 19);
       },
-      [label, episode],
+      [title, line, cartridgeLine, own, episode],
     ),
   );
   const joints = usePanel(

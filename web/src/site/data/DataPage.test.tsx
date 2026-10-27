@@ -93,6 +93,17 @@ afterEach(() => {
 });
 
 describe("the data page", () => {
+  // site-bugs (2026-10-26): with no backend (a judge's machine) the page said "The experiments didn't load: Failed to
+  // fetch" over an empty page, with nowhere to go.
+  it("without the backend, says so in words and points to the pages that work without it", async () => {
+    page("/data", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))) as unknown as typeof fetch);
+    const note = await screen.findByRole("status");
+    expect(note.textContent).not.toMatch(/Failed to fetch/);
+    expect(note.textContent).toMatch(/Can't reach the backend/);
+    expect(within(note).getByRole("link", { name: /test track/i }).getAttribute("href")).toBe("/test-track");
+    expect(within(note).getByRole("link", { name: /results/i }).getAttribute("href")).toBe("/site/results");
+  });
+
   it("sits in the holo frame, at the end of the path Record › Pipeline › Data", async () => {
     page();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("The data");

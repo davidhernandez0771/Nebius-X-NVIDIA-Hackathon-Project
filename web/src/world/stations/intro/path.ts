@@ -43,6 +43,23 @@ function orbit(k: number): CameraPose {
   };
 }
 
+/**
+ * The proof stage: the camera keeps circling the powered core, slowly, a little lower, while the proof beats hold the
+ * screen. It starts where the reactor's orbit ends (and as still), so the hand-over has no kink.
+ */
+const DRIFT = { sweep: (30 * Math.PI) / 180, drop: 1 } as const;
+
+function drift(k: number): CameraPose {
+  const end = orbit(1);
+  const u = smoother(k);
+  const a = ORBIT.a0 + ORBIT.sweep + DRIFT.sweep * u;
+  return {
+    position: [AX + Math.sin(a) * ORBIT.r1, ORBIT.y1 - DRIFT.drop * u, AZ + Math.cos(a) * ORBIT.r1],
+    target: end.target,
+    fov: end.fov,
+  };
+}
+
 /** Where the intro ends: above THE RING, looking down into it. The descent starts from here. */
 export const PORTAL_VIEW: CameraPose = {
   position: [THE_RING.center[0], THE_RING.center[1] + 19.5, THE_RING.center[2] + 4.2],
@@ -64,7 +81,8 @@ export function cameraAt(vh: number): CameraPose {
     return ease(OVER, orbit(0), (k - OVER_AT) / (1 - OVER_AT));
   }
   if (vh < span("reactor")[1]) return orbit(progress("reactor", vh));
-  return ease(orbit(1), PORTAL_VIEW, progress("ring", vh));
+  if (vh < span("proof")[1]) return drift(progress("proof", vh));
+  return ease(drift(1), PORTAL_VIEW, progress("ring", vh));
 }
 
 /**

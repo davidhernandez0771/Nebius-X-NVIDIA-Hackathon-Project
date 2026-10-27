@@ -2,7 +2,7 @@
 // web/public/test-track-data (index.json, then one runs/<source>/<seed>.json per replay). Pure: parsing, the playback
 // clock, the keyboard map and the words on the tags. Nothing here runs physics; every pose is one Isaac recorded.
 import { parseEpisode, type Episode } from "../../twin/replay";
-import type { Vec3 } from "../../twin/types";
+import type { QuatWxyz, Vec3 } from "../../twin/types";
 
 export type CubeSource = "recorded" | "estimated";
 
@@ -34,6 +34,8 @@ export type Source = {
   checkpoint: string | null;
   seeds: [number, number];
   summary: { successes: number; n: number; ci95: [number, number]; judge: string };
+  /** A word on how the source was put together (the final test: where the bin comes from), or null. */
+  note: string | null;
   runs: RunRow[];
   cubeEstimate: CubeEstimate | null;
 };
@@ -42,8 +44,19 @@ export type TrackIndex = { built: string; sources: Source[] };
 
 export type Facts = { success: boolean; reasons: string[]; durationS: number | null; pathM: number | null; peakContactN: number | null; settleS: number | null };
 
-/** handPos: the tool point Isaac recorded each step (the trail), or null. */
-export type TrackRun = Episode & { cubeSource: CubeSource; contactN: number[] | null; handPos: Vec3[] | null; facts: Facts };
+/** Step ranges [first, last + 1) where Isaac's contact sensors fired (the final test records them). */
+export type Contacts = { gripperCube: [number, number][]; armBin: [number, number][]; armTable: [number, number][] };
+
+/** handPos: the tool point Isaac recorded each step (the trail), or null. cubeQuats: the cube's recorded rotation each
+ * step, or null where only its start orientation is known. contacts: the contact sensors, or null. */
+export type TrackRun = Episode & {
+  cubeSource: CubeSource;
+  contactN: number[] | null;
+  handPos: Vec3[] | null;
+  cubeQuats: QuatWxyz[] | null;
+  contacts: Contacts | null;
+  facts: Facts;
+};
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
@@ -99,11 +112,20 @@ export function parseIndex(body: unknown): TrackIndex {
         checkpoint: typeof s.checkpoint === "string" ? s.checkpoint : null,
         seeds,
         summary: { successes: num(sum.successes) ?? fail("summary"), n: num(sum.n) ?? fail("summary"), ci95: ci, judge: String(sum.judge ?? "") },
+        note: typeof s.note === "string" && s.note ? s.note : null,
         runs: (Array.isArray(s.runs) ? (s.runs as Record<string, unknown>[]) : fail("runs")).map(parseRow),
         cubeEstimate: parseEstimate(s.cube_estimate),
       };
     }),
   };
+}
+
+function parseContacts(c: unknown): Contacts | null {
+  if (!c || typeof c !== "object") return null;
+  const o = c as Record<string, unknown>;
+  const spans = (v: unknown): [number, number][] =>
+    Array.isArray(v) ? v.filter((s): s is [number, number] => Array.isArray(s) && s.length === 2 && s.every((x) => typeof x === "number")) : [];
+  return { gripperCube: spans(o.gripper_cube), armBin: spans(o.arm_bin), armTable: spans(o.arm_table) };
 }
 
 export function parseRun(body: unknown): TrackRun {
@@ -112,11 +134,14 @@ export function parseRun(body: unknown): TrackRun {
   const f = (b.facts ?? {}) as Record<string, unknown>;
   const contact = Array.isArray(b.contact_n) && b.contact_n.length === ep.nSteps ? (b.contact_n as number[]) : null;
   const hand = Array.isArray(b.hand_pos) && b.hand_pos.length === ep.nSteps ? (b.hand_pos as Vec3[]) : null;
+  const quats = Array.isArray(b.cube_quat_path) && b.cube_quat_path.length === ep.nSteps ? (b.cube_quat_path as QuatWxyz[]) : null;
   return {
     ...ep,
     cubeSource: b.cube_source === "estimated" ? "estimated" : "recorded",
     contactN: contact,
     handPos: hand,
+    cubeQuats: quats,
+    contacts: parseContacts(b.contacts),
     facts: {
       success: f.success === true,
       reasons: strs(f.reasons),
@@ -151,6 +176,14 @@ export function nextSpeed(speed: number, dir: 1 | -1): number {
   return SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, at + dir))];
 }
 
+/** Which runs the grid shows: all of them, the verified ones or the failed ones. */
+export type Show = "all" | "ok" | "failed";
+export const SHOWS: Show[] = ["all", "ok", "failed"];
+export const parseShow = (v: string | null): Show => (v === "ok" || v === "failed" ? v : "all");
+
+export const shownRuns = (runs: RunRow[], show: Show): RunRow[] =>
+  show === "all" ? runs : runs.filter((r) => (show === "ok" ? r.success : !r.success));
+
 /** The next (or previous) replayable run, wrapping round; the same id when there is no other. */
 export function neighbourRun(runs: RunRow[], id: string, dir: 1 | -1): string {
   const played = runs.filter((r) => r.recorded);
@@ -178,7 +211,7 @@ export const SHORTCUTS: { keys: string; what: string }[] = [
   { keys: "← →", what: "One step back or on (Shift: ten)" },
   { keys: "[ ]", what: "Slower or faster" },
   { keys: "J K", what: "Previous or next run" },
-  { keys: "1 2 3", what: "Pick a source" },
+  { keys: "1–4", what: "Pick a source" },
   { keys: "R", what: "Reset the camera" },
   { keys: "T", what: "Show or hide the paths" },
   { keys: "?", what: "These shortcuts" },
@@ -270,6 +303,19 @@ export function verdictText(f: Pick<Facts, "success" | "reasons">, endedBy: stri
 
 export const estimateText = (e: CubeEstimate) =>
   `This run didn't record the cube, so it is drawn from the gripper. On ${e.episodes} runs that recorded both, that estimate was off by ${(e.heldMedianMm / 10).toFixed(1)} cm (median) while carried and ${(e.landedMedianMm / 10).toFixed(1)} cm where it landed.`;
+
+const TOUCHES: [keyof Contacts, string][] = [
+  ["gripperCube", "gripper on the cube"],
+  ["armBin", "arm on the bin"],
+  ["armTable", "arm on the table"],
+];
+
+/** What Isaac's contact sensors felt at a step, in words; null if the run didn't record them. */
+export function contactsAt(run: Pick<TrackRun, "contacts" | "nSteps">, step: number): string[] | null {
+  if (!run.contacts) return null;
+  const k = Math.max(0, Math.min(run.nSteps - 1, step));
+  return TOUCHES.filter(([key]) => run.contacts![key].some(([a, b]) => k >= a && k < b)).map(([, words]) => words);
+}
 
 /** The contact force at a step, if the run recorded it. */
 export const contactAt = (run: TrackRun, step: number): number | null => (run.contactN ? run.contactN[Math.max(0, Math.min(run.nSteps - 1, step))] : null);

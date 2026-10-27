@@ -7,7 +7,7 @@ import type { Assets } from "../core/assets";
 import type { TierName } from "../core/quality";
 import { subscribeStanding } from "../core/standing";
 import type { WorldStore } from "../core/store";
-import { waitFor } from "../core/waiting";
+import { standKey, waitFor } from "../core/waiting";
 import { INTRO_VH } from "../stations/intro/storyPlan";
 
 /** How long something must still be coming before the state shows. */
@@ -50,8 +50,7 @@ export function Wait({
       let next: Waiting | null = null;
       if (w && w.files.length) {
         const p = assets.progress(w.files);
-        const key = id === "intro" ? "intro:places" : id;
-        if (!p.done || !stands(key)) {
+        if (!p.done || !stands(standKey(id))) {
           next = { label: w.label, loaded: p.loaded, total: p.total };
           // The visitor is here now: these files first.
           if (asked !== w.label) {

@@ -101,6 +101,15 @@ describe("the pipeline pages", () => {
     expect(screen.getByRole("link", { name: /example run/i }).getAttribute("href")).toBe("/pipeline/example");
   });
 
+  // site-bugs (2026-10-26): with no backend the note sat under the whole Run SANT form, a phone's screen and a half
+  // down, so the page read as a form that does nothing.
+  it("puts that note above the Run SANT form, where it is read first", async () => {
+    show("/pipeline", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))) as unknown as typeof fetch);
+    const note = await screen.findByText(/isn't on this server yet/i);
+    const form = screen.getByRole("region", { name: "Start a run" });
+    expect(note.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("starts SANT on the demos just recorded: estimates first, then posts the recipe and opens the run", async () => {
     const { f, calls } = backend();
     show("/pipeline?demos=d1,d2", f);
@@ -313,6 +322,15 @@ describe("the pipeline pages", () => {
     show("/pipeline/example/check?speed=120", backend().f);
     const bar = await screen.findByRole("navigation", { name: /pipeline/i });
     expect(within(bar).getByRole("link", { name: /train/i }).getAttribute("href")).toBe("/pipeline/example/train?speed=120");
+  });
+
+  // site-bugs (2026-10-26): the example's banner says "(not live)" and its bar said LIVE right under it (the stub's
+  // stream is "open" like a real one).
+  it("the example's bar says example, never live", async () => {
+    show("/pipeline/example/check", backend().f);
+    const bar = await screen.findByRole("navigation", { name: /pipeline/i });
+    await waitFor(() => expect(bar.querySelector(".pipe-bar__conn")?.textContent).toBe("example"));
+    expect(bar.textContent).not.toMatch(/\blive\b/i);
   });
 
   describe("the teacher recipe (RL teacher → gate → distill)", () => {

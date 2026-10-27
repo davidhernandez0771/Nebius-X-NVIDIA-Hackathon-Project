@@ -1,12 +1,21 @@
 // The intro's plan, in viewport heights of scroll (vh): a story you descend through, like Active
 // Theory's forest → spine → reactor → lab. The hero (the glass logo in the dark), the sink below it, the
 // forest floor (the problem), the drop down the crack, the reactor powering up (S·A·N·T, the proof,
-// Nemotron), then the ring stage, where the core's top ring lifts off at full power and becomes THE RING
+// Nemotron), the proof stage (intro-proof, 2026-10-26: the core at full power while four proof beats draw their
+// graphs with the scroll, ProofBeats.tsx), then the ring stage, where the core's top ring lifts off and becomes THE RING
 // the descent dives through. Everything is a pure function of the scroll, so every drop plays backwards
 // on the way up, and the places are lit one at a time with full dark between them (placeLights), so one
 // never shows through another. The camera is path.ts; Scene.tsx, Places.tsx and Story.tsx read these.
 // (Not story.ts: next to Story.tsx that name breaks Windows, see fileNames.test.ts.)
 import { smoother } from "../../core/rail";
+
+/** The proof beats (ProofBeats.tsx): how SANT works, the climb, the teacher with and without demos, its speed gate. */
+export const PROOF_BEATS = 4;
+/**
+ * Each proof beat's scroll (vh): long enough for a presenter to talk over it. The graph draws over the first part and
+ * then holds whole (PROOF_DRAWN).
+ */
+export const PROOF_BEAT_VH = 1.8;
 
 /** The stages, top to bottom, with their scroll lengths (vh). */
 export const PLAN = [
@@ -15,6 +24,7 @@ export const PLAN = [
   { id: "forest", vh: 1.9 },
   { id: "crack", vh: 1.5 },
   { id: "reactor", vh: 4.5 },
+  { id: "proof", vh: PROOF_BEATS * PROOF_BEAT_VH },
   { id: "ring", vh: 1.1 },
 ] as const;
 
@@ -76,6 +86,35 @@ export function beatState(vh: number, i: number): BeatState {
   if (i === 0) return { k, shown: 1 - smooth(a + len * 0.55, b, vh), reveal: 1 };
   const shown = vh < a || vh >= b ? 0 : smooth(a, a + len * 0.14, vh) * (1 - smooth(b - len * 0.16, b, vh));
   return { k, shown, reveal: clamp01((vh - a) / (len * 0.36)) };
+}
+
+/** Where a proof beat's graph is whole (a share of its span); it holds from here until the beat fades. */
+export const PROOF_DRAWN = 0.55;
+/** Where its graph starts drawing: once the panel is in. */
+const PROOF_DRAW_FROM = 0.1;
+
+/** Proof beat i's span [start, end) in vh. */
+export function proofBeatSpan(i: number): [number, number] {
+  const [a] = span("proof");
+  return [a + i * PROOF_BEAT_VH, a + (i + 1) * PROOF_BEAT_VH];
+}
+
+export interface ProofBeatState {
+  /** 0–1 through the span. */
+  k: number;
+  /** Opacity: in at the start of the span, out at its end (none outside it). */
+  shown: number;
+  /** 0–1: how much of its graph is drawn, straight from the scroll (no timer), so scrolling back undraws it. */
+  draw: number;
+}
+
+/** How proof beat i shows at scroll `vh`: in, its graph drawn with the scroll, held whole, out before the next. */
+export function proofBeatState(vh: number, i: number): ProofBeatState {
+  const [a, b] = proofBeatSpan(i);
+  const len = b - a;
+  const k = clamp01((vh - a) / len);
+  const shown = vh < a || vh >= b ? 0 : smooth(a, a + len * 0.08, vh) * (1 - smooth(b - len * 0.1, b, vh));
+  return { k, shown, draw: clamp01((k - PROOF_DRAW_FROM) / (PROOF_DRAWN - PROOF_DRAW_FROM)) };
 }
 
 /** The places that are drawn; the drops between them are dark. */

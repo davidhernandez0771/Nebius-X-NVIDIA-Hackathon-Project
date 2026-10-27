@@ -1,0 +1,25 @@
+{
+  "console": [],
+  "checks": {
+    "desktop": {
+      "kids": [],
+      "scrollWidth": 1280,
+      "withoutSr": 1280,
+      "srWide": 3,
+      "clientWidth": 1280,
+      "overflowing": [],
+      "figures": 3,
+      "readoutAfterHover": "Iteration 900with demo starts 99/128without 0/128"
+    },
+    "phone": {
+      "kids": [],
+      "scrollWidth": 390,
+      "withoutSr": 390,
+      "srWide": 3,
+      "clientWidth": 390,
+      "overflowing": [],
+      "figures": 3,
+      "readoutAfterHover": "Iteration 900with demo starts 99/128without 0/128"
+    }
+  }
+}

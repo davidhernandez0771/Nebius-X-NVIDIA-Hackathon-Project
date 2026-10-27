@@ -1,8 +1,9 @@
-// The test track (/test-track): watch simulations that already ran. Pick a source (the RL teacher's gate, its
-// replay check, the distillation's round 0) and a run, and the robot twin plays back what Isaac recorded, with
-// SANT's verdict and the run's key facts as holo tags. A replay, never live physics: every pose is from the run's
-// own files (web/public/test-track-data, scripts/build_test_track.py). A clean arena, an orbit camera, keyboard
-// shortcuts and a boot console, after Pollen's Microduck simulator. ?source=<id>&run=<seed> is the URL state; ?boot=1 keeps the boot console up.
+// The test track (/test-track): watch simulations that already ran. Pick a source (the camera policy's final test,
+// first and the default; the RL teacher's gate, its replay check, the distillation's round 0) and a run, and the
+// robot twin plays back what Isaac recorded, with SANT's verdict and the run's key facts as holo tags. A replay,
+// never live physics: every pose is from the run's own files (web/public/test-track-data, scripts/build_test_track.py).
+// A clean arena, an orbit camera, keyboard shortcuts and a boot console, after Pollen's Microduck simulator.
+// ?source=<id>&run=<seed>&show=all|ok|failed is the URL state; ?boot=1 keeps the boot console up.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMotion } from "../../sant/motion/MotionProvider";
@@ -15,27 +16,30 @@ import { fetchIndex, fetchRun, type Fetch } from "./api";
 import {
   advance,
   contactAt,
+  contactsAt,
   END_HOLD_S,
   estimateText,
   factTags,
   keyAction,
   neighbourRun,
   nextSpeed,
+  parseShow,
+  reasonText,
   runDuration,
   seedsText,
+  shownRuns,
+  SHOWS,
   SHORTCUTS,
   stepAt,
   summaryText,
   verdictText,
   type RunRow,
+  type Show,
   type Source,
   type TrackIndex,
   type TrackRun,
 } from "./model";
 import "./testtrack.css";
-
-/** Sources still to come, shown so the picker says what's missing rather than hiding it. */
-const LATER = [{ id: "student", title: "Camera robot · eval", why: "Its final test hasn't run yet." }];
 
 // The paths' colours: the hand in the live teal, the cube in its own red (dashed where it is an estimate).
 const TRAIL = { hand: "#19F5C2", cube: "#FF8A5C" };
@@ -110,22 +114,12 @@ function SourcePicker({ sources, current, onPick }: { sources: Source[]; current
                 {i + 1}
               </span>
               <span className="tt-source__title">{s.title}</span>
-              <span className="tt-source__count">
-                {s.summary.successes}/{s.summary.n}
-              </span>
-            </button>
-          </li>
-        ))}
-        {LATER.map((l) => (
-          <li key={l.id}>
-            <button type="button" className="tt-source" disabled aria-describedby={`tt-later-${l.id}`}>
-              <span className="tt-source__key" aria-hidden="true">
-                ·
-              </span>
-              <span className="tt-source__title">{l.title}</span>
-              <span className="tt-source__count" id={`tt-later-${l.id}`}>
-                {l.why}
-              </span>
+              {/* the final test's title already carries its count */}
+              {!s.title.includes(`${s.summary.successes}/${s.summary.n}`) && (
+                <span className="tt-source__count">
+                  {s.summary.successes}/{s.summary.n}
+                </span>
+              )}
             </button>
           </li>
         ))}
@@ -134,13 +128,29 @@ function SourcePicker({ sources, current, onPick }: { sources: Source[]; current
   );
 }
 
-function RunGrid({ source, active, onPick }: { source: Source; active: string; onPick: (id: string) => void }) {
-  const failed = source.runs.filter((r) => !r.success).length;
+const SHOW_WORDS: Record<Show, string> = { all: "All", ok: "Verified", failed: "Failed" };
+
+const runLabel = (r: RunRow) =>
+  `Seed ${r.seed}: ${r.success ? "verified" : `failed, ${reasonText(r.reasons, r.endedBy)}`}${r.recorded ? "" : ", no replay saved"}`;
+
+function RunGrid({ source, show, active, onPick, onShow }: { source: Source; show: Show; active: string; onPick: (id: string) => void; onShow: (s: Show) => void }) {
+  const failedRuns = source.runs.filter((r) => !r.success);
+  const counts: Record<Show, number> = { all: source.runs.length, ok: source.runs.length - failedRuns.length, failed: failedRuns.length };
+  const runs = shownRuns(source.runs, show);
   return (
     <section className="tt-runs" aria-labelledby="tt-runs-title">
-      <HoloRule label={<span id="tt-runs-title">Runs · {seedsText(source)}{failed ? ` · ${failed} failed` : ""}</span>} />
-      <ul className="tt-runs__grid">
-        {source.runs.map((r) => (
+      <HoloRule label={<span id="tt-runs-title">Runs · {seedsText(source)}{failedRuns.length ? ` · ${failedRuns.length} failed` : ""}</span>} />
+      {failedRuns.length > 0 && (
+        <div className="tt-show" role="group" aria-label="Show runs">
+          {SHOWS.map((s) => (
+            <button key={s} type="button" className="tt-show__btn" data-show={s} aria-pressed={show === s} onClick={() => onShow(s)}>
+              {SHOW_WORDS[s]} {counts[s]}
+            </button>
+          ))}
+        </div>
+      )}
+      <ul className="tt-runs__grid" aria-label="Runs">
+        {runs.map((r) => (
           <li key={r.id}>
             <button
               type="button"
@@ -148,7 +158,8 @@ function RunGrid({ source, active, onPick }: { source: Source; active: string; o
               data-ok={r.success}
               data-recorded={r.recorded}
               aria-pressed={r.id === active}
-              aria-label={`Seed ${r.seed}: ${r.success ? "verified" : "failed"}${r.recorded ? "" : ", no replay saved"}`}
+              aria-label={runLabel(r)}
+              title={runLabel(r)}
               onClick={() => onPick(r.id)}
             >
               {r.seed}
@@ -156,6 +167,21 @@ function RunGrid({ source, active, onPick }: { source: Source; active: string; o
           </li>
         ))}
       </ul>
+      {failedRuns.length > 0 && show !== "ok" && (
+        <>
+          <HoloRule label="Why runs failed" />
+          <ul className="tt-fails" aria-label="Why runs failed">
+            {failedRuns.map((r) => (
+              <li key={r.id} className="tt-fail">
+                <button type="button" className="tt-fail__seed" aria-pressed={r.id === active} aria-label={`Seed ${r.seed}`} onClick={() => onPick(r.id)}>
+                  {r.seed}
+                </button>
+                <span className="tt-fail__why">{reasonText(r.reasons, r.endedBy)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
@@ -164,6 +190,7 @@ function Tags({ row, run, step, source }: { row: RunRow; run: TrackRun | null; s
   const facts = run?.facts ?? row;
   const tags = factTags(facts, run?.cubeSource ?? row.cubeSource);
   const force = run ? contactAt(run, step) : null;
+  const touching = run ? contactsAt(run, step) : null;
   return (
     <div className="tt-tags">
       <HoloPanel as="div" className="tt-verdict" state={facts.success ? "pass" : "fail"} role="status">
@@ -190,6 +217,14 @@ function Tags({ row, run, step, source }: { row: RunRow; run: TrackRun | null; s
                 <HoloTag>Arm contact now</HoloTag>
               </dt>
               <dd>{force.toFixed(1)} N</dd>
+            </div>
+          )}
+          {touching !== null && (
+            <div className="tt-fact">
+              <dt>
+                <HoloTag>Touching now</HoloTag>
+              </dt>
+              <dd>{touching.length ? touching.join(", ") : "nothing"}</dd>
             </div>
           )}
         </HoloPanel>
@@ -230,8 +265,14 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
   const index = useAsync("tt:index", () => fetchIndex(fetchImpl));
   const sources = index.state === "ok" ? index.value.sources : [];
   const source = sources.find((s) => s.id === params.get("source")) ?? sources[0] ?? null;
-  const firstPlayed = source?.runs.find((r) => r.recorded) ?? source?.runs[0] ?? null;
+  // The grid's filter; a source with no failed run always shows all of them.
+  const show: Show = source?.runs.some((r) => !r.success) ? parseShow(params.get("show")) : "all";
+  const visible = source ? shownRuns(source.runs, show) : [];
+  // With no run asked for, open on the first verified replay the filter shows (a viewer sees it work first; the
+  // failures are marked and listed beside it), else its first replay.
+  const firstPlayed = visible.find((r) => r.recorded && r.success) ?? visible.find((r) => r.recorded) ?? visible[0] ?? source?.runs[0] ?? null;
   const row = source?.runs.find((r) => r.id === params.get("run")) ?? firstPlayed;
+  const navRuns = visible.length ? visible : (source?.runs ?? []);
   const run = useAsync(row?.recorded && row.file ? `tt:${row.file}` : null, () => fetchRun(row!.file!, fetchImpl));
   const ready = run.state === "ok" && row?.recorded ? run.value : null;
 
@@ -247,7 +288,12 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
   const duration = ready ? runDuration(ready) : 0;
   const [t, seek] = useTrackClock(duration, playing, speed);
   const step = ready ? stepAt(t, ready) : 0;
-  const twin = useMemo(() => (ready ? stateAt(ready, step) : null), [ready, step]);
+  const twin = useMemo(() => {
+    if (!ready) return null;
+    const s = stateAt(ready, step);
+    // the final test recorded the cube's rotation too: a dropped cube tumbles as it did in Isaac
+    return ready.cubeQuats && s.cube ? { ...s, cube: { ...s.cube, quat: ready.cubeQuats[Math.min(step, ready.nSteps - 1)] } } : s;
+  }, [ready, step]);
   // One frame per run (a new array every step would put the camera back each time).
   const frame = useMemo(() => (ready ? framing(ready) : null), [ready]);
   const trails = useMemo<TwinTrail[] | null>(() => {
@@ -285,11 +331,11 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
       if (a.type === "trails") return setShowTrails((v) => !v);
       if (a.type === "speed") return setSpeed((s) => nextSpeed(s, a.dir));
       if (a.type === "source") {
-        if (sources[a.index]) go({ source: sources[a.index].id, run: null });
+        if (sources[a.index]) go({ source: sources[a.index].id, run: null, show: null });
         return;
       }
       if (!source || !row) return;
-      if (a.type === "run") return go({ source: source.id, run: neighbourRun(source.runs, row.id, a.dir) });
+      if (a.type === "run") return go({ source: source.id, run: neighbourRun(navRuns, row.id, a.dir) });
       if (!ready) return;
       e.preventDefault(); // Space would scroll the page, the arrows too
       if (a.type === "toggle") setPlaying((p) => !p);
@@ -300,7 +346,7 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sources, source, row, ready, step, seek, go]);
+  }, [sources, source, row, navRuns, ready, step, seek, go]);
 
   // The boot console shows while things load; ?boot=1 keeps it up (as on the Microduck simulator).
   const booting = params.get("boot") === "1" || index.state !== "ok" || (row?.recorded && run.state !== "ok");
@@ -323,15 +369,24 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
         {index.state === "ok" && source && row ? (
           <div className="tt-layout">
             <HoloPanel as="aside" className="tt-side">
-              <SourcePicker sources={sources} current={source} onPick={(id) => go({ source: id, run: null })} />
+              <SourcePicker sources={sources} current={source} onPick={(id) => go({ source: id, run: null, show: null })} />
               <p className="tt-summary">{summaryText(source)}</p>
               <p className="tt-what">{source.what}</p>
+              <RunGrid
+                source={source}
+                show={show}
+                active={row.id}
+                onPick={(id) => go({ source: source.id, run: id })}
+                // the run on screen stays if the new filter shows it; else the filter opens on its first run
+                onShow={(s) => go({ source: source.id, show: s === "all" ? null : s, run: shownRuns(source.runs, s).some((r) => r.id === row.id) ? row.id : null })}
+              />
+              {/* how the source was put together, after the runs so the grid sits high in the panel */}
+              {source.note && <p className="tt-note">{source.note}</p>}
               {source.checkpoint && (
                 <p className="tt-ckpt">
                   <HoloTag>Checkpoint</HoloTag> <code>{source.checkpoint.split(/[\\/]/).slice(-3).join("/")}</code>
                 </p>
               )}
-              <RunGrid source={source} active={row.id} onPick={(id) => go({ source: source.id, run: id })} />
             </HoloPanel>
             <section className="tt-stage" aria-label={`Seed ${row.seed}`}>
               <div className="tt-arena">
@@ -373,10 +428,10 @@ export default function TestTrackPage({ fetchImpl }: { fetchImpl?: Fetch }) {
                   </button>
                 </span>
                 <span className="tt-nav">
-                  <button type="button" className="tt-btn tt-btn--quiet" onClick={() => go({ source: source.id, run: neighbourRun(source.runs, row.id, -1) })} aria-keyshortcuts="J">
+                  <button type="button" className="tt-btn tt-btn--quiet" onClick={() => go({ source: source.id, run: neighbourRun(navRuns, row.id, -1) })} aria-keyshortcuts="J">
                     ‹ Run
                   </button>
-                  <button type="button" className="tt-btn tt-btn--quiet" onClick={() => go({ source: source.id, run: neighbourRun(source.runs, row.id, 1) })} aria-keyshortcuts="K">
+                  <button type="button" className="tt-btn tt-btn--quiet" onClick={() => go({ source: source.id, run: neighbourRun(navRuns, row.id, 1) })} aria-keyshortcuts="K">
                     Run ›
                   </button>
                   <button type="button" className="tt-btn tt-btn--quiet" onClick={() => setViewKey((k) => k + 1)} aria-keyshortcuts="R">

@@ -176,7 +176,7 @@ export function savedInSlot(slot: number): SavedCartridge | null {
 
 /** What the machine gets for a saved cartridge: its name, and the robot's Record page. */
 export function cartridgeOfSaved(c: SavedCartridge, place: number): Cartridge {
-  return { id: `mine-${c.id}`, label: c.name, route: "/pm/record", slot: savedSlot(place) };
+  return { id: `mine-${c.id}`, label: c.name, route: "/pm/record", slot: savedSlot(place), robot: c.robot };
 }
 
 /** The cartridge in any spiral slot: a saved one by its place, else the helix slot's (robots.ts). */

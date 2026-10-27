@@ -166,15 +166,12 @@
   color: var(--w-teal);
 }
 
-.work-back {
-  justify-self: end;
-  color: var(--w-teal);
-  text-decoration: none;
-}
-
-.work-back:hover {
-  color: var(--w-ink);
-  text-decoration: none;
+/* The brand and, beside it, the way back (sant/components/BackToWorkshop). */
+.work-top__left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
 }
 
 .work-main {

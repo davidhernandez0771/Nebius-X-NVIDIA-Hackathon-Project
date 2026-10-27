@@ -5,6 +5,8 @@
 // - the two fans, turning slowly on high and ultra while the lamps are on (an idle loop, so never on low);
 // - the teal lights: the strip along the front and the dock's marks, the fan marks, the dock's slot
 //   (it flashes as a cartridge seats) and the projector's lens;
+// - the cartridge bay on the dock (scene/bay.ts): the model's slot is a shallow plate narrower than a
+//   cartridge, so a code-built sleeve sized to the cartridge stands on it; its lip is the slot light;
 // - the hologram: machine.glb's Record screen, and the particle twin over the lens (HoloTwin), coming up
 //   after the click;
 // - the cartridge on its way: from its spiral slot into the dock (scene/plugSequence.ts). A click runs
@@ -15,30 +17,36 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { DEFAULT_CARTRIDGE, MACHINE_ANCHOR } from "../../core/layout";
 import { ambient } from "../../core/activity";
-import { useWorld, useWorldState } from "../../core/WorldContext";
+import { useWorldState } from "../../core/WorldContext";
 import { HoloTwin } from "../../scene/HoloTwin";
+import { projectionOf } from "../../scene/projection";
 import type { StationSceneProps } from "../../core/types";
 import { CARTRIDGE_URL, MACHINE_URL, MACHINE_V2_URL } from "../../scene/assets";
 import { Materialize } from "../../scene/Materialize";
 import { cartridgeParts, labelAtlas } from "../../scene/cartridge";
 import { slotLook } from "../../scene/Helix";
 import { tileUv } from "../../scene/labels";
+import { bayGeometry } from "../../scene/bay";
+import { MACHINE_PIVOT } from "../../scene/layout";
 import { HOLO_ABOVE_LENS, splitMachineV2 } from "../../scene/machineV2";
 import { liveMaterial, trackLive, vertexPbrMaterial } from "../../scene/materials";
 import { plug } from "../../scene/plug";
-import { cartridgePose, projection, scrollU, slotGlow, timeU, type CartridgePose } from "../../scene/plugSequence";
+import { DOCK_TOP, cartridgePose, projection, scrollU, slotGlow, timeU, type CartridgePose } from "../../scene/plugSequence";
 import { addGlow, markLoaded, power, setGlowGain } from "../../scene/power";
 
 /** Slow: a card at idle, not a jet. */
 const FAN_RPS = 0.3;
 /** The projector's lens before it projects: a faint ready light. */
 const LENS_IDLE = 0.12;
+/** The bay's lip before a cartridge seats: a faint ready light. */
+const LIP_IDLE = 0.3;
 const is = (o: THREE.Object3D, ...names: string[]) => names.some((n) => o.name.startsWith(`mx_M_${n}`));
 
 interface Built {
   root: THREE.Group;
   fans: THREE.Group[];
   slot: THREE.MeshBasicMaterial;
+  lip: THREE.MeshBasicMaterial;
   lens: THREE.MeshBasicMaterial;
   holo: { mat: THREE.MeshBasicMaterial; peak: number }[];
   screen: THREE.Object3D | null;
@@ -74,6 +82,17 @@ function build(old: THREE.Object3D, v2: THREE.Object3D, tier: StationSceneProps[
   add(root, parts.glow, teal, "machine:glow");
   const slot = glow(parts.glowColor, 0, "machine:slot");
   add(root, parts.slot, slot, "machine:slot");
+  // The bay over the dock's slot plate: its shell in the body's material, its lip in the slot's light.
+  const bay = bayGeometry();
+  const bayGroup = new THREE.Group();
+  bayGroup.name = "machine:bay";
+  bayGroup.position.copy(DOCK_TOP).sub(new THREE.Vector3(...MACHINE_ANCHOR));
+  bayGroup.rotation.y = MACHINE_PIVOT.yaw;
+  add(bayGroup, bay.shell, pbr, "machine:bay:shell");
+  // A faint ready light round the mouth; it flashes with the slot as a cartridge seats.
+  const lip = glow(parts.glowColor, LIP_IDLE, "machine:bay:lip");
+  add(bayGroup, bay.lip, lip, "machine:bay:lip");
+  root.add(bayGroup);
   const lens = glow(parts.lensColor, LENS_IDLE, "machine:lens");
   add(root, parts.lens, lens, "machine:lens");
   const fans = parts.fans.map((f, k) => {
@@ -110,7 +129,7 @@ function build(old: THREE.Object3D, v2: THREE.Object3D, tier: StationSceneProps[
     root.add(mesh);
     screen = mesh;
   });
-  return { root, fans, slot, lens, holo: holos, screen, holoAt: parts.lensTop.clone().setY(parts.lensTop.y + HOLO_ABOVE_LENS), releases };
+  return { root, fans, slot, lip, lens, holo: holos, screen, holoAt: parts.lensTop.clone().setY(parts.lensTop.y + HOLO_ABOVE_LENS), releases };
 }
 
 /** The cartridge in flight and plugged in: cartridge.glb's parts as plain meshes, retinted per slot. */
@@ -149,12 +168,8 @@ function useHero(tier: StationSceneProps["quality"]) {
 
 const ANCHOR = new THREE.Vector3(...MACHINE_ANCHOR);
 
-/** After PLUG IN: a breath with the hologram up, then into the projection (the zoom) to the page. */
-const AUTOPLAY_PAUSE_MS = 2200;
-
 export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
-  const { store, goTo } = useWorld();
-  const label = useWorldState((c) => (c.cartridge ?? DEFAULT_CARTRIDGE).label);
+  const cartridge = useWorldState((c) => c.cartridge ?? DEFAULT_CARTRIDGE);
   const gltf = useGLTF(MACHINE_URL, false);
   const v2 = useGLTF(MACHINE_V2_URL, false);
   const invalidate = useThree((s) => s.invalidate);
@@ -182,13 +197,8 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     }
     const u = s.clicked ? timeU(s.startedAt, now, reduced) : scrollU(frame.t);
     plug.progress = u;
-    // PLUG IN: once it is in and projecting, glide on through the zoom; the handoff opens the page.
-    if (s.clicked && u >= 1 && plug.autoplay) {
-      plug.autoplay = false;
-      setTimeout(() => {
-        if (store.getCoarse().branch === "machine") goTo("zoom");
-      }, reduced ? 0 : AUTOPLAY_PAUSE_MS);
-    }
+    // PLUG IN stops here, with the hologram up: the zoom (and the page after it) opens only from a click
+    // ("Into the projection →"), never by itself (site-nav, 2026-10-26).
 
     if (s.dressed !== plug.slot) {
       hero.dress(plug.slot);
@@ -204,6 +214,7 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     }
 
     setGlowGain(built.slot, slotGlow(u));
+    setGlowGain(built.lip, Math.max(LIP_IDLE, slotGlow(u)));
     const p = projection(u);
     setGlowGain(built.lens, LENS_IDLE + (1 - LENS_IDLE) * p);
     // A faint flicker in the projection on ultra (it already renders every frame there).
@@ -230,7 +241,7 @@ export function MachineScene({ frame, quality, reduced }: StationSceneProps) {
     <Materialize>
       <primitive object={built.root} />
       <primitive object={hero.group} />
-      {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} label={label} position={[built.holoAt.x, built.holoAt.y, built.holoAt.z]} /> : null}
+      {frame.near ? <HoloTwin level={() => projection(plug.progress)} quality={quality} projection={projectionOf(cartridge)} position={[built.holoAt.x, built.holoAt.y, built.holoAt.z]} /> : null}
     </Materialize>
   );
 }

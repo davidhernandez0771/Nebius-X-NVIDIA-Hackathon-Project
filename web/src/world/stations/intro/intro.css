@@ -21,41 +21,44 @@
   pointer-events: none;
 }
 
-/* The mark: every part dim, each lit in its order as the work gets done (data-lit = parts lit). */
+/* The mark: the tesseract in digits, writing itself in as the work gets done (DigitMark.tsx draws the canvas). */
 .world-loader__mark {
-  font-size: 30px;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
   transition: transform 0.9s var(--loader-ease), opacity 0.6s var(--loader-ease), filter 0.6s var(--loader-ease);
 }
 
-.world-loader .world-loader__mark .sant-logo {
-  --logo-ink: var(--w-ink);
-  --logo-accent: var(--w-teal);
-  font-size: 30px;
+.world-loader__ascii {
+  display: block;
+  width: min(340px, 74vw);
 }
 
-.world-loader .world-loader__mark .sant-logo__symbol {
-  width: 2.2em;
-  height: 2.2em;
+/* A faint teal breath behind the inner cube, up as the mark completes. */
+.world-loader__mark {
+  position: relative;
 }
 
-.world-loader .world-loader__mark .sant-logo__unit {
-  stroke: rgb(216 239 233 / 0.12);
-  transition: stroke 0.5s ease;
+.world-loader__mark::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 46%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(25 245 194 / 0.12), transparent);
+  opacity: var(--loader-glow, 0);
+  transition: opacity 0.6s ease;
+  pointer-events: none;
 }
 
-.world-loader .world-loader__mark[data-lit="1"] .sant-logo__unit:nth-of-type(-n + 1),
-.world-loader .world-loader__mark[data-lit="2"] .sant-logo__unit:nth-of-type(-n + 2),
-.world-loader .world-loader__mark[data-lit="3"] .sant-logo__unit:nth-of-type(-n + 3),
-.world-loader .world-loader__mark[data-lit="4"] .sant-logo__unit {
-  stroke: var(--w-ink);
-}
-
-.world-loader .world-loader__mark[data-lit="3"] .sant-logo__unit[data-part="accent"]:nth-of-type(-n + 3),
-.world-loader .world-loader__mark[data-lit="4"] .sant-logo__unit[data-part="accent"] {
-  stroke: var(--w-teal);
-}
-
-.world-loader .world-loader__mark .sant-logo__word {
+.world-loader__word {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5em;
+  margin-right: -0.5em;
   color: rgb(216 239 233 / 0.7);
 }
 
@@ -296,6 +299,31 @@
   line-height: 1.65;
   letter-spacing: 0.02em;
   color: #a9c9c1;
+}
+
+/* "See the result" (site-nav): a quiet mono link under the hero's copy, to the Results page's lead. The beat
+   lets clicks through to the 3D; the link takes them. */
+.intro-proof__link {
+  pointer-events: auto;
+  display: inline-block;
+  padding: 6px 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--w-teal);
+  text-decoration: underline;
+  text-decoration-color: rgb(25 245 194 / 0.4);
+  text-underline-offset: 4px;
+}
+.intro-proof__link:hover {
+  color: var(--w-ink);
+  text-decoration-color: currentColor;
+}
+.intro-proof__link:focus-visible {
+  outline: 2px solid var(--w-teal);
+  outline-offset: 3px;
+}
+.intro-proof__what {
+  color: var(--w-dim);
 }
 
 .intro-item {

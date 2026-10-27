@@ -41,6 +41,8 @@ describe("WorldRoot (no WebGL)", () => {
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     sessionStorage.clear();
+    // An open place is in the URL's hash (placeHash.ts): start each test without one.
+    window.history.replaceState(null, "", "/");
   });
   afterEach(() => {
     cleanup();
@@ -65,6 +67,15 @@ describe("WorldRoot (no WebGL)", () => {
     expect(current()).toBe("intro");
     const track = document.querySelector<HTMLElement>(".world-track")!;
     expect(parseFloat(track.style.height)).toBeGreaterThan(window.innerHeight * 10);
+  });
+
+  // site-nav (2026-10-26, the user): a judge can go straight to the proof from the first screen.
+  it("offers a quiet See the result link in the hero, to the proof on the Results page", () => {
+    renderWorld();
+    const hero = document.querySelector<HTMLElement>(".intro-beat--hero")!;
+    const link = within(hero).getByRole("link", { name: /^See the result/ });
+    expect(link.getAttribute("href")).toBe("/site/results#proof");
+    expect(link.textContent).toContain("30/40");
   });
 
   it("tells the story beside the logo one beat at a time, then hands over to the descent", () => {
@@ -129,6 +140,18 @@ describe("WorldRoot (no WebGL)", () => {
     expect(sessionStorage.getItem("world.return")).toBe("machine");
   });
 
+  // site-nav: the caption says what the hologram shows (scene/projection.ts), for the cartridge plugged in.
+  it("captions the machine with what it projects: the Franka's replay, honest about the SO-101", () => {
+    renderWorld();
+    scrollTo(window.innerHeight * HUB);
+    fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Machine" }));
+    const machine = document.querySelector('.world-station[data-station="machine"]')!;
+    expect(machine.textContent).toContain("SO-101 plugs in. The SO-101 has no verified replay yet, so the machine projects the Franka FR3's");
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).slice(-1)[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Franka FR3" }));
+    expect(machine.textContent).toContain("Franka FR3 plugs in, and the machine projects it");
+  });
+
   it("hands off now with the zoom's button, to Record with the SO-101 by default", () => {
     renderWorld();
     fireEvent.click(screen.getByRole("button", { name: "Open SO-101" }));
@@ -176,6 +199,25 @@ describe("WorldRoot (no WebGL)", () => {
     expect(on()).toMatch(/stills\/workshop\.webp$/);
   });
 
+  // site-nav (2026-10-26), the user's bug 2: the journey rail's MACHINE (or WORKBENCH, ROBOTS) straight from the
+  // story opened the place over an unbuilt room (black), and Back to room landed back in the story.
+  it.each([
+    ["Machine", "machine"],
+    ["Workbench", "workbench"],
+    ["Robots", "robots"],
+  ])("opens %s from the story inside the room: the rail cuts to the workshop first, and Back lands in the room", (label, id) => {
+    renderWorld();
+    expect(current()).toBe("intro");
+    const room = window.innerHeight * (INTRO + 3 + 0.8);
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Journey" })).getByRole("button", { name: label }));
+    expect(current()).toBe(id);
+    // The page went to the room view under the place (the workshop's dwell), with no glide.
+    const ys = vi.mocked(window.scrollTo).mock.calls.map((c) => (c[0] as ScrollToOptions).top ?? 0);
+    expect(Math.max(...ys)).toBeGreaterThanOrEqual(room - 1);
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).slice(-1)[0]);
+    expect(current()).toBe("workshop");
+  });
+
   it("comes back from a 2D route to the machine, without leaving again", () => {
     sessionStorage.setItem("world.return", "machine");
     renderWorld();
@@ -186,11 +228,132 @@ describe("WorldRoot (no WebGL)", () => {
   });
 });
 
+// site-nav (2026-10-26): the browser's own Back (a phone's back gesture) inside a place left the site, and a
+// reload dropped you at the top of the story. The open place is in the URL's hash now (placeHash.ts).
+describe("the browser's Back and Forward in the workshop (no WebGL)", () => {
+  const hub = () => scrollTo(window.innerHeight * HUB);
+  const goMachine = () => fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Machine" }));
+  beforeEach(() => {
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("opening a place adds a history entry: Back closes it, Forward opens it again", async () => {
+    renderWorld();
+    hub();
+    const before = window.history.length;
+    goMachine();
+    expect(current()).toBe("machine");
+    expect(window.location.hash).toBe("#machine");
+    expect(window.history.length).toBe(before + 1);
+    act(() => window.history.back());
+    await waitFor(() => expect(current()).toBe("workshop"));
+    expect(window.location.hash).toBe("");
+    act(() => window.history.forward());
+    await waitFor(() => expect(current()).toBe("machine"));
+  });
+
+  it("its own Back to room (or Escape) takes the entry back off, so the next Back doesn't reopen it", async () => {
+    renderWorld();
+    hub();
+    goMachine();
+    fireEvent.click(screen.getAllByRole("button", { name: /Back to room/ }).slice(-1)[0]);
+    expect(current()).toBe("workshop");
+    await waitFor(() => expect(window.location.hash).toBe(""));
+    // Into another place and out by Escape: the same.
+    fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Robots" }));
+    expect(window.location.hash).toBe("#robots");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(current()).toBe("workshop");
+    await waitFor(() => expect(window.location.hash).toBe(""));
+  });
+
+  it("into the projection stays on the machine's entry", () => {
+    renderWorld();
+    hub();
+    goMachine();
+    const len = window.history.length;
+    fireEvent.click(screen.getByRole("button", { name: "Into the projection →" }));
+    expect(current()).toBe("zoom");
+    expect(window.location.hash).toBe("#machine");
+    expect(window.history.length).toBe(len);
+  });
+
+  it("a reload (or a link) with a place in the URL opens it in the room", () => {
+    window.history.replaceState(null, "", "/#robots");
+    renderWorld();
+    expect(current()).toBe("robots");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(current()).toBe("workshop");
+    expect(window.location.hash).toBe("");
+  });
+});
+
+// site-nav (2026-10-26, the user): a reload in the story or the descent starts where the visitor was, not at the top.
+describe("a reload resumes the journey (no WebGL)", () => {
+  const reloadNav = (type: string) =>
+    vi.spyOn(performance, "getEntriesByType").mockImplementation(((t: string) => (t === "navigation" ? [{ type }] : [])) as never);
+  beforeEach(() => {
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+  const ys = () => vi.mocked(window.scrollTo).mock.calls.map((c) => (c[0] as ScrollToOptions).top ?? 0);
+
+  it("keeps where the page is when it goes away, and comes back there on a reload", () => {
+    const { unmount } = renderWorld();
+    const y = window.innerHeight * (INTRO + 1.5);
+    scrollTo(y);
+    expect(current()).toBe("descent");
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    unmount();
+    // A reload opens at the top of the page, before the world puts it back.
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    vi.mocked(window.scrollTo).mockClear();
+    reloadNav("reload");
+    renderWorld();
+    expect(current()).toBe("descent");
+    expect(Math.abs(Math.max(...ys()) - y)).toBeLessThan(2);
+  });
+
+  it("a new visit (not a reload) still starts at the top", () => {
+    sessionStorage.setItem("world.spot", JSON.stringify({ u: 0.5 }));
+    reloadNav("navigate");
+    renderWorld();
+    expect(current()).toBe("intro");
+    expect(ys().filter((y) => y > 0)).toEqual([]);
+  });
+
+  it("a place in the URL wins over the spot", () => {
+    sessionStorage.setItem("world.spot", JSON.stringify({ u: 0.1 }));
+    window.history.replaceState(null, "", "/#robots");
+    reloadNav("reload");
+    renderWorld();
+    expect(current()).toBe("robots");
+  });
+});
+
 describe("the spiral's filters (no WebGL)", () => {
   beforeEach(() => {
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
     vi.spyOn(window, "scrollTo").mockImplementation(() => {});
     sessionStorage.clear();
+    // An open place is in the URL's hash (placeHash.ts): start each test without one.
+    window.history.replaceState(null, "", "/");
   });
   afterEach(async () => {
     cleanup();
@@ -233,8 +396,13 @@ describe("the spiral's filters (no WebGL)", () => {
     // Back on the shelf it came from.
     expect(shelf.open).toBe(true);
     fireEvent.keyDown(window, { key: "Enter" });
-    // Without the canvas there is no plug-in to watch: Plug in opens the page.
+    // site-nav (2026-10-26, the user): Plug in stops at the machine's projection; Record opens only from a button.
     fireEvent.click(screen.getByRole("button", { name: "Plug in →" }));
+    expect(screen.queryByRole("heading", { name: "Record page" })).toBeNull();
+    expect(current()).toBe("machine");
+    fireEvent.click(screen.getByRole("button", { name: "Into the projection →" }));
+    expect(current()).toBe("zoom");
+    fireEvent.click(screen.getByRole("button", { name: "Open RECORD" }));
     expect(screen.getByRole("heading", { name: "Record page" })).toBeTruthy();
   });
 
@@ -261,6 +429,100 @@ describe("the spiral's filters (no WebGL)", () => {
     expect(screen.getByText('› open_cartridge("grasp-fix") · rules')).toBeTruthy();
     expect(spiral.selected).toBe(5);
     vi.unstubAllGlobals();
+  });
+
+  // Every way out of the shelf gives back the camera, the scroll and the room's UI (site-fixes-1, bug 4).
+  describe("leaving the shelf", () => {
+    const openShelf = async () => {
+      const { shelf } = await import("../stations/workshop/stepper");
+      scrollTo(window.innerHeight * HUB);
+      fireEvent.click(screen.getByRole("button", { name: "-> record a demo" }));
+      expect(shelf.open).toBe(true);
+      expect(document.documentElement.style.overflow).toBe("hidden");
+      return shelf;
+    };
+    afterEach(async () => {
+      const { setFilter, setSelected } = await import("../scene/spiral");
+      const { shelf } = await import("../stations/workshop/stepper");
+      shelf.open = false;
+      setSelected(-1);
+      setFilter(null);
+    });
+
+    it.each(["Story", "Descent"])("by the journey rail's %s: the shelf closes and the page scrolls again", async (to) => {
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Journey" })).getByRole("button", { name: to }));
+      await waitFor(() => expect(shelf.open).toBe(false), { timeout: 2000 });
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("from a detail view by the journey rail: the detail closes with it", async () => {
+      const { spiral } = await import("../scene/spiral");
+      renderWorld();
+      await openShelf();
+      fireEvent.keyDown(window, { key: "Enter" });
+      expect(spiral.selected).toBeGreaterThanOrEqual(0);
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Journey" })).getByRole("button", { name: "Story" }));
+      await waitFor(() => expect(spiral.selected).toBe(-1), { timeout: 2000 });
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("to the machine and back: back lands in the room view, not on a shelf with no UI", async () => {
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.click(screen.getByRole("button", { name: "PiPER" }));
+      expect(current()).toBe("machine");
+      expect(shelf.open).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: /Back to room/ }));
+      expect(current()).toBe("workshop");
+      expect(shelf.open).toBe(false);
+      // The stills have no landed dive to hold: nothing holds the page now.
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("by its own Back to room button, which says how to browse", async () => {
+      renderWorld();
+      const shelf = await openShelf();
+      const bar = screen.getByRole("group", { name: "The shelf: the way out" });
+      expect(bar.textContent).toMatch(/to browse/);
+      fireEvent.click(within(bar).getByRole("button", { name: "Back to room" }));
+      expect(shelf.open).toBe(false);
+      expect(screen.queryByRole("group", { name: "The shelf: the way out" })).toBeNull();
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    // site-nav: the detail view had no way back in the one place every other view has it (its Close sat in
+    // its card, bottom left). The same bar now: a step back to the shelf first, then the room.
+    it("from a detail view by the same bar: Back to shelf first, then Back to room", async () => {
+      const { spiral } = await import("../scene/spiral");
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.keyDown(window, { key: "Enter" });
+      expect(spiral.selected).toBeGreaterThanOrEqual(0);
+      const bar = screen.getByRole("group", { name: "The shelf: the way out" });
+      expect(within(bar).getAllByRole("button").map((b) => b.textContent)).toEqual(["← Back to shelf", "← Back to room"]);
+      expect(bar.textContent).toContain("Esc steps back");
+      fireEvent.click(within(bar).getByRole("button", { name: "Back to shelf" }));
+      expect(spiral.selected).toBe(-1);
+      expect(shelf.open).toBe(true);
+      fireEvent.keyDown(window, { key: "Enter" });
+      fireEvent.click(within(screen.getByRole("group", { name: "The shelf: the way out" })).getByRole("button", { name: "Back to room" }));
+      expect(spiral.selected).toBe(-1);
+      expect(shelf.open).toBe(false);
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("to the robot wall and out on Escape: the same", async () => {
+      renderWorld();
+      const shelf = await openShelf();
+      fireEvent.click(within(screen.getByRole("group", { name: "Go to" })).getByRole("button", { name: "Robots" }));
+      expect(current()).toBe("robots");
+      expect(shelf.open).toBe(false);
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(current()).toBe("workshop");
+      expect(document.documentElement.style.overflow).toBe("");
+    });
   });
 
   it("lists the cartridges as buttons without the 3D spiral, filtered too", async () => {

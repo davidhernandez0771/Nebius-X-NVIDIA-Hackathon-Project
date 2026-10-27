@@ -40,7 +40,7 @@ describe("the robots catalog panel", () => {
     expect(franka.getByText("0.86 m")).toBeTruthy();
     expect(franka.getByText("Joint limits")).toBeTruthy();
     expect(franka.getByText("-176° to -4°")).toBeTruthy();
-    expect(franka.getByText(/^Multiply 30\/30/)).toBeTruthy();
+    expect(franka.getByText(/^A camera policy from 10 human mouse demos: 30\/40 .*Multiply 30\/30/)).toBeTruthy();
     expect(within(entry("Flexiv Rizon 4s")).queryByText("Joint limits")).toBeNull();
     expect(within(entry("SO-101")).queryByText("In Isaac")).toBeNull();
     expect(screen.queryByText("Payload")).toBeNull();
@@ -87,9 +87,39 @@ describe("the robots catalog panel", () => {
     expect(scroll).toHaveBeenCalled();
   });
 
-  it("goes back to the room", () => {
+  it("goes back to the room with a real button, and says how", () => {
     const api = at();
-    fireEvent.click(screen.getByRole("button", { name: "← Room" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to room" }));
     expect(api.back).toHaveBeenCalled();
+    expect(screen.getByRole("group", { name: "The robot wall: the way out" }).textContent).toMatch(/close-up/);
+  });
+
+  it("gives a robot a close-up from its entry too (the keyboard path to the wall), and steps back to the wall", () => {
+    at();
+    Element.prototype.scrollIntoView = vi.fn();
+    fireEvent.click(within(entry("OpenArm")).getByRole("button", { name: /OpenArm/ }));
+    expect(robotsView.get().picked).toBe("openarm");
+    fireEvent.click(screen.getByRole("button", { name: "All robots" }));
+    expect(robotsView.get().picked).toBeNull();
+  });
+
+  it("Escape in a close-up steps back to the wall, and takes the key so the room stays open", () => {
+    at();
+    Element.prototype.scrollIntoView = vi.fn();
+    act(() => robotsView.pick("so101"));
+    const e = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+    act(() => void window.dispatchEvent(e));
+    expect(robotsView.get().picked).toBeNull();
+    expect(e.defaultPrevented).toBe(true);
+    // On the wall, Escape belongs to WorldRoot (back to the room): the panel leaves it alone.
+    const e2 = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+    act(() => void window.dispatchEvent(e2));
+    expect(e2.defaultPrevented).toBe(false);
+  });
+
+  it("closing the wall drops the close-up", () => {
+    robotsView.pick("piper");
+    at(false);
+    expect(robotsView.get().picked).toBeNull();
   });
 });

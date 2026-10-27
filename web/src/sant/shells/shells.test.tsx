@@ -85,6 +85,15 @@ describe("StoryShell", () => {
     expect(screen.getByRole("contentinfo").textContent).toMatch(/Built with NVIDIA Isaac Lab, NVIDIA Nemotron and Nebius Token Factory/);
   });
 
+  // site-nav (2026-10-26): the mark went to /site, the top of the intro; the way back is the world's, top left.
+  it("has the way back to the workshop right after the mark", () => {
+    app("/story");
+    const nav = screen.getByRole("navigation", { name: "Story" });
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(nav.querySelectorAll("a")[1]).toBe(back);
+  });
+
   it("creates Lenis smooth scroll with full motion, and destroys it on leaving", () => {
     stubReducedMotion(false);
     const { unmount } = app("/story");
@@ -109,6 +118,12 @@ describe("AppShell", () => {
     expect(screen.getByRole("switch", { name: /effects/i })).toBeTruthy();
     expect(screen.getByRole("heading", { level: 1, name: "App page" })).toBeTruthy();
     expect(lenis.created).toBe(0);
+  });
+
+  it("has the way back to the workshop right after the mark", () => {
+    app("/app");
+    const nav = screen.getByRole("navigation", { name: "App" });
+    expect(nav.querySelectorAll("a")[1]).toBe(screen.getByRole("link", { name: "Back to workshop" }));
   });
 });
 

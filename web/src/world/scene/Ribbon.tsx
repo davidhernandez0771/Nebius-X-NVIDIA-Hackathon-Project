@@ -3,10 +3,12 @@
 // from the slots). A smooth curve runs through the cartridges' bottom edges; the band is that curve
 // widened toward and away from the axis. The light is a soft-edged line (materials.ts softLine): from
 // the room view it is about two pixels tall, and drawn as hard geometry it crawled with the mouse look.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { HELIX } from "./layout";
+import { HELIX, SPARE } from "./layout";
 import { withSoftEdge } from "./materials";
+import { liftOffset } from "./lift";
 import { addGlow } from "./power";
 
 /** Half a cartridge's height: a slot's position is the cartridge's centre. */
@@ -18,9 +20,14 @@ export const EDGE_REACH = 3;
 const SAMPLES = 480;
 export const TEAL = "#3FE0C0";
 
-/** The band's centre line, through each cartridge's bottom edge, a quarter turn past both ends. */
+/**
+ * The band's centre line, through each cartridge's bottom edge, a quarter turn past both ends. It runs
+ * through the empty places too (layout.ts SPARE, where Blender left gaps of up to 160° round the
+ * helix): straight across such a gap it cut through the spiral's hollow core, where the arm waits.
+ */
 export function ribbonCurve(): THREE.CatmullRomCurve3 {
-  const pts = HELIX.map((s) => new THREE.Vector3(s.position[0], s.position[1] - HALF_H * s.scale - 0.02, s.position[2]));
+  const places = HELIX.flatMap((h) => [h, ...SPARE.filter((p) => p.after === h.index)]);
+  const pts = places.map((s) => new THREE.Vector3(s.position[0], s.position[1] - HALF_H * s.scale - 0.02, s.position[2]));
   const extend = (a: THREE.Vector3, b: THREE.Vector3) => {
     // Continue the turn past the end: rotate the last step on around the axis.
     const ang = Math.atan2(a.x, a.z) - Math.atan2(b.x, b.z);
@@ -92,8 +99,13 @@ export function Ribbon() {
       edge.dispose();
     };
   }, [band, edge, bandMat, edgeMat]);
+  // It rises with the cartridges when the spiral lifts out of the arm's way (lift.ts; Helix asks for the frames).
+  const group = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (group.current) group.current.position.y = liftOffset();
+  });
   return (
-    <group name="ribbon">
+    <group ref={group} name="ribbon">
       <mesh geometry={band} material={bandMat} raycast={() => null} />
       <mesh geometry={edge} material={edgeMat} raycast={() => null} />
     </group>

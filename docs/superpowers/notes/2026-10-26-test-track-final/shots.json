@@ -1,0 +1,84 @@
+{
+ "shots": [
+  {
+   "name": "01-desktop-final-test-opens",
+   "caption": "Isaac Sim replay · seed 5401 · step 1 of 475",
+   "scrollY": 0
+  },
+  {
+   "name": "02-desktop-success-5401-mid-grasp",
+   "caption": "Isaac Sim replay · seed 5401 · step 250 of 475",
+   "scrollY": 0
+  },
+  {
+   "name": "03-desktop-failed-5408-collision",
+   "caption": "Isaac Sim replay · seed 5408 · step 639 of 1500",
+   "scrollY": 0
+  },
+  {
+   "name": "04-desktop-failed-5433-dropped",
+   "caption": "Isaac Sim replay · seed 5433 · step 699 of 1500",
+   "scrollY": 0
+  },
+  {
+   "name": "05-phone-success-5401-mid-grasp",
+   "caption": "Isaac Sim replay · seed 5401 · step 250 of 475",
+   "scrollY": 0
+  },
+  {
+   "name": "06-phone-success-tags",
+   "caption": "Isaac Sim replay · seed 5401 · step 250 of 475",
+   "scrollY": 797
+  },
+  {
+   "name": "07-phone-failed-5408",
+   "caption": "Isaac Sim replay · seed 5408 · step 639 of 1500",
+   "scrollY": 0
+  },
+  {
+   "name": "08-phone-failed-5408-verdict",
+   "caption": "Isaac Sim replay · seed 5408 · step 639 of 1500",
+   "scrollY": 797
+  },
+  {
+   "name": "09-phone-filter-and-why-failed",
+   "caption": "Isaac Sim replay · seed 5408 · step 639 of 1500",
+   "scrollY": 1529
+  }
+ ],
+ "console": [
+  "warning: ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more informa",
+  "warning: ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see http",
+  "warning: ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more informa",
+  "warning: ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see http",
+  "warning: ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more informa",
+  "warning: ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see http",
+  "warning: ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more informa",
+  "warning: ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see http",
+  "warning: ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more informa",
+  "warning: ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see http"
+ ],
+ "audits": {
+  "desktop": {
+   "label": "desktop",
+   "hscroll": false,
+   "scrollWidth": 1265,
+   "innerWidth": 1280,
+   "unnamed": 0
+  },
+  "phone": {
+   "label": "phone",
+   "hscroll": false,
+   "scrollWidth": 390,
+   "innerWidth": 390,
+   "unnamed": 0
+  },
+  "phoneFailed": {
+   "label": "phone failed",
+   "hscroll": false,
+   "scrollWidth": 390,
+   "innerWidth": 390,
+   "unnamed": 0
+  }
+ }
+}

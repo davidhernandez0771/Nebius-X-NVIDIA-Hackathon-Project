@@ -69,7 +69,10 @@ describe("the page frame", () => {
     expect(links.map((l) => l.textContent)).toEqual(["Record", "Pipeline", "Data"]);
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/record", "/pipeline", "/data"]);
     expect(links.map((l) => l.getAttribute("aria-current"))).toEqual([null, "page", null]);
-    expect(screen.getByRole("link", { name: /workshop/i }).getAttribute("href")).toBe("/");
+    // The way back (site-nav): "← Back to workshop", the first link after the mark, top left.
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(document.querySelector(".holo-top a")).toBe(back);
   });
 });
 

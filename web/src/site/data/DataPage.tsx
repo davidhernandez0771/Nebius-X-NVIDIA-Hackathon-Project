@@ -2,7 +2,7 @@
 // simulator's own camera, every view with its physics verdict; and SANT working live on a running experiment.
 // Read only. ?set=<experiment> picks the experiment, ?mode=live the live view.
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { HoloPage } from "../holo/Holo";
 import { fetchSets, type Fetch } from "./api";
 import { useAsync } from "./hooks";
@@ -63,7 +63,12 @@ export default function DataPage({ fetchImpl, Source }: { fetchImpl?: Fetch; Sou
           and the copies it multiplied, in the robot twin and in the simulator's own camera, each with the verdict physics gave it.
         </p>
         {sets.state === "loading" && <p className="data-note">Loading the experiments…</p>}
-        {sets.state === "error" && <p className="data-note data-note--error">The experiments didn't load: {sets.message}</p>}
+        {sets.state === "error" && (
+          <p className="data-note data-note--error" role="status">
+            The experiments didn't load. {sets.message} Without it, <Link to="/test-track">the test track</Link> replays the final
+            test's 40 runs, and <Link to="/site/results">Results</Link> has every number with its source.
+          </p>
+        )}
         {list.length > 0 && current && (
           <>
             <nav className="data-sets" aria-label="Experiments">

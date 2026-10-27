@@ -1,14 +1,13 @@
-// The loader: a real one. It holds the page (no scroll) until the first scene is truly ready
-// (progress.ts: the 3D engine, the type, the tesseract built, every shader compiled, a few steady frames),
-// and shows that work as it happens: the SANT mark lighting part by part, a bar, the share and what it is
-// waiting for now. Then it lets go into the hero (the mark lifts and fades as the black opens; with reduced
+// The loader: a real one. The page holds still until the first scene is truly ready (store.setReady here;
+// the hold itself is WorldRoot's, core/pageHold.ts) (progress.ts: the 3D engine, the type, the tesseract built, every shader compiled, a few steady frames),
+// and shows that work as it happens: the SANT mark writing itself in digits part by part (DigitMark.tsx), a bar,
+// the share and what it is waiting for now. Then it lets go into the hero (the mark lifts and fades as the black opens; with reduced
 // motion a plain fade). The heavier stations keep streaming in the background (core/assets.ts).
 // It never traps anyone: after CONTINUE_MS it offers "Continue anyway" (in at what is ready) and the 2D
 // version; if the 3D engine never even started by STALL_MS it falls back to the stills by itself.
-import { useEffect, useRef, useState } from "react";
-import { Logo } from "../../../sant/components/Logo";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useWorld } from "../../core/WorldContext";
-import { LOGO_SYMBOL } from "../../../sant/components/logoSymbol";
+import { DigitMark } from "./DigitMark";
 import { load, type Status } from "./progress";
 
 /** Hold at 100 for a breath before lifting, so the full bar registers. */
@@ -32,17 +31,6 @@ export function Loader() {
   const [value, setValue] = useState(() => load.value());
   const [slow, setSlow] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-
-  // Hold the page still while loading: nobody scrolls into a scene that isn't there yet.
-  useEffect(() => {
-    if (done) return;
-    const html = document.documentElement;
-    const before = html.style.overflow;
-    html.style.overflow = "hidden";
-    return () => {
-      html.style.overflow = before;
-    };
-  }, [done]);
 
   useEffect(() => {
     if (gone) return;
@@ -91,13 +79,14 @@ export function Loader() {
 
   if (gone) return null;
   const pct = Math.round(value * 100);
-  // The mark's parts light in their order as the work gets done; the last one at the end.
-  const lit = Math.min(LOGO_SYMBOL.units.length, Math.floor(value * LOGO_SYMBOL.units.length + 1e-9));
   const text = status.step ? (status.detail ? `${status.label}, ${status.detail}` : status.label) : "Ready";
   return (
     <div ref={root} className="world-loader" data-done={done} data-slow={slow && !done}>
-      <div className="world-loader__mark" data-lit={done ? LOGO_SYMBOL.units.length : lit}>
-        <Logo size="lg" lit="all" />
+      <div className="world-loader__mark" style={{ "--loader-glow": done ? 1 : Math.max(0, (value - 0.5) * 2).toFixed(3) } as CSSProperties}>
+        <DigitMark value={done ? 1 : value} reduced={reduced} />
+        <span className="world-loader__word" aria-hidden="true">
+          SANT
+        </span>
       </div>
       <div
         className="world-loader__bar"

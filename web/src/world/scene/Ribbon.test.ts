@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { HELIX } from "./layout";
+import { HELIX, SPARE } from "./layout";
 import { EDGE_REACH, bandGeometry, ribbonCurve } from "./Ribbon";
 
 describe("the spiral's band", () => {
-  it("runs just under every cartridge's bottom edge, rising all the way", () => {
+  it("runs just under every cartridge's bottom edge (and every empty place's), rising all the way", () => {
     const pts = ribbonCurve().points;
-    expect(pts).toHaveLength(HELIX.length + 2);
-    HELIX.forEach((s, i) => {
+    const places = HELIX.flatMap((h) => [h, ...SPARE.filter((p) => p.after === h.index)]);
+    expect(pts).toHaveLength(HELIX.length + SPARE.length + 2);
+    places.forEach((s, i) => {
       const p = pts[i + 1];
       expect(p.y).toBeLessThan(s.position[1] - 1.2);
       expect(p.y).toBeGreaterThan(s.position[1] - 1.35);

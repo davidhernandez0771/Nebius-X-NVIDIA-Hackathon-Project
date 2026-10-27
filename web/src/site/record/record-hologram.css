@@ -1152,8 +1152,29 @@
     overflow: visible;
   }
 
+  /* A row that wraps (site-nav, 2026-10-26): as a two-column grid the right group (status chips, record, clock,
+     settings) is wider than a phone and was drawn over the crumb, the way back to the workshop under it. */
   .rg-top {
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .rg-crumb {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .rg-right {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .rg-chips {
+    flex-wrap: wrap;
   }
 
   .rg-steps {
@@ -1168,8 +1189,51 @@
     aspect-ratio: 4 / 3;
   }
 
+  /* Driving (keyboard or mouse) there is no camera frame to keep at 4:3, and the key table is taller than a phone's
+     4:3 pane: the pane grows with the panel, and Start sits in the flow under it, clear of the keys and the hint
+     line (site-nav, 2026-10-26: at 390 px they were drawn over each other). */
+  .rg-cam:has(.rg-drive) {
+    aspect-ratio: auto;
+  }
+
+  .rg-cam:has(.rg-drive) .rg-cam__media {
+    position: relative;
+    inset: auto;
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    padding: 40px 12px 40px;
+    container-type: normal;
+  }
+
+  .rg-cam:has(.rg-drive) .rg-camfoot {
+    white-space: normal;
+  }
+
+  /* (the pane's class too: the base rule for it comes later in this file) */
+  .rg-cam .rg-drive__start {
+    position: static;
+  }
+
   .rg-side {
     grid-template-rows: 400px 180px;
+  }
+
+  /* The twin pane's header (site-bugs, 2026-10-26): the label, the wrist dial, the soft floor box and the mode tag
+     are one row wider than a phone's pane, and the tag ran past its right edge. It wraps: the tools drop under the
+     label, and the 3D view starts under both lines. */
+  .rg-hd--twin {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .rg-hd--twin .rg-hd__tools {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .rg-twin3d {
+    inset: 48px 0 0;
   }
 
   .rg-bottom {
