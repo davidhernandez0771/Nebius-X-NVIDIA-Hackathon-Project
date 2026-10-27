@@ -74,6 +74,6 @@ describe("RobotsPage", () => {
   it("announces the pick for screen readers", async () => {
     await renderPage();
     fireEvent.click(listButton(/Franka Panda/));
-    expect(document.querySelector(".robots-sr")?.textContent).toContain("Franka Panda: Tested, 30/30 copies · 3/40 → 17/40");
+    expect(document.querySelector(".robots-sr")?.textContent).toContain("Franka Panda: Tested, 30/30 copies · policy 30/40");
   });
 });
