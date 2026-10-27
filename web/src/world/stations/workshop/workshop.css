@@ -276,35 +276,6 @@
   font-size: 12px;
 }
 
-/* The tour's caption. */
-.world-tour {
-  position: fixed;
-  top: 12vh;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 7;
-  width: min(560px, calc(100vw - 32px));
-  text-align: center;
-  font-family: var(--w-mono);
-  color: var(--w-ink);
-  pointer-events: none;
-}
-
-.world-tour h3 {
-  margin: 0 0 8px;
-  font-weight: 300;
-  font-size: clamp(22px, 3vw, 40px);
-  text-transform: uppercase;
-}
-
-.world-tour p {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #a9c9c1;
-}
-
 [data-motion-world="reduced"] .world-ask__privacy,
 [data-motion-world="reduced"] .world-ask__pill {
   transition: none;

@@ -198,7 +198,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       goTo(id) {
         const m = stations.find((s) => s.id === id);
         if (!m) return;
-        // Anywhere else lets go of a held shot (the shelf, a detail view, the tour): Back lands in the room view.
+        // Anywhere else lets go of a held shot (the shelf, a detail view): Back lands in the room view.
         store.setOverride(null);
         if (m.kind === "branch") {
           // A branch is a place in the workshop's room. Opened from anywhere else on the rail (the journey
@@ -358,7 +358,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
   }, [store]);
 
   // The page holds still from one place (pageHold.ts): the loader, an open branch, a held shot (the shelf,
-  // the detail view, the tour), or in 3D the room view once the dive has landed (the room is a game: clicks,
+  // the detail view), or in 3D the room view once the dive has landed (the room is a game: clicks,
   // Escape). It writes whenever the page differs from that answer. "↑ Story" (world:story) goes back to
   // the top, which lets go of it.
   useEffect(() => {

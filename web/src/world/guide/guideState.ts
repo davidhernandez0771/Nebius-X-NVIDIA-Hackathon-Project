@@ -105,7 +105,7 @@ export function resetGuide(): void {
 
 /**
  * The workshop's room view, where every step's target is on screen: the rail in the workshop, arrived, with no
- * place open and no held shot (the shelf, a detail view, Ask SANT's camera tour). CameraRig's inHub, on the coarse
+ * place open and no held shot (the shelf, a detail view). CameraRig's inHub, on the coarse
  * state, so this module doesn't pull the 3D in.
  */
 export function inRoomView(c: Pick<Coarse, "current" | "branch" | "override">, arrive: number): boolean {

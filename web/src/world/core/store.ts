@@ -18,7 +18,7 @@ export interface Coarse {
    */
   ready: boolean;
   /**
-   * A shot the camera holds instead of the rail (the detail view, the tour), or null. The rail's
+   * A shot the camera holds instead of the rail (the detail view, the shelf), or null. The rail's
    * stations stay current under it; the page scroll is held while it is set.
    */
   override: HeldShot | null;

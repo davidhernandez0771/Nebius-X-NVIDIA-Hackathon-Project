@@ -10,7 +10,7 @@ import { ITEMS, itemIndex, tagLabel, type TagId } from "../scene/items";
 import { setFilter, spiral } from "../scene/spiral";
 import { useDetail } from "../stations/workshop/detailStore";
 import { scrollToStep } from "../stations/workshop/stepper";
-import { endTour, startTour } from "../stations/workshop/tour";
+import { requestGuide } from "../guide/guideState";
 import { TOOLS, callLine, route, validCall, type Section, type ToolCall } from "./registry";
 
 export const ASK_TIMEOUT_MS = 6000;
@@ -53,7 +53,6 @@ export function useAsk() {
   /** Runs a checked call and says what it did. */
   const run = (c: ToolCall): string => {
     detail.close();
-    endTour(store);
     switch (c.tool) {
       case "go_to_section": {
         const s = c.arg as Section;
@@ -81,8 +80,10 @@ export function useAsk() {
         return `Opening ${ITEMS[i].title}.`;
       }
       case "start_tutorial":
-        startTour(store);
-        return "A short tour of the workshop.";
+        // The workshop's tour is the first-visit guide (guide/Guide.tsx): it goes to the room view if it isn't
+        // there, then opens its first card.
+        requestGuide();
+        return "The workshop's tour: four short cards, step by step.";
     }
   };
 
