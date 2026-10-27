@@ -428,7 +428,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
 
         <div className="rg-side">
           <section className="rg-pane" aria-label="workspace" ref={twinPane}>
-            <div className="rg-hd">
+            <div className="rg-hd rg-hd--twin">
               <span>workspace · robot twin</span>
               <span className="rg-hd__tools">
                 <WristDial yaw={pose?.msg.tracking_ok ? pose.msg.yaw_rad : null} />
