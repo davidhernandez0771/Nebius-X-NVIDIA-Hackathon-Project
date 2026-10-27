@@ -5,6 +5,7 @@
 // Owner: T1 (pm/data-holo); T2's /pipeline uses it. Ask before changing a class's box model.
 import { useEffect, useRef, type ComponentPropsWithoutRef, type ElementType, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, type LinkProps } from "react-router-dom";
+import { BackToWorkshop } from "../../sant/components/BackToWorkshop";
 import { Logo } from "../../sant/components/Logo";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { handingOff, handoffArrive, handoffStart } from "./handoff";
@@ -46,7 +47,7 @@ export function HandoffLink({ to, label, onClick, ...rest }: Omit<LinkProps, "to
   return <Link to={to} onClick={click} {...rest} />;
 }
 
-/** The frame of a work page: Record's top strip (the mark, back to the workshop, the title, the path
+/** The frame of a work page: Record's top strip (the mark, "← Back to workshop", the title, the path
  *  Record › Pipeline › Data, the page's actions), then the page. Keeps the SANT app's root (.sant, Volt). */
 export function HoloPage({ title, here, actions, children }: { title: string; here: HoloPageId; actions?: ReactNode; children: ReactNode }) {
   const h1 = useRef<HTMLHeadingElement>(null);
@@ -62,9 +63,7 @@ export function HoloPage({ title, here, actions, children }: { title: string; he
           <span className="holo-top__brand">
             <Logo size="sm" lit="all" />
           </span>
-          <Link className="holo-top__eject" to="/" title="Back to the workshop">
-            <span aria-hidden="true">⏏</span> workshop
-          </Link>
+          <BackToWorkshop />
           <h1 ref={h1} className="holo-top__title" tabIndex={-1}>
             {title}
           </h1>

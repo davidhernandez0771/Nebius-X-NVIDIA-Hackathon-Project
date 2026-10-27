@@ -12,12 +12,12 @@
       "sub": "7-DOF · PARALLEL GRIPPER",
       "status": "Tested",
       "year": "2026",
-      "note": "30/30 copies · 3/40 → 17/40",
+      "note": "30/30 copies · policy 30/40",
       "pal": ["#0b3b46", "#19f5c2", "#e8fffa", "#0f6e6a"],
       "fx": "scan",
       "sources": [
         "docs/superpowers/notes/2026-10-15-t2-status.md (sprint 4 Task 1)",
-        "docs/superpowers/notes/2026-10-15-t3-status.md (sprint 7 Tasks 3-4)"
+        "https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project/blob/pm/live-13/docs/superpowers/notes/2026-10-23-bigtest-prereg.md#L744"
       ]
     },
     {

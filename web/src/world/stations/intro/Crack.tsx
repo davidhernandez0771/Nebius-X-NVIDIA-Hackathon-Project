@@ -31,7 +31,7 @@ void main(){
   // the most, and the rock goes dark with distance, so walls, roots and boulders stream past out of the dark.
   vec3 nn = normalize(vN) * (gl_FrontFacing ? 1. : -1.);
   float below = .3 + .7 * clamp(.3 - .8 * nn.y, 0., 1.);
-  float k = .15 + .85 * pow(depth, 1.3);
+  float k = .15 + .85 * pow(max(depth, 0.), 1.3);
   float near = exp(-distance(vW, cameraPosition) * .09);
   vec3 fall = rock * (uTeal * .05 * k * below + vec3(.008, .01, .012) * (.4 + k)) * near;
   if (vUv.y > .5) {

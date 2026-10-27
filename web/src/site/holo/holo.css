@@ -99,22 +99,6 @@
   font-size: 14px;
 }
 
-.sant .holo-top__eject {
-  flex: none;
-  padding: 3px 8px;
-  border: 1px solid var(--holo-line-dim);
-  border-radius: 2px;
-  color: var(--holo-ink-2);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.sant .holo-top__eject:hover,
-.sant .holo-top__eject:focus-visible {
-  border-color: var(--holo-line-hi);
-  color: var(--holo-ink);
-}
-
 .sant .holo-top__title {
   min-width: 0;
   overflow: hidden;

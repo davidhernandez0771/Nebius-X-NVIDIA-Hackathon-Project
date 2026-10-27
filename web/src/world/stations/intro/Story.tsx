@@ -9,10 +9,13 @@
 // webcam demos (0/10 passed physics → 3 repaired → 24 verified variants; 9 pressed into the bin at up to 927 N),
 // Nemotron's labels (40/40).
 import { useRef, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { LEAD } from "../../../site/results/proofData";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { scramble } from "../../ui/scramble";
 import { PROOF } from "./proof";
-import { beatState, INTRO_VH, placeLights, power, ringLift } from "./storyPlan";
+import { ProofBeats } from "./ProofBeats";
+import { beatState, INTRO_VH, placeLights, power, ringLift, span } from "./storyPlan";
 
 interface BeatCopy {
   kicker: string;
@@ -34,6 +37,18 @@ const COPY: BeatCopy[] = [
     items: [
       <p key="a">One human demo, by webcam or keyboard teleop, becomes robot training data.</p>,
       <p key="b">Physics-checked. Repaired. Multiplied. Labelled by Nemotron.</p>,
+      // Straight to the proof, for whoever wants it now (site-nav, 2026-10-26): quiet, under the copy. The number is
+      // the Results page's lead (proofData.ts LEAD), not typed here.
+      <p key="c" className="intro-proof">
+        <Link className="intro-proof__link world-u" to="/site/results#proof">
+          See the result
+          <span className="intro-proof__what">
+            {" "}
+            · {LEAD.result.k}/{LEAD.result.n} on unseen scenes, pre-registered
+          </span>
+          <span aria-hidden="true"> →</span>
+        </Link>
+      </p>,
     ],
   },
   {
@@ -70,7 +85,9 @@ const COPY: BeatCopy[] = [
     ],
   },
   {
-    kicker: "03 / The proof",
+    // The first result, from scripted demos (the Results page's "earlier result"); the proof beats after the reactor
+    // (ProofBeats.tsx) carry the pre-registered climb from human mouse demos.
+    kicker: "03 / First result · scripted demos",
     head: [PROOF.raw, `→ ${PROOF.multiplied}`],
     side: "right",
     className: "intro-beat--proof",
@@ -158,9 +175,12 @@ export function Story() {
     // "Scroll down" leaves in the first half viewport; "into the workshop" shows as the top ring lifts into THE RING.
     if (hint.current) hint.current.style.opacity = String(ready ? 1 - clamp01(vh * 2) : 0);
     if (down.current) down.current.style.opacity = String(f.current ? clamp01(ringLift(vh) * 3) : 0);
-    // The reactor's power, while it is lit (not with reduced motion: the camera holds the hero).
+    // The reactor's power, while it is lit (not with reduced motion: the camera holds the hero), and not under the proof
+    // beats' panels: it is full by then, and it fades back for the ring.
     if (meter.current) {
-      const lit = reduced ? 0 : placeLights(vh).reactor;
+      const [pa, pb] = span("proof");
+      const underProof = clamp01((vh - pa) / 0.15) * (1 - clamp01((vh - pb + 0.15) / 0.15));
+      const lit = reduced ? 0 : placeLights(vh).reactor * (1 - underProof);
       meter.current.style.opacity = String(f.current ? lit : 0);
       if (lit > 0) meter.current.textContent = `// core power · ${String(Math.round(power(vh) * 100)).padStart(2, "0")}%`;
     }
@@ -198,6 +218,7 @@ export function Story() {
           </div>
         </section>
       ))}
+      <ProofBeats />
       <p ref={hint} className="world-hint world-u">
         Scroll down
       </p>

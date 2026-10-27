@@ -584,7 +584,7 @@ def test_the_default_recipe_adds_no_flags(hx, tmp_path):
     ["--select-steps", "1500", "--save-freq", "1000", "--steps", "2000"],  # 1500 is never saved
     ["--select-steps", "4000", "--save-freq", "1000", "--steps", "2000"],  # past the end of training
     ["--select-steps", "2000", "--save-freq", "1000", "--steps", "2000", "--practice-seed0", "5030"],  # overlaps 5020-5059
-    ["--steps", "100001"],
+    ["--steps", "200001"],  # over MAX_STEPS (200k since the 2026-10-23 big test)
     ["--temporal-ensemble", "0.01", "--n-action-steps", "20"],
 ])
 def test_the_cli_refuses_an_impossible_recipe(hx, bad):

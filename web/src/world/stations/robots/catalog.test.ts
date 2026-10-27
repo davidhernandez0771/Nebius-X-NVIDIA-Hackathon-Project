@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LEAD } from "../../../site/results/proofData";
 import { CATALOG, STATUS_LABEL, WALL_ONLY, robotById, specLine } from "./catalog";
 
 describe("the robots catalog", () => {
@@ -9,6 +10,15 @@ describe("the robots catalog", () => {
 
   it("says tested in Isaac or planned, nothing else", () => {
     expect(STATUS_LABEL).toEqual({ tested: "Tested in Isaac", planned: "Planned" });
+  });
+
+  // site-bugs (2026-10-26): the wall's Franka close-up gave 17/40 vs 3/40 as the arm's result, the scripted-demo
+  // experiment, while the site leads with the pre-registered 30/40 on the same arm.
+  it("gives the Franka its pre-registered one-shot result first, citing the big-test note", () => {
+    const franka = robotById("franka");
+    expect(franka.result).toContain(`${LEAD.result.k}/${LEAD.result.n}`);
+    expect(franka.result!.indexOf(`${LEAD.result.k}/${LEAD.result.n}`)).toBeLessThan(franka.result!.indexOf("17/40"));
+    expect(franka.sources.join(" ")).toMatch(/2026-10-23-bigtest-prereg\.md/);
   });
 
   it("only claims a sim result for a robot that ran in Isaac", () => {

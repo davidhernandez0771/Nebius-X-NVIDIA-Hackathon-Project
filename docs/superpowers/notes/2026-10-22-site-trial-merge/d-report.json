@@ -1,0 +1,285 @@
+[
+  {
+    "name": "hero",
+    "readyMs": 2686,
+    "station": "intro",
+    "errors": [],
+    "shot": "d01-hero"
+  },
+  {
+    "name": "forest",
+    "treeFiles": [
+      "trees.glb",
+      "bark_normal.jpg",
+      "bark_albedo.jpg",
+      "leaves.png"
+    ],
+    "station": "intro",
+    "errors": [],
+    "shot": "d02-forest"
+  },
+  {
+    "name": "forest-deeper",
+    "treeFiles": [
+      "trees.glb",
+      "bark_normal.jpg",
+      "bark_albedo.jpg",
+      "leaves.png"
+    ],
+    "station": "intro",
+    "errors": [],
+    "shot": "d03-forest-deeper"
+  },
+  {
+    "name": "reactor",
+    "station": "intro",
+    "errors": [],
+    "shot": "d04-reactor"
+  },
+  {
+    "name": "the-ring",
+    "station": "intro",
+    "errors": [],
+    "shot": "d05-the-ring"
+  },
+  {
+    "name": "build",
+    "station": "descent",
+    "errors": [],
+    "shot": "d06-build"
+  },
+  {
+    "name": "hub",
+    "hub": true,
+    "tags": [
+      "The shelf",
+      "The machine",
+      "The bench",
+      "The wall"
+    ],
+    "bar": [
+      "Shelf",
+      "Machine",
+      "Bench",
+      "Robots"
+    ],
+    "station": "workshop",
+    "errors": [],
+    "shot": "d07-hub"
+  },
+  {
+    "name": "shelf",
+    "ok": true,
+    "station": "workshop",
+    "errors": [],
+    "shot": "d08-shelf"
+  },
+  {
+    "name": "drag-to-machine",
+    "start": [
+      640,
+      144
+    ],
+    "end": [
+      906.232568359375,
+      416.0505676269531
+    ],
+    "tip": "S_\\#N*T /TS#A · click to open · drag to the machine",
+    "station": "machine",
+    "errors": [],
+    "shot": "d09-drag-to-machine"
+  },
+  {
+    "name": "hologram",
+    "wait": "",
+    "loading": [],
+    "panel": "← BACK TO ROOM\nWATCH IT PLUG IN · ESC GOES BACK\nMACHINE\n\nPHYSICS CHECK PLUGS IN, AND THE MACHINE PROJECTS ITS ROBOT: A REAL, PHYSICS-CHECKED DEMO, REPLAYED.\n\nIN",
+    "station": "machine",
+    "errors": [],
+    "shot": "d10-hologram"
+  },
+  {
+    "name": "machine-10s",
+    "wait": "",
+    "loading": [],
+    "y": 11340,
+    "ov": "hidden",
+    "station": "machine",
+    "hub": false,
+    "errors": [],
+    "shot": "d11-machine-10s"
+  },
+  {
+    "name": "zoom",
+    "ok": true,
+    "waitAt1s": "",
+    "wait": "",
+    "loading": [],
+    "path": "/record",
+    "y": 0,
+    "ov": "",
+    "station": null,
+    "hub": false,
+    "errors": [],
+    "shot": "d12-zoom"
+  },
+  {
+    "name": "world-again-hub",
+    "y": 11340,
+    "ov": "hidden",
+    "station": "machine",
+    "hub": false,
+    "errors": [],
+    "shot": "d13-world-again-hub"
+  },
+  {
+    "name": "bench",
+    "ok": true,
+    "station": "workbench",
+    "errors": [],
+    "shot": "d14-bench"
+  },
+  {
+    "name": "robot-wall",
+    "ok": true,
+    "waitAt4_5s": "",
+    "wait": "",
+    "loading": [],
+    "y": 11340,
+    "ov": "hidden",
+    "station": "robots",
+    "hub": false,
+    "entries": [
+      "Franka Panda · Tested in Isaac",
+      "Flexiv Rizon 4s · Tested in Isaac",
+      "OpenArm · Tested in Isaac",
+      "SO-101 · Planned",
+      "PiPER · Planned"
+    ],
+    "errors": [],
+    "shot": "d15-robot-wall"
+  },
+  {
+    "name": "robots-catalog-scrolled",
+    "loading": [],
+    "station": "robots",
+    "errors": [],
+    "shot": "d16-robots-catalog-scrolled"
+  },
+  {
+    "name": "shelf-again",
+    "ok": true,
+    "y": 11340,
+    "ov": "hidden",
+    "station": "workshop",
+    "hub": false,
+    "errors": [],
+    "shot": "d17-shelf-again"
+  },
+  {
+    "name": "shelf-rail-story",
+    "ok": true,
+    "afterClick": {
+      "y": 0,
+      "ov": "",
+      "station": "intro",
+      "hub": false
+    },
+    "afterWheel": {
+      "y": 480,
+      "ov": "",
+      "station": "intro",
+      "hub": false
+    },
+    "station": "intro",
+    "errors": [],
+    "shot": "d18-shelf-rail-story"
+  },
+  {
+    "name": "hub-again",
+    "y": 11340,
+    "ov": "hidden",
+    "station": "workshop",
+    "hub": true,
+    "errors": [],
+    "shot": "d19-hub-again"
+  },
+  {
+    "name": "shelf-3",
+    "ok": true,
+    "y": 11340,
+    "ov": "hidden",
+    "station": "workshop",
+    "hub": false,
+    "errors": [],
+    "shot": "d20-shelf-3"
+  },
+  {
+    "name": "shelf-rail-descent",
+    "ok": true,
+    "afterClick": {
+      "y": 8424,
+      "ov": "",
+      "station": "descent",
+      "hub": false
+    },
+    "afterWheel": {
+      "y": 8904,
+      "ov": "",
+      "station": "descent",
+      "hub": false
+    },
+    "station": "descent",
+    "errors": [],
+    "shot": "d21-shelf-rail-descent"
+  },
+  {
+    "name": "hub-after-descent",
+    "y": 11340,
+    "ov": "hidden",
+    "station": "workshop",
+    "hub": true,
+    "errors": [],
+    "shot": "d22-hub-after-descent"
+  },
+  {
+    "name": "contact",
+    "ok": true,
+    "panel": "",
+    "station": "workshop",
+    "errors": [],
+    "shot": "d23-contact"
+  },
+  {
+    "name": "results",
+    "path": "/site/results",
+    "text": "Skip to content SANT Results Effects Try it Multiplying 10 demos made the robot better. Tripling the copies didn't help ",
+    "station": null,
+    "errors": [],
+    "shot": "d24-results"
+  },
+  {
+    "name": "results-real",
+    "path": "/site/results",
+    "text": "Skip to content SANT Results Effects Try it Multiplying 10 demos made the robot better. Tripling the copies didn't help ",
+    "station": null,
+    "errors": [],
+    "shot": "d25-results-real"
+  },
+  {
+    "name": "review",
+    "path": "/review2",
+    "text": "Skip to content SANT S Simulate A Augment N Neaten T Train Robots Record Review Dataset Effects Review s1_0002recorded e",
+    "station": null,
+    "errors": [],
+    "shot": "d26-review"
+  },
+  {
+    "name": "record",
+    "path": "/record",
+    "text": "SANT ⏏ workshop FRANKA Record Scene · Standard S · show A · check N · neaten T · train Run SANT → keyboard : stopped rel",
+    "station": null,
+    "errors": [],
+    "shot": "d27-record"
+  }
+]

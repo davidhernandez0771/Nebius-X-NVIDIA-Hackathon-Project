@@ -46,7 +46,7 @@ export function robotFor(code: string): Robot {
 /** The cartridge in a spiral slot: what the machine projects and the route the zoom opens. */
 export function cartridgeAt(slot: HelixSlot): Cartridge {
   const r = robotInSlot(slot.index) ?? robotFor(slot.code);
-  return { id: r.id, label: r.name, route: "/pm/record", slot: slot.index };
+  return { id: r.id, label: r.name, route: "/pm/record", slot: slot.index, robot: r.code };
 }
 
 /** The slot each robot's button sends (the keyboard path): its own. */

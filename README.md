@@ -25,7 +25,39 @@ This project takes one cheap demo and cleans it up with code. NVIDIA Isaac Lab t
 physics, and the project multiplies it into many verified copies, each with the cube and bin in new
 places. The output is a standard LeRobot dataset that you can train a robot policy on.
 
-## The result
+## The headline result (2026-10-25, pre-registered)
+
+**From 10 human mouse demos to a camera policy that succeeds 30/40 (75%) on scenes it has never seen.**
+
+The pipeline: SANT checks the demos in Isaac Lab physics, repairs and multiplies them. An RL teacher (PPO in Isaac Lab)
+learns the task starting from them. It's distilled into a camera-only ACT policy, which is tested once on 40 fresh
+scenes. The scenes, the decision rules and the 60% goal were all committed before the run.
+
+| Policy | Success on 40 unseen scenes | Wilson 95% CI |
+|---|---|---|
+| Imitating the 10 raw mouse demos | 0 / 40 | 0–9% |
+| Imitating the SANT-verified, multiplied demos | 3 / 40 | 3–20% |
+| v1: the RL teacher distilled into the camera policy | 15 / 40 | 24–53% |
+| **v2: the same data, trained 3× longer + a gripper deadband** | **30 / 40 (75%)** | **60–86%** |
+
+**Did the human demos matter?** The same RL teacher, with the same code, budget and seed, but starting from home instead
+of the demos, never lifted the cube: **0/128 vs 113/128** home-start success.
+
+**What it does not show:**
+- **Real hardware:** everything runs in simulation.
+- **Which of v2's two changes caused the gain:** they were tested together.
+- **Strict comparisons between rows:** v2 was tested on fresh seeds (5400–5439), the others on 5020–5059, so the
+  comparisons are descriptive.
+- **DAgger:** a correction round ran, but it lost the pre-registered pick.
+- **The held human re-execution:** replaying the human demos through the student's actuator failed (0/110) and was
+  dropped by a pre-set rule.
+
+All of it, failures included, is in
+[2026-10-23-bigtest-prereg.md](docs/superpowers/notes/2026-10-23-bigtest-prereg.md) and
+[2026-10-21-distill-prereg.md](docs/superpowers/notes/2026-10-21-distill-prereg.md). The raw per-episode results are in
+`docs/superpowers/notes/2026-10-23-bigtest/results/`.
+
+## Earlier result: multiplying scripted demos (2026-10-17)
 
 We trained the same robot policy (ACT, 30k steps) twice from the same 10 source demos. Then we tested
 both policies on 40 new scenes. The scenes and the stopping rule were fixed in advance, and those
@@ -232,7 +264,16 @@ and the call counts come from our usage logs (see below).
 
 Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
 
-## Status (2026-10-21)
+## Status (2026-10-26)
+
+| | What |
+|---|---|
+| **Done** | **v2, the headline:** 30/40 (75%) on fresh seeds 5400–5439, run once, goal ≥ 24/40 met ([prereg + full log](docs/superpowers/notes/2026-10-23-bigtest-prereg.md)) |
+| **Done** | **The RL teacher:** v6 learned the task after five logged failures. SANT's physics gate caught it moving at 1.7 m/s (3/50); a 0.5 m/s cap fixed it (50/50). The no-demo control: 0/128 vs 113/128 |
+| **Done** | **v1 distillation:** 15/40, goal not met. The first round's 0/30 was traced to an actuator mismatch between teacher and student, and fixed |
+| **Next** | The site's Results proof section, the combined site branch, and the 3-minute video |
+
+<details><summary>Status on 2026-10-21</summary>
 
 | | What |
 |---|---|
@@ -241,6 +282,8 @@ Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
 | **In progress** | **The RL teacher** (Isaac Lab, PPO), started from SANT-verified mouse demos. Training runs v1–v5 failed, each for a logged reason, and v6 (a stock-lift-style reward) is training. It must reach ≥ 90% on practice seeds before any distillation |
 | **Built, not run** | **Distillation of the teacher into the ACT camera policy, with DAgger rounds** (branch `pm/distill-dagger`, merged after the final test). It is pre-registered: one test on seeds 5020–5059, goal ≥ 24/40 ([prereg](docs/superpowers/notes/2026-10-21-distill-prereg.md)) |
 | **Next** | The distillation's single test, then the 3-minute video |
+
+</details>
 
 <details><summary>Status on 2026-10-20</summary>
 

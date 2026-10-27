@@ -1446,3 +1446,224 @@ data, is a NEW experiment. It needs its own preregistration and fresh test seeds
   `cap_from_tool`;
 - **`pm/distill-dagger`:** code `95663cb`; branch tip `9d8621e` (notes only on top: the results and the gap
   analysis).
+
+## Amendment 6 (2026-10-22, after the final test, before any run of it): the secondary arm, teacher-side only
+
+**The final spec: this amendment's first version (`ac82abe`), restored before launch.**
+- **The crossing:** the lead's messages crossed. After `ac82abe`, the lead first approved T3's plan A, and I
+  revised the amendment to it (`1f8465c`). The plan A version used a task registration commit on
+  `pm/rl-nodemo-control` and breakdowns at `--demo-prob 0.5`.
+- **The lead's final decision,** before any run, restores the first version:
+  - the override at `d9cf2a7` needs no code commit, so the control's code is byte-identical to demo_v6's;
+  - breakdowns at `--demo-prob 0.0` give 128 home starts per run instead of about 64, which doubles the
+    power on the primary number.
+- **Checked here at the time of this revision:**
+  - `pm/rl-nodemo-control` (T3's worktree `C:\dev\pm-t3-nodemo`) is still at `d9cf2a7`, with no commit on top;
+  - there is no `gpu.lock`, and no `nodemo` run directory exists.
+  - So nothing had run under either version.
+- **What follows is the first version's text, unchanged.** In it, "a scratch worktree of T3's, detached at
+  `d9cf2a7`" can be T3's existing worktree `C:\dev\pm-t3-nodemo` on `pm/rl-nodemo-control`, as long as that
+  branch stays at `d9cf2a7` with no commit.
+
+**The user approved running the secondary arm tonight (via the lead), in a reduced form.** This amendment replaces the
+"Secondary arm" section's plan above. It is written before the run starts, and T3 launches only after this commit.
+
+**What changes from the original secondary arm:**
+- **Teacher-side only:** there is no camera student, no gate, no round 0 and no test seeds.
+  - 5020–5059 are spent (the final test).
+  - The original comparisons, demo vs no-demo teacher on 5300–5349 and the students' 5020–5059 counts, are dropped.
+- **The question:** did the human demo starts help the RL teacher learn the task from the home pose?
+
+**The arm, `nodemo_v6`:** demo_v6's stage-1 recipe exactly as demo_v6 ran, except that no episode starts from a demo.
+- **Code:** demo_v6's own code, `pm/rl-teacher` `d9cf2a7` (11:45:47, the "lift" preset). demo_v6 was launched at
+  11:47:14, before the bonus fix `bf56c20`.
+  - It runs from a scratch worktree of T3's, detached at `d9cf2a7`, so the reward, including the pre-fix success
+    bonus, is identical. T3 confirms that demo_v6 ran with that tree clean.
+- **The command:** demo_v6's recorded command, with one added override and a new run name:
+
+  ```text
+  uv run --no-sync python scripts\rl_train.py --run-name nodemo_v6 --reward lift --max-iterations 1500 ^
+    --override env.events.reset_scene.params.held_grace_steps=10 --override env.events.reset_scene.params.curriculum_steps=24000 ^
+    --override env.events.reset_scene.params.uniform_share=0.5 --override agent.actor.distribution_cfg.init_std=0.6 ^
+    --override "agent.actor.distribution_cfg.std_range=[0.3,1.0]" --override agent.algorithm.entropy_coef=0.005 ^
+    --override env.actions.gripper_action.deadband=0.25 ^
+    --override env.events.reset_scene.params.demo_prob=0.0
+  ```
+
+- **Why an override and not the `-NoDemo-v0` task:**
+  - `rl_train.py` refuses `--reward lift --no-demos` ("the lift preset is registered with demo starts only"), and
+    `-NoDemo-v0` carries the potential reward, not the lift one.
+  - With `demo_prob=0.0`, `reset_rl_scene` loads no bank, and `plan_resets` starts every episode at home, in a random
+    scene with the gripper open (checked here in `d9cf2a7`).
+  - `held_grace_steps`, `curriculum_steps` and `uniform_share` act only on demo starts, so they have no effect; they
+    are kept so the command differs by one override.
+- **Otherwise unchanged:**
+  - 4096 envs; 1,500 iterations (`max_iterations` 1500, so checkpoints up to `model_1499`); seed 42 (the agent
+    default, as demo_v6);
+  - the speed cap off, tracking execution (neither exists in `d9cf2a7`).
+
+**The comparison (descriptive):** demo_v6's own checkpoints vs `nodemo_v6`'s, at the matched iterations 300, 600,
+900, 1200 and 1499.
+- **Home-start success:** `scripts\rl_start_breakdown.py` on each checkpoint, with `--n 128 --demo-prob 0.0 --seed 7`
+  (rng 7).
+  - So **all 128 episodes start at home, for both runs,** in the same 128 scenes.
+  - It runs on the current `pm/rl-teacher` code (the breakdown script came after `d9cf2a7`). It reads each run's own
+    deadband and grace from its `params\env.yaml`.
+  - Reported: `check_success`/128 with a Wilson 95% CI; also grasped, lifted and failure reasons.
+- **In-training curves:** from each run's TensorBoard log, at the same iterations: the success rate (check_success,
+  and `Episode_Termination/success` beside it, since `d9cf2a7`'s check_success undercounts), lifted and grasp.
+  - T3 names the exact tags before launch.
+  - They are descriptive only, because demo_v6's training episodes are half demo starts.
+- **The primary descriptive number:** home-start success at **1499**, both runs, each as x/128 with its Wilson 95%
+  CI.
+
+**The interpretation, stated in advance:**
+- **If `nodemo_v6` at 1499 is clearly lower** (the Wilson CIs don't overlap), the human demo starts mattered for the
+  teacher.
+- **If the CIs overlap,** the demos' value on the teacher side is not shown by this run.
+- **If `nodemo_v6` is clearly higher** (CIs don't overlap the other way), that is reported as it is: the demo starts
+  did not help the teacher from home here.
+- **A single seed per arm:** whichever way it comes out, it is one training run each. No p-value is a pre-registered
+  claim.
+
+**Disclosed:** demo_v6 at 1499 has been seen at home before, as 61/67 (Wilson 0.818–0.958).
+- That was T3's earlier breakdown, `data\rl\breakdown\v6_1499`, with `--demo-prob 0.5`, so only 67 of the 128 starts
+  were at home.
+- The new breakdown at `--demo-prob 0.0` gives 128 home starts and replaces it for this comparison.
+
+**Nothing here touches** the final test, the camera student, or any seed range in this prereg. The breakdown's scenes
+come from its own rng (seed 7), not from the eval seeds.
+
+**`nodemo_v6` launched under Amendment 6 (`c9d48f9`)** at 18:59:15 (`gpu.lock` `T4 42824 rl-teacher:nodemo_v6`). Its run
+directory is `C:\dev\pm-t3-nodemo\data\rl\logs\rsl_rl\sant_rl_teacher\2026-10-22_18-59-23_nodemo_v6`.
+- **The code:** T3's worktree `C:\dev\pm-t3-nodemo`, branch `pm/rl-nodemo-control`, HEAD `d9cf2a7`, no commit added.
+  `git status --untracked-files=all` is empty.
+  - One git-ignored file was added: `data\rl\bank_mouse20261020.npz`, copied from `pm-t3`, sha256 `52076b83843a056c…`
+    (identical).
+  - `d9cf2a7`'s `rl_train.py` refuses to start without the bank on disk. At `demo_prob` 0 it is never loaded.
+- **The command:** the trainer line is `data\rl\demo_v6.log`'s line 1 word for word, except `--run_name nodemo_v6` and
+  the added `env.events.reset_scene.params.demo_prob=0.0`.
+  - The task is `SANT-PickPlace-Franka-RL-Lift-v0` (`run.json`), with 4096 envs and 1500 iterations.
+  - It runs through `d9cf2a7`'s wrapper (the GPU lock + KeepAwake). It has no QoS call, the same as demo_v6.
+- **Expected in the `env.yaml` diff,** besides `demo_prob`: `bank_path` reads the `pm-t3-nodemo` copy, because
+  `DEFAULT_BANK` is relative to the repo. It is inert at `demo_prob` 0. The diff is added here once the run writes its
+  `params`.
+- **The in-training tags, named before the run (T3):** `Metrics/check_success`, `Episode_Termination/success`,
+  `Stages/lifted`, and `Stages/centred_grasp` (= "grasp").
+  - demo_v6's values at 300 / 600 / 900 / 1200 / 1499:
+
+    | Tag | 300 | 600 | 900 | 1200 | 1499 |
+    |---|---|---|---|---|---|
+    | `Metrics/check_success` | 0.050 | 0.177 | 0.428 | 0.477 | 0.524 |
+    | `Episode_Termination/success` | 0.254 | 0.337 | 0.721 | 0.895 | 0.903 |
+    | `Stages/lifted` | 0.022 | 0.036 | 0.140 | 0.229 | 0.229 |
+    | `Stages/centred_grasp` | 0.010 | 0.015 | 0.061 | 0.124 | 0.121 |
+
+  - **They are not home-vs-home:** demo_v6's tags average over all its starts (about half from demo states), while
+    `nodemo_v6`'s are home starts only. The breakdown is the home-vs-home comparison.
+- **Checked here:**
+  - HEAD `d9cf2a7`, a clean tree, and the bank's sha256 matching `pm-t3`'s;
+  - the launch line vs demo_v6's, compared word by word: the only differences are the run name and the one added
+    override;
+  - the lock, and `run.json`'s task.
+
+**`nodemo_v6`'s config vs demo_v6's: they differ only in the start setting** (diffed here, from the run's `params`).
+- **`env.yaml`, 3 lines:**
+  - `demo_prob` 0.5 → 0.0;
+  - `bank_path` (the `pm-t3-nodemo` copy, the same sha256, never loaded at 0);
+  - `log_dir`.
+- **`agent.yaml`, 1 line:** `run_name`. The seed (42) and `max_iterations` (1500) are the same.
+- **`git/IsaacLab.diff`:** byte-identical.
+- **Everything else is byte-identical,** including PPO, rewards, the reward-weight curriculum and the inert demo-start
+  settings.
+- **The wrapper:** PID 50920, started 18:59:14 (T3).
+- **The breakdowns are queued** (driver PID 46844; it starts when training exits).
+  - They use today's `pm-t3` `rl_start_breakdown` with `--n 128 --demo-prob 0.0 --seed 7`.
+  - The order: 1499 for both first, then 300, 600, 900 and 1200, with demo_v6 before `nodemo_v6` at each.
+  - The outputs: `C:\dev\pm-t3\data\rl\breakdown\home_<run>_<it>\breakdown.json`.
+
+**`nodemo_v6` training ended (2026-10-22 20:08), before any breakdown result.**
+- **The run:** the trainer exited at 20:08:38. `model_1499.pt` was written at 20:08:25; there are 31 checkpoints
+  (`model_0` at 19:03:34, then every 50 to 1450, and 1499).
+  - `data\rl\nodemo_v6.log` ends with "Training time: 3912.95 seconds" (about 2.6 s per iteration), then
+    "SimulationContext cleared".
+- **The in-training tags,** read here from both runs' TensorBoard event files (1500 steps each, 0–1499):
+
+  | Tag | Run | 300 | 600 | 900 | 1200 | 1499 | Max (iteration) |
+  |---|---|---|---|---|---|---|---|
+  | `Metrics/check_success` | nodemo_v6 | 0 | 0 | 0 | 0 | 0 | 0 |
+  | | demo_v6 | 0.050 | 0.177 | 0.428 | 0.477 | 0.524 | 0.699 (1113) |
+  | `Episode_Termination/success` | nodemo_v6 | 0 | 0 | 0 | 0 | 0 | 0 |
+  | | demo_v6 | 0.254 | 0.337 | 0.721 | 0.895 | 0.903 | 0.922 (1419) |
+  | `Stages/lifted` | nodemo_v6 | 0 | 0 | 0 | 0 | 0 | 0 |
+  | | demo_v6 | 0.022 | 0.036 | 0.140 | 0.229 | 0.229 | 0.252 (1399) |
+  | `Stages/centred_grasp` | nodemo_v6 | 0.0002 | 0.0056 | 0.0002 | 0.0002 | 0.0000 | 0.058 (556) |
+  | | demo_v6 | 0.010 | 0.015 | 0.061 | 0.124 | 0.121 | 0.136 (1399) |
+  | `Train/mean_reward` | nodemo_v6 | 11.2 | 6.2 | 8.1 | 8.2 | 8.7 | 11.3 (413) |
+  | | demo_v6 | 130.0 | 165.7 | 401.5 | 465.0 | 462.7 | 478.8 (1420) |
+
+  - **So, in training, `nodemo_v6` never had a success termination, a check_success or a lift,** in any of its
+    1500 iterations. Its centred grasp peaked at 0.058 at iteration 556 and fell back to about 0.
+  - As stated in the amendment, these are descriptive only and not home-vs-home: demo_v6's tags average over all its
+    starts. The primary number is still the home breakdown at 1499.
+- **The breakdowns** (`--n 128 --demo-prob 0.0 --seed 7`) started at 20:08:38, in the planned order: 1499 for both
+  runs first (demo_v6 first), then 300, 600, 900, 1200.
+- **Checked here:** the checkpoint list and times, the log's last lines, every tag value above (from the event files
+  directly), and `nodemo_breakdowns.log` (it waited for trainer PID 50920, then started `demo_v6 1499`).
+
+### Amendment 6 RESULT: the primary number (home starts at iteration 1499)
+
+Both breakdowns ran with `--n 128 --demo-prob 0.0 --seed 7`, deadband 0.25, held grace 10, `held_target` False and
+no overrides. Every one of the 128 episodes started at home, in the same 128 scenes for both runs.
+
+| Run | Home success | Wilson 95% | Bonus | Ever centred-grasped | Ever lifted | Failure reasons |
+|---|---|---|---|---|---|---|
+| demo_v6 `model_1499` | **113/128 (88.3%)** | 0.816–0.928 | 113 | 96 | 128 | dropped 10, collision 7 |
+| nodemo_v6 `model_1499` | **0/128 (0%)** | 0.000–0.029 | 0 | 0 | 0 | not_in_bin 128, not_settled 7, collision 5 |
+
+- **The files:** `C:\dev\pm-t3\data\rl\breakdown\home_demo_v6_1499\breakdown.json` (written 20:09:51, rc 0) and
+  `C:\dev\pm-t3\data\rl\breakdown\home_nodemo_v6_1499\breakdown.json` (20:10:54, rc 0).
+- **The pre-stated rule applies:** the Wilson CIs do not overlap (0.029 vs 0.816), and `nodemo_v6` is lower. So,
+  under the amendment's interpretation, **the human demo starts mattered for the teacher.**
+  - The scope is this recipe (demo_v6's lift reward at `d9cf2a7`, 4096 envs, 1500 iterations, seed 42).
+  - It is one training run per arm, so this is a descriptive result with no p-value claim, as stated in advance.
+  - In plain terms: from home starts alone, PPO with this reward never found a lift in 1500 iterations (see the
+    in-training tags above). It is not shown that it never would with more iterations or another seed.
+- **The disclosure:** demo_v6 at 1499 had been seen before at home as 61/67 (Wilson 0.818–0.958), in
+  `data\rl\breakdown\v6_1499` at `--demo-prob 0.5`. Today's 113/128 is a different set of start scenes (the start plan
+  differs with the mix). The two intervals overlap, so the re-run is consistent with the earlier figure.
+- **On the columns** (checked in `sim_worker\rl_env_cfg.py` at `pm/rl-teacher` `681e8dd`):
+  - "ever centred-grasped" is `centred_grasp > 0.5` at any step, and "ever lifted" is the `lifted` term `> 0` at any
+    step.
+  - So the grasp column is stricter than success: 113 successes but 96 centred grasps means some successes used an
+    off-centre grasp.
+- **Checked here:** both files' settings (n, demo_prob, deadband, grace, `held_target`, overrides, the checkpoint
+  path), 128 home episodes and 0 demo episodes in each, and both Wilson intervals recomputed independently.
+
+### Amendment 6 RESULT: the curve (home starts at 300 / 600 / 900 / 1200 / 1499)
+
+The same settings as the primary. The driver's log (`C:\dev\pm-t3\data\rl\nodemo_breakdowns.log`) has every run at
+rc 0, then "ALL DONE" at 20:15:07.
+- `C:\dev\gpu.lock` still reads the last breakdown's entry (`T3 33136 rl-breakdown:home_nodemo_v6_1200`), a stale
+  lock as usual: PID 33136 and the driver (PID 46844) have both exited. (Corrected: this line first said the lock was
+  released; I had looked at the wrong path.)
+
+| Iteration | demo_v6 home success (Wilson 95%) | grasped / lifted | nodemo_v6 home success (Wilson 95%) | grasped / lifted |
+|---|---|---|---|---|
+| 300 | 0/128 (0.000–0.029) | 0 / 0 | 0/128 (0.000–0.029) | 0 / 0 |
+| 600 | 10/128 (0.043–0.138) | 5 / 21 | 0/128 (0.000–0.029) | 6 / 0 |
+| 900 | 99/128 (0.694–0.837) | 77 / 126 | 0/128 (0.000–0.029) | 0 / 0 |
+| 1200 | 109/128 (0.780–0.903) | 93 / 128 | 0/128 (0.000–0.029) | 0 / 0 |
+| 1499 | **113/128 (0.816–0.928)** | 96 / 128 | **0/128 (0.000–0.029)** | 0 / 0 |
+
+- **demo_v6** learned from home between 600 and 900 (10 to 99 of 128) and kept improving to 1499.
+- **nodemo_v6** never succeeded and never lifted from home at any checkpoint. Its only centred grasps (6/128) are at
+  600, matching its in-training grasp peak at iteration 556; they were gone by 900.
+- Failure reasons per checkpoint are in each `breakdown.json` (for demo_v6 at 900–1499, mostly dropped and
+  collision; for nodemo_v6, every episode ends `not_in_bin`).
+- **Checked here:** all ten files (settings, 128 home and 0 demo episodes each, the checkpoint paths) and every
+  Wilson interval, recomputed independently.
+
+**Amendment 6 is complete.** Its conclusion stands as stated with the primary: under the pre-stated rule, the human
+demo starts mattered for the teacher, in this recipe and budget, one run per arm. No student and no test seeds were
+used.

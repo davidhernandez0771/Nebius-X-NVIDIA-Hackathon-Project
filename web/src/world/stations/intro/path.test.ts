@@ -90,8 +90,27 @@ describe("the intro's camera: down through the places", () => {
         expect(axisR(p)).toBeGreaterThan(CORE.radius + 4);
       },
       span("reactor")[0] + 0.2,
-      span("reactor")[1],
+      span("proof")[1],
     );
+  });
+
+  // intro-proof: the proof beats need the screen; the camera only drifts slowly round the powered core.
+  it("drifts slowly round the core while the proof beats show, so the panels read over a calm scene", () => {
+    const [a, b] = span("proof");
+    let prev = cameraAt(a);
+    let travelled = 0;
+    each(
+      (vh) => {
+        const p = cameraAt(vh);
+        travelled += Math.hypot(...p.position.map((v, i) => v - prev.position[i]));
+        prev = p;
+      },
+      a,
+      b,
+    );
+    // Under 1.5 m of camera travel per viewport of scroll (the reactor orbit covers about 6).
+    expect(travelled / (b - a)).toBeLessThan(1.5);
+    expect(travelled).toBeGreaterThan(1);
   });
 
   it("ends above THE RING looking down into it, the whole ring in view", () => {

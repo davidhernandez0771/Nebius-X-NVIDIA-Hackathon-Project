@@ -45,6 +45,31 @@
   gap: var(--sant-space-7);
 }
 
+/* The lead (the newest pre-registered result) and the earlier scripted one below the proof band: a small
+   kicker over each title says which is which (site-nav, 2026-10-26). */
+.sant-results__kicker {
+  margin: 0 0 calc(-1 * var(--sant-space-5));
+  font: 500 var(--sant-fs-caption) / 1.2 var(--sant-font-data);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sant-accent-ink);
+}
+.sant-results__earlier .sant-results__kicker {
+  color: var(--sant-muted);
+}
+.sant .sant-results__title--earlier {
+  font-size: clamp(2rem, 1.3rem + 2.6vw, 3.5rem);
+}
+.sant-results__cites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-1) var(--sant-space-4);
+  margin: 0;
+}
+.sant-results__earlier {
+  margin-top: var(--sant-space-8);
+}
+
 /* Two sentences, so a step below the display size: the claim, then its honest limit. */
 .sant .sant-results__title {
   max-width: 19ch;

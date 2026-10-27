@@ -6,6 +6,8 @@
 // workshop's scene (scene/RobotWall.tsx), so it is there from every view.
 import type { CameraPose, StationModule, StationOverlayProps } from "../../core/types";
 import { STILLS } from "../../scene/assets";
+import { robotSpot } from "../../scene/wallPlan";
+import { robotsView } from "./hot";
 import { Panel } from "./Panel";
 
 /**
@@ -24,6 +26,26 @@ export const ROBOTS_VIEW_PORTRAIT: CameraPose = { position: [-7.9, 6.4, -1.05], 
 
 const portrait = () => typeof window !== "undefined" && window.innerWidth < window.innerHeight * 0.8;
 
+/**
+ * A robot's close-up, square to the wall in front of it. On a landscape screen the robot stands right of
+ * the middle, clear of the catalog panel on the left; on a phone it stands in the top half, above the
+ * bottom sheet (view.test.ts).
+ */
+export function closeUp(id: string, upright: boolean): CameraPose {
+  const { position: [x, y, z], facing, height } = robotSpot(id);
+  if (upright) return { position: [x + facing[0] * 7, y + 0.5, z], target: [x, y + height / 2 - 2, z], fov: 30 };
+  // +z is the screen's left from here: aiming 1.25 m that way puts the robot right of the middle.
+  return { position: [x + facing[0] * 6, y + 1.75, z + 1.25], target: [x, y + 1.3, z + 1.25], fov: 40 };
+}
+
+/** The shot now: the whole wall, or the picked robot's close-up. */
+function shot(): { key: string; pose: CameraPose } {
+  const picked = robotsView.get().picked;
+  const upright = portrait();
+  if (picked) return { key: picked, pose: closeUp(picked, upright) };
+  return { key: "wall", pose: upright ? ROBOTS_VIEW_PORTRAIT : ROBOTS_VIEW };
+}
+
 function Overlay({ current, reduced }: StationOverlayProps) {
   return <Panel current={current} reduced={reduced} />;
 }
@@ -38,6 +60,7 @@ const robots: StationModule = {
   travel: 0,
   length: 0,
   camera: () => (portrait() ? ROBOTS_VIEW_PORTRAIT : ROBOTS_VIEW),
+  shot,
   Overlay,
 };
 

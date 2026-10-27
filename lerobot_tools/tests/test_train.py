@@ -77,7 +77,7 @@ def test_argv_resume_last_points_config_path_at_resolved_checkpoint(tmp_path):
     assert f"--config_path={step / 'pretrained_model'}" in argv
 
 
-@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=100001"], ["--batch_size", "9"]])
+@pytest.mark.parametrize("bad", [["--batch_size=16"], ["--steps=200001"], ["--batch_size", "9"]])
 def test_argv_enforces_sprint_gpu_budget(bad):
     with pytest.raises(ValueError, match="budget"):
         build_lerobot_argv(bad)
@@ -165,6 +165,14 @@ def test_grasp_fix_run2_budget_allows_60k_steps_at_batch_8():
 
 def test_the_budget_allows_80k_and_100k_steps_at_batch_8():
     # 2026-10-20 research note, Stage 1: train to 80k (LeRobot's ACT reference runs ~80-100k) and select on practice seeds
-    assert MAX_STEPS == 100_000
+    assert MAX_STEPS >= 100_000
     assert build_lerobot_argv(["--steps=80000", "--batch_size=8"])[:2] == ["--steps=80000", "--batch_size=8"]
     assert build_lerobot_argv(["--steps=100000", "--batch_size=8"])[:2] == ["--steps=100000", "--batch_size=8"]
+
+
+def test_the_big_test_budget_allows_180k_steps_and_caps_at_200k():
+    # 2026-10-23 big test (lead-approved): 180k steps at batch 8, candidates 60k/120k/180k; the cap is 200k
+    assert MAX_STEPS == 200_000
+    assert build_lerobot_argv(["--steps=180000", "--batch_size=8"])[:2] == ["--steps=180000", "--batch_size=8"]
+    with pytest.raises(ValueError, match="200000"):
+        build_lerobot_argv(["--steps=200001", "--batch_size=8"])

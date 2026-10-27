@@ -41,7 +41,7 @@ export function inFront(d: number): Vec3 {
  * What the zoom opens when no cartridge was chosen: the SO-101 in the spiral's lowest slot, the one
  * the machine plugs in on its own as the scroll passes (scene/robots.ts cartridgeAt(HELIX[0])).
  */
-export const DEFAULT_CARTRIDGE: Cartridge = { id: "so101", label: "SO-101", route: "/pm/record", slot: 0 };
+export const DEFAULT_CARTRIDGE: Cartridge = { id: "so101", label: "SO-101", route: "/pm/record", slot: 0, robot: "S101" };
 
 /** A camera that holds one shot for the whole dwell. */
 export const still =

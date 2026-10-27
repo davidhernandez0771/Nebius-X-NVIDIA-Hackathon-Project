@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { buildForest, FOREST_TIERS } from "./forestGeometry";
-import { ROBOT_TIERS, robotUrl, type RobotId } from "./forestRobots";
+import { ROBOT_TIERS, forestRobotUrl, type RobotId } from "./forestRobots";
 import { FOREST } from "./layout";
 import { cameraAt } from "./path";
 import { dropLight, INTRO_VH, placeLights } from "./storyPlan";
 import { WALK_DEPTH, fissureGeometry } from "./Crack";
 import { CRACK_SLOT, depthOrder } from "./crackSlot";
 import { buildWrecks, modelFromScene } from "./robotWrecks";
+import { riftTriangles } from "./riftDetail";
 import type { LodMesh } from "./robotLod";
 import { readPublic } from "../../../twin/testFiles";
 
@@ -23,7 +24,7 @@ async function scene(path: string): Promise<THREE.Object3D> {
   return gltf.scene;
 }
 
-const model = async (id: RobotId): Promise<LodMesh> => modelFromScene(await scene(robotUrl(id)));
+const model = async (id: RobotId): Promise<LodMesh> => modelFromScene(await scene(forestRobotUrl(id)));
 
 /** The crack model's triangles: all of them, and those the walk draws (Crack.tsx). */
 async function crackTris(): Promise<{ all: number; walk: number }> {
@@ -53,10 +54,24 @@ describe("the forest with its real robots, per tier", () => {
       const fissure = tris(fissureGeometry());
       const crack = tier === "low" ? { all: 0, walk: 0 } : await crackTris();
       let most = 0, robotsMost = 0, fall = 0;
+      // The robots drawn are those in the camera's view: a 16:9 desktop, and on the low tier a portrait phone too.
+      const aspects = tier === "low" ? [16 / 9, 390 / 844] : [16 / 9];
+      const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 220);
+      const view = new THREE.Frustum();
+      const inView = (vh: number, aspect: number) => {
+        const p = cameraAt(vh);
+        cam.fov = p.fov;
+        cam.aspect = aspect;
+        cam.updateProjectionMatrix();
+        cam.position.set(...p.position);
+        cam.lookAt(...p.target);
+        cam.updateMatrixWorld();
+        return view.setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+      };
       for (let vh = 0; vh <= INTRO_VH; vh += 0.005) {
-        const robots = w.update(new THREE.Vector3(...cameraAt(vh).position)) / 3;
+        const robots = Math.max(...aspects.map((a) => w.update(new THREE.Vector3(...cameraAt(vh).position), inView(vh, a)))) / 3;
         const forest = placeLights(vh).forest > 0, drop = dropLight(vh) > 0;
-        const frame = (forest ? pieces + robots : 0) + (forest || drop ? fissure + (drop ? crack.all : crack.walk) : 0);
+        const frame = (forest ? pieces + robots + riftTriangles(tier) : 0) + (forest || drop ? fissure + (drop ? crack.all : crack.walk) : 0);
         if (forest) robotsMost = Math.max(robotsMost, robots);
         if (drop && !forest) fall = Math.max(fall, frame);
         most = Math.max(most, frame);

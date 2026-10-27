@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { BackToWorkshop } from "../../sant/components/BackToWorkshop";
 import { Logo } from "../../sant/components/Logo";
 import type { TrackingStatus } from "../../hand/contracts";
 import { describeError, pmApi } from "../../pm/api";
@@ -104,6 +105,23 @@ function episodeOf(s: RecordSession): { text: string; tone: Tone } {
   if (s.drive.input !== "camera") return s.simReady ? { text: "ready", tone: "ok" } : { text: "no sim", tone: "wait" };
   if (s.lost) return { text: "no hand", tone: "wait" };
   return s.track === "tracking" ? { text: "tracking", tone: "ok" } : { text: "waiting", tone: "wait" };
+}
+
+/** How long a started session waits for the relay before saying the backend can't be reached (a normal connect is
+ *  well under this, so the notice never flashes on the way up). */
+const RELAY_GRACE_MS = 2000;
+
+/** True once the session has been streaming RELAY_GRACE_MS with the relay's socket still closed (no backend). */
+function useRelayMissing(streaming: boolean, socketOpen: boolean): boolean {
+  const [late, setLate] = useState(false);
+  const waiting = streaming && !socketOpen;
+  useEffect(() => {
+    setLate(false);
+    if (!waiting) return;
+    const id = window.setTimeout(() => setLate(true), RELAY_GRACE_MS);
+    return () => window.clearTimeout(id);
+  }, [waiting]);
+  return waiting && late;
 }
 
 /** The live state for the latest pose, stepped once per pose (idempotent across re-renders). */
@@ -195,6 +213,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const t = hud.target;
   const stale = t !== null && !hud.tracking;
   const noSim = streaming && relay.socketOpen && !relay.simConnected;
+  const noRelay = useRelayMissing(streaming, relay.socketOpen);
   const episode = episodeOf(session);
   const fps = streaming && pose?.fps ? `${Math.round(pose.fps)} fps` : null;
   const footStatus = streaming ? (lost ? "hand lost: the arm holds still" : simReady && sim?.lastResult ? sim.lastResult : null) : null;
@@ -237,9 +256,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           <span className="rg-brand">
             <Logo size="sm" lit="all" />
           </span>
-          <Link className="rg-btn rg-eject" to="/" title="Eject the cartridge and go back to the workshop">
-            <span aria-hidden="true">⏏</span> workshop
-          </Link>
+          <BackToWorkshop />
           <span className="rg-cart" title="The robot plugged in: the arm the live sim drives">
             <i aria-hidden="true" />
             <b>{LIVE_ROBOT.code}</b>
@@ -401,6 +418,14 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               </div>
             </>
           )}
+          {noRelay && !relay.lastError && (
+            <div className="rg-notice" role="status">
+              <p>
+                Can't reach the SANT backend, so nothing drives the sim. Start it (start.ps1 -Backend), then press Start again.
+                Without it, <Link to="/test-track">the test track</Link> replays the final test's 40 runs.
+              </p>
+            </div>
+          )}
           {(noSim || relay.lastError) && (
             <div className="rg-notice" role={relay.lastError ? "alert" : undefined}>
               {noSim && (
@@ -429,7 +454,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
 
         <div className="rg-side">
           <section className="rg-pane" aria-label="workspace" ref={twinPane}>
-            <div className="rg-hd">
+            <div className="rg-hd rg-hd--twin">
               <span>workspace · robot twin</span>
               <span className="rg-hd__tools">
                 <WristDial yaw={pose?.msg.tracking_ok ? pose.msg.yaw_rad : null} />

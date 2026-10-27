@@ -1,0 +1,118 @@
+2026-10-23T15:08:28 held_human start: code {'commit': 'c799064b0ba8481e634b78dcace8464640a15bc2', 'branch': 'pm/held-human', 'dirty': False}; k 2.0; 0 done, 110 to go; out C:\dev\pm-t3-hh\data\held_human\mouse20261020
+[2026-10-23 15:13:42] [bigtest]   copied 100/565 teacher episodes
+[2026-10-23 15:14:36] [bigtest]   copied 200/565 teacher episodes
+[2026-10-23 15:15:33] [bigtest]   copied 300/565 teacher episodes
+[2026-10-23 15:16:31] [bigtest]   copied 400/565 teacher episodes
+[2026-10-23 15:17:27] [bigtest]   copied 500/565 teacher episodes
+[2026-10-23 15:18:06] [bigtest] prepare: teacher sha256 ok; 565 episodes, 451695 files copied
+[2026-10-23 15:22:01] [T6] chain code: pm/bigtest 34f02f7c5c64 (C:\dev\pm-t6-big), tree clean; prereg 9dcc19e (+2842cc5 log) on pm/live-13. Chain HELD until the lead's go with the final --human-grid/--human-cell. Done before the go (CPU only): teacher sha256 811382A3...77AA2 checked, 565 teacher episodes copied and verified 15:12-15:18 (451,695 files, 4,647,066,907 bytes).
+[2026-10-23 15:26:10] [T6] chain code is now pm/bigtest c6bae0ae1505 (supersedes 34f02f7c5c64: T7's review, the human set must be named: --human-grid/--human-cell or --held-human-dir; no default folder). Tests: sim_eval + lerobot_tools 312 passed (incl. the 4 new); chain still HELD.
+2026-10-23T15:52:55 held_human end: kept 0/110, frames 0, k 2.0, failures {'not_in_bin': 110, 'dropped': 22, 'collision': 52}, wall 2667.4 s
+2026-10-23T16:02:19 held_human start: code {'commit': '8071e1547923fa2ba5299ff25d12445069b4f810', 'branch': 'pm/held-human', 'dirty': False}; k 2.0; grip_settle_m 0.005; pilot 22 (min 16); 0 done, 110 to go; out C:\dev\pm-t3-hh\data\held_human\mouse20261020_settle
+[2026-10-23 16:10:39] [T6 launcher] waiting for T3's settle pilot to end (C:\dev\pm-t3-hh\data\held_human\mouse20261020_settle\held_human_done.json with stopped_after_pilot)
+2026-10-23T16:13:47 held_human pilot: kept 0/22 (min 16) -> stop
+2026-10-23T16:13:47 held_human end: kept 0/22 (passed 0; pilot stop), frames 0, k 2.0, failures {'not_in_bin': 22, 'dropped': 11, 'collision': 2}, wall 687.3 s
+[2026-10-23 16:14:09] [T6 launcher] T3's settle pilot ended: kept 0/22, stopped_after_pilot True
+[2026-10-23 16:14:09] [T6 launcher] GO from the lead: human set = ORIGINAL --human-grid C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json --human-cell perfected_multiply_10; decided_by: lead's go (held-human floor failed, Amendment 1 pilot); change 2 dropped (run 1 kept 0/110; settle pilot below 16/22). Chain code pm/bigtest c6bae0ae1505, clean. Launching (it takes gpu.lock itself, waiting while held).
+[2026-10-23 16:14:10] [bigtest] chain start; code {'commit': 'c6bae0ae1505ba4afcc54e1a59b17511210a4ada', 'branch': 'pm/bigtest', 'dirty': False}
+[2026-10-23 16:14:17] [gpulock] taken: 'T6 45256 bigtest 2026-10-23T16:14:17'
+[2026-10-23 16:14:17] [overnight] start human+teacher: T3's held-human verdict (floor 80/110) and the reused @600 teacher rollouts
+[2026-10-23 16:14:17] [bigtest] human: named by the lead's go: perfected_multiply_10 from C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json -> perfected_multiply_10 (C:\dev\pm-t6\data\human_exp\mouse20261020\grid.json)
+[2026-10-23 16:14:17] [bigtest] teacher: 565 episodes, 451695 files, 4647066907 bytes reused from C:\dev\pm-t6\data\distill\distill_mouse_held\r0; teacher sha256 811382A3...AA2 as on 10-22
+[2026-10-23 16:14:17] [overnight] done human+teacher
+[2026-10-23 16:14:17] [overnight] start A: round 0: export, train 180000, select [60000, 120000, 180000] on 5500-5528
+[2026-10-23 16:14:17] [A] [overnight] start preflight: inputs, the previous round, disk
+[2026-10-23 16:14:17] [A] [overnight] done preflight
+[2026-10-23 16:14:17] [A] [overnight] skip rollouts (already done)
+[2026-10-23 16:14:17] [A] [overnight] start grid: human + teacher (+ DAgger) mixed by frame share
+[2026-10-23 16:14:18] [A] [distill]   cell distill_r0: human 31536 frames x3.5584 (33%), teacher 224435 frames x1.0 (67%)
+[2026-10-23 16:14:18] [A] [overnight] done grid
+[2026-10-23 16:14:18] [A] [overnight] start train: ACT, 180000 steps
+[2026-10-23 21:15:19] [A] [distill]   exit 0: C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.experiments ... (log train.log)
+[2026-10-23 21:15:19] [A] [overnight] done train
+[2026-10-23 21:15:19] [A] [overnight] start select: candidates [60000, 120000, 180000] on seeds 5500-5528
+[2026-10-23 21:40:15] [A] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_60000.log)
+[2026-10-23 21:40:15] [A] [distill]   distill_r0_s60000: 13/29 on selection seeds
+[2026-10-23 22:01:01] [A] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_120000.log)
+[2026-10-23 22:01:01] [A] [distill]   distill_r0_s120000: 17/29 on selection seeds
+[2026-10-23 22:07:35] [T6] stopped at 22:06:07 in stage A select (60k 13/29 and 120k 17/29 done; 180k partial: seeds 5500-5505 finished, 4/6) by the user's request (chat), to resume 10-24. The process tree of launcher 39496 was killed (taskkill /T); the stale gpu.lock (PID 45256) was moved aside to data\distill\bigtest\gpu.lock.stopped-20261023_220720; KeepAwake ended with its process. Nothing deleted.
+[2026-10-24 16:04:53] [lead] RESUME on the user's go (chat, 10-24: "can u run the tests that we were supposed to run today"). Same command, code c6bae0a clean, same --human-grid/--human-cell; CARLA closed, GPU idle, no gpu.lock. Dry run: human+teacher done; A to do (export/train reused, 60k/120k selection reused, 180k resumes from 5506).
+[2026-10-24 16:04:58] [bigtest] chain start; code {'commit': 'c6bae0ae1505ba4afcc54e1a59b17511210a4ada', 'branch': 'pm/bigtest', 'dirty': False}
+[2026-10-24 16:05:04] [gpulock] taken: 'T6 39540 bigtest 2026-10-24T16:05:04'
+[2026-10-24 16:05:04] [overnight] skip human+teacher (already done)
+[2026-10-24 16:05:04] [overnight] start A: round 0: export, train 180000, select [60000, 120000, 180000] on 5500-5528
+[2026-10-24 16:05:04] [A] [overnight] start preflight: inputs, the previous round, disk
+[2026-10-24 16:05:04] [A] [overnight] done preflight
+[2026-10-24 16:05:04] [A] [overnight] skip rollouts (already done)
+[2026-10-24 16:05:04] [A] [overnight] skip grid (already done)
+[2026-10-24 16:05:04] [A] [overnight] skip train (already done)
+[2026-10-24 16:05:04] [A] [overnight] start select: candidates [60000, 120000, 180000] on seeds 5500-5528
+[2026-10-24 16:05:04] [A] [distill]   distill_r0_s60000: 13/29 on selection seeds
+[2026-10-24 16:05:04] [A] [distill]   distill_r0_s120000: 17/29 on selection seeds
+[2026-10-24 16:19:12] [A] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_180000.log)
+[2026-10-24 16:19:12] [A] [distill]   distill_r0_s180000: 21/29 on selection seeds
+[2026-10-24 16:19:13] [A] [overnight] done select
+[2026-10-24 16:19:13] [bigtest] stage A: selection {'60000': [13, 29], '120000': [17, 29], '180000': [21, 29]} on [5500, 5528], chose 180000; times {'train_run': 'C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r0_t600_20261023_161418', 'export_done': '2026-10-23T18:06:46', 'checkpoint_60000': '2026-10-23T19:10:09', 'checkpoint_120000': '2026-10-23T20:12:58', 'checkpoint_180000': '2026-10-23T21:15:16'}
+[2026-10-24 16:19:13] [overnight] done A
+[2026-10-24 16:19:13] [overnight] start B: round 1: DAgger on 5210-5249, export, train 180000, select on 5529-5557
+[2026-10-24 16:19:13] [B] [overnight] start preflight: inputs, the previous round, disk
+[2026-10-24 16:19:13] [B] [overnight] done preflight
+[2026-10-24 16:19:13] [B] [overnight] start rollouts: DAgger student rollouts on seeds 5210-5249, cameras on
+[2026-10-24 16:47:48] [B] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\distill_rollouts.py --kind ... (log rollouts.log)
+[2026-10-24 16:47:48] [B] [overnight] done rollouts
+[2026-10-24 16:47:48] [B] [overnight] start decide: the DAgger stop rule
+[2026-10-24 16:47:48] [B] [distill]   round 1: student 70% on its rollouts; stop rule off (pre-registered); the rule says: continue
+[2026-10-24 16:47:48] [B] [overnight] done decide
+[2026-10-24 16:47:48] [B] [overnight] start grid: human + teacher (+ DAgger) mixed by frame share
+[2026-10-24 16:47:49] [B] [distill]   cell distill_r1: human 31536 frames x3.5584 (25%), teacher 224435 frames x1.0 (50%), dagger 29600 frames x3.7911 (25%)
+[2026-10-24 16:47:49] [B] [overnight] done grid
+[2026-10-24 16:47:49] [B] [overnight] start train: ACT, 180000 steps
+[2026-10-24 21:24:48] [lead] STOPPED by the user's request (chat, 10-24 ~21:25: 'Stop now, resume tomorrow'), during stage B train; last checkpoint 090000 of 180000. taskkill /T of bigtest 39540 (train 20060/4452 included); stale gpu.lock moved aside to data\distill\bigtest\gpu.lock.stopped-*. Nothing deleted. Resume = the same command; the training resumes in its own folder from the last checkpoint.
+[2026-10-25 11:25:36] [lead] RESUME on the user's go (chat, 10-25: "Go u can start again"). Same command, code c6bae0a clean; GPU idle, no gpu.lock, CARLA closed. Dry run: A done, B to do (training should resume bigtest_r1_20261024_164749 from checkpoint 090000 via find_unfinished_run/--resume-run).
+[2026-10-25 11:25:41] [bigtest] chain start; code {'commit': 'c6bae0ae1505ba4afcc54e1a59b17511210a4ada', 'branch': 'pm/bigtest', 'dirty': False}
+[2026-10-25 11:25:48] [gpulock] taken: 'T6 47120 bigtest 2026-10-25T11:25:48'
+[2026-10-25 11:25:48] [overnight] skip human+teacher (already done)
+[2026-10-25 11:25:48] [overnight] skip A (already done)
+[2026-10-25 11:25:48] [overnight] start B: round 1: DAgger on 5210-5249, export, train 180000, select on 5529-5557
+[2026-10-25 11:25:48] [B] [overnight] start preflight: inputs, the previous round, disk
+[2026-10-25 11:25:48] [B] [overnight] done preflight
+[2026-10-25 11:25:48] [B] [overnight] skip rollouts (already done)
+[2026-10-25 11:25:48] [B] [overnight] skip decide (already done)
+[2026-10-25 11:25:48] [B] [overnight] skip grid (already done)
+[2026-10-25 11:25:48] [B] [overnight] start train: ACT, 180000 steps
+[2026-10-25 11:25:48] [B] [distill]   resuming the unfinished training run C:\dev\pm-t6-big\data\experiments\bigtest_r1_20261024_164749
+[2026-10-25 13:11:31] [B] [distill]   exit 0: C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.experiments ... (log train.log)
+[2026-10-25 13:11:31] [B] [overnight] done train
+[2026-10-25 13:11:31] [B] [overnight] start select: candidates [60000, 120000, 180000] on seeds 5529-5557
+[2026-10-25 13:34:13] [B] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_60000.log)
+[2026-10-25 13:34:13] [B] [distill]   distill_r1_s60000: 16/29 on selection seeds
+[2026-10-25 14:07:50] [B] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_120000.log)
+[2026-10-25 14:07:50] [B] [distill]   distill_r1_s120000: 7/29 on selection seeds
+[2026-10-25 14:19:23] [lead] STOPPED by the user's request (chat, 10-25 ~14:19: "im running a game rn can we stop this pls"), during stage B selection: 60k 16/29 and 120k 7/29 done, 180k selection in progress (partial). taskkill /T of bigtest 47120; stale gpu.lock moved aside to data\distill\bigtest\gpu.lock.stopped-*. Nothing deleted. Resume = the same command (selection resumes per seed; test not started; seeds 5400-5439 untouched).
+[2026-10-25 17:38:29] [lead] RESUME on the user's go (chat, 10-25 ~17:38: "ok u can continue now"). Same command, code c6bae0a clean; no gpu.lock. Expect: skip A, skip B train, reuse B 60k/120k selection, resume B 180k selection from its partial log, pick, then the test on 5400-5439 once.
+[2026-10-25 17:38:34] [bigtest] chain start; code {'commit': 'c6bae0ae1505ba4afcc54e1a59b17511210a4ada', 'branch': 'pm/bigtest', 'dirty': False}
+[2026-10-25 17:38:41] [gpulock] taken: 'T6 54848 bigtest 2026-10-25T17:38:41'
+[2026-10-25 17:38:41] [overnight] skip human+teacher (already done)
+[2026-10-25 17:38:41] [overnight] skip A (already done)
+[2026-10-25 17:38:41] [overnight] start B: round 1: DAgger on 5210-5249, export, train 180000, select on 5529-5557
+[2026-10-25 17:38:41] [B] [overnight] start preflight: inputs, the previous round, disk
+[2026-10-25 17:38:41] [B] [overnight] done preflight
+[2026-10-25 17:38:41] [B] [overnight] skip rollouts (already done)
+[2026-10-25 17:38:41] [B] [overnight] skip decide (already done)
+[2026-10-25 17:38:41] [B] [overnight] skip grid (already done)
+[2026-10-25 17:38:41] [B] [overnight] skip train (already done)
+[2026-10-25 17:38:41] [B] [overnight] start select: candidates [60000, 120000, 180000] on seeds 5529-5557
+[2026-10-25 17:38:41] [B] [distill]   distill_r1_s60000: 16/29 on selection seeds
+[2026-10-25 17:38:41] [B] [distill]   distill_r1_s120000: 7/29 on selection seeds
+[2026-10-25 17:58:18] [B] [distill]   exit 0: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id ... (log select_180000.log)
+[2026-10-25 17:58:18] [B] [distill]   distill_r1_s180000: 8/29 on selection seeds
+[2026-10-25 17:58:18] [B] [overnight] done select
+[2026-10-25 17:58:18] [bigtest] stage B: selection {'60000': [16, 29], '120000': [7, 29], '180000': [8, 29]} on [5529, 5557], chose 60000; times {'train_run': 'C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r1_20261024_164749', 'export_done': '2026-10-24T19:18:47', 'checkpoint_60000': '2026-10-24T20:38:58', 'checkpoint_120000': '2026-10-25T12:02:11', 'checkpoint_180000': '2026-10-25T13:11:29'}
+[2026-10-25 17:58:18] [overnight] done B
+[2026-10-25 17:58:18] [overnight] start test: the final model on 5400-5439, once
+[2026-10-25 17:58:18] [bigtest] final model: stage A step 180000 (A [21, 29], B [16, 29]; a tie goes to B): C:\dev\pm-t6-big\data\experiments\bigtest_r0_t600_20261023_161418\train\distill_r0\checkpoints\180000\pretrained_model
+[2026-10-25 17:58:18] [bigtest] test command: C:\isaac\env_isaaclab\Scripts\python.exe C:\dev\pm-t6-big\sim_eval\scripts\eval_cells.py --run-id bigtest_test --checkpoint bigtest_final=C:\dev\pm-t6-big\data\experiments\bigtest_r0_t600_20261023_161418\train\distill_r0\checkpoints\180000\pretrained_model --seed0 5400 --n 40 --start-state C:\dev\pm-t6\data\experiments\hx_mouse20261020_20261020_164411\datasets\raw_10 --start-pose dataset --port 8766 --gripper-deadband 0.25 --trace
+[2026-10-25 18:21:16] [bigtest] RESULT 30/40 on 5400-5439; Wilson 95% 0.598-0.858
+[2026-10-25 18:21:16] [overnight] done test
+[2026-10-25 18:21:16] [gpulock] released
+[2026-10-25 18:21:16] [bigtest] done; GPU lock released

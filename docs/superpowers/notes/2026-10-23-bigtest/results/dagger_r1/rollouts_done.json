@@ -1,0 +1,36 @@
+{
+ "kind": "dagger",
+ "round": 1,
+ "seeds": [
+  5210,
+  5249
+ ],
+ "attempted": 40,
+ "successes": 28,
+ "episodes": 40,
+ "frames": 29600,
+ "teacher": "rl-2026-10-21_21-33-14_demo_v6h",
+ "ended_by": {
+  "time_limit": 12,
+  "success": 28
+ },
+ "teacher_spec": "sim_worker.rl_policy:make",
+ "teacher_checkpoint": "C:\\dev\\pm-t3\\data\\rl\\logs\\rsl_rl\\sant_rl_teacher\\2026-10-21_21-33-14_demo_v6h\\exported\\policy.pt",
+ "code": {
+  "commit": "c6bae0ae1505ba4afcc54e1a59b17511210a4ada",
+  "branch": "pm/bigtest",
+  "dirty": false
+ },
+ "student_checkpoint": "C:\\dev\\pm-t6-big\\data\\experiments\\bigtest_r0_t600_20261023_161418\\train\\distill_r0\\checkpoints\\180000\\pretrained_model",
+ "beta": 0.0,
+ "inference": {
+  "binarize_gripper": false,
+  "n_action_steps": null,
+  "temporal_ensemble_coeff": null,
+  "gripper_deadband": 0.25
+ },
+ "teacher_execution": "held",
+ "teacher_cap_from_tool": true,
+ "wall_s": 1712.2,
+ "finished": "2026-10-24T20:47:47+00:00"
+}

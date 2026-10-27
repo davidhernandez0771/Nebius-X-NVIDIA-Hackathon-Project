@@ -11,8 +11,9 @@ while another Isaac process runs (sim_eval.report.isaac_gate), as run_eval does.
 
 teacher: the teacher drives; only rollouts passing check_success are written. dagger: this script starts the student's
 policy server (lerobot venv, as eval_cells does) on --port, the student drives, the teacher labels every visited state.
-The teacher is loaded in this process: load_teacher(--teacher, checkpoint=--teacher-checkpoint, device=--device)
-(T3's factory takes exactly those two keyword arguments).
+The teacher is loaded in this process: load_teacher_for(--kind, --teacher, checkpoint=--teacher-checkpoint,
+device=--device); DAgger adds cap_from_tool=True
+(T3's make() takes checkpoint, device and cap_from_tool; load_teacher_for refuses a DAgger teacher without it on).
 Writes <out>/episodes/<name>/ (episode_io + scene.json, distill.json, teacher.npz), one row per seed in
 <out>/rollouts.jsonl, and <out>/rollouts_done.json when every seed has a row. Resumable: seeds with a row are skipped;
 a seed's leftovers from an interrupted attempt are moved to <out>/_stale/ first (never deleted).
@@ -33,7 +34,7 @@ from sim_worker.own_code import check_own_code  # noqa: E402
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
 
-from lerobot_tools.inference import GripperBinarizer, InferenceOptions, add_inference_args  # noqa: E402
+from lerobot_tools.inference import InferenceOptions, add_inference_args, wrap_gripper  # noqa: E402
 
 parser = argparse.ArgumentParser(description="Teacher or DAgger rollouts written as training episodes.")
 parser.add_argument("--kind", choices=("teacher", "dagger"), required=True)
@@ -76,7 +77,7 @@ from sim_eval.distill import (  # noqa: E402
 from sim_eval.distill_round import code_version  # noqa: E402
 from sim_eval.report import gpu_pids, isaac_gate, python_processes, resolve_start  # noqa: E402
 from sim_eval.retry import RetryingPolicy  # noqa: E402
-from sim_eval.teacher import execution_mismatch, load_teacher  # noqa: E402
+from sim_eval.teacher import execution_mismatch, load_teacher_for  # noqa: E402
 from sim_worker.replay import make_sim_cfg  # noqa: E402
 
 
@@ -125,7 +126,7 @@ def main() -> None:
         out.mkdir(parents=True, exist_ok=True)
         server = ec.start_server(str(a.checkpoint), a.port, out / "policy_server.log", inference)
         client = RetryingPolicy(PolicyClient(f"http://127.0.0.1:{a.port}", timeout=60))
-        policy = GripperBinarizer(client) if inference.binarize_gripper else client
+        policy = wrap_gripper(client, inference)
         log(f"student {a.checkpoint} served on :{a.port}; inference {inference.record()}; beta {a.beta}")
     if not todo:
         finish(out, rows, t0, rows[a.seed0]["teacher"])
@@ -137,7 +138,8 @@ def main() -> None:
 
             env = IsaacDistillEnv(cameras=True, device=a.device, start_joint_pos=start_pose)
             # after the app is up: the teacher may import Isaac Lab (rsl_rl and its wrappers)
-            teacher = load_teacher(a.teacher, checkpoint=str(a.teacher_checkpoint), device=a.device)
+            # DAgger: the teacher caps each label from the tool the student reached (load_teacher_for)
+            teacher = load_teacher_for(a.kind, a.teacher, checkpoint=str(a.teacher_checkpoint), device=a.device)
             log(f"teacher {teacher.name!r} from {a.teacher} ({a.teacher_checkpoint})")
             mismatch = execution_mismatch(teacher, a.teacher_execution)
             if mismatch:
@@ -172,6 +174,7 @@ def finish(out: Path, rows: dict, t0: float, teacher_name: str) -> None:
                            teacher_spec=a.teacher, teacher_checkpoint=str(a.teacher_checkpoint), code=code_version(REPO),
                            student_checkpoint=str(a.checkpoint) if a.checkpoint else None, beta=a.beta,
                            inference=inference.record(), teacher_execution=a.teacher_execution,
+                           teacher_cap_from_tool=a.kind == "dagger",
                            wall_s=round(time.time() - t0, 1),
                            finished=datetime.now(timezone.utc).isoformat(timespec="seconds"))
     (out / "rollouts_done.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")

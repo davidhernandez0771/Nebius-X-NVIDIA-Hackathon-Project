@@ -10,7 +10,7 @@ describe("robots", () => {
   });
 
   it("turns a slot into the cartridge the machine gets", () => {
-    expect(cartridgeAt(HELIX[0])).toEqual({ id: "so101", label: "SO-101", route: "/pm/record", slot: 0 });
+    expect(cartridgeAt(HELIX[0])).toEqual({ id: "so101", label: "SO-101", route: "/pm/record", slot: 0, robot: "S101" });
     // The core's default (what plugs in when nobody chose) is that same lowest slot.
     expect(DEFAULT_CARTRIDGE).toEqual(cartridgeAt(HELIX[0]));
   });

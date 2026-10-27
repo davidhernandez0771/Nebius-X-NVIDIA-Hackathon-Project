@@ -74,7 +74,8 @@ export const CATALOG: readonly CatalogRobot[] = [
     gripper: "Parallel two-finger hand; each finger slides 0–4 cm.",
     today: "SANT's main robot: record a demo, check it in physics, multiply it, train on it. The Record page's twin and the machine's hologram are this arm.",
     status: "tested",
-    result: "Multiply 30/30 verified copies (seeds 100–129, 2026-10-18). A policy trained on SANT's copies: 17/40 vs 3/40 raw.",
+    result:
+      "A camera policy from 10 human mouse demos: 30/40 on unseen scenes, pre-registered and run once (2026-10-24). Multiply 30/30 verified copies (seeds 100–129, 2026-10-18). Earlier, with scripted demos: 17/40 vs 3/40 raw.",
     model: modelLine("franka"),
     sources: [
       "web/public/robots/franka_description (package.xml, panda_arm_hand.urdf)",
@@ -83,6 +84,7 @@ export const CATALOG: readonly CatalogRobot[] = [
       URDF.franka.source,
       `${BYOR} (built-in rerun, 30/30)`,
       "docs/superpowers/notes/2026-10-15-t3-status.md (sprint 7: 3/40 vs 17/40)",
+      "docs/superpowers/notes/2026-10-23-bigtest-prereg.md on pm/live-13 (line 744: 30/40, the one-shot test)",
     ],
   },
   {

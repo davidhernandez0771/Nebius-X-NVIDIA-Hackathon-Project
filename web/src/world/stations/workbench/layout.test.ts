@@ -87,34 +87,43 @@ describe("the bench in the room view, and a save's flight", () => {
 
 // The material stage: six blank shells lying on the bench's mat, in a row in front of the turntable.
 describe("the six blanks on the bench", () => {
-  it("lie face up on the mat, in one straight evenly spaced row, apart and clear of the turntable", async () => {
+  it("lie face up on the mat, three either side of the turntable (a column each side on a phone), apart, clear of it and of the printer", async () => {
     const { BLANKS, BLANK_SCALE, MAT_TOP, benchFrame, blankPose } = await import("./layout");
     const { FINISHES } = await import("../../scene/saved");
     expect(BLANKS).toHaveLength(FINISHES.length);
-    const half = { x: 1.15 * BLANK_SCALE, z: 1.25 * BLANK_SCALE, t: 0.17 * BLANK_SCALE };
-    const local = BLANKS.map((_, i) => benchFrame(blankPose(i).position));
-    BLANKS.forEach((_, i) => {
-      const p = blankPose(i);
-      // Its label side (+z) faces up; it rests on the mat.
-      expect(new THREE.Vector3(0, 0, 1).applyQuaternion(p.quaternion).y).toBeGreaterThan(0.999);
-      expect(p.position.y - half.t).toBeCloseTo(MAT_TOP, 6);
-      expect(p.scale).toBe(BLANK_SCALE);
-      // Inside the mat (8.2 × 3.9), not a corner over its edge.
-      const b = local[i];
-      expect(Math.abs(b.x) + half.x).toBeLessThan(4.1);
-      expect(Math.abs(b.z) + half.z).toBeLessThan(1.95);
-      // Clear of the turntable's ring (0.965 m round its centre), corners included.
-      const tt = benchFrame(TURNTABLE);
-      const nearX = Math.max(Math.abs(b.x - tt.x) - half.x, 0);
-      const nearZ = Math.max(Math.abs(b.z - tt.z) - half.z, 0);
-      expect(Math.hypot(nearX, nearZ)).toBeGreaterThan(0.965 + 0.04);
-    });
-    const gaps = local.slice(1).map((b, i) => b.x - local[i].x);
-    for (const g of gaps) {
-      expect(g).toBeCloseTo(gaps[0], 6);
-      expect(g - 2 * half.x).toBeGreaterThan(0.06);
+    const t = 0.17 * BLANK_SCALE;
+    const tt = benchFrame(TURNTABLE);
+    const printer = benchFrame(new THREE.Vector3(-2.4387, 3.56, -2.6557));
+    for (const tall of [false, true]) {
+      // Each blank's footprint on the mat, its four corners in the bench's own frame.
+      const corners = FINISHES.map((_, i) => {
+        const p = blankPose(i, 0, undefined, tall);
+        return [-1.15, 1.15].flatMap((cx) => [-1.25, 1.25].map((cy) => benchFrame(new THREE.Vector3(cx, cy, 0).applyQuaternion(p.quaternion).multiplyScalar(BLANK_SCALE).add(p.position))));
+      });
+      FINISHES.forEach((_, i) => {
+        const p = blankPose(i, 0, undefined, tall);
+        // Its label side (+z) faces up; it rests on the mat.
+        expect(new THREE.Vector3(0, 0, 1).applyQuaternion(p.quaternion).y).toBeGreaterThan(0.99);
+        expect(p.position.y - t).toBeCloseTo(MAT_TOP, 6);
+        expect(p.scale).toBe(BLANK_SCALE);
+        for (const c of corners[i]) {
+          // Inside the mat (8.2 × 3.9), not a corner over its edge.
+          expect(Math.abs(c.x), `${tall} ${i}`).toBeLessThan(4.1);
+          expect(Math.abs(c.z), `${tall} ${i}`).toBeLessThan(1.95);
+          // Clear of the turntable's ring (0.965 m round its centre), and of the printer's foot.
+          expect(Math.hypot(c.x - tt.x, c.z - tt.z), `${tall} ${i}`).toBeGreaterThan(0.965 + 0.04);
+          expect(Math.abs(c.x - printer.x) > 0.75 || Math.abs(c.z - printer.z) > 0.55).toBe(true);
+        }
+      });
+      // Apart: no two footprints' centres closer than a blank's width and a hand's breadth.
+      const centres = FINISHES.map((_, i) => benchFrame(blankPose(i, 0, undefined, tall).position));
+      for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) expect(centres[a].distanceTo(centres[b])).toBeGreaterThan(2.3 * BLANK_SCALE + 0.06);
+      // Left to right in the finishes' order on a wide screen, mirrored either side of the turntable.
+      if (!tall) {
+        for (let i = 1; i < 6; i++) expect(centres[i].x).toBeGreaterThan(centres[i - 1].x);
+        for (let i = 0; i < 3; i++) expect(centres[i].x - tt.x).toBeCloseTo(-(centres[5 - i].x - tt.x), 1);
+      }
     }
-    for (const b of local) expect(b.z).toBeCloseTo(local[0].z, 6);
   });
 
   it("lift a little under the pointer, and no more than that", async () => {
@@ -178,7 +187,7 @@ describe("each stage's shot", () => {
     for (const s of SCREENS) {
       const shot = shotFor("material", s.w / s.h);
       BLANKS.forEach((_, i) => {
-        const p = blankPose(i);
+        const p = blankPose(i, 0, undefined, s.h > s.w);
         for (const cx of [-1.15, 1.15])
           for (const cy of [-1.25, 1.25]) {
             const corner = new THREE.Vector3(cx, cy, 0.17).applyQuaternion(p.quaternion).multiplyScalar(BLANK_SCALE).add(p.position);

@@ -1,5 +1,5 @@
 // The quiet Contact entry point, top right: a button that opens a small panel listing the links from one
-// config file (site/contact.ts), empty until the team's socials arrive.
+// config file (site/contact.ts): the project's repository, and the team's socials when they arrive.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONTACT_LINKS } from "../../site/contact";
@@ -9,8 +9,7 @@ afterEach(cleanup);
 
 describe("the Contact entry point", () => {
   it("opens a panel that says the links are coming while the list is empty, and closes on Escape", () => {
-    expect(CONTACT_LINKS).toEqual([]);
-    render(<Contact />);
+    render(<Contact links={[]} />);
     const button = screen.getByRole("button", { name: "Contact" });
     expect(button.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(button);
@@ -22,6 +21,18 @@ describe("the Contact entry point", () => {
     fireEvent.keyDown(panel, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(button);
+  });
+
+  // site-bugs (2026-10-26): the site's Contact opened on "Links coming soon." and nothing else. The project's public
+  // repository (the one every Results citation already links into) is there now; the team's own links are the
+  // user's to add.
+  it("lists the project's repository by default, never 'coming soon'", () => {
+    expect(CONTACT_LINKS.map((l) => l.href)).toContain("https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project");
+    render(<Contact />);
+    fireEvent.click(screen.getByRole("button", { name: "Contact" }));
+    const panel = screen.getByRole("dialog", { name: "Contact" });
+    expect(within(panel).queryByText("Links coming soon.")).toBeNull();
+    expect(within(panel).getByRole("link", { name: /GitHub/ }).getAttribute("target")).toBe("_blank");
   });
 
   it("lists each link, opening in a new tab, and drops anything that isn't http(s) or mailto", () => {

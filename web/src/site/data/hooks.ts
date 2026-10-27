@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from "react";
+import { describeError } from "../../pm/api";
 import { applyEvent, initialFeed, parseEvent, type FeedState } from "./liveFeed";
 
 export type Async<T> = { state: "loading" } | { state: "ok"; value: T } | { state: "error"; message: string };
@@ -12,7 +13,8 @@ export function useAsync<T>(key: string | null, load: () => Promise<T>): Async<T
     set({ state: "loading" });
     load().then(
       (value) => live && set({ state: "ok", value }),
-      (e: unknown) => live && set({ state: "error", message: e instanceof Error ? e.message : String(e) }),
+      // A line a person can act on ("Can't reach the backend at …"), not the browser's "Failed to fetch".
+      (e: unknown) => live && set({ state: "error", message: describeError(e) }),
     );
     return () => {
       live = false;

@@ -10,17 +10,14 @@ export const plug = {
   requested: false,
   /** 0–1 through the whole sequence (0: in the spiral, 1: plugged in and projecting). */
   progress: 0,
-  /** PLUG IN: once it is in, carry on into the projection and open the cartridge's page. */
-  autoplay: false,
   /** It was dragged onto the machine: it waits over the port instead of flying from its slot (plugSequence.ts). */
   held: false,
 };
 
 /** Send a spiral slot to the machine (a click on it, its robot's button, or a drop over the port: held). */
-export function sendToMachine(slot: number, autoplay = false, held = false): void {
+export function sendToMachine(slot: number, held = false): void {
   plug.slot = slot;
   plug.requested = true;
-  plug.autoplay = autoplay;
   plug.held = held;
 }
 
@@ -28,6 +25,5 @@ export function resetPlug(): void {
   plug.slot = DEFAULT_CARTRIDGE.slot ?? 0;
   plug.requested = false;
   plug.progress = 0;
-  plug.autoplay = false;
   plug.held = false;
 }

@@ -42,6 +42,15 @@ export function saveReturn(storage: Storage | undefined, station: string): void 
   }
 }
 
+/** Remember a station to come back to unless one is already saved (the machine, by the zoom's hand-off). */
+export function keepReturn(storage: Storage | undefined, station: string): void {
+  try {
+    if (!storage?.getItem(RETURN_KEY)) storage?.setItem(RETURN_KEY, station);
+  } catch {
+    /* private mode: Back starts the journey from the top */
+  }
+}
+
 export function takeReturn(storage: Storage | undefined): string | null {
   try {
     const v = storage?.getItem(RETURN_KEY) ?? null;

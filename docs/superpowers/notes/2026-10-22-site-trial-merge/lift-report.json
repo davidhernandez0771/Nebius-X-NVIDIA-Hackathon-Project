@@ -1,0 +1,41 @@
+[
+  {
+    "name": "hub",
+    "hub": true,
+    "station": "workshop",
+    "errors": [],
+    "shot": "lift01-hub"
+  },
+  {
+    "name": "drag-pick-held",
+    "start": [
+      640,
+      144
+    ],
+    "end": [
+      320,
+      324
+    ],
+    "hub": true,
+    "station": "workshop",
+    "errors": [],
+    "shot": "lift02-drag-pick-held"
+  },
+  {
+    "name": "click-pick",
+    "at": [
+      640,
+      144
+    ],
+    "station": "workshop",
+    "errors": [],
+    "shot": "lift03-click-pick"
+  },
+  {
+    "name": "back-in-hub",
+    "hub": true,
+    "station": "workshop",
+    "errors": [],
+    "shot": "lift04-back-in-hub"
+  }
+]
