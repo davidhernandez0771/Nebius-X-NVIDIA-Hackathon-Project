@@ -3,12 +3,11 @@
 // panels' controls opt back in (.world-panel :is(button, …)). Without its own opt-in the bar drew, but a real click
 // went through it to the canvas: "Back to room" did nothing in every place (the user, 2026-10-26). jsdom has no
 // layout or hit-testing, so this reads the rule itself.
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
-const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "ui.css"), "utf8");
+type Fs = { readFileSync(p: string, enc: string): string };
+const cwd = () => (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
+let css = "";
 
 /** The declarations of the first rule whose selector is exactly `selector`. */
 function rule(selector: string): string {
@@ -19,6 +18,11 @@ function rule(selector: string): string {
 }
 
 describe("the way-back bar takes clicks", () => {
+  beforeAll(async () => {
+    const fs = (await import(/* @vite-ignore */ `node:${"fs"}`)) as Fs;
+    css = fs.readFileSync(`${cwd()}/src/world/ui/ui.css`, "utf8").replace(/\r\n/g, "\n");
+  });
+
   it("opts back into pointer events inside the click-through overlay layer", () => {
     expect(rule(".world-stationbar")).toMatch(/pointer-events:\s*auto/);
   });
