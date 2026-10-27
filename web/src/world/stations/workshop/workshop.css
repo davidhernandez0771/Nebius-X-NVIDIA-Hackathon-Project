@@ -494,10 +494,28 @@
   /* Five places and the way up fit across a 390 px phone. */
   .world-hubbar { gap: 12px; padding: 8px 12px; }
   .world-hubbar__go { gap: 10px; }
-  .world-hubtag button { min-width: 11rem; }
-  .world-hubtag__l { display: none; }
   .world-hubbar__hint { display: none; }
   .world-hubbar__go { display: flex; }
+  /* The tags as one-line chips (polish, 2026-10-27: on a 390 px phone the five stacked cards covered the room and
+     crowded each other): number and name on one line, a short stem, no line under them (the bar above names the
+     places too), a solid glass instead of the blur (it smeared the cartridges behind into smudges, and costs a
+     pass). Still a finger's height. */
+  .world-hubtag button {
+    min-width: 0;
+    min-height: 40px;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(4, 9, 10, 0.86);
+    backdrop-filter: none;
+    white-space: nowrap;
+  }
+  .world-hubtag__n { font-size: 11px; letter-spacing: 0.14em; }
+  .world-hubtag__t { font-size: 12px; letter-spacing: 0.1em; }
+  .world-hubtag__l { display: none; }
+  .world-hubtag__start { grid-column: 1 / -1; margin-top: 0; font-size: 11px; }
+  .world-hubtag__stem { height: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .world-hubtag, .world-hubbar { transition: none; }
