@@ -65,7 +65,9 @@ export function locate(rail: Rail, y: number): Place {
     }
   }
   const s = spans[index];
-  if (yc < s.start - (s.start > s.from ? 0 : SNAP)) {
+  // The end of a travel too (site-bugs): a jump to the workshop's dwell at 16344.000000000002 px lands on 16344, and
+  // a travel at t 0.99999… never counts as arrived (the room's hub stayed off).
+  if (yc < s.start - SNAP) {
     const t = clamp01((yc - s.from) / (s.start - s.from));
     return { index, phase: "travel", t, current: t < 0.5 && index > 0 ? index - 1 : index };
   }
