@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LEAD } from "../results/proofData";
 import { COPIES, ROBOTS } from "./robots";
 
 // The repo's docs, keyed "docs/…" (Vite resolves the glob at build time; nothing is bundled into the app).
@@ -8,6 +9,15 @@ const hasNumber = (s: string) => /\d/.test(s.replace(/\b(7|6|5)-DOF\b/g, ""));
 describe("robots data", () => {
   it("lists the six cartridges in shelf order, ending with the add slot", () => {
     expect(ROBOTS.map((r) => r.code)).toEqual(["FRANKA", "OPENARM", "RIZON", "SO-101", "PIPER", "+ ADD"]);
+  });
+
+  // site-bugs (2026-10-26): the Franka's cartridge still said "3/40 → 17/40", the scripted-demo result, while the site
+  // leads with the pre-registered 30/40 on the same arm.
+  it("gives the Franka its headline result, the pre-registered one-shot test, not the earlier scripted 17/40", () => {
+    const franka = ROBOTS.find((r) => r.code === "FRANKA")!;
+    expect(franka.note).toContain(`${LEAD.result.k}/${LEAD.result.n}`);
+    expect(franka.note).not.toContain("17/40");
+    expect(franka.sources.join(" ")).toMatch(/2026-10-23-bigtest-prereg\.md#L744/);
   });
 
   it("cites a source for every robot that shows a result", () => {

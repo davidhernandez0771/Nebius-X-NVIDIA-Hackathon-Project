@@ -128,7 +128,8 @@
   z-index: 3;
   color: var(--rb-ink-3);
 }
-.robots-sr {
+.robots-sr,
+.robots-h1 {
   position: absolute;
   width: 1px;
   height: 1px;

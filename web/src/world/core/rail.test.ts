@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { arcPose, fillFrames, layoutRail, locate, mixPose, poseAt, reducedPoseAt, restIndexAt, smoother, through, type RailStation } from "./rail";
 import type { CameraPose, StationFrame } from "./types";
+import { INTRO_VH } from "../stations/intro/storyPlan";
 
 const pose = (x: number): CameraPose => ({ position: [x, 0, 10], target: [x, 0, 0], fov: 40 });
 const a: RailStation = { id: "intro", anchor: [0, 0, 0], travel: 0, length: 2, camera: (t) => pose(t) };
@@ -49,6 +50,28 @@ describe("locate", () => {
     expect(locate(tall, start - 1e-9)).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
     expect(locate(tall, start - 0.4)).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
     expect(locate(tall, start - 2)).toMatchObject({ index: 2, phase: "travel" });
+  });
+  // site-bugs (2026-10-26): the same hair at the end of a travel. With the proof beats the intro is 18.9 viewports, so
+  // at 720 px the workshop's dwell starts at 16344.000000000002: the rail's WORKSHOP (and Skip the intro) scrolled to
+  // 16344, a hair short, so the room counted as still arriving (arrive 0.99999…) and the hub never came up: no tags,
+  // no hub bar, nothing to click in the room.
+  it("counts a scroll within half a pixel short of a travelled station's start as arrived", () => {
+    const real = layoutRail(
+      [
+        { ...a, length: INTRO_VH },
+        { ...b, travel: 0, length: 3 },
+        { ...c, travel: 0.8, length: 0.25 },
+      ],
+      720,
+    );
+    const start = real.spans[2].start;
+    expect(start).not.toBe(Math.round(start)); // the float the browser can't scroll to
+    expect(locate(real, Math.round(start))).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
+    const frames: StationFrame[] = [0, 1, 2].map(() => ({ t: 0, arrive: 0, current: false, near: false }));
+    fillFrames(real, Math.round(start), frames);
+    expect(frames[2].arrive).toBe(1);
+    // A whole pixel short is still the travel's end.
+    expect(locate(real, Math.round(start) - 1)).toMatchObject({ index: 2, phase: "travel" });
   });
   it("clamps above and below the rail", () => {
     expect(locate(rail, -50)).toEqual({ index: 0, phase: "dwell", t: 0, current: 0 });

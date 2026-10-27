@@ -41,15 +41,17 @@ function Runs({ fetchImpl }: { fetchImpl?: Fetch }) {
         After Record, SANT checks every demo with physics, repairs what failed, multiplies the good ones into verified variants, trains a policy
         on them, evaluates it on scenes it hasn't seen, and hands you the data. Follow each stage here, live, with its time left.
       </p>
+      {/* Read before the form (site-bugs): with no pipeline API the form can't start anything. */}
+      {missing && (
+        <p className="data-note">
+          The pipeline API isn't on this server yet. <Link to={`/pipeline/${EXAMPLE_RUN_ID}`}>Watch an example run</Link> to see the pages.
+        </p>
+      )}
       <StartRun demos={demos} fetchImpl={fetchImpl} onStarted={(id) => navigate(`/pipeline/${encodeURIComponent(id)}`)} />
       <section className="pipe-runs" aria-label="Runs">
         <h2 className="data-h3">Runs</h2>
         {runs.state === "loading" && <p className="data-note">Loading the runs…</p>}
-        {missing && (
-          <p className="data-note">
-            The pipeline API isn't on this server yet. <Link to={`/pipeline/${EXAMPLE_RUN_ID}`}>Watch an example run</Link> to see the pages.
-          </p>
-        )}
+        {missing && <p className="data-note">None here: the pipeline API isn't on this server.</p>}
         {runs.state === "error" && !missing && <p className="data-note data-note--error">The runs didn't load: {runs.message}</p>}
         {runs.state === "ok" && runs.value.length === 0 && (
           <p className="data-note">
@@ -93,7 +95,7 @@ function RunView({ id, stage, Source, fetchImpl }: { id: string; stage?: string;
   return (
     <>
       {example && <p className="pipe-example">An example run, played in your browser at {speed}× (not live): the pipeline API isn't on this server yet.</p>}
-      <PipelineBar run={run} bar={bar} shown={shown} conn={conn} search={search} />
+      <PipelineBar run={run} bar={bar} shown={shown} conn={conn} search={search} example={example} />
       <div className="pipe-run-status">
         {run.detail && <p className="data-note">{run.detail}</p>}
         {!example && run.id && <RunControls run={run} fetchImpl={fetchImpl} onChanged={() => setNonce((n) => n + 1)} />}

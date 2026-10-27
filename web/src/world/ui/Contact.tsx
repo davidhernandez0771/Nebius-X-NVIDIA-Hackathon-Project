@@ -1,5 +1,5 @@
 // A quiet Contact entry point, top right: a small button that opens a panel under it listing the links
-// in site/contact.ts (empty for now, so the panel says they are coming). Escape, Close or a click
+// in site/contact.ts (the panel says they are coming if it is ever empty). Escape, Close or a click
 // outside closes it, and focus goes back to the button.
 import { Logo } from "../../sant/components/Logo";
 import { useEffect, useId, useRef, useState } from "react";

@@ -40,7 +40,7 @@ describe("the robots catalog panel", () => {
     expect(franka.getByText("0.86 m")).toBeTruthy();
     expect(franka.getByText("Joint limits")).toBeTruthy();
     expect(franka.getByText("-176° to -4°")).toBeTruthy();
-    expect(franka.getByText(/^Multiply 30\/30/)).toBeTruthy();
+    expect(franka.getByText(/^A camera policy from 10 human mouse demos: 30\/40 .*Multiply 30\/30/)).toBeTruthy();
     expect(within(entry("Flexiv Rizon 4s")).queryByText("Joint limits")).toBeNull();
     expect(within(entry("SO-101")).queryByText("In Isaac")).toBeNull();
     expect(screen.queryByText("Payload")).toBeNull();

@@ -188,6 +188,8 @@ export function RobotsPage() {
           </span>
           <span>robots@sant · copies {COPIES.verified}/{COPIES.total} verified</span>
         </div>
+        {/* The page's name for screen readers (the shelf is its visible title). */}
+        <h1 className="robots-h1">Robots</h1>
         <nav className="robots-list" aria-label="Robots">
           {ROBOTS.map((r, i) => (
             <button key={r.id} type="button" aria-current={selected === i ? "true" : "false"} onClick={() => pick(i)}>
@@ -199,7 +201,7 @@ export function RobotsPage() {
           ))}
         </nav>
         <p className="robots-blurb">
-          SANT turns one webcam demo into physics-verified robot data.
+          SANT turns 10 human mouse demos into physics-verified robot data.
           <br />
           Every cartridge here is a robot or one of its verified copies.
         </p>
