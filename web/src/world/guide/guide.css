@@ -1,0 +1,385 @@
+/* The first-visit guide (Guide.tsx), in the room's holo look (ui.css, the hub tags, the way-back bar): see-through
+   dark glass with a teal hairline and corner brackets, mono type, the go button a squared teal box. Its layer sits
+   over the 3D and lets clicks through; every control opts back in with its own pointer-events: auto (the overlay
+   layers are pointer-events: none, and a control without it draws but a real click goes through it to the canvas:
+   guideClicks.test.ts). Body copy is sentence case at 13 px, not the UI's spaced capitals: it is read, not scanned. */
+
+.world-guide {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+/* The line from the card to what it points at. */
+.world-guide__wire {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.world-guide__wire line {
+  stroke: rgb(25 245 194 / 0.6);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+/* The ring round the target: corner brackets on a faint frame. */
+.world-guide__ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid rgb(25 245 194 / 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0;
+  animation: world-guide-ring 2.4s ease-in-out infinite;
+}
+
+.world-guide__ring[data-on="true"] {
+  opacity: 1;
+}
+
+.world-guide__ring::before,
+.world-guide__ring::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--w-teal);
+}
+
+.world-guide__ring::before {
+  left: -3px;
+  top: -3px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.world-guide__ring::after {
+  right: -3px;
+  bottom: -3px;
+  border-left: 0;
+  border-top: 0;
+}
+
+@keyframes world-guide-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(25 245 194 / 0);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(25 245 194 / 0.14);
+  }
+}
+
+.world-guide__card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 14px 16px 12px;
+  display: grid;
+  gap: 10px;
+  color: var(--w-ink);
+  font-family: var(--w-mono);
+  background: rgb(5 9 10 / 0.9);
+  border: 1px solid rgb(25 245 194 / 0.3);
+  border-radius: 2px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.9);
+  outline: none;
+  /* The card sits in a click-through layer: take the clicks back (guideClicks.test.ts). */
+  pointer-events: auto;
+  animation: world-guide-in 0.28s ease both;
+}
+
+/* The ring's corner brackets on the card too, so it reads as the guide and not as one more tag in the room. */
+.world-guide__card::before,
+.world-guide__card::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--w-teal);
+  pointer-events: none;
+}
+
+.world-guide__card::before {
+  left: 0;
+  top: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.world-guide__card::after {
+  right: 0;
+  bottom: 0;
+  border-left: 0;
+  border-top: 0;
+}
+
+/* Hidden until the first placement, so it never flashes in the corner. */
+.world-guide__card[data-placed="false"] {
+  visibility: hidden;
+}
+
+.world-guide__card:focus-visible {
+  outline: 1px solid rgb(25 245 194 / 0.55);
+  outline-offset: 3px;
+}
+
+@keyframes world-guide-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.world-guide__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--w-dim);
+}
+
+.world-guide__count {
+  color: var(--w-teal);
+}
+
+.sant.world .world-guide__title {
+  margin: 0;
+  font-family: var(--w-mono);
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--w-ink);
+}
+
+.sant.world .world-guide__line {
+  margin: 0;
+  font-family: var(--w-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  color: #b4cfc8;
+}
+
+.world-guide__links {
+  margin: 2px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.sant.world .world-guide__link {
+  appearance: none;
+  margin: 0;
+  padding: 2px 0;
+  font: 500 12px / 1.4 var(--w-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--w-teal);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgb(25 245 194 / 0.35);
+  border-radius: 0;
+  text-decoration: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.sant.world .world-guide__link:hover,
+.sant.world .world-guide__link:focus-visible {
+  color: var(--w-ink);
+  border-color: var(--w-teal);
+}
+
+.world-guide__nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Skip, Back, Next, the offer's buttons: the way-back bar's squared buttons. */
+.sant.world .world-guide__btn,
+.sant.world .world-guide__skip {
+  appearance: none;
+  margin: 0;
+  padding: 7px 12px;
+  font: 500 11px / 1.2 var(--w-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--w-ink);
+  background: none;
+  border: 1px solid rgb(25 245 194 / 0.28);
+  border-radius: 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sant.world .world-guide__skip {
+  padding: 4px 10px;
+  color: var(--w-dim);
+  border-color: rgb(255 255 255 / 0.1);
+}
+
+.sant.world .world-guide__btn--go {
+  color: var(--w-teal);
+  background: rgb(25 245 194 / 0.06);
+  border-color: rgb(25 245 194 / 0.55);
+}
+
+.sant.world .world-guide__btn:hover,
+.sant.world .world-guide__skip:hover {
+  color: var(--w-ink);
+  border-color: rgb(25 245 194 / 0.55);
+  background: rgb(25 245 194 / 0.12);
+}
+
+.sant.world :is(.world-guide__btn, .world-guide__skip, .world-guide__link):focus-visible {
+  outline: 2px solid var(--w-teal);
+  outline-offset: 2px;
+}
+
+.world-guide__keys {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--w-dim);
+}
+
+.world-guide__keys kbd {
+  padding: 0 4px;
+  font: inherit;
+  color: var(--w-ink);
+  border: 1px solid rgb(25 245 194 / 0.28);
+  border-radius: 2px;
+}
+
+/* The hero's offer: bottom left, under the story's first words, clear of "Scroll down" in the middle. */
+.world-guide-offer {
+  position: fixed;
+  z-index: 6;
+  left: max(28px, 6vw);
+  bottom: 6vh;
+  max-width: min(420px, calc(100vw - 32px));
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  font-size: 11px;
+  color: var(--w-dim);
+  background: rgb(5 9 10 / 0.78);
+  border: 1px solid rgb(25 245 194 / 0.2);
+  border-radius: 2px;
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+  animation: world-guide-in 0.4s ease 0.6s both;
+}
+
+.world-guide-offer__line {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.world-guide-offer__line b {
+  color: var(--w-ink);
+  font-weight: 500;
+}
+
+.world-guide-offer__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The "?" beside Contact (Contact.tsx's slot): the contact button's quiet look. */
+.sant.world .world-guide-help {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 4px 2px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--w-dim);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  text-shadow: 0 0 10px rgb(0 0 0 / 0.95), 0 0 3px rgb(0 0 0 / 0.95);
+}
+
+.world-guide-help__q {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--w-teal);
+  border: 1px solid rgb(25 245 194 / 0.45);
+  border-radius: 2px;
+  text-shadow: none;
+}
+
+.sant.world .world-guide-help:hover,
+.sant.world .world-guide-help:focus-visible {
+  color: var(--w-teal);
+}
+
+.sant.world .world-guide-help:focus-visible {
+  outline: 2px solid var(--w-teal);
+  outline-offset: 2px;
+}
+
+/* A phone: the card docks full width (guidePlace.ts sets its width), the keys line goes (no keyboard), and the
+   offer sits under the top edge, over the empty sky above the hero's mark. */
+@media (max-width: 699px) {
+  .world-guide__keys {
+    display: none;
+  }
+
+  .world-guide-offer {
+    left: 16px;
+    right: 16px;
+    bottom: auto;
+    top: 124px;
+    max-width: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .world-guide__keys {
+    display: none;
+  }
+
+  .sant.world :is(.world-guide__btn, .world-guide__skip) {
+    min-height: 40px;
+  }
+}
+
+/* Reduced motion: nothing slides or pulses; the card and the offer just appear. */
+@media (prefers-reduced-motion: reduce) {
+  .world-guide__card,
+  .world-guide-offer,
+  .world-guide__ring {
+    animation: none;
+  }
+}
+
+[data-motion-world="reduced"] :is(.world-guide__card, .world-guide-offer, .world-guide__ring) {
+  animation: none;
+}

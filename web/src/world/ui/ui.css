@@ -359,6 +359,10 @@
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  /* The guide's "?" stands before the Contact button, in one row. */
+  display: flex;
+  align-items: center;
+  gap: 18px;
 }
 .world-contact__open,
 .world-contact__close {

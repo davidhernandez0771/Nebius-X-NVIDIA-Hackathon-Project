@@ -1768,3 +1768,86 @@
   font: 400 22px var(--rg-mono);
   fill: var(--rg-ink-3);
 }
+
+/* ------------------------------------------------------------------ how to use it (HowTo.tsx) */
+
+/* Four steps for a first-timer, a strip across the top of the camera pane under the input switch (the first step
+   names it), over the pane's empty top: two steps a row, one line each, clear of the key table under it. Open on a
+   first visit, folded by Hide or the header's "? How to", and remembered. Below 960 px it is in the pane's flow. */
+.rg-howto {
+  position: absolute;
+  top: 38px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  box-sizing: border-box;
+  padding: 8px 12px 10px;
+  display: grid;
+  gap: 6px;
+  color: var(--rg-ink-2);
+  background: rgba(10, 17, 19, 0.95);
+  border: 1px solid var(--rg-hair-hi);
+  border-radius: 2px;
+}
+
+.rg-howto[hidden] {
+  display: none;
+}
+
+.rg-howto__hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rg .rg-howto__title {
+  margin: 0;
+  font: 500 11px var(--rg-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rg-live);
+}
+
+.rg-howto__steps {
+  margin: 0;
+  padding-left: 1.6em;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  gap: 3px 28px;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.rg-howto__steps b {
+  color: var(--rg-ink);
+  font-weight: 500;
+}
+
+.rg-howto__toggle[aria-expanded="true"] {
+  color: var(--rg-live);
+  border-color: var(--rg-hair-hi);
+}
+
+@media (max-width: 960px) {
+  .rg-howto {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    margin: 38px 12px 0;
+  }
+
+  .rg-howto__steps {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-flow: row;
+    grid-template-rows: none;
+  }
+
+  /* The drive panel clears the pane's header with its own top padding; under the box it needn't. */
+  .rg-cam:has(.rg-drive) .rg-howto:not([hidden]) + .rg-cam__media {
+    padding-top: 14px;
+  }
+}

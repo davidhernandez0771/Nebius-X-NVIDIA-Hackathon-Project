@@ -37,6 +37,7 @@ import { GAIN_MAX, GAIN_MIN } from "../../record/teleop/controlRegion";
 import { ContactBar } from "./ContactBar";
 import { WristDial } from "./WristDial";
 import { DrivePanel, InputSwitch } from "./DrivePanel";
+import { useHowTo } from "./HowTo";
 import { TakeCoach, useTakeReview } from "./TakeCoach";
 import { RecordSettings } from "./RecordSettings";
 import { ScenePicker } from "./ScenePicker";
@@ -150,6 +151,7 @@ export default RecordConsole;
 
 /** The page for a session: the live one above, or a stand-in when checking the layout. */
 export function RecordView({ session, onPalette }: { session: RecordSession; onPalette: (p: StagePalette) => void }) {
+  const howto = useHowTo();
   const { phase, relay, sim, pose, settings, streaming, lost, simReady, recording, resetToast } = session;
   const input = session.drive.input;
   const driving = input !== "camera";
@@ -350,6 +352,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           <div className="rg-hd">
             <InputSwitch session={session} />
             <span className="rg-hd__tools">
+              {howto.toggle}
               {!driving && (
                 <label className="rg-sens" title="Sensitivity: how far the arm moves for a hand movement (2× = half the hand motion)">
                   <span aria-hidden="true">sens</span>
@@ -378,6 +381,8 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               <span className="rg-hd__tag">{driving ? "robot frame" : "mirror"}</span>
             </span>
           </div>
+          {/* How to use it: four steps for a first-timer (HowTo.tsx), folded away and remembered. */}
+          {howto.box}
           {driving ? (
             <div className="rg-cam__media">
               <DrivePanel session={session} />
