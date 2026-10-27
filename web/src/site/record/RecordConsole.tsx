@@ -49,7 +49,6 @@ const DRAWER_ID = "rg-settings";
 const SCENES_ID = "rg-scenes";
 const BOOT_MS = 1600; // the plug-in: panes draw in and one scanline sweeps, then it's gone
 const CONFIRM_MS = 4000; // "Delete last demo" waits this long for the confirming click, then backs off
-const STEPS = ["S · show", "A · check", "N · neaten", "T · train"];
 const TRACK_DETAIL: Partial<Record<TrackingStatus, string>> = { loading: "starting", "no-hand": "no hand", error: "frames stopped" };
 
 type Tone = "ok" | "wait" | "off" | "rec";
@@ -274,20 +273,9 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           </button>
         </div>
         <nav className="rg-steps" aria-label="SANT steps">
-          {STEPS.map((step, i) => {
-            // "S · show": the letter, then the word (hidden on laptop widths, still read by screen readers).
-            const [letter, word] = step.split(" · ");
-            return (
-              <span key={step} className="rg-steps__item">
-                {i > 0 && <em aria-hidden="true" />}
-                <span className="rg-step" aria-current={i === 0 ? "step" : undefined} title={step}>
-                  {letter}
-                  <span className="rg-step__word"> · {word}</span>
-                </span>
-              </span>
-            );
-          })}
-          {/* After Record: the rest of SANT, live, on the demos saved this visit (the pipeline pages). */}
+          {/* The S · A · N · T step strip that stood here was removed (the user, 2026-10-27): it looked like buttons
+              and wasn't. The way on is this one link. After Record: the rest of SANT, live, on the demos saved this
+              visit (the pipeline pages). */}
           <HandoffLink className="rg-btn rg-btn--small rg-run" label="Pipeline" to={kept.length ? `/pipeline?demos=${kept.map(encodeURIComponent).join(",")}` : "/pipeline"}>
             {kept.length ? `Run SANT on ${kept.length} demo${kept.length === 1 ? "" : "s"} →` : "Run SANT →"}
           </HandoffLink>
