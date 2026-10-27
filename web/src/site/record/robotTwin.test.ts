@@ -47,7 +47,7 @@ describe("chooseTwin", () => {
       replay({ status: "ready", episode, twin: { joints: { panda_joint1: 0.6 }, gripper: 0, cube: pose, bin: pose }, base: pose }),
     );
     expect(t.mode).toBe("replay");
-    expect(t.caption).toBe("replay · verified copy s1_0004_nemotron_m104003");
+    expect(t.caption).toBe("example replay · verified demo s1_0004_nemotron_m104003");
     expect(t.view.joints).toEqual({ panda_joint1: 0.6 });
     expect(t.view.base).toBe(pose);
   });

@@ -1851,3 +1851,56 @@
     padding-top: 14px;
   }
 }
+
+/* ------------------------------------------------------------------ the idle replay is an example (2026-10-27) */
+
+/* Until a live session, the twin replays a verified demo, and visitors took it for themselves. A tag on the view says
+   so in plain words, amber (not live), top right of the main view, clear of its "behind the robot" tag. It lets the
+   twin's drag through. Gone once the sim streams (RecordConsole: twin.mode === "replay"). */
+.rg-example {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  max-width: min(330px, 68%);
+  margin: 0;
+  padding: 5px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--rg-ink);
+  background: rgba(10, 17, 19, 0.88);
+  border: 1px solid rgba(255, 176, 0, 0.55);
+  border-left-width: 3px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.rg-example b {
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rg-hold);
+}
+
+.rg-hd__tag[data-mode="replay"] {
+  color: var(--rg-hold);
+}
+
+/* ------------------------------------------------------------------ narrow: Run SANT, and room for "? Tour" */
+
+@media (max-width: 960px) {
+  /* The S·A·N·T strip that this hid is gone (2026-10-27); what is left is Run SANT, the one way on: a phone gets it,
+     on its own line under the crumb. */
+  .rg-steps {
+    display: flex;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  /* The camera pane's header is the input switch, "? How to" and "? Tour": its "robot frame" / "mirror" tag goes. */
+  .rg-cam > .rg-hd .rg-hd__tag {
+    display: none;
+  }
+}

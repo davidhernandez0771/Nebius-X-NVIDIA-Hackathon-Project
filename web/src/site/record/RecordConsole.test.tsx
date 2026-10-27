@@ -15,6 +15,7 @@ import { VICTORY_FLEX, VICTORY_THUMB, makeHandPose, pinchThumbTip, type HandPose
 import { EFFECTS_KEY } from "../../sant/motion/effects";
 import type { SceneEntry as SceneEntryT, ScenePlanJson as ScenePlanJsonT, TakeReview as TakeReviewT } from "../../pm/types";
 import { RecordConsole } from "./RecordConsole";
+import { TOUR_SEEN_KEY } from "./tour/tourState";
 
 const tracker = vi.hoisted(() => ({
   start: vi.fn(),
@@ -150,6 +151,7 @@ vi.mock("../../record/recordLink", () => ({
 // The page's own tests run with the camera; keyboard and mouse have their own block below.
 beforeEach(() => {
   localStorage.setItem("pm.teleop.drive", JSON.stringify({ input: "camera" }));
+  localStorage.setItem(TOUR_SEEN_KEY, "1"); // the first-visit tour has its own tests (tour/RecordTour.test.tsx)
   takeReview.fn.mockImplementation(() => new Promise(() => {}));
 });
 
@@ -499,10 +501,22 @@ describe("/record: the hologram's top bar and boot", () => {
     renderPage();
     expect(twin.replayUrl).toMatch(/world\/demo-episode\.json$/);
     const view = screen.getByTestId("twin3d");
-    expect(view.textContent).toBe("replay · verified copy s1_0004_nemotron_m104003");
+    expect(view.textContent).toBe("example replay · verified demo s1_0004_nemotron_m104003");
     expect(view.getAttribute("data-joints")).toBe(JSON.stringify({ panda_joint1: 0.6 }));
     expect(view.getAttribute("data-aids")).toBe("true"); // front, side and top views and the alignment grid
-    expect(within(tile("workspace")).getByText("replay")).toBeTruthy();
+    expect(within(tile("workspace")).getByText("example")).toBeTruthy();
+    // 2026-10-27: visitors took the idle replay for themselves; the twin says it is an example until a live session.
+    const tag = within(tile("workspace")).getByRole("note");
+    expect(tag.textContent).toMatch(/^Example · a verified demo replaying\. Yours appears here when you Start\.$/);
+  });
+
+  it("the status chips say in plain words what each one is (their tooltips)", () => {
+    renderPage();
+    const chips = within(screen.getByRole("group", { name: "Status" }));
+    const tip = (label: string) => chips.getByText(label).closest(".rg-chip")!.getAttribute("title") ?? "";
+    expect(tip("hand")).toMatch(/^hand: the camera follows your hand/);
+    expect(tip("relay")).toMatch(/^relay: the link from this page to the SANT backend/);
+    expect(tip("sim")).toMatch(/^sim: the Isaac Lab simulator runs the robot; not connected yet/);
   });
 
   it("shows the sim live in the 3D twin when it streams, and stops loading the replay", () => {
@@ -513,6 +527,7 @@ describe("/record: the hologram's top bar and boot", () => {
       expect(screen.getByTestId("twin3d").textContent).toBe("live from the sim");
       expect(screen.getByTestId("twin3d").getAttribute("data-joints")).toBe(JSON.stringify({ panda_joint1: -0.3 }));
       expect(within(tile("workspace")).getByText("live")).toBeTruthy();
+      expect(within(tile("workspace")).queryByRole("note")).toBeNull(); // no "Example" tag once live
     } finally {
       twin.live = { ...twin.live, status: "offline", joints: null };
     }

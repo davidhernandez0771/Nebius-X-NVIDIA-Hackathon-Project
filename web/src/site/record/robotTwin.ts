@@ -25,7 +25,7 @@ export function chooseTwin(sim: LiveTwin, replay: ReplayTwin): RecordTwin {
     return { mode: "live", view: { joints, gripper, cube, bin, base, contact, objects }, caption: "live from the sim", floor };
   }
   const view = { ...replay.twin, base: replay.base, contact: null, objects: null };
-  if (replay.status === "ready" && replay.episode) return { mode: "replay", view, caption: `replay · verified copy ${replay.episode.demoId}`, floor: null };
+  if (replay.status === "ready" && replay.episode) return { mode: "replay", view, caption: `example replay · verified demo ${replay.episode.demoId}`, floor: null };
   if (replay.status === "error") return { mode: "replay", view, caption: "no replay: the demo episode didn't load", floor: null };
   return { mode: "replay", view, caption: "loading the replay…", floor: null };
 }
