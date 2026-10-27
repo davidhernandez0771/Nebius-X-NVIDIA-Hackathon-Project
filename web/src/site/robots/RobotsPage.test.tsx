@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LEAD } from "../results/proofData";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { MotionProvider } from "../../sant/motion/MotionProvider";
@@ -32,6 +33,14 @@ describe("RobotsPage", () => {
     const nav = screen.getByRole("navigation", { name: "Robots" });
     expect(nav.querySelectorAll("button")).toHaveLength(6);
     expect(nav.textContent).toContain("OpenArmDesign flaw, 2026");
+  });
+
+  // site-bugs (2026-10-26): the blurb said "one webcam demo"; the proof starts from 10 human mouse demos (proofData LEAD).
+  it("says what the proof starts from: 10 human mouse demos", async () => {
+    await renderPage();
+    const blurb = document.querySelector(".robots-blurb")!;
+    expect(blurb.textContent).toContain(`${LEAD.demos} human mouse demos`);
+    expect(blurb.textContent).not.toMatch(/one webcam demo/);
   });
 
   // site-bugs (2026-10-26): the only page without a heading: a screen reader's heading list was empty.

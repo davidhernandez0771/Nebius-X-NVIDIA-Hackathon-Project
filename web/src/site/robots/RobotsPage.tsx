@@ -201,7 +201,7 @@ export function RobotsPage() {
           ))}
         </nav>
         <p className="robots-blurb">
-          SANT turns one webcam demo into physics-verified robot data.
+          SANT turns 10 human mouse demos into physics-verified robot data.
           <br />
           Every cartridge here is a robot or one of its verified copies.
         </p>
