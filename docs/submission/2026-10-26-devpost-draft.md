@@ -278,7 +278,9 @@ typescript, vite, mediapipe, blender, uv, openai-python-sdk
 
 ## "Try it out" links
 
-- Public repo: TODO (USER), the GitHub URL.
+- Public repo: https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project (public, checked 2026-10-27).
+  Its default branch is `main`: merge `perfect-then-multiply` into `main` before submitting, or judges see an old
+  version.
 - Demo URL: optional for Physical AI. TODO (USER): add one only if the site is hosted.
 - Maybe the video, if the form allows it as a link.
 
@@ -362,17 +364,22 @@ TODO (USER): confirm no earlier private repo or prototype existed.
 
 ## Public repo URL, and what the repo must have
 
-TODO (USER): the URL.
+https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project. It's public. **Before submitting,
+`main` must hold the final code:** it's the default branch, and on 2026-10-27 it was 731 commits behind
+`perfect-then-multiply`.
 
-**Requirements checked on `pm/live-13`:**
+**Requirements checked on `pm/live-14` (2026-10-27):**
 - **An OSI license:** `LICENSE` is MIT. ✓
 - **A README with setup:** "Run it" points to `docs/RUNBOOK.md` §2, which covers a fresh Windows setup: the SANT
   venv, Isaac Sim + Isaac Lab, LeRobot, Node, the MediaPipe files and `DATA_DIR`. `.env` is set up from
   `.env.example` with `NEBIUS_API_KEY`. ✓
 - **The README must highlight Nemotron/NVIDIA models, where Token Factory accelerated the workflow, and any other
-  Nebius tools.** Partly; see the gaps below.
+  Nebius tools.** ✓ The README has "The models: what each one does, and why that size", "Where Nebius Token Factory
+  accelerated the workflow", "Nebius tools used" (Token Factory only) and "The NVIDIA stack". `/pm/review` exists.
 
-**README gaps** (to fix before submitting):
+<details><summary>The gaps found on 2026-10-26, all fixed in the README since</summary>
+
+
 1. **There is no "where Token Factory accelerated the workflow" text.** README §"Where NVIDIA Nemotron fits" has one
    line ("runs on Nebius Token Factory … well under 1 cent per call") and nothing on how it helped. Suggested points:
    - a 120B model and a VL model with no GPU of our own, while our one GPU ran Isaac Lab all day;
@@ -391,6 +398,8 @@ TODO (USER): the URL.
    (rsl_rl PPO) appear across sections. A short "NVIDIA stack" list would help judges.
 5. **The run commands mention `/pm/record` and `/pm/review`.** `/pm/record` redirects to `/record`, so it works, but
    the current page is `/record`. I didn't check `/pm/review`.
+
+</details>
 
 ## Working demo URL
 
@@ -515,7 +524,7 @@ TODO (USER).
 
 ## AI tools used to build it
 
-**SUGGESTED:** Claude Code (Anthropic's Claude Opus models). 732 of the repo's 845 commits are co-authored with it: code, tests,
+**SUGGESTED:** Claude Code (Anthropic's Claude Opus models). 1,010 of the repo's 1,127 commits (on `pm/live-14`, 2026-10-27) are co-authored with it: code, tests,
 notes, parallel worktrees. NVIDIA Nemotron runs inside the product. TODO (USER): add any others you used.
 
 ## Learning level

@@ -260,7 +260,8 @@ and the call counts come from our usage logs (see below).
   - the multiplier's verification;
   - policy evaluation on unseen scenes.
 - **Isaac Lab Mimic:** demo generation from SANT's repaired demos, run on Windows. SANT checks Mimic's output.
-- **Isaac Lab RL** (rsl_rl PPO, 4,096 parallel envs): the RL teacher, in progress.
+- **Isaac Lab RL** (rsl_rl PPO, 4,096 parallel envs): the RL teacher that starts from the verified human demos and is
+  distilled into the camera policy behind the 30/40.
 
 Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
 
@@ -348,7 +349,8 @@ three Python environments). The RUNBOOK covers everything else: recording, perfe
 uv run pytest -q; npm --prefix web test                                    # tests
 powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Backend -Web
 powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Sim      # Isaac Lab, ~4.5 GB GPU
-# open http://localhost:5173/record to record, then /pm/review to perfect a demo (/pm/record redirects to /record)
+# open http://localhost:5173/ for the site (a guided tour starts in the workshop), /look for the side-by-side,
+# /test-track for the 40 real test runs, /record to record, then /pm/review to perfect a demo
 powershell -ExecutionPolicy Bypass -File scripts\launch\stop.ps1
 ```
 <!-- src: docs/RUNBOOK.md §3.2–3.3 (start/stop scripts, sim worker ~4.5 GB), §4 (/pm/record), §2.2 and §2.5 (test commands) -->
