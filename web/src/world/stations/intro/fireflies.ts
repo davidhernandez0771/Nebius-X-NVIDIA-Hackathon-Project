@@ -1,13 +1,14 @@
 // The forest's fireflies (fireflyPlan.ts plans them), one Points draw, every motion in the shader. Each is a real
 // firefly, sized in metres (so it has depth: big near the camera, a spark far off): a small hot body, a glow round it
-// and a soft halo. They wander (fireflyPlan.ts driftAt, mirrored below), flash (blinkAt, mirrored), circle their
-// robot, or, the crack's, swirl into the crack as the camera comes (uSwirl) and then fall with it (uDrop) until the
+// and a soft halo. They wander (fireflyPlan.ts driftAt, mirrored below) round the trunks, logs and robots, never
+// through them (settle and clearance, mirrored), flash (blinkAt, mirrored), circle their
+// robot (swinging along the clear stretch of their circle where a trunk crosses it), or, the crack's, swirl into the crack as the camera comes (uSwirl) and then fall with it (uDrop) until the
 // reactor takes over, drawn through the fall as they always were (the fall itself is unchanged). A few large soft
 // ones hang near the camera's way. The lanterns also light the forest: `glows` carries their places and brightness
 // to the place shaders (placeShaders.ts uGlowP). Additive, so the bloom picks them up. Under reduced motion they
 // hold still and only blink.
 import * as THREE from "three";
-import { BLINK_EMBER, KIND, LANTERNS, blinkAt, driftAt, type Fireflies } from "./fireflyPlan";
+import { BLINK_EMBER, FLOOR_CLEAR, KIND, LANTERNS, PASSES, SOLID_MARGIN, SOLIDS_EACH, blinkAt, settle, solidsOf, wanderAt, type Fireflies } from "./fireflyPlan";
 import { CRACK, FOREST } from "./layout";
 import { OUT } from "./placeShaders";
 
@@ -26,12 +27,40 @@ float blinkAt(vec4 r, float t){
   return ${BLINK_EMBER.toFixed(3)} + (1. - ${BLINK_EMBER.toFixed(3)}) * f;
 }`;
 
+// fireflyPlan.ts settle and clearance, in GLSL (keep them in step): out of its solids (aSolid0..: x, z, r, top), over
+// the floor.
+const SOLID_LIST = Array.from({ length: SOLIDS_EACH }, (_, k) => `aSolid${k}`);
+const SETTLE = /* glsl */ `
+${SOLID_LIST.map((a) => `attribute vec4 ${a};`).join(" ")}
+float smax(float a, float b, float k){ float h = max(k - abs(a - b), 0.) / k; return max(a, b) + h * h * k * .25; }
+vec3 keepOut(vec3 p, vec4 s){
+  vec2 d = p.xz - s.xy;
+  float l = length(d);
+  if (l >= s.z) return p;
+  float w = 1. - smoothstep(s.w - .15, s.w + .15, p.y);
+  vec2 n = l > 1e-4 ? d / l : vec2(1., 0.);
+  p.xz += (s.xy + n * s.z - p.xz) * w;
+  return p;
+}
+vec3 settle(vec3 p){
+  p.y = smax(p.y, uFloor + ${FLOOR_CLEAR.toFixed(3)}, .3);
+  for (int k = 0; k < ${PASSES}; k++){ ${SOLID_LIST.map((a) => `p = keepOut(p, ${a});`).join(" ")} }
+  return p;
+}
+float clearOf(vec3 p, vec4 s){ return p.y < s.w ? length(p.xz - s.xy) - (s.z - ${SOLID_MARGIN.toFixed(3)}) : 1e4; }
+float clearance(vec3 p){
+  float c = p.y - uFloor;
+  ${SOLID_LIST.map((a) => `c = min(c, clearOf(p, ${a}));`).join(" ")}
+  return max(0., c);
+}`;
+
 const vert = /* glsl */ `
-attribute vec3 aCenter; attribute vec3 aColor; attribute float aKind; attribute vec4 aRand;
+attribute vec4 aCenter; attribute vec3 aColor; attribute float aKind; attribute vec4 aRand; attribute vec2 aArc;
 uniform float uTime, uPR, uPx, uLight, uDrop, uSwirl, uStill, uFloor;
 uniform vec2 uCrack;
 varying vec3 vColor; varying float vA; varying float vSoft; varying float vOld; varying float vBody;
 ${MIRROR}
+${SETTLE}
 void main(){
   float t = uTime * (1. - uStill);
   float ph = aRand.y * 6.2832, s = aRand.z;
@@ -43,19 +72,25 @@ void main(){
   vSoft = 0.;
   vOld = 0.;
   if (aKind < .5 || aKind > 3.5) {
-    p += driftAt(aRand, t);
+    p = settle(p + driftAt(aRand, t) * aCenter.w);
     // The lanterns: brighter, a wider halo.
     if (aKind > 3.5) { halo *= 1.7; vBody = .09; }
+    // Close to bark or the floor, a smaller halo (its glow doesn't cut into the surface).
+    halo = max(halo * .45, min(halo, 2. * clearance(p)));
   } else if (aKind > 2.5) {
     // Out of focus, near the camera's way: a soft disc.
-    p += driftAt(aRand, t) * .6;
+    p = settle(p + driftAt(aRand, t) * .6 * aCenter.w);
     vSoft = 1.;
   } else if (aKind < 1.5) {
-    // Round a fallen robot, both ways round, rising and sinking a little, with the same small jitter.
-    float a = ph + t * (.18 + .25 * s) * (s > .5 ? 1. : -1.);
-    float r = .8 + 1.1 * aRand.w;
-    p = aCenter + vec3(cos(a) * r, .35 + 1.3 * fract(s * 7.3) + sin(t * .6 + ph) * .25, sin(a) * r);
-    p += .05 * vec3(sin(t * 2.9 + ph * 7.), sin(t * 3.7 + ph * 11.), cos(t * 3.1 + ph * 5.));
+    // Round a fallen robot, clear of it (aCenter.w: its solid's edge), both ways round, rising and sinking a little,
+    // with the same small jitter.
+    // On a circle a trunk crosses, they swing to and fro along its clear stretch (aArc: its middle, half its width).
+    float w = (.18 + .25 * s) * (s > .5 ? 1. : -1.);
+    float a = aArc.y >= 3.14 ? ph + w * t : aArc.x + aArc.y * sin(w * t / max(aArc.y, .01) + ph);
+    float r = aCenter.w + .15 + 1. * aRand.w;
+    p = aCenter.xyz + vec3(cos(a) * r, .35 + 1.3 * fract(s * 7.3) + sin(t * .6 + ph) * .25, sin(a) * r);
+    p = settle(p + .05 * vec3(sin(t * 2.9 + ph * 7.), sin(t * 3.7 + ph * 11.), cos(t * 3.1 + ph * 5.)));
+    halo = max(halo * .45, min(halo, 2. * clearance(p)));
   } else {
     // The crack's: swirling in toward the crack as the camera comes, sinking to its lip...
     vec2 rel = p.xz - uCrack;
@@ -135,7 +170,9 @@ export interface FirefliesHandle {
 export function makeFireflies(plan: Fireflies): FirefliesHandle {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(plan.position, 3));
-  g.setAttribute("aCenter", new THREE.BufferAttribute(plan.center, 3));
+  g.setAttribute("aCenter", new THREE.BufferAttribute(plan.center, 4));
+  g.setAttribute("aArc", new THREE.BufferAttribute(plan.arc, 2));
+  for (let k = 0; k < SOLIDS_EACH; k++) g.setAttribute(`aSolid${k}`, new THREE.BufferAttribute(plan.solids[k], 4));
   g.setAttribute("aColor", new THREE.BufferAttribute(plan.color, 3));
   g.setAttribute("aKind", new THREE.BufferAttribute(plan.kind, 1));
   g.setAttribute("aRand", new THREE.BufferAttribute(plan.rand, 4));
@@ -166,6 +203,7 @@ export function makeFireflies(plan: Fireflies): FirefliesHandle {
     color: Array.from({ length: LANTERNS }, (_, k) => (lanterns[k] === undefined ? new THREE.Vector3() : new THREE.Vector3().fromArray(plan.color, lanterns[k] * 3))),
   };
   const rand = (i: number) => [plan.rand[i * 4], plan.rand[i * 4 + 1], plan.rand[i * 4 + 2], plan.rand[i * 4 + 3]] as const;
+  const own = lanterns.map((i) => solidsOf(plan, i));
   return {
     points,
     glows,
@@ -179,9 +217,9 @@ export function makeFireflies(plan: Fireflies): FirefliesHandle {
       // The lanterns' light, where the shader draws them (still under reduced motion), only while the forest is lit.
       const t = s.still ? 0 : s.time;
       lanterns.forEach((i, k) => {
-        const d = driftAt(rand(i), t);
         const w = s.light > 0 ? blinkAt(rand(i), s.time) * s.light : 0;
-        glows.position[k].set(plan.position[i * 3] + d[0], plan.position[i * 3 + 1] + d[1], plan.position[i * 3 + 2] + d[2], w);
+        const p = settle(wanderAt(plan, i, t), own[k]);
+        glows.position[k].set(p[0], p[1], p[2], w);
       });
     },
     dispose() {
