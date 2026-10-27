@@ -45,6 +45,8 @@ const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
 // The data showcase: real demos through SANT, in the twin and the sim's camera, and SANT working live.
 const DataPage = lazy(() => import("./site/data/DataPage"));
 const TestTrackPage = lazy(() => import("./site/testtrack/TestTrackPage"));
+// The LOOK clip alone (the hero and /site/results embed <LookClip /> from ./site/lookclip/LookClip).
+const LookClipPage = lazy(() => import("./site/lookclip/LookClipPage"));
 
 const lazyPage = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
@@ -79,6 +81,7 @@ export default function App() {
           <Route path="/robots" element={lazyPage(<RobotsPage />)} />
           <Route path="/data" element={lazyPage(<DataPage />)} />
           <Route path="/test-track" element={lazyPage(<TestTrackPage />)} />
+          <Route path="/look" element={lazyPage(<LookClipPage />)} />
           <Route path="/pipeline" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run/:stage" element={lazyPage(<PipelinePage />)} />

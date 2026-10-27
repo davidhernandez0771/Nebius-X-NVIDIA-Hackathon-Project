@@ -1,0 +1,265 @@
+/* The LOOK clip: two arenas side by side under one caption. It carries its own colours (the holo tokens with
+   fallbacks), so it reads the same in the hero, on /site/results and alone on /look. Under 560 px the two robots
+   stay side by side in taller arenas. Buttons are scoped under .lc: the SANT root's `.sant button` reset outranks one class. */
+
+.lc {
+  --lc-ink: var(--holo-ink, #e6eeec);
+  --lc-ink-2: var(--holo-ink-2, #8fa3a0);
+  --lc-line: var(--holo-line-dim, rgba(25, 245, 194, 0.14));
+  --lc-void: var(--holo-void, #040607);
+  --lc-ok: var(--holo-teal, #19f5c2);
+  --lc-fail: #ff8a5c;
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  color: var(--lc-ink);
+  font-family: var(--holo-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
+}
+
+.lc-head {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.lc-kicker {
+  margin: 0;
+  color: var(--lc-ink-2);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lc .lc-caption {
+  margin: 0;
+  font-family: var(--holo-serif, "Instrument Serif", Georgia, serif);
+  font-size: clamp(24px, 4vw, 44px);
+  font-weight: 400;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.lc-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lc-side {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.lc-side__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+  font-size: 13px;
+}
+
+.lc-side__title {
+  min-width: 0;
+}
+
+.lc-side__count {
+  font-family: var(--holo-serif, "Instrument Serif", Georgia, serif);
+  font-size: clamp(22px, 3vw, 34px);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.lc-side[data-side="raw"] .lc-side__count {
+  color: var(--lc-fail);
+}
+
+.lc-side[data-side="v2"] .lc-side__count {
+  color: var(--lc-ok);
+}
+
+.lc-side__seeds {
+  color: var(--lc-ink-2);
+  font-family: var(--holo-mono, ui-monospace, Consolas, monospace);
+  font-size: 11px;
+}
+
+.lc-arena {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  min-height: 200px;
+  border: 1px solid var(--lc-line);
+  background: var(--lc-void);
+  overflow: hidden;
+  transition: border-color 0.3s ease;
+}
+
+.lc-side[data-ok="true"] .lc-arena {
+  border-color: var(--lc-ok);
+}
+
+.lc-side[data-ok="false"] .lc-arena {
+  border-color: var(--lc-fail);
+}
+
+.lc-arena__empty,
+.lc-arena--wait {
+  position: absolute;
+  inset: 0;
+}
+
+.lc-arena--wait {
+  position: relative;
+}
+
+.lc-status {
+  min-height: 1.5em;
+  margin: 0;
+  padding: 0 2px;
+  color: var(--lc-ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lc-status[data-ok="true"] {
+  color: var(--lc-ok);
+}
+
+.lc-status[data-ok="false"] {
+  color: var(--lc-fail);
+}
+
+.lc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.lc .lc-btn {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--lc-ok);
+  border-radius: 0;
+  background: transparent;
+  color: var(--lc-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.lc .lc-btn--quiet {
+  border-color: var(--lc-line);
+}
+
+.lc .lc-btn[aria-pressed="true"] {
+  border-color: var(--lc-ok);
+  color: var(--lc-ok);
+}
+
+.lc .lc-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.lc .lc-btn:focus-visible {
+  outline: 2px solid var(--lc-ok);
+  outline-offset: 2px;
+}
+
+.lc-time {
+  min-width: 4.5ch;
+  color: var(--lc-ink-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.lc-scenes {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.lc-how {
+  max-width: 78ch;
+  margin: 0 auto;
+  color: var(--lc-ink-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.lc-how summary {
+  cursor: pointer;
+  text-align: center;
+}
+
+.lc-how p,
+.lc-how ul {
+  margin: 8px 0 0;
+}
+
+.lc-how ul {
+  padding-left: 1.2em;
+}
+
+.lc a {
+  color: var(--lc-ok);
+}
+
+.lc-missing {
+  margin: 0;
+  color: var(--lc-ink-2);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Phones keep the two robots side by side (the comparison is the point): taller, narrower arenas, the count
+   under the title. */
+@media (max-width: 560px) {
+  .lc-pair {
+    gap: 6px;
+  }
+
+  .lc-side__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    font-size: 11px;
+  }
+
+  .lc-side__seeds {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  .lc-arena {
+    aspect-ratio: 4 / 5;
+    min-height: 0;
+  }
+
+  .lc-status {
+    min-height: 3em;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lc-arena {
+    transition: none;
+  }
+}
+
+/* The page that shows the clip alone (/look); ?embed=1 drops the holo frame (for an iframe or a screen capture). */
+.lc-page {
+  min-height: 100dvh;
+  padding: 24px 16px;
+  background: var(--holo-void, #040607);
+  box-sizing: border-box;
+}
