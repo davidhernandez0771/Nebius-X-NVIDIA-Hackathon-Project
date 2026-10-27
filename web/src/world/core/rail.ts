@@ -65,7 +65,8 @@ export function locate(rail: Rail, y: number): Place {
     }
   }
   const s = spans[index];
-  if (yc < s.start - (s.start > s.from ? 0 : SNAP)) {
+  // The same hair short of the dwell counts as arrived, after a travel too (the room view's tags wait for arrive 1).
+  if (yc < s.start - SNAP) {
     const t = clamp01((yc - s.from) / (s.start - s.from));
     return { index, phase: "travel", t, current: t < 0.5 && index > 0 ? index - 1 : index };
   }

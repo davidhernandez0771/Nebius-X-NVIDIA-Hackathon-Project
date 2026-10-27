@@ -39,6 +39,17 @@ describe("locate", () => {
     // With a travel, the same: the travel has begun.
     expect(locate(rail, 199.7)).toEqual({ index: 1, phase: "travel", t: 0, current: 0 });
   });
+  // proof-wall (2026-10-26): the same hair short of the end of a travel left the camera "not arrived" (t 0.99999…):
+  // at 720, 900 and 1080 px tall, Skip the intro and the journey rail landed in the workshop's travel, so the room
+  // view's tags and hub bar never showed (CameraRig inHub wants arrive 1).
+  it("counts a scroll within half a pixel short of a dwell after a travel as arrived", () => {
+    const tall = layoutRail([{ ...a, length: 18.9 }, b, c], 720);
+    const start = tall.spans[2].start;
+    // The real case: the start is 16344.000000000002 px and the browser scrolls to 16344.
+    expect(locate(tall, start - 1e-9)).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
+    expect(locate(tall, start - 0.4)).toEqual({ index: 2, phase: "dwell", t: 0, current: 2 });
+    expect(locate(tall, start - 2)).toMatchObject({ index: 2, phase: "travel" });
+  });
   it("clamps above and below the rail", () => {
     expect(locate(rail, -50)).toEqual({ index: 0, phase: "dwell", t: 0, current: 0 });
     expect(locate(rail, 9999)).toEqual({ index: 2, phase: "dwell", t: 1, current: 2 });
