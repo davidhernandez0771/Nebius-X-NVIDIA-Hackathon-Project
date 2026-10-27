@@ -22,6 +22,7 @@ import { HUB_TAGS, openHubItem, type HubItem } from "./hubItems";
 import { hubTagLayer } from "./hubTagLayer";
 import { HubHolograms, type HoloText } from "./HubHolograms";
 import { holoMode, holoTag, setHot } from "./holoTags";
+import { placeCards } from "./clampTag";
 
 const SEEN_KEY = "world.hub.seen";
 
@@ -83,6 +84,8 @@ export function HubTags() {
   );
 
   // Show the tags only in the room view (written on the DOM, never through React per frame).
+  const holoNow = useRef(holo);
+  holoNow.current = holo;
   useEffect(() => {
     let shown = false;
     return store.onFrame(() => {
@@ -91,6 +94,32 @@ export function HubTags() {
       // holograms swap, and a new one starts hidden.
       const v = String(on);
       wrap.current.forEach((el) => el && el.dataset.on !== v && (el.dataset.on = v));
+      // The cards stay whole on screen (site bug hunt: a phone cut "03 The bench" and "04 The wall" off at the
+      // left): each slides by its own CSS translate (drei owns the transform round it), sideways onto the screen
+      // and down past a card it would land on (clampTag.ts). The holograms are laid out on screen already
+      // (holoTags.ts) and their buttons must stay over them.
+      if (on) {
+        const els = wrap.current.filter(Boolean);
+        const was = els.map((el) => [Number(el.dataset.dx ?? 0), Number(el.dataset.dy ?? 0)] as const);
+        const to = holoNow.current
+          ? els.map(() => ({ dx: 0, dy: 0 }))
+          : placeCards(
+              els.map((el, i) => {
+                // The card itself (its button), where it would stand without the slide.
+                const r = (el.querySelector("button") ?? el).getBoundingClientRect();
+                const [dx, dy] = was[i];
+                return { left: r.left - dx, right: r.right - dx, top: r.top - dy, bottom: r.bottom - dy };
+              }),
+              window.innerWidth,
+            );
+        els.forEach((el, i) => {
+          const { dx, dy } = to[i];
+          if (Math.abs(dx - was[i][0]) < 0.5 && Math.abs(dy - was[i][1]) < 0.5) return;
+          el.dataset.dx = String(dx);
+          el.dataset.dy = String(dy);
+          el.style.translate = dx || dy ? `${dx.toFixed(1)}px ${dy.toFixed(1)}px` : "";
+        });
+      }
       if (on === shown) return;
       shown = on;
       if (on && tutorial) markSeen();

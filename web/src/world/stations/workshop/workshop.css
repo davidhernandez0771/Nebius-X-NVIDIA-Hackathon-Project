@@ -471,6 +471,9 @@
 .world-hubbar__go button {
   color: var(--w-ink);
 }
+/* The 2D fallback (the stills): the tags are only drawn into the picture, so the places are these buttons, at every
+   width (HubBar data-flat). */
+.world-hubbar[data-flat="true"] .world-hubbar__go { display: flex; }
 
 .world-panel__row {
   display: flex;
@@ -484,8 +487,13 @@
    The whole hint only clears the brand (top left) from 1600 px. */
 @media (max-width: 1599px) {
   .world-hubbar__more { display: none; }
+  /* With the place buttons in it (the 2D fallback) the hint goes too: the bar stays clear of the brand. */
+  .world-hubbar[data-flat="true"] .world-hubbar__hint { display: none; }
 }
 @media (max-width: 700px) {
+  /* Five places and the way up fit across a 390 px phone. */
+  .world-hubbar { gap: 12px; padding: 8px 12px; }
+  .world-hubbar__go { gap: 10px; }
   .world-hubtag button { min-width: 11rem; }
   .world-hubtag__l { display: none; }
   .world-hubbar__hint { display: none; }
