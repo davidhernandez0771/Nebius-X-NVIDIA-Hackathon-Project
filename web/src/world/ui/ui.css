@@ -549,6 +549,9 @@
   border-radius: 2px;
   backdrop-filter: blur(8px);
   animation: world-stationbar-in 0.35s ease both;
+  /* It sits outside the panels, in the click-through overlay layer (world.css): take the clicks back, or they go
+     through to the canvas (stationbarClicks.test.ts). */
+  pointer-events: auto;
 }
 @keyframes world-stationbar-in {
   from {
