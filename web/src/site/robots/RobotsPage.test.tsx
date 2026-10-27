@@ -34,6 +34,12 @@ describe("RobotsPage", () => {
     expect(nav.textContent).toContain("OpenArmDesign flaw, 2026");
   });
 
+  // site-bugs (2026-10-26): the only page without a heading: a screen reader's heading list was empty.
+  it("is named by a heading, for screen readers (the page shows the shelf instead)", async () => {
+    await renderPage();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Robots");
+  });
+
   // site-nav (2026-10-26): the page had no way back at all (Escape only drops a picked robot).
   it("has the way back to the workshop, top left after the mark", async () => {
     await renderPage();
