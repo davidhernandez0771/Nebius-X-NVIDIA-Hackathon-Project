@@ -233,6 +233,23 @@ describe("/record", () => {
     expect(links.list).toHaveLength(0);
   });
 
+  // site-bugs (2026-10-26): with no backend (a judge's machine), Start left the page as it was: only the chips
+  // (relay amber, sim grey) said anything, and nothing said why or what works without it.
+  it("says the backend can't be reached when the relay doesn't connect, and points to the test track", async () => {
+    await startCamera();
+    const note = await screen.findByText(/Can't reach the SANT backend/, undefined, { timeout: 4000 });
+    const box = note.closest(".rg-notice") as HTMLElement;
+    expect(box.getAttribute("role")).toBe("status");
+    expect(within(box).getByRole("link", { name: /test track/i }).getAttribute("href")).toBe("/test-track");
+  });
+
+  it("says nothing about the backend once the relay is up", async () => {
+    const link = await startCamera();
+    act(() => link.emitStatus(noSim));
+    await act(() => new Promise((r) => setTimeout(r, 2600)));
+    expect(screen.queryByText(/Can't reach the SANT backend/)).toBeNull();
+  });
+
   it("shows the sink command while no sim is connected, and keeps Record and Reset scene disabled", async () => {
     const link = await startCamera();
     act(() => link.emitStatus(noSim));

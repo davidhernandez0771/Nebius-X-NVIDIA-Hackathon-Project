@@ -107,6 +107,23 @@ function episodeOf(s: RecordSession): { text: string; tone: Tone } {
   return s.track === "tracking" ? { text: "tracking", tone: "ok" } : { text: "waiting", tone: "wait" };
 }
 
+/** How long a started session waits for the relay before saying the backend can't be reached (a normal connect is
+ *  well under this, so the notice never flashes on the way up). */
+const RELAY_GRACE_MS = 2000;
+
+/** True once the session has been streaming RELAY_GRACE_MS with the relay's socket still closed (no backend). */
+function useRelayMissing(streaming: boolean, socketOpen: boolean): boolean {
+  const [late, setLate] = useState(false);
+  const waiting = streaming && !socketOpen;
+  useEffect(() => {
+    setLate(false);
+    if (!waiting) return;
+    const id = window.setTimeout(() => setLate(true), RELAY_GRACE_MS);
+    return () => window.clearTimeout(id);
+  }, [waiting]);
+  return waiting && late;
+}
+
 /** The live state for the latest pose, stepped once per pose (idempotent across re-renders). */
 function useLive(pose: PoseUi | null): LiveState {
   const last = useRef<{ pose: PoseUi | null; live: LiveState }>({ pose: null, live: initialLive() });
@@ -196,6 +213,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
   const t = hud.target;
   const stale = t !== null && !hud.tracking;
   const noSim = streaming && relay.socketOpen && !relay.simConnected;
+  const noRelay = useRelayMissing(streaming, relay.socketOpen);
   const episode = episodeOf(session);
   const fps = streaming && pose?.fps ? `${Math.round(pose.fps)} fps` : null;
   const footStatus = streaming ? (lost ? "hand lost: the arm holds still" : simReady && sim?.lastResult ? sim.lastResult : null) : null;
@@ -399,6 +417,14 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
                 {resetToast && <ResetFired notSent={resetToast.notSent} />}
               </div>
             </>
+          )}
+          {noRelay && !relay.lastError && (
+            <div className="rg-notice" role="status">
+              <p>
+                Can't reach the SANT backend, so nothing drives the sim. Start it (start.ps1 -Backend), then press Start again.
+                Without it, <Link to="/test-track">the test track</Link> replays the final test's 40 runs.
+              </p>
+            </div>
           )}
           {(noSim || relay.lastError) && (
             <div className="rg-notice" role={relay.lastError ? "alert" : undefined}>
