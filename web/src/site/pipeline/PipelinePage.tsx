@@ -93,7 +93,7 @@ function RunView({ id, stage, Source, fetchImpl }: { id: string; stage?: string;
   return (
     <>
       {example && <p className="pipe-example">An example run, played in your browser at {speed}× (not live): the pipeline API isn't on this server yet.</p>}
-      <PipelineBar run={run} bar={bar} shown={shown} conn={conn} search={search} />
+      <PipelineBar run={run} bar={bar} shown={shown} conn={conn} search={search} example={example} />
       <div className="pipe-run-status">
         {run.detail && <p className="data-note">{run.detail}</p>}
         {!example && run.id && <RunControls run={run} fetchImpl={fetchImpl} onChanged={() => setNonce((n) => n + 1)} />}

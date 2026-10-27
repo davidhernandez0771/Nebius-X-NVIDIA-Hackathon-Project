@@ -315,6 +315,15 @@ describe("the pipeline pages", () => {
     expect(within(bar).getByRole("link", { name: /train/i }).getAttribute("href")).toBe("/pipeline/example/train?speed=120");
   });
 
+  // site-bugs (2026-10-26): the example's banner says "(not live)" and its bar said LIVE right under it (the stub's
+  // stream is "open" like a real one).
+  it("the example's bar says example, never live", async () => {
+    show("/pipeline/example/check", backend().f);
+    const bar = await screen.findByRole("navigation", { name: /pipeline/i });
+    await waitFor(() => expect(bar.querySelector(".pipe-bar__conn")?.textContent).toBe("example"));
+    expect(bar.textContent).not.toMatch(/\blive\b/i);
+  });
+
   describe("the teacher recipe (RL teacher → gate → distill)", () => {
     const CONFIG = {
       enabled: true,
