@@ -99,7 +99,7 @@ def test_a_cached_analysis_is_used(client, data):
         "k": 3, "calls": 5, "cost_usd": 0.042488, "model": "nvidia/nemotron-3-super-120b-a12b", "agreement": 0.8333,
         "recipe": {"summary": "s", "regions": [{"name": "left_cube_right_bin"}], "fixes": [], "uniform_share": 0.6},
         "support": [{"region": "left_cube_right_bin", "target_failures_inside": 10, "target_failures_total": 17,
-                     "p_value": 0.091774}]}))
+                     "p_value": 0.091774}]}), encoding="utf-8")
     analyse = next(s for s in client.get("/flow").json()["stages"] if s["id"] == "analyse")
     assert analyse["source"]["kind"] == "cache"
     assert analyse["metric"]["agreement"] == pytest.approx(0.8333)
@@ -110,7 +110,7 @@ def test_a_cached_analysis_is_used(client, data):
 def test_an_unreadable_cache_degrades(client, data):
     cache = data / "analysis" / "bigtest_final"
     cache.mkdir(parents=True)
-    (cache / "analysis.json").write_text("{not json")
+    (cache / "analysis.json").write_text("{not json", encoding="utf-8")
     analyse = next(s for s in client.get("/flow").json()["stages"] if s["id"] == "analyse")
     assert analyse["source"]["kind"] == "note"
 
@@ -124,7 +124,7 @@ def write_loop(data: Path, name: str, stages: dict, result=None, seeds=(5680, 40
                for k, v in stages.items()})
     (folder / "loop.json").write_text(json.dumps({
         "name": name, "seeds": {"seed0": seeds[0], "n": seeds[1], "range": [seeds[0], seeds[0] + seeds[1] - 1]},
-        "stages": st, "result": result}))
+        "stages": st, "result": result}), encoding="utf-8")
     return folder
 
 
@@ -156,10 +156,10 @@ def test_a_finished_loop_carries_its_result(client, data):
 def test_a_loop_folder_with_a_bad_name_or_bad_json_is_ignored(client, data):
     bad = data / "loops" / "Bad Name"
     bad.mkdir(parents=True)
-    (bad / "loop.json").write_text(json.dumps({"stages": {}}))
+    (bad / "loop.json").write_text(json.dumps({"stages": {}}), encoding="utf-8")
     broken = data / "loops" / "broken"
     broken.mkdir(parents=True)
-    (broken / "loop.json").write_text("{nope")
+    (broken / "loop.json").write_text("{nope", encoding="utf-8")
     assert client.get("/flow").json()["loop"]["status"] == "none"
 
 

@@ -528,7 +528,7 @@ def _eval_dir(tmp_path, kinds: dict[int, str]) -> Path:
         ok = kind == "success"
         rows.append({"seed": seed, "success": ok, "reasons": [] if ok else ["dropped"],
                      "ended_by": "success" if ok else "time_limit"})
-    ev.write_text(json.dumps({"run": {}, "summary": {}, "episodes": rows}))
+    ev.write_text(json.dumps({"run": {}, "summary": {}, "episodes": rows}), encoding="utf-8")
     return ev
 
 
@@ -536,26 +536,26 @@ def test_the_script_without_the_model_writes_features_rules_and_the_control(tmp_
     ev = _eval_dir(tmp_path, {5300: "dropped", 5301: "dropped", 5302: "dropped", 5303: "success", 4001: "dropped"})
     out = tmp_path / "out"
     assert _load_script().main(["--eval", str(ev), "--out", str(out), "--no-model", "--n", "20"]) == 0
-    feats = json.loads((out / "features.json").read_text())
+    feats = json.loads((out / "features.json").read_text(encoding="utf-8"))
     assert sorted(f["seed"] for f in feats) == [5300, 5301, 5302, 5303]  # the training-scene seed is skipped
-    assert json.loads((out / "recipe_rules.json").read_text())["regions"][0]["targets"] == ["dropped"]
+    assert json.loads((out / "recipe_rules.json").read_text(encoding="utf-8"))["regions"][0]["targets"] == ["dropped"]
     for arm in ("rules", "uniform"):
-        data = json.loads((out / f"scenes_{arm}.json").read_text())
+        data = json.loads((out / f"scenes_{arm}.json").read_text(encoding="utf-8"))
         assert data["n"] == 20 and len(data["scenes"]) == 20
         MultiplyRequest(**_mult(n=20, scenes=[Scene.model_validate(s) for s in data["scenes"]]).model_dump())
-    assert not (out / "analysis.json").exists() and "Not asked" in (out / "report.md").read_text()
+    assert not (out / "analysis.json").exists() and "Not asked" in (out / "report.md").read_text(encoding="utf-8")
 
 
 def test_the_script_reads_an_episode_log_and_marks_a_post_hoc_test_diagnosis(tmp_path):
     ev = _eval_dir(tmp_path, {5020: "dropped", 5021: "dropped", 5022: "dropped", 5023: "success"})
-    rows = json.loads(ev.read_text())["episodes"]
+    rows = json.loads(ev.read_text(encoding="utf-8"))["episodes"]
     log = tmp_path / "final.episodes.jsonl"
-    log.write_text("\n".join([json.dumps({"header": {}}), *(json.dumps({"episode": r}) for r in rows)]) + "\n")
+    log.write_text("\n".join([json.dumps({"header": {}}), *(json.dumps({"episode": r}) for r in rows)]) + "\n", encoding="utf-8")
     (tmp_path / "cell_traces").rename(tmp_path / "final_traces")
     out = tmp_path / "out"
     assert _load_script().main(["--eval", str(log), "--out", str(out), "--no-model", "--protect", "none"]) == 0
-    assert len(json.loads((out / "features.json").read_text())) == 4
-    report = (out / "report.md").read_text()
+    assert len(json.loads((out / "features.json").read_text(encoding="utf-8"))) == 4
+    report = (out / "report.md").read_text(encoding="utf-8")
     assert "Post-hoc" in report and "fresh seeds" in report and "carry_speed_max" in report
 
 
@@ -592,7 +592,7 @@ def _result_eval(tmp_path, name, rows: dict[int, list[str]]) -> Path:
         lines.append(json.dumps({"episode": {"seed": seed, "success": not reasons, "reasons": reasons,
                                              "ended_by": "time_limit" if reasons else "success", "sim_s": 10.0,
                                              "final_cube_pos": [0.5, 0.0, 0.025]}}))
-    ev.write_text("\n".join(lines) + "\n")
+    ev.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return ev
 
 
@@ -606,10 +606,10 @@ def test_the_script_pools_evals_without_traces_and_says_so(tmp_path):
         _load_script().main(["--eval", str(a), "--eval", str(b), "--out", str(out), "--no-model", "--results-only"])
     assert _load_script().main(["--eval", str(a), "--eval", str(b), "--out", str(out), "--no-model",
                                 "--results-only", "--protect", "none"]) == 0
-    feats = json.loads((out / "features.json").read_text())
+    feats = json.loads((out / "features.json").read_text(encoding="utf-8"))
     assert [f["seed"] for f in feats] == [5400, 5401, 5402, 5500, 5501, 5502]
     assert [f["primary"] for f in feats] == ["dropped", None, "collision", "dropped", None, "dropped"]
-    report = (out / "report.md").read_text()
+    report = (out / "report.md").read_text(encoding="utf-8")
     assert "No traces" in report and "Post-hoc" in report and "5400–5439" in report
 
 
@@ -639,7 +639,7 @@ def test_the_script_with_the_model_writes_its_recipe_and_scenes(tmp_path, monkey
     monkeypatch.setattr(fa, "chat", _fake(reply, reply, reply))
     monkeypatch.setattr(fa.analyse, "__kwdefaults__", {**fa.analyse.__kwdefaults__, "chat_fn": fa.chat})
     assert _load_script().main(["--eval", str(ev), "--out", str(out), "--n", "10"]) == 0
-    analysis = json.loads((out / "analysis.json").read_text())
+    analysis = json.loads((out / "analysis.json").read_text(encoding="utf-8"))
     assert analysis["calls"] == 3 and analysis["agreement"] == pytest.approx(1.0)
-    assert json.loads((out / "scenes_nemotron.json").read_text())["regions"].count("far_right_bin") == 6
-    assert "Nemotron's recipe" in (out / "report.md").read_text()
+    assert json.loads((out / "scenes_nemotron.json").read_text(encoding="utf-8"))["regions"].count("far_right_bin") == 6
+    assert "Nemotron's recipe" in (out / "report.md").read_text(encoding="utf-8")

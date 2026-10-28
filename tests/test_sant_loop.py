@@ -61,15 +61,15 @@ class FakeRunner:
         until = _arg(cmd, "--until")
         seed0, n = int(_arg(cmd, "--eval-seed0")), int(_arg(cmd, "--eval-n"))
         (root / "stages").mkdir(parents=True, exist_ok=True)
-        (root / "config.json").write_text(json.dumps({"name": name, "eval_seed0": seed0, "eval_n": n}))
+        (root / "config.json").write_text(json.dumps({"name": name, "eval_seed0": seed0, "eval_n": n}), encoding="utf-8")
         if until == "train":
-            (root / "stages" / "train.json").write_text(json.dumps({"ok": True, "run_id": f"run_{name}"}))
+            (root / "stages" / "train.json").write_text(json.dumps({"ok": True, "run_id": f"run_{name}"}), encoding="utf-8")
         elif until == "results":
             arm = "recipe" if name.endswith("_recipe") else "control"
             k = self.k[arm]
             (root / "results.json").write_text(json.dumps({"sample": False, "experiment": {"name": name, "headline": {
                 "multiplied": {"seed0": seed0, "n_registered": n, "n": self.n, "successes": k, "complete": True,
-                               "missing_seeds": []}}}}))
+                               "missing_seeds": []}}}}), encoding="utf-8")
         return 0
 
 
@@ -149,7 +149,7 @@ def test_diagnose_command_reuses_the_analyst_script(root):
 
 def test_a_given_recipe_skips_the_model(root):
     recipe = root / "my_recipe.json"
-    recipe.write_text(json.dumps(RECIPE))
+    recipe.write_text(json.dumps(RECIPE), encoding="utf-8")
     loop, _ = make(root, evals=(), recipe=recipe)
     assert {p.stage: p.command for p in loop.plan()}["diagnose"] is None
 
@@ -172,7 +172,7 @@ def test_seeds_overlapping_the_diagnosed_eval_are_refused(root):
 def test_seeds_another_experiment_froze_are_refused(root):
     other = root / "data" / "human_exp" / "mouse_uniform_20261026"
     other.mkdir(parents=True)
-    (other / "config.json").write_text(json.dumps({"eval_seed0": 5640, "eval_n": 40}))
+    (other / "config.json").write_text(json.dumps({"eval_seed0": 5640, "eval_n": 40}), encoding="utf-8")
     with pytest.raises(L.Refused, match="mouse_uniform_20261026"):
         make(root, eval_seed0=5660, eval_n=40)
     make(root, eval_seed0=5680, eval_n=40)  # just past it is fine
@@ -207,7 +207,7 @@ def test_fake_end_to_end_writes_the_comparison(root):
     loop, _ = make(root, runner)
     assert loop.run() == 0
     folder = root / "data" / "loops" / "loop1"
-    state = json.loads((folder / "loop.json").read_text())
+    state = json.loads((folder / "loop.json").read_text(encoding="utf-8"))
     assert [state["stages"][s]["status"] for s in L.STAGES] == ["done"] * len(L.STAGES)
     for s in L.STAGES:
         st = state["stages"][s]
@@ -217,18 +217,18 @@ def test_fake_end_to_end_writes_the_comparison(root):
     assert res["test"] == "fisher_exact_two_sided"
     assert res["p_two_sided"] <= 0.05 and res["decision"] == "recipe_better"
     assert 0 < res["recipe"]["ci"][0] < res["recipe"]["ci"][1] < 1
-    assert (folder / "report.md").read_text().count("30/40") >= 1
+    assert (folder / "report.md").read_text(encoding="utf-8").count("30/40") >= 1
     # the recipe was frozen before any arm trained
-    prereg = (folder / "preregistration.md").read_text()
+    prereg = (folder / "preregistration.md").read_text(encoding="utf-8")
     assert "5680" in prereg and "5719" in prereg and "two-sided" in prereg
     assert state["stages"]["freeze"]["ended"] <= state["stages"]["train_recipe"]["started"]
-    assert json.loads((folder / "freeze.json").read_text())["recipe_sha256"] in prereg
+    assert json.loads((folder / "freeze.json").read_text(encoding="utf-8"))["recipe_sha256"] in prereg
 
 
 def test_no_difference_is_reported_as_such(root):
     loop, _ = make(root, FakeRunner(recipe_k=20, control_k=19))
     assert loop.run() == 0
-    res = json.loads((root / "data" / "loops" / "loop1" / "loop.json").read_text())["result"]
+    res = json.loads((root / "data" / "loops" / "loop1" / "loop.json").read_text(encoding="utf-8"))["result"]
     assert res["decision"] == "no_difference_shown" and res["p_two_sided"] > 0.05
 
 
@@ -247,7 +247,7 @@ def test_a_failed_stage_stops_and_a_rerun_resumes_from_it(root):
     runner = FakeRunner(fail="loop1_control --")
     loop, _ = make(root, runner)
     assert loop.run() == 2
-    state = json.loads((root / "data" / "loops" / "loop1" / "loop.json").read_text())
+    state = json.loads((root / "data" / "loops" / "loop1" / "loop.json").read_text(encoding="utf-8"))
     assert state["stages"]["train_recipe"]["status"] == "done"
     assert state["stages"]["train_control"]["status"] == "failed"
     assert state["stages"]["train_control"]["exit"] == 2
@@ -273,11 +273,11 @@ def test_changed_eval_input_reruns_diagnose(root):
 
 def test_a_changed_recipe_after_training_is_refused(root):
     recipe = root / "my_recipe.json"
-    recipe.write_text(json.dumps(RECIPE))
+    recipe.write_text(json.dumps(RECIPE), encoding="utf-8")
     loop, _ = make(root, evals=(), recipe=recipe)
     assert loop.run() == 0
     changed = dict(RECIPE, summary="something else")
-    recipe.write_text(json.dumps(changed))
+    recipe.write_text(json.dumps(changed), encoding="utf-8")
     loop2, lines = make(root, evals=(), recipe=recipe)
     assert loop2.run() == 1
     assert any("new --name" in line for line in lines)
@@ -291,7 +291,7 @@ def test_one_stage_needs_its_inputs(root):
 
 def test_a_recipe_that_changes_nothing_is_refused_at_freeze(root):
     recipe = root / "noop.json"
-    recipe.write_text(json.dumps(dict(RECIPE, regions=[], uniform_share=1.0)))
+    recipe.write_text(json.dumps(dict(RECIPE, regions=[], uniform_share=1.0)), encoding="utf-8")
     loop, lines = make(root, evals=(), recipe=recipe)
     assert loop.run() == 1
     assert any("changes nothing" in line for line in lines)
@@ -299,14 +299,14 @@ def test_a_recipe_that_changes_nothing_is_refused_at_freeze(root):
 
 def test_the_env_file_reaches_only_the_diagnose_child_and_is_never_logged(root):
     env = root / "secrets.env"
-    env.write_text("NEBIUS_API_KEY=sk-test-SECRET123\n")
+    env.write_text("NEBIUS_API_KEY=sk-test-SECRET123\n", encoding="utf-8")
     runner = FakeRunner()
     loop, lines = make(root, runner, env_file=env)
     loop.run()
     assert runner.envs[0] is not None and runner.envs[0]["NEBIUS_API_KEY"] == "sk-test-SECRET123"
     assert all(e is None for e in runner.envs[1:])
     folder = root / "data" / "loops" / "loop1"
-    blob = "\n".join(lines) + (folder / "loop.json").read_text() + (folder / "report.md").read_text()
+    blob = "\n".join(lines) + (folder / "loop.json").read_text(encoding="utf-8") + (folder / "report.md").read_text(encoding="utf-8")
     assert "SECRET123" not in blob
 
 
@@ -336,5 +336,5 @@ def test_a_one_sided_win_alone_is_not_enough(root):
     # 21/40 vs 12/40: one-sided Fisher p < 0.05, two-sided p > 0.05 -> the pre-registered two-sided rule says no
     loop, _ = make(root, FakeRunner(recipe_k=21, control_k=12))
     assert loop.run() == 0
-    res = json.loads((root / "data" / "loops" / "loop1" / "loop.json").read_text())["result"]
+    res = json.loads((root / "data" / "loops" / "loop1" / "loop.json").read_text(encoding="utf-8"))["result"]
     assert res["p_one_sided"] <= 0.05 < res["p_two_sided"] and res["decision"] == "no_difference_shown"
