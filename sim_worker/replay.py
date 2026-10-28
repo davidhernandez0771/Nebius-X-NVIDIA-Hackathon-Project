@@ -6,8 +6,9 @@ Isaac Lab 3.0 quaternions are (x, y, z, w); everything that crosses into demo_pi
 
 from __future__ import annotations
 
+import json
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -20,12 +21,17 @@ from isaaclab.utils import instantiate
 from isaaclab.utils.math import compute_pose_error, subtract_frame_transforms
 
 from demo_pipeline.episode_io import EpisodeMeta, image_path, save_episode, save_signals
+from demo_pipeline.goals import check_goals, goals_from_plan
+from demo_pipeline.scene_plan import ScenePlan
 from demo_pipeline.schemas import Pose, Scene, SimSignals, Trajectory, VerificationResult
 from demo_pipeline.success import check_success
 
-from .placement import place_scene, xyzw
-from .scene_cfg import ARM_CONTACT_SENSORS, BIN_INNER, make_scene_cfg
-from .robots import RobotSpec, hand_from_tool, robot_spec, tool_from_hand
+from .object_record import ObjectRecorder, save_scene_signals
+from .placement import place_layout, place_scene, xyzw
+from .plan_layout import SceneLayout, layout_for_plan, layout_for_scene
+from .plan_scene import make_plan_scene_cfg
+from .scene_cfg import BIN_INNER, make_scene_cfg
+from .robots import RobotSpec, finger_targets, hand_from_tool, robot_spec, tool_from_hand
 from .tracking import CONTROL_DT, TrackingOptions, dls_iterate, gate_hold, lookahead_index, tracking_stats
 
 TASK_TEXT = "pick up the red cube and place it in the blue bin"
@@ -58,23 +64,31 @@ class _Session:
     arm: SceneEntityCfg
     finger_ids: list[int]
     jacobi_idx: int
+    plan_key: str | None = None  # the ScenePlan the scene was built from (None: today's cube and bin)
 
 
 _SESSION: _Session | None = None
 
 
-def _session(record_cameras: bool, robot_name: str = "franka") -> _Session:
-    """One SimulationContext + scene (one robot) per process; built on first use."""
+def _session(record_cameras: bool, robot_name: str = "franka", plan: ScenePlan | None = None) -> _Session:
+    """One SimulationContext + scene (one robot, one scene layout) per process; built on first use."""
     global _SESSION
+    key = plan.model_dump_json() if plan is not None else None
     if _SESSION is not None:
         if record_cameras and not _SESSION.cameras:
             raise RuntimeError("this sim session was built without cameras")
         if robot_name != _SESSION.spec.name:
             raise RuntimeError(f"this sim session was built for {_SESSION.spec.name}, not {robot_name}")
+        if key != _SESSION.plan_key:
+            raise RuntimeError("this sim session was built for another scene layout (one scene per process)")
         return _SESSION
     spec = robot_spec(robot_name)
     sim = sim_utils.SimulationContext(make_sim_cfg())
-    scene = instantiate(make_scene_cfg(cameras=record_cameras, robot=robot_name))
+    if plan is not None:
+        cfg = make_plan_scene_cfg(plan, record_cameras, robot_name)[0]
+    else:
+        cfg = make_scene_cfg(cameras=record_cameras, robot=robot_name)
+    scene = instantiate(cfg)
     sim.reset()
     robot = scene["robot"]
     arm = SceneEntityCfg("robot", joint_names=[spec.arm_joints], body_names=[spec.hand_body])
@@ -91,13 +105,19 @@ def _session(record_cameras: bool, robot_name: str = "franka") -> _Session:
         ik.set_joint_pos_limits(limits[:, 0], limits[:, 1])
     finger_ids = [robot.joint_names.index(j) for j in spec.finger_joints]
     jacobi_idx = arm.body_ids[0] - 1 if robot.is_fixed_base else arm.body_ids[0]
-    _SESSION = _Session(sim, scene, record_cameras, spec, ik, arm, finger_ids, jacobi_idx)
+    _SESSION = _Session(sim, scene, record_cameras, spec, ik, arm, finger_ids, jacobi_idx, key)
     return _SESSION
 
 
-def _place_scene(s: _Session, scene_spec: Scene) -> None:
-    place_scene(s.scene, scene_spec, aim_front_camera=s.cameras)
+def _place_scene(s: _Session, scene_spec: Scene, joint_pos=None, layout: SceneLayout | None = None) -> None:
+    if layout is not None:  # a ScenePlan's bodies
+        place_layout(s.scene, layout, aim_front_camera=s.cameras, joint_pos=joint_pos)
+    else:
+        place_scene(s.scene, scene_spec, aim_front_camera=s.cameras, joint_pos=joint_pos)
     s.ik.reset()
+    if joint_pos is not None:  # hold the restored pose until the pre-roll commands its own targets
+        q = torch.tensor(np.asarray(joint_pos, dtype=np.float32).reshape(1, -1), device=s.sim.device)
+        s.scene["robot"].set_joint_position_target_index(target=q)
 
 
 def _hand_target(s: _Session, tcp_pos: np.ndarray, quat_wxyz) -> torch.Tensor:
@@ -145,9 +165,7 @@ def _physics_step(
         else:
             task_jacobian, task_error = s.ik._compute_pose_task(ee_pos_b, ee_quat_b, jacobian)
             arm_target = joint_pos + dls_iterate(task_jacobian, task_error, IK_LAMBDA, ik_iters)
-        finger = torch.full(
-            (1, len(s.finger_ids)), s.spec.gripper_closed if gripper else s.spec.gripper_open, device=s.sim.device
-        )
+        finger = torch.tensor([finger_targets(s.spec, bool(gripper))], dtype=torch.float32, device=s.sim.device)
         robot.set_joint_position_target_index(target=arm_target, joint_ids=s.arm.joint_ids)
         robot.set_joint_velocity_target_index(target=vel, joint_ids=s.arm.joint_ids)
         robot.set_joint_position_target_index(target=finger, joint_ids=s.finger_ids)
@@ -182,13 +200,24 @@ def replay(
     record_cameras: bool,
     tracking: TrackingOptions | None = None,
     stats: dict | None = None,
+    robot: str | None = None,
+    start_joint_pos=None,
+    plan: ScenePlan | None = None,
 ) -> tuple[VerificationResult, SimSignals]:
     """Replay and verify. If `stats` is given it is filled with tracking errors (mm), the gate's hold
-    steps, and "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
-    change). SimSignals and the episode follow the executed trajectory."""
+    steps, "trajectory": the executed Trajectory (longer than `traj` when the gate held a gripper
+    change), and the recorded "joint_pos" [steps, joints] with their "joint_names". SimSignals and the
+    episode follow the executed trajectory. `robot` runs another robot than scene.robot in the scene
+    (an uploaded one: the scene then only says whose workspace it is).
+    start_joint_pos: all joints to start from instead of the default pose (a recovery state, sim_worker.recovery);
+    the pre-roll then only settles onto traj's first pose, which should be the TCP pose of those joints.
+    plan: build this ScenePlan's cubes and bins instead of scene's one cube and bin (scene still gives the robot and
+    seed). Every cube is recorded (objects.npz, object_record.py) for any scene; with a plan the verdict is
+    check_goals over its goals (goals.json beside the episode) and SimSignals follow its first goal's cube."""
     opts = tracking or TrackingOptions()
-    s = _session(record_cameras, scene.robot)
-    _place_scene(s, scene)
+    layout = layout_for_plan(plan) if plan is not None else layout_for_scene(scene)
+    s = _session(record_cameras, robot or scene.robot, plan)
+    _place_scene(s, scene, start_joint_pos, layout if plan is not None else None)
     arr = traj.to_arrays()
     n = len(arr["t"])
 
@@ -201,9 +230,9 @@ def replay(
     preroll_err = float(np.linalg.norm(_tcp_pose(s)[0] - arr["ee_pos"][0]))
     print(f"[replay] pre-roll: {i + 1} steps, residual {preroll_err * 1000:.1f} mm")
 
-    rec = {k: [] for k in ("joint_pos", "action", "ee_pos", "ee_quat", "cube_pos")}
-    contacts = {k: [] for k in ("gripper_cube", "arm_bin", "arm_table")}
-    max_force = []
+    rec = {k: [] for k in ("joint_pos", "action", "ee_pos", "ee_quat")}
+    objects = ObjectRecorder(layout)  # every cube, the arm's contacts and forces
+    arm_sensors = layout.arm_contact_sensors()  # today's scene: scene_cfg.ARM_CONTACT_SENSORS
     frames: dict[str, list[np.ndarray]] = {"front": [], "wrist": []} if record_cameras else {}
     exe = {k: [] for k in ("ee_pos", "ee_quat", "gripper")}  # the executed trajectory, gate holds included
     ik_residual = []  # m, reached TCP vs the pose actually commanded (step j); feeds "unreachable"
@@ -232,21 +261,23 @@ def replay(
         if not hold:
             k += 1
 
-        robot, cube = s.scene["robot"], s.scene["cube"]
+        robot = s.scene["robot"]
         tcp, q = _tcp_pose(s)
         ik_residual.append(float(np.linalg.norm(tcp - arr["ee_pos"][j])))
         rec["joint_pos"].append(robot.data.joint_pos.torch[0].cpu().numpy())
         rec["action"].append(action[0].cpu().numpy())
         rec["ee_pos"].append(tcp)
         rec["ee_quat"].append(q)
-        rec["cube_pos"].append((cube.data.root_pos_w.torch[0] - s.scene.env_origins[0]).cpu().numpy())
-        contacts["gripper_cube"].append(_max_pair_force(s.scene["cube_contact"]) > CONTACT_N)
+        cubes = {
+            c: ((s.scene[layout.cube(c).name].data.root_pos_w.torch[0] - s.scene.env_origins[0]).cpu().numpy(),
+                _max_pair_force(s.scene[layout.cube(c).contact]) > CONTACT_N)
+            for c in layout.cube_ids()
+        }
         forces = {}
-        for group, sensors in ARM_CONTACT_SENSORS.items():
+        for group, sensors in arm_sensors.items():
             forces[group] = max(_max_pair_force(s.scene[name]) for name in sensors)
-        contacts["arm_bin"].append(forces["bin"] > CONTACT_N)
-        contacts["arm_table"].append(forces["table"] > CONTACT_N)
-        max_force.append(max(forces.values()))
+        objects.add(cubes, arm_bin=forces["bin"] > CONTACT_N, arm_table=forces["table"] > CONTACT_N,
+                    force=max(forces.values()))
         for cam in frames:
             frames[cam].append(s.scene[cam].data.output["rgb"].torch[0, ..., :3].cpu().numpy().astype(np.uint8))
 
@@ -259,17 +290,22 @@ def replay(
         f"[replay] tracking error mm: mean {track['mean_mm']:.1f}, max {track['max_mm']:.1f}, "
         f"at close {track['close_mm']}, gate hold steps {hold_steps}"
     )
-    signals = SimSignals(
-        cube_pos=np.asarray(rec["cube_pos"], dtype=np.float64),
-        contact_gripper_cube=np.asarray(contacts["gripper_cube"], dtype=bool),
-        contact_arm_bin=np.asarray(contacts["arm_bin"], dtype=bool),
-        contact_arm_table=np.asarray(contacts["arm_table"], dtype=bool),
-        max_contact_force=np.asarray(max_force, dtype=np.float64),
-    )
+    signals = objects.sim_signals(plan.goals[0].object if plan is not None else "cube")
     reach = np.asarray(ik_residual) if opts.residual_is_reach_signal else None
-    result = check_success(executed, signals, scene.bin_pose, bin_inner=BIN_INNER, tcp_error=reach)
+    exe_arr = executed.to_arrays()
+    scene_signals = objects.scene_signals(exe_arr["t"], exe_arr["ee_pos"], exe_arr["gripper"], tcp_error=reach)
+    goals_report = None
+    if plan is None:
+        result = check_success(executed, signals, scene.bin_pose, bin_inner=BIN_INNER, tcp_error=reach)
+    else:
+        # The numbers (duration, path, force, settle) from check_success on the first goal; the verdict is all goals'.
+        first = layout.containers()[plan.goals[0].bin]
+        base = check_success(executed, signals, first.pose, bin_inner=first.inner, tcp_error=reach)
+        goals_report = check_goals(goals_from_plan(plan), scene_signals)
+        result = base.model_copy(update={"success": goals_report.success, "reasons": list(goals_report.reasons)})
     if stats is not None:
-        stats.update(track, hold_steps=hold_steps, preroll_mm=preroll_err * 1000, trajectory=executed)
+        stats.update(track, hold_steps=hold_steps, preroll_mm=preroll_err * 1000, trajectory=executed,
+                     joint_pos=np.asarray(rec["joint_pos"]), joint_names=list(s.scene["robot"].joint_names))
 
     if ep_dir is not None:
         ep_dir = Path(ep_dir)
@@ -284,6 +320,10 @@ def replay(
             "gripper": np.asarray(exe["gripper"], dtype=np.int8),
         })
         save_signals(ep_dir, signals)
+        save_scene_signals(ep_dir, scene_signals)
+        if goals_report is not None:
+            (ep_dir / "goals.json").write_text(json.dumps(asdict(goals_report), indent=1), encoding="utf-8")
+            (ep_dir / "plan.json").write_text(plan.model_dump_json(indent=1), encoding="utf-8")
         if frames:
             from PIL import Image
 

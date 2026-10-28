@@ -1,0 +1,43 @@
+/* "← Back to workshop" (BackToWorkshop.tsx): the world's way-back button (world/ui/ui.css .world-stationbar__btn)
+   on the 2D pages: mono capitals, a squared box in the accent, a faint fill. Paper and Volt both, by the mode's
+   accent; the fallbacks are Volt's for a page outside the SANT root. */
+.sant-back {
+  --sant-back-accent: var(--sant-accent, #19f5c2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  flex: none;
+  box-sizing: border-box;
+  min-height: 30px;
+  padding: 6px 11px;
+  font: 500 11px/1 var(--sant-font-data, "Geist Mono", ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--sant-accent-ink, var(--sant-back-accent));
+  background: color-mix(in srgb, var(--sant-back-accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sant-back-accent) 55%, transparent);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.sant-back:hover {
+  color: var(--sant-text, #e6edf3);
+  background: color-mix(in srgb, var(--sant-back-accent) 16%, transparent);
+}
+.sant-back:focus-visible {
+  outline: 2px solid var(--sant-back-accent);
+  outline-offset: 2px;
+}
+/* A finger's size on touch screens. */
+@media (pointer: coarse) {
+  .sant-back {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sant-back {
+    transition: none;
+  }
+}

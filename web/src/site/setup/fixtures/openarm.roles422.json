@@ -1,0 +1,21 @@
+{
+ "status": 422,
+ "body": {
+  "detail": {
+   "errors": [
+    {
+     "code": "arm_too_short",
+     "severity": "error",
+     "message": "the arm has 4 DOF (openarm_joint1, openarm_joint2, openarm_joint3, openarm_joint4); the task needs at least 5",
+     "where": "arm_joints"
+    },
+    {
+     "code": "arm_not_chain",
+     "severity": "error",
+     "message": "the arm joints must be the moving joints on the path from the base (openarm_link0) to the hand (openarm_link7), listed from the base outwards: openarm_joint1, openarm_joint2, openarm_joint3, openarm_joint4, openarm_joint5, openarm_joint6, openarm_joint7",
+     "where": "arm_joints"
+    }
+   ]
+  }
+ }
+}

@@ -211,7 +211,18 @@ Not re-run for this runbook (that would install `node_modules`).
 The Record page loads `/mediapipe/wasm` and `/models/hand_landmarker.task` from `web/public/`.
 <!-- src: web/src/hand/tracking/mediapipeTracker.ts (WASM_BASE_PATH, MODEL_ASSET_PATH) -->
 Both are git-ignored, so a fresh clone has neither. <!-- src: .gitignore; HAND_INTERACTION_PLAN.md (Assets) -->
-After `npm --prefix web ci` (§2.5), run once from the repo root:
+
+`npm --prefix web run dev` now gets them first: its `predev` runs `web/scripts/hand-assets.mjs`.
+- It copies the wasm from the pinned package.
+- If the model is missing, it copies it from another worktree of this repo. Failing that, it downloads
+  the pinned `float16/1` model.
+- Either way it checks the size (7,819,105 bytes) and the SHA-256.
+- If it can't get the model, it warns, and the dev server still starts.
+
+If a file is still missing, the camera error names it (`web/src/hand/tracking/assets.ts`) instead of
+`[object Event]`. <!-- src: 2026-10-19-live-start.md -->
+
+To do the same by hand, after `npm --prefix web ci` (§2.5), run once from the repo root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\launch\fetch_mediapipe.ps1
@@ -483,8 +494,8 @@ file is empty.
 The same commands by hand, each in its own PowerShell (set the `$env:` variables first):
 
 ```powershell
-uv run uvicorn app.main:app --reload --app-dir src                                  # backend, :8000
-npm --prefix web run dev                                                            # web, :5173
+uv run uvicorn app.main:app --reload --app-dir src                                  # backend, :8000 (no PYTHONPATH needed)
+npm --prefix web run dev                                                            # web, :5173 (predev: hand files)
 C:\isaac\env_isaaclab\Scripts\python.exe -m sim_worker.server --port 8770 --robot franka --cameras
 C:\venvs\lerobot\Scripts\python.exe -m lerobot_tools.policy_server --checkpoint <dir> --port 8765
 ```

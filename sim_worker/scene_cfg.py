@@ -19,15 +19,16 @@ from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
 from isaaclab_assets.robots.flexiv import FLEXIV_RIZON4S_CFG, FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort:skip
 from isaaclab_assets.robots.openarm import OPENARM_UNI_HIGH_PD_CFG  # isort:skip
 
-from .robots import robot_spec
+from demo_pipeline.scene_geometry import BIN_INNER, BIN_WALL, CUBE_SIZE  # noqa: F401 (BIN_INNER, BIN_WALL: re-exported)
 
-CUBE_SIZE = 0.05
-CUBE_MASS = 0.1
-BIN_INNER = (0.20, 0.20, 0.08)
-BIN_WALL = 0.01
+from .robots import robot_spec
+# The scene's numbers live in scene_parts (no Isaac imports); re-exported here under their old names.
+from .scene_parts import (  # noqa: F401
+    ARM_CONTACT_SENSORS, BIN_PART_NAMES, BIN_PARTS, BIN_PRIMS, BIN_RIM_Z, BLUE, CUBE_MASS, CUBE_SPAWN_XY, FRONT_EYE,
+    FRONT_TARGET, RED, TABLE_CENTER, TABLE_COLOR, TABLE_SIZE,
+)
+
 IMAGE_SIZE = 128
-RED = (0.85, 0.05, 0.05)
-BLUE = (0.05, 0.2, 0.85)
 
 # The 3.0 Franka USD nests each body under its parent; PhysX filter patterns are globs, not regexes,
 # so spell out full paths (probed on 2026-10-15).
@@ -45,28 +46,6 @@ OPENARM_FINGERS = ["{ENV_REGEX_NS}/Robot/openarm_left_finger", "{ENV_REGEX_NS}/R
 OPENARM_ARM_BODIES = (
     [f"{{ENV_REGEX_NS}}/Robot/openarm_link{i}" for i in range(1, 8)] + [OPENARM_HAND] + OPENARM_FINGERS
 )
-
-_ix, _iy, _iz = BIN_INNER
-_ox, _oy = _ix + 2 * BIN_WALL, _iy + 2 * BIN_WALL
-_wall_z = BIN_WALL + _iz / 2
-# name -> (size, center in the bin frame); the bin frame origin is the center of the floor's underside.
-BIN_PARTS: dict[str, tuple[tuple[float, float, float], tuple[float, float, float]]] = {
-    "bin_floor": ((_ox, _oy, BIN_WALL), (0.0, 0.0, BIN_WALL / 2)),
-    "bin_wall_px": ((BIN_WALL, _oy, _iz), ((_ix + BIN_WALL) / 2, 0.0, _wall_z)),
-    "bin_wall_nx": ((BIN_WALL, _oy, _iz), (-(_ix + BIN_WALL) / 2, 0.0, _wall_z)),
-    "bin_wall_py": ((_ix, BIN_WALL, _iz), (0.0, (_iy + BIN_WALL) / 2, _wall_z)),
-    "bin_wall_ny": ((_ix, BIN_WALL, _iz), (0.0, -(_iy + BIN_WALL) / 2, _wall_z)),
-}
-BIN_RIM_Z = BIN_WALL + _iz  # rim height above the bin origin
-BIN_PRIMS = {"bin_floor": "BinFloor", "bin_wall_px": "BinWallPX", "bin_wall_nx": "BinWallNX",
-             "bin_wall_py": "BinWallPY", "bin_wall_ny": "BinWallNY"}
-
-# Table top at z = 0; it starts in front of the robot base so panda_link0 never touches it.
-TABLE_SIZE = (0.85, 1.2, 0.05)
-TABLE_CENTER = (0.575, 0.0, -0.025)
-
-FRONT_EYE = (1.35, 0.15, 0.65)
-FRONT_TARGET = (0.45, 0.15, 0.05)
 
 
 def _kinematic_box(prim: str, size, pos, color) -> RigidObjectCfg:
@@ -103,7 +82,7 @@ class PickPlaceSceneCfg(InteractiveSceneCfg):
     robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.variants["Physics"] = "physx"
 
-    table = _kinematic_box("Table", TABLE_SIZE, TABLE_CENTER, (0.6, 0.6, 0.6))
+    table = _kinematic_box("Table", TABLE_SIZE, TABLE_CENTER, TABLE_COLOR)
     cube = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
@@ -115,7 +94,7 @@ class PickPlaceSceneCfg(InteractiveSceneCfg):
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=RED),
             activate_contact_sensors=True,
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, CUBE_SIZE / 2)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(*CUBE_SPAWN_XY, CUBE_SIZE / 2)),
     )
     bin_floor = _kinematic_box("BinFloor", *BIN_PARTS["bin_floor"], BLUE)
     bin_wall_px = _kinematic_box("BinWallPX", *BIN_PARTS["bin_wall_px"], BLUE)
@@ -154,9 +133,6 @@ class PickPlaceSceneCfg(InteractiveSceneCfg):
         offset=CameraCfg.OffsetCfg(pos=(0.13, 0.0, -0.15), rot=(0.03701, 0.03701, -0.70614, -0.70614), convention="ros"),
     )
 
-
-BIN_PART_NAMES = tuple(BIN_PARTS)
-ARM_CONTACT_SENSORS = {"table": ("table_contact",), "bin": tuple(f"{n}_contact" for n in BIN_PART_NAMES)}
 
 
 # Flexiv Rizon 4s + Grav bodies (probed 2026-10-16): arm links flat under Robot/, gripper under Robot/Grav_gripper/.
@@ -225,7 +201,13 @@ def make_scene_cfg(cameras: bool, robot: str = "franka") -> PickPlaceSceneCfg:
     elif robot == "flexiv":
         _use_flexiv(cfg)
     elif robot != "franka":
-        raise ValueError(f"no sim scene for robot {robot!r}")
+        try:
+            spec = robot_spec(robot)
+        except KeyError:
+            raise ValueError(f"no sim scene for robot {robot!r}") from None
+        from .byor_scene import use_uploaded  # an uploaded URDF ("Bring your robot"), registered by the caller
+
+        use_uploaded(cfg, spec, _contacts)
     if not cameras:
         cfg.front = None
         cfg.wrist = None

@@ -22,7 +22,9 @@ from pathlib import Path
 
 LAST_POINTER = "last.txt"
 VIDEO_BACKEND = "pyav"
-MAX_STEPS, MAX_BATCH = 30_000, 8  # GPU budget: sprint 3 set 10k; sprint 7 trains to 30k for equal epochs
+# GPU budget: sprint 3 set 10k; sprint 7 30k for equal epochs; grasp-fix run 2 60k; the 2026-10-20 research note's
+# Stage 1 trains to 80k (LeRobot's ACT reference runs ~80-100k) and picks the checkpoint on practice seeds.
+MAX_STEPS, MAX_BATCH = 200_000, 8  # 200k: the 2026-10-23 big test trains 180k (lead-approved)
 
 
 def update_last_checkpoint_pointer(checkpoint_dir: Path) -> Path:
@@ -96,6 +98,9 @@ def run(lerobot_argv: list[str]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from sim_worker.teleop_qos import full_speed
+
+    full_speed()  # out of Windows power throttling (per process: a child does not inherit it)
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--resume-last", type=Path, default=None, metavar="OUTPUT_DIR",
                    help="resume the run in OUTPUT_DIR from checkpoints/last.txt")

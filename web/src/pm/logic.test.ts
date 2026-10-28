@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { framingCheck } from "./record/framing";
+import { framingCheck } from "../record/framing";
 import { layoutTimeline, speedProfile } from "./review/timeline";
 import { summarizeDemos } from "./dataset/summary";
 import { chartPoints, chartRuns, parseResults } from "./results/results";

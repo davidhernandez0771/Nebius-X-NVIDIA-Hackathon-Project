@@ -1,4 +1,8 @@
-# Perfect, then multiply
+# SANT
+
+**S**imulate · **A**ugment · **N**eaten · **T**rain: perfect one demo, then multiply it.
+
+*Perfect, then multiply.*
 
 **Record one robot demo by moving your hand in front of a webcam. Get back many physics-checked
 training demos.**
@@ -21,7 +25,39 @@ This project takes one cheap demo and cleans it up with code. NVIDIA Isaac Lab t
 physics, and the project multiplies it into many verified copies, each with the cube and bin in new
 places. The output is a standard LeRobot dataset that you can train a robot policy on.
 
-## The result
+## The headline result (2026-10-25, pre-registered)
+
+**From 10 human mouse demos to a camera policy that succeeds 30/40 (75%) on scenes it has never seen.**
+
+The pipeline: SANT checks the demos in Isaac Lab physics, repairs and multiplies them. An RL teacher (PPO in Isaac Lab)
+learns the task starting from them. It's distilled into a camera-only ACT policy, which is tested once on 40 fresh
+scenes. The scenes, the decision rules and the 60% goal were all committed before the run.
+
+| Policy | Success on 40 unseen scenes | Wilson 95% CI |
+|---|---|---|
+| Imitating the 10 raw mouse demos | 0 / 40 | 0–9% |
+| Imitating the SANT-verified, multiplied demos | 3 / 40 | 3–20% |
+| v1: the RL teacher distilled into the camera policy | 15 / 40 | 24–53% |
+| **v2: the same data, trained 3× longer + a gripper deadband** | **30 / 40 (75%)** | **60–86%** |
+
+**Did the human demos matter?** The same RL teacher, with the same code, budget and seed, but starting from home instead
+of the demos, never lifted the cube: **0/128 vs 113/128** home-start success.
+
+**What it does not show:**
+- **Real hardware:** everything runs in simulation.
+- **Which of v2's two changes caused the gain:** they were tested together.
+- **Strict comparisons between rows:** v2 was tested on fresh seeds (5400–5439), the others on 5020–5059, so the
+  comparisons are descriptive.
+- **DAgger:** a correction round ran, but it lost the pre-registered pick.
+- **The held human re-execution:** replaying the human demos through the student's actuator failed (0/110) and was
+  dropped by a pre-set rule.
+
+All of it, failures included, is in
+[2026-10-23-bigtest-prereg.md](docs/superpowers/notes/2026-10-23-bigtest-prereg.md) and
+[2026-10-21-distill-prereg.md](docs/superpowers/notes/2026-10-21-distill-prereg.md). The raw per-episode results are in
+`docs/superpowers/notes/2026-10-23-bigtest/results/`.
+
+## Earlier result: multiplying scripted demos (2026-10-17)
 
 We trained the same robot policy (ACT, 30k steps) twice from the same 10 source demos. Then we tested
 both policies on 40 new scenes. The scenes and the stopping rule were fixed in advance, and those
@@ -47,12 +83,61 @@ alone.*
 
 **What it does not show yet:**
 - **One setup:** one task (cube into bin), one simulated robot (Franka), one policy type, one training run per arm.
-- **No human demos yet:** the 10 source demos came from a scripted expert. Real webcam demos are next.
+- **Scripted demos:** the 10 source demos came from a scripted expert. The real webcam demos are in the next
+  section.
 - **Repair not tested here:** the scripted demos were already clean, so this skipped repair. Whether
-  perfecting noisy human demos first adds more is not measured yet.
+  repairing noisy human demos first helps a trained policy is not measured yet.
 - **Equal steps, not equal epochs:** the raw arm saw its data ~49 times, the multiplied arm ~4.5.
 - **It still drops the cube:** 22 of the multiplied policy's 23 failures are drops: it lifted the cube, then lost it.
 <!-- src: docs/superpowers/notes/2026-10-15-t3-status.md (sprint 7 Tasks 3–4, "Reading, honestly" and Task 4); docs/media/README.md ("All the human demos here are synthetic") -->
+
+## Real webcam demos (2026-10-19 and 2026-10-20)
+
+One person recorded 10 demos with a webcam, driving the simulated Franka live.
+
+| Step | Result |
+|---|---|
+| **Physics check, as recorded** | **0 / 10** pass. Every demo put the cube in the bin live, but the gripper pressed into the bin while placing (9/10, up to 927 N against a 5 N limit), and some regrasps dropped the cube. |
+| **Repair with the rules, then multiply** | **3 / 10** repaired and verified → **24 / 30** multiplied copies verified |
+| **Blind A/B: Nemotron edits vs the rules,** same 10 demos | Run 1: Nemotron **5 / 10** vs rules **3 / 10**; Nemotron fixed every demo the rules fixed, plus two more. **McNemar p = 0.50: not significant.** $0.21 for all 10. Re-run (`repair_ab2`): Nemotron **2 / 10** vs rules **3 / 10**, **p = 1.0**, $0.28. Its plans vary from run to run. |
+| **Training on what SANT made from them** (27 episodes from the 3 repaired demos), one arm | **3 / 40** (7.5%, 95% CI 2.6–19.9%) on the same 40 unseen scenes. Most failures dropped the cube (26 of 37). There's no comparison arm: the raw arm would have trained on 10 failed replays. |
+<!-- src: docs/superpowers/notes/2026-10-19-live-test-10-results.md ("Re-run, achieved path"; "Neaten for the human demos' failures + human10c": 3/10 perfected, 24/30 variants); docs/superpowers/notes/2026-10-20-nemotron-repair.md ("Result: the blind A/B": 5/10 vs 3/10, paired 3/0/2/5, exact McNemar p = 0.50, $0.207); docs/superpowers/notes/2026-10-20-human10c-multiplied-only.md ("Result": 3/40, Wilson 2.6–19.9%, pre-registered e979c54, ACT 30k, seeds 5020–5059; dropped 26/37) -->
+
+**How to read it:**
+- Real hands make demos that physics rejects, and that is the gap this project is for.
+- Repair turns some of those rejects into demos that pass, and a demo that passes multiplies well.
+- Three repaired demos are not enough to train on yet: 3/40. For reference, not a comparison, the scripted run
+  got 17/40 from 10 demos (110 episodes). That suggests the number of distinct repaired demos matters, but the two
+  runs also differ in source and size, so it doesn't show why. More repaired demos is the next step.
+- The rules had a home advantage: two of their ops were written after looking at these same 10 failures, and
+  Nemotron saw neither.
+- The A/B did not replicate: 5 vs 3, then 2 vs 3, on 10 demos. Neither run is significant. Replays of these demos
+  reproduce their live outcome only 2–4 times in 10.
+
+## Real mouse demos, raw vs SANT (2026-10-20, pre-registered)
+
+The same person recorded 10 demos driving the arm with the mouse (live test #11), with the soft floor on. The test was
+pre-registered before the first demo: raw vs SANT, two-sided Fisher, α = 0.05.
+
+| Step | Result |
+|---|---|
+| **Physics check** | **10 / 10** pass live and **10 / 10** on replay, with no hard contact (0 N). Unlike the webcam demos, these were good demos as recorded. |
+| **Repair (cleanup only), then multiply** | 10 / 10 perfected (trim, smooth) → **100 / 100** copies verified |
+| **Raw vs SANT,** ACT on the same 40 unseen scenes | Raw (10 episodes) **0 / 40** (95% CI 0–8.8%) vs SANT (110 episodes) **3 / 40** (2.6–19.9%). **Fisher p = 0.24: not significant.** |
+<!-- src: docs/superpowers/notes/2026-10-20-mouse20261020-results.md (sections 1-4: 10/10 live, 10/10 replay, 100/100 variants; run hx_mouse20261020_20261020_164411, raw_10 0/40 vs perfected_multiply_10 3/40, Wilson 0.0-8.8% / 2.6-19.9%, Fisher p = 0.24; reasons from evals/*.json); docs/superpowers/notes/2026-10-20-kb-raw-vs-sant-prereg.md (pre-registered, amendment 1: input = mouse) -->
+
+**How to read it:**
+- The pre-registered test does not show that SANT's data trains a better policy here. 0/40 vs 3/40 is well
+  within chance at n = 40.
+- The two policies fail differently (described, not tested).
+  - SANT's policy gets the cube into its fingers: 26/40 episodes lose it before the bin. The raw one records no drops.
+  - SANT's policy also hits the bin or table above 5 N in 27/40 episodes; raw does in 2/40.
+- It is not the soft floor (on during 9 of the 10 demos) teaching it to push down: no training label goes more than
+  3.7 mm under the floor ([floor-labels](docs/superpowers/notes/2026-10-20-floor-labels.md)). The collisions' cause is
+  being traced in a per-step eval.
+- 10 demos, one person, one training run per arm.
+
+The full table, with every source note, is in [docs/submission/README.md](docs/submission/README.md#results-measured-only).
 
 ## How it works
 
@@ -69,7 +154,9 @@ the scripted expert, with noise added on purpose.*
    grasp is. NVIDIA Nemotron can also look at key frames. The result is a timestamped list of
    problems.
 3. **Repair.** Code fixes those problems from a fixed menu: trim idle time, remove pauses, smooth
-   tremor, retime, and recenter the grasp.
+   tremor, retime, recenter the grasp, and release above the bin. Or NVIDIA Nemotron writes small edits to
+   the hand's path from what the simulator measured. Code caps each edit at 5 cm and checks it is smooth, and
+   physics verifies the result.
 4. **Verify.** Isaac Lab replays the repaired demo, and physics decides whether it worked. All 50
    of our 50 scripted test demos pass.
 5. **Multiply, export, train.** Each verified demo becomes many variants with new cube and bin
@@ -78,8 +165,61 @@ the scripted expert, with noise added on purpose.*
    ACT policy is trained on it.
 <!-- src: spec §1 and §4; docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 3: Franka batch 50/50; sprint 6 Task 2: home-start multiply 100/100); spec §3 (MimicGen 38–74%); docs/superpowers/notes/2026-10-15-t4-status.md (sprint 7 T4: the repair ops trim, remove_pause, smooth, retime, recenter, replan, discard) -->
 
+## How it relates to NVIDIA GR00T-Mimic / Isaac Lab Mimic
+
+Isaac Lab Mimic (NVIDIA's GR00T-Mimic workflow) multiplies **good** teleop demos:
+- It splits each demo into subtasks, one per object.
+- It moves each segment rigidly to new object poses.
+- It keeps a new demo only if the task succeeds.
+
+Its tutorial starts from "10 successful demonstrations". This project is the step before that. It checks human
+demos in physics as they were recorded, repairs the ones that fail (rules or Nemotron edits), and then multiplies
+them the same way, in its own code.
+
+We also ran Mimic on SANT's repaired demos. Isaac Lab Mimic, given SANT's tracking, produced demos SANT verifies at the same rate as SANT's own multiplier: 82% vs 80%, p = 0.79; SANT's check rejected 9 of Mimic's 100 self-reported successes. SANT's side is the existing `human10c` 24/30 (the same 3 repaired sources); the planned 102-attempt SANT run was not done.
+<!-- src: docs/superpowers/notes/2026-10-20-mimic-export.md ("The rerun's result": 91/111 SANT-verified, Wilson 73.8–88.0%, vs human10c 24/30, 62.7–90.5%, Fisher p = 0.79; rejects collision 6, unreachable 8, not_settled 1) -->
+
+Details and the comparison table: [docs/submission/README.md](docs/submission/README.md#how-sant-relates-to-nvidia-gr00t-mimic--isaac-lab-mimic).
+<!-- src: C:\isaac\IsaacLab docs/source/features/imitation-learning/teleop_imitation.rst (Isaac Lab 3.0: "What is Isaac Lab Mimic?", Step 1 "Collect 10 successful demonstrations", generation success ~40%); src/demo_pipeline/multiply.py -->
+
 ## Where NVIDIA Nemotron fits (honestly)
 
+- **As a failure analyst, it now runs on real results (new, 2026-10-25).** It reads how a trained policy failed and
+  proposes the next training data. It works from numbers only: code measures every episode and labels each
+  failure, and Nemotron proposes the pattern.
+  - **What it proposes:** scene regions to generate more of, mechanism claims (for example "carry speed is higher in
+    failures"), and fixes from a fixed menu. Saying "keep the data as it is" is allowed.
+  - **What code checks:** each region must hold ≥ 3 of its target failures at a clearly higher rate than outside it
+    (one-sided Fisher p ≤ 0.1). Each mechanism must match a measured contrast (Mann–Whitney, |effect| ≥ 0.2). Every
+    cited seed must exist. A failed check goes back to the model with the numbers.
+  - **How we handle run-to-run variance:** it is asked 3 times, and we keep the answer the others agree with.
+  - **On synthetic traces with a planted pattern:**
+    - Drops planted on right-side bins: the region it found held 13/13 of the drops, for $0.015.
+    - Drops planted on carry speed: it chose no region, claimed `carry_speed_max`, and proposed slowing the carry to
+      0.4 m/s, for $0.026.
+    - Before the checks existed, it drew a box around 1 of 13 drops. The checks are what made it useful.
+  - **On the 30/40 model's real results** (69 episodes, post-hoc, result rows only, no traces):
+    - 17 of 18 failures were drops.
+    - Two of three samples flagged cross-body carries (cube on the left, bin on the right), at one-sided p = 0.092. The third
+      said there was no clear pattern.
+    - On five other checkpoints it never saw, pooled, the direction held, but not significantly
+      (0.62 vs 0.51 drop rate, one-sided p = 0.11; it held in 3 of the 5 checkpoints).
+    - **This is a weak lead, not a finding.** Explaining the drops needs the per-step traces.
+  - **What is built:** the diagnosis, the checks, and turning a recipe into scenes for multiply
+    (`--scene-recipe`). Whether a recipe trains a better policy has not been tested.
+  - **Built and unit-tested, not yet run on Isaac (2026-10-28):**
+    - the fixes, applied to multiplied variants before their physics replay (`src/demo_pipeline/data_fixes.py`:
+      recenter the grasp, slow the carry, filter training episodes);
+    - the `/analysis` page and its API (`src/app/routers/analysis.py`), which show the analysis. A live Nemotron
+      call runs only with `SANT_ANALYST_LIVE=1`.
+
+    Whether a fixed recipe trains a better policy is still untested. That needs the GPU.
+  <!-- src: docs/superpowers/notes/2026-10-25-failure-analyst.md (section 1 live runs table; section 1b); scripts/analyze_failures.py -->
+- **As a repairer, it is not yet better than the rules.** In a pre-registered, blind A/B on the 10 real webcam
+  demos, its trajectory edits repaired 5/10 against the rules' 3/10 (McNemar p = 0.50). The re-run gave 2/10 vs 3/10
+  (McNemar p = 1.0). Neither is significant, and the plans vary from run to run.
+  Code checks every edit; physics decides.
+  <!-- src: docs/superpowers/notes/2026-10-20-nemotron-repair.md ("Result: the blind A/B") -->
 - **As a demo judge, it lost to code.** In a fair, pre-registered test on 32 synthetic demos, code
   alone scored F1 0.90, and rules plus Nemotron scored 0.86. Without the code-measured grasp
   offset, Nemotron called all 8 centered grasps off-center. So code is the judge, and Nemotron adds
@@ -98,7 +238,122 @@ the scripted expert, with noise added on purpose.*
   `nvidia/Nemotron-3.5-Super-VL` for images and `nvidia/nemotron-3-super-120b-a12b` for requests.
   <!-- src: docs/superpowers/notes/2026-10-15-t4-status.md (sprint 6 Task 1: hybrid 35 calls / $0.0544; sprint 7 T4 Task 4: $0.000206 per request, model id); docs/superpowers/notes/2026-10-15-t4-nemotron-vl.md (VL model id) -->
 
-## Status (2026-10-17)
+### The models: what each one does, and why that size
+
+All of them are NVIDIA Nemotron models, served by Nebius Token Factory. The tiers are set in `src/nebius_llm/config.py`,
+and the call counts come from our usage logs (see below).
+
+| Model | Calls logged | What it does | Why this one |
+|---|---|---|---|
+| `nvidia/nemotron-3-super-120b-a12b` (tier `super`) | 234 | **The trajectory repairer**, with thinking on and a 16,000-token cap for thinking plus answer (`src/app/ai/nemotron_repair.py`). **The failure analyst** (`src/app/ai/failure_analyst.py`, since 10-25; not in this call count). **The scene creator** (a sentence → a validated scene plan). **The assist-zone planner** and **the repair-request translator** | Text tasks that reason over forces, offsets and geometry. A mixture-of-experts model with 12B active parameters is cheap per call, and with thinking on it plans several steps ahead |
+| `nvidia/Nemotron-3.5-Super-VL` (tier `nemotron-vl`) | 249 | **The demo labeler and intent judge** (pre-registered: 40/40 and 59/60). Before that, **the demo diagnoser** (7 front frames + 1 wrist frame + a metrics table) | The only one here that takes images |
+| `nvidia/Nemotron-3_5-Lightning` (tier `nano`) | 0 | Wired to the site's Ask SANT box, the command and query helpers, `scripts/hello.py`, and the take review's optional rewording (`phrasing=nemotron`; the default is the rules' wording) | The fast tier, for short replies. **It isn't in our usage logs:** it was called only while the client was first set up (September), so none of these features has used it in a logged run |
+| `nvidia/Nemotron-3-Ultra-550b-a55b` (tier `ultra`) | 0 | **Nothing:** it's configured, and no code path calls it | We never needed more than Super |
+
+<!-- src: src/nebius_llm/config.py; src/app/ai/*.py and src/app/routers/demos.py (each feature's tier); usage logs as below -->
+
+### Where Nebius Token Factory accelerated the workflow
+
+- **Two large models with no GPU of our own.** Our one RTX 5080 (16 GB) ran Isaac Lab all day for replays,
+  multiplying, evaluation and RL training. A 120B text model and a vision-language model could not have shared it.
+  Token Factory runs them, so a Nemotron call never waits for the simulator or stops it.
+- **No new client.** The API is OpenAI-compatible, so the standard OpenAI Python SDK with a base URL was enough. Our
+  existing client gained a model tier and a multi-image helper.
+- **Budgeting from the start.**
+  - `GET /v1/models?verbose=true` lists each model's modality, context, rate limits and prices at no cost. It is the
+    source for our cost config.
+  - Every reply carries `usage`, so each call is logged with its tokens and estimated cost.
+  - The experiments run under a spend cap (for example `scripts/run_repair_ab.py --max-cost-usd`) that stops a run
+    cleanly.
+- **Cheap enough to test properly.** The usage logs we have (`usage_log.jsonl` in our working checkouts, 2026-10-15 to
+  2026-10-21) record **483 calls for about $1.14** in all:
+  - 249 to the VL model, about $0.31;
+  - 234 to Super, about $0.84.
+
+  The cost is estimated from our price config and each reply's token counts. That budget paid for pre-registered,
+  blind tests, and it let us re-run the repair A/B when it needed checking.
+
+### Nebius tools used
+
+**Nebius Token Factory only.** We did not use Nebius AI Cloud: all simulation, RL and training ran on one local RTX
+5080. We priced an H100 VM for NVIDIA Cosmos showcase clips, and didn't run it.
+<!-- src: docs/superpowers/notes/2026-10-20-research-approach.md (Q3) -->
+
+## The NVIDIA stack
+
+- **NVIDIA Nemotron:** 3 Super 120B-A12B and 3.5 Super VL (both called), plus 3.5 Lightning (wired, not used in a
+  logged run). See the models table above.
+- **NVIDIA Isaac Sim 6.2:** physics with contact sensors, cameras and rendering.
+- **NVIDIA Isaac Lab 3.0:**
+  - the pick-place scene;
+  - differential-IK replay;
+  - live teleop;
+  - the multiplier's verification;
+  - policy evaluation on unseen scenes.
+- **Isaac Lab Mimic:** demo generation from SANT's repaired demos, run on Windows. SANT checks Mimic's output.
+- **Isaac Lab RL** (rsl_rl PPO, 4,096 parallel envs): the RL teacher, in progress.
+
+Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
+
+## Status (2026-10-29)
+
+| | What |
+|---|---|
+| **Done** | **v2, the headline:** 30/40 (75%) on fresh seeds 5400–5439, run once, goal ≥ 24/40 met ([prereg + full log](docs/superpowers/notes/2026-10-23-bigtest-prereg.md)) |
+| **Done** | **The RL teacher:** v6 learned the task after five logged failures. SANT's physics gate caught it moving at 1.7 m/s (3/50); a 0.5 m/s cap fixed it (50/50). The no-demo control: 0/128 vs 113/128 |
+| **Done** | The Nemotron failure analyst, run on the 30/40 model and four other checkpoints. Its one region is a weak lead (one-sided p = 0.092) ([note](docs/superpowers/notes/2026-10-25-failure-analyst.md)). All five runs are committed, so the site shows them with no API call |
+| **Done** | The site in one branch: the 3D story, `/site/results` (the big test scene by scene), `/metrics`, `/flow` and `/analysis` |
+| **Done** | A math audit: `scripts/audit_numbers.py` recomputes every stated number from the raw results; 197 checked, 0 mismatched ([note](docs/superpowers/notes/2026-10-29-math-audit.md)) |
+| **Done** | A security pass: no secret in git history; cross-site writes to the local API and sim worker are refused ([note](docs/superpowers/notes/2026-10-29-security.md)) |
+| **Done** | `scripts/wandb_report.py`: the results as a Weights & Biases project (dry run by default) |
+| **Next** | The traces of the big test's failures, for the analyst to measure grasps and carry speeds |
+| **Next** | The ablation that splits the two changes behind 30/40, the k = 5 held-human pilot and the closed loop on Isaac ([GPU runbook](docs/superpowers/notes/2026-10-26-gpu-runbook.md)) |
+| **Next** | The 3-minute video |
+
+<details><summary>Status on 2026-10-26</summary>
+
+| | What |
+|---|---|
+| **Done** | **v2, the headline:** 30/40 (75%) on fresh seeds 5400–5439, run once, goal ≥ 24/40 met ([prereg + full log](docs/superpowers/notes/2026-10-23-bigtest-prereg.md)) |
+| **Done** | **The RL teacher:** v6 learned the task after five logged failures. SANT's physics gate caught it moving at 1.7 m/s (3/50); a 0.5 m/s cap fixed it (50/50). The no-demo control: 0/128 vs 113/128 |
+| **Done** | **v1 distillation:** 15/40, goal not met. The first round's 0/30 was traced to an actuator mismatch between teacher and student, and fixed |
+| **Done** | The Nemotron failure analyst, run on the 30/40 model's results. Its one region is a weak lead (p = 0.092) ([note](docs/superpowers/notes/2026-10-25-failure-analyst.md)) |
+| **Next** | The traces of the big test's failures, for the analyst to measure grasps and carry speeds |
+| **Next** | The ablation that splits the two changes behind 30/40, and the k = 5 held-human pilot ([GPU runbook](docs/superpowers/notes/2026-10-26-gpu-runbook.md)) |
+| **Next** | The site's Results proof section, the combined site branch, and the 3-minute video |
+
+</details>
+
+<details><summary>Status on 2026-10-21</summary>
+
+| | What |
+|---|---|
+| **Done** | Isaac Lab Mimic on SANT's repaired demos: SANT verified Mimic's output at the same rate as its own multiplier (82% vs 80%, p = 0.79) and rejected 9 of Mimic's 100 self-reported successes |
+| **Done** | The site: the tesseract hero, a real loading screen, the machine and bench v2, the `/data` showcase, and the `/pipeline` pages, which set up a run (the backend runs pipelines only with `SANT_PIPELINE=1`) |
+| **In progress** | **The RL teacher** (Isaac Lab, PPO), started from SANT-verified mouse demos. Training runs v1–v5 failed, each for a logged reason, and v6 (a stock-lift-style reward) is training. It must reach ≥ 90% on practice seeds before any distillation |
+| **Built, not run** | **Distillation of the teacher into the ACT camera policy, with DAgger rounds** (branch `pm/distill-dagger`, merged after the final test). It is pre-registered: one test on seeds 5020–5059, goal ≥ 24/40 ([prereg](docs/superpowers/notes/2026-10-21-distill-prereg.md)) |
+| **Next** | The distillation's single test, then the 3-minute video |
+
+</details>
+
+<details><summary>Status on 2026-10-20</summary>
+
+| | What |
+|---|---|
+| **Done** | A live session with a real person: 10 webcam demos recorded (live test #10); 0/10 pass physics as recorded |
+| **Done** | Rules repair → multiply on them: 3/10 repaired, 24/30 copies verified |
+| **Done** | Nemotron as a repairer (trajectory edits, checked by code): blind A/B 5/10 vs rules 3/10 (McNemar p = 0.50), re-run 2/10 vs 3/10 (McNemar p = 1.0) |
+| **Done** | The site: a descent intro (forest → reactor → the ring → the workshop), the robot wall and catalog, drag a cartridge to the machine, the workbench, Record with keyboard/mouse/camera and three twin views |
+| **Done** | Training on what SANT made from the webcam demos (27 episodes, 3 repaired demos): 3/40, one arm |
+| **Done** | Pre-registered raw vs SANT on 10 mouse demos (live test #11): 0/40 vs 3/40, p = 0.24, not significant; SANT's policy collides a lot (27/40) |
+| **Next** | Find out why the mouse-SANT policy collides, with a traced eval (the soft floor is ruled out: labels ≤ 3.7 mm under it) |
+| **Next** | More repaired webcam demos to train on (more recordings, or Nemotron's repairs), and fixing the drops |
+| **Next** | The hybrid repairer (rules first, Nemotron edits only where they fail), an A/B on fresh failing demos the rules weren't written for, and a self-improvement loop |
+| **Next** | Record the 3-minute video; the shot list is in [`docs/submission/video_script.md`](docs/submission/video_script.md) |
+
+</details>
+
+<details><summary>Status on 2026-10-17</summary>
 
 | | What |
 |---|---|
@@ -107,12 +362,17 @@ the scripted expert, with noise added on purpose.*
 | **Done** | Multiplying helps: 3/40 vs 17/40 (above) |
 | **Done** | Fair test of Nemotron as a judge (code won); prototype of Nemotron as a request translator (34/34) |
 | **Done** | Web pages: Record, Review (with a Perfect button), Dataset and Results. CI on GitHub |
-| **In progress** | Faster evaluation (several scenes at once in one Isaac process) and a bigger 10 × 30 multiplied dataset |
+| **Done** | Faster evaluation: several scenes at once in one Isaac process, 2.1× faster than one at a time (7 of 8 outcomes agree) |
+| **Done** | A bigger multiplied dataset: 10 demos × 30 variants, 300/300 verified |
+| **Next** | Train and test a policy on the 10 × 30 dataset |
 | **Next** | A live session with a real person at the webcam. The Record page works, but so far only a scripted fake hand has driven it (376/376 steps recorded) |
 | **Next** | The same experiment on human demos: raw vs perfected + multiplied |
 | **Next** | Decide Nemotron's role in the app |
 | **Next** | Record the 3-minute video; the shot list is in [`docs/submission/video_script.md`](docs/submission/video_script.md) |
-<!-- src: docs/TECHNICAL.md (Pipeline status); docs/superpowers/notes/2026-10-15-t2-status.md (50/50; 100/100); docs/superpowers/notes/2026-10-16-web-pages.md (no real person yet; fake-hand smoke 376/376); docs/RUNBOOK.md §10 (CI); docs/superpowers/plans/2026-10-17-sprint7-make-multiply-convincing.md (T2: parallel eval, 10 × 30 dataset; T4: role is the user's decision) -->
+
+</details>
+<!-- src (2026-10-20 rows): docs/superpowers/notes/2026-10-19-live-test-10-results.md; docs/superpowers/notes/2026-10-20-nemotron-repair.md; docs/superpowers/notes/2026-10-20-live-11-integration.md -->
+<!-- src: docs/TECHNICAL.md (Pipeline status); docs/superpowers/notes/2026-10-15-t2-status.md (50/50; 100/100); docs/superpowers/notes/2026-10-16-web-pages.md (no real person yet; fake-hand smoke 376/376); docs/RUNBOOK.md §10 (CI); docs/superpowers/notes/2026-10-15-t2-status.md (sprint 7 Task 2a: 2.12× at N = 4, 7/8 agree; Task 2b: 300/300 verified, the next training cell for T3); docs/superpowers/plans/2026-10-17-sprint7-make-multiply-convincing.md (T4: role is the user's decision) -->
 
 ## Repo map
 
@@ -122,8 +382,8 @@ the scripted expert, with noise added on purpose.*
 | `sim_worker/` | The Isaac Lab scene, the robot, the scripted expert, replay and verify, and the HTTP server |
 | `sim_eval/` | Tests a trained policy in Isaac Lab on unseen scenes |
 | `lerobot_tools/` | LeRobot export, dataset assembly, training and the policy server |
-| `scripts/` | Batch runs, scoring, results and charts, and launch scripts (`scripts/launch/`) |
-| `web/` | The React pages (`web/src/pm/`) and the hand tracking |
+| `scripts/` | Batch runs, scoring, results and charts, launch scripts (`scripts/launch/`), `analyze_failures.py` (the Nemotron failure analyst), `sant_loop.py` (the closed loop: diagnosis → recipe arm vs uniform control → compare), `audit_numbers.py` (recomputes every stated number) and `wandb_report.py` (the results on W&B) |
+| `web/` | The React site (`web/src/`) and the hand tracking. Among its 2D pages: `/analysis` (the failure analyst), `/metrics` (every pre-registered number as a lit 3D hall, with 2D charts and a no-WebGL fallback) and `/flow` (the pipeline end to end, with the closed loop) |
 | `tests/` | Backend and pipeline tests (`uv run pytest -q`) |
 | `docs/` | [RUNBOOK](docs/RUNBOOK.md) (how to run), [TECHNICAL](docs/TECHNICAL.md) (full details), `media/`, `submission/`, and `superpowers/` (the spec, plans and dated notes behind every number) |
 
@@ -136,18 +396,45 @@ three Python environments). The RUNBOOK covers everything else: recording, perfe
 uv run pytest -q; npm --prefix web test                                    # tests
 powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Backend -Web
 powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Sim      # Isaac Lab, ~4.5 GB GPU
-# open http://localhost:5173/pm/record, then /pm/review to perfect a demo
+# open http://localhost:5173/record to record, then /pm/review to perfect a demo (/pm/record redirects to /record)
 powershell -ExecutionPolicy Bypass -File scripts\launch\stop.ps1
 ```
 <!-- src: docs/RUNBOOK.md §3.2–3.3 (start/stop scripts, sim worker ~4.5 GB), §4 (/pm/record), §2.2 and §2.5 (test commands) -->
+
+**Just the site, on any machine (no GPU, macOS or Linux too).** The pages read the committed results, so this shows
+everything except live recording and simulation:
+
+```bash
+uv run uvicorn app.main:app --app-dir src --port 8000      # the API
+npm --prefix web ci && npm --prefix web run dev            # the site: http://localhost:5173
+```
+
+Start at `/` (the 3D story), then `/site/results`, `/metrics`, `/flow` and `/analysis`.
+
+The failure analyst runs on any machine, with no GPU. It reads an eval's results (and its traces, when the eval ran
+with `--trace`) and writes a report, a recipe and scenes for multiply. The test seeds are refused unless
+`--protect none`:
+
+```powershell
+uv run python scripts/analyze_failures.py --results-only --protect none --out data/analysis/bigtest_final `
+  --eval docs/superpowers/notes/2026-10-23-bigtest/results/stageA_selection/distill_r0_s180000.episodes.jsonl `
+  --eval docs/superpowers/notes/2026-10-23-bigtest/results/final_test/bigtest_final.episodes.jsonl
+```
+
+The closed loop (`scripts/sant_loop.py`) chains it all in one resumable command: the diagnosis, a frozen recipe, a
+recipe arm and a uniform control trained and evaluated on the same fresh seeds, then the comparison. `--dry-run`
+prints every stage's command and runs nothing. It is unit-tested but has not run on Isaac yet. The commands are in
+the [GPU runbook](docs/superpowers/notes/2026-10-26-gpu-runbook.md).
+
+On Node 26, run the web tests with `NODE_OPTIONS=--no-experimental-webstorage` (Node's own web storage hides jsdom's).
 
 ## Team and history
 
 David Hernandez Del Risco and Susana Rojas.
 <!-- src: docs/superpowers/notes/2026-10-16-prepublish-audit.md (finding 5, the suggested names) -->
 
-The project started as **SANT**, a room organizer, and pivoted to *Perfect, then multiply* on
-2026-10-15. Some SANT code is still in the tree; see [docs/TECHNICAL.md](docs/TECHNICAL.md#history).
+SANT started as a room organizer and grew into this robot-training tool on 2026-10-15. Some of the
+room-organizer code is still in the tree; see [docs/TECHNICAL.md](docs/TECHNICAL.md#history).
 <!-- src: docs/TECHNICAL.md (History); spec header (approved 2026-10-15) -->
 
 Full details (every stage and measurement, prior art, our claim, limitations): [docs/TECHNICAL.md](docs/TECHNICAL.md).

@@ -44,6 +44,7 @@ class FakeDriver:
         self.tcp = np.array(START_TCP)
         self.cube = np.array(SCENE.cube_pose.pos)
         self.gripper = 0
+        self.reads = 0
 
     def reset(self, scene: Scene) -> None:
         self.resets.append(scene)
@@ -59,6 +60,7 @@ class FakeDriver:
             self.cube = self.tcp.copy()
 
     def read_state(self) -> StepState:
+        self.reads += 1
         return StepState(
             joint_pos=np.zeros(9), action=np.zeros(9), ee_pos=self.tcp.copy(), ee_quat=np.array(DOWN),
             cube_pos=self.cube.copy(), contact_gripper_cube=bool(self.gripper), contact_arm_bin=False,
@@ -100,7 +102,7 @@ def test_starts_idle_and_places_the_scene(rig):
     assert session.state == "idle"
     assert driver.resets == [SCENE]
     assert session.status() == {"type": "sim_status", "recording": False, "steps": 0, "demo_id": None,
-                                "last_result": None, "paused": False}
+                                "last_result": None, "paused": False, "soft_floor": True, "contact_peak_n": None}
 
 
 def test_idle_follows_the_hand_without_recording(rig):
@@ -133,7 +135,8 @@ def test_start_stop_records_and_saves_a_human_demo(rig):
     assert demo.source == "human" and demo.parent_id is None and demo.scene == SCENE
     assert len(demo.trajectory.t) == 10 and len(saved[0].states) == 10
     assert session.status() == {"type": "sim_status", "recording": False, "steps": 10,
-                                "demo_id": "human_test_0", "last_result": "saved human_test_0", "paused": False}
+                                "demo_id": "human_test_0", "last_result": "saved human_test_0", "paused": False,
+                                "soft_floor": True, "contact_peak_n": 0}
 
 
 def test_saving_is_the_state_while_save_fn_runs():
@@ -172,14 +175,34 @@ def test_trajectory_is_50_hz_sim_time_whatever_the_wall_clock(rig):
     assert TELEOP_DT == 0.02
 
 
-def test_trajectory_records_the_commanded_targets(rig):
-    session, _, clock, saved = rig
+class LaggingDriver(FakeDriver):
+    """Covers half the remaining distance to the target each step, as the live arm trails a jittery hand."""
+
+    def apply(self, target: Pose, gripper: int) -> None:
+        self.applied.append((target, gripper))
+        self.tcp = self.tcp + 0.5 * (np.array(target.pos) - self.tcp)
+        self.gripper = gripper
+
+
+def test_trajectory_records_the_achieved_path_and_keeps_the_commanded_targets():
+    # Live test #10: the arm lagged the hand by 2.5-5 cm, so a demo of the targets replayed as a different motion
+    # (0/10 in the bin on replay, 10/10 live). The demo is what the arm did; the targets stay for diagnostics.
+    clock, driver, saved = FakeClock(), LaggingDriver(), []
+    session = TeleopSession(driver, SCENE, lambda rec: saved.append(rec) or "saved", clock=clock,
+                            new_id=lambda: "human_lag")
     session.on_control("record_start")
-    run(session, clock, 2, hand(u=0.3, v=0.4, palm=0.08))
+    run(session, clock, 4, hand(u=0.3, v=0.4, palm=0.08))
     session.on_control("record_stop")
+    rec = saved[0]
     want = to_ee_target(hand(u=0.3, v=0.4, palm=0.08))
-    traj = saved[0].demo.trajectory
-    assert traj.ee_pos[0] == pytest.approx(want.pos) and traj.ee_quat[0] == pytest.approx(want.quat_wxyz)
+    reached = [s.ee_pos.tolist() for s in rec.states]
+    assert np.allclose(rec.demo.trajectory.ee_pos, reached)
+    assert np.allclose(rec.demo.trajectory.ee_quat, [s.ee_quat.tolist() for s in rec.states])
+    assert rec.demo.commanded is not None
+    assert np.allclose(rec.demo.commanded.ee_pos, [want.pos] * 4)
+    assert rec.demo.commanded.ee_quat[0] == pytest.approx(want.quat_wxyz)
+    assert rec.demo.commanded.t == rec.demo.trajectory.t and rec.demo.commanded.gripper == rec.demo.trajectory.gripper
+    assert np.linalg.norm(np.subtract(reached[0], want.pos)) > 0.01  # the arm really lagged
 
 
 def test_uses_the_given_calibration():
@@ -290,6 +313,77 @@ def test_a_failing_save_is_reported_and_the_session_recovers(rig):
     assert session.state == "recording"
 
 
+def test_idle_steps_do_not_read_the_robot_state(rig):
+    # the state (and its camera frames) is only for the recording; reading it costs GPU syncs every step
+    session, driver, clock, _ = rig
+    driver.reads = 0
+    run(session, clock, 10, hand(u=0.3))
+    assert driver.reads == 0 and len(driver.applied) == 10
+
+
+def test_each_recorded_step_reads_the_state_once(rig):
+    session, driver, clock, _ = rig
+    session.on_control("record_start")
+    driver.reads = 0
+    run(session, clock, 7, hand())
+    assert driver.reads == 7 and session.status()["steps"] == 7
+
+
+def test_paused_steps_do_not_read_the_state(rig):
+    session, driver, clock, _ = rig
+    session.on_control("record_start")  # no hand yet: paused
+    driver.reads = 0
+    run(session, clock, 5)
+    assert session.paused and driver.reads == 0
+
+
+class CameraDriver(FakeDriver):
+    """A driver that can pause its recording cameras while nothing is recorded."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.recording_calls: list[bool] = []
+
+    def set_recording(self, on: bool) -> None:
+        self.recording_calls.append(on)
+
+
+def test_the_driver_is_told_when_recording_starts_and_ends():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_start")
+    assert driver.recording_calls == [True]
+    for _ in range(3):
+        session.on_hand(hand())
+        session.step()
+    session.on_control("record_stop")
+    assert driver.recording_calls == [True, False]
+
+
+def test_the_driver_is_told_recording_ended_even_when_the_save_fails():
+    driver = CameraDriver()
+
+    def fail(rec):
+        raise OSError("disk full")
+
+    session = TeleopSession(driver, SCENE, fail, clock=FakeClock())
+    session.on_control("record_start")
+    for _ in range(3):
+        session.on_hand(hand())
+        session.step()
+    session.on_control("record_stop")
+    assert driver.recording_calls == [True, False] and "save failed" in session.last_result
+
+
+def test_a_refused_start_or_stop_does_not_tell_the_driver():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_stop")  # not recording
+    session.on_control("record_start")
+    session.on_control("record_start")  # already recording
+    assert driver.recording_calls == [True]
+
+
 def test_start_while_recording_does_not_restart(rig):
     session, _, clock, _ = rig
     session.on_control("record_start")
@@ -368,6 +462,25 @@ def test_store_saver_writes_demo_episode_and_signals(tmp_path):
     assert result.startswith(f"saved {rec.demo.id}")
 
 
+class StuckDriver(FakeDriver):
+    """An arm that can't follow the hand at all."""
+
+    def apply(self, target: Pose, gripper: int) -> None:
+        self.applied.append((target, gripper))
+        self.gripper = gripper
+
+
+def test_store_saver_measures_reach_against_the_commanded_targets(tmp_path):
+    # the demo is the achieved path now, so the residual against it is 0; "unreachable" needs the targets
+    clock, saved = FakeClock(), []
+    session = TeleopSession(StuckDriver(), SCENE, lambda r: saved.append(r) or "ok", clock=clock,
+                            new_id=lambda: "human_stuck")
+    session.on_control("record_start")
+    run(session, clock, 60, hand(u=0.3, v=0.4, palm=0.08))
+    session.on_control("record_stop")
+    assert "unreachable" in make_store_saver(DemoStore(tmp_path))(saved[0])
+
+
 def test_store_saver_reports_the_success_check(tmp_path):
     rec = _recording()  # the fake hand never moves the cube to the bin
     result = make_store_saver(DemoStore(tmp_path))(rec)
@@ -386,6 +499,46 @@ def test_store_saver_writes_camera_frames(tmp_path):
     meta, _, images = load_episode(store.episode_dir(rec.demo.id))
     assert meta.cameras == ["front"]
     assert all(p.is_file() for p in images["front"])
+
+
+def _with_frames(rec: Recording) -> Recording:
+    return Recording(demo=rec.demo, states=[
+        StepState(**{**s.__dict__, "frames": {"front": np.full((8, 8, 3), k, np.uint8)}})
+        for k, s in enumerate(rec.states)
+    ])
+
+
+def test_store_saver_writes_camera_frames_concurrently(tmp_path, monkeypatch):
+    """PNG encoding is the whole save (~1 s for a 7.5 s demo, the sim loop blocked); it runs on a thread pool."""
+    pil = pytest.importorskip("PIL.Image")
+    import threading
+
+    meet, calls, original = threading.Barrier(2, timeout=5), [], pil.Image.save
+
+    def save(self, *args, **kwargs):
+        calls.append(None)
+        if len(calls) <= 2:
+            meet.wait()  # the first two writes must be in flight at once
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(pil.Image, "save", save)
+    rec = _with_frames(_recording(4))
+    store = DemoStore(tmp_path)
+    make_store_saver(store)(rec)
+    _, _, images = load_episode(store.episode_dir(rec.demo.id))
+    assert len(images["front"]) == 4
+    assert [int(np.asarray(pil.open(p))[0, 0, 0]) for p in images["front"]] == [0, 1, 2, 3]
+
+
+def test_a_failing_frame_write_fails_the_save(tmp_path, monkeypatch):
+    pil = pytest.importorskip("PIL.Image")
+
+    def save(self, *args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pil.Image, "save", save)
+    with pytest.raises(OSError, match="disk full"):
+        make_store_saver(DemoStore(tmp_path))(_with_frames(_recording(3)))
 
 
 # --- the scripted fake hand (Task 3 smoke input) --------------------------------------------
@@ -446,7 +599,8 @@ import socket  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 
-from sim_worker.teleop_session import dispatch, relay_loop  # noqa: E402
+from sim_worker.teleop_session import apply_inbox, dispatch, relay_loop  # noqa: E402
+from sim_worker.teleop_trace import LatencyTrace  # noqa: E402
 
 
 def test_dispatch_routes_hand_and_control_messages(rig):
@@ -465,6 +619,51 @@ def test_dispatch_ignores_relay_chatter_and_reports_garbage(rig):
     assert "invalid" in dispatch(session, "not json")
     assert "invalid" in dispatch(session, json.dumps({"type": "control", "action": "self_destruct"}))
     assert session.state == "idle"
+
+
+def test_dispatch_takes_a_traced_hand_message(rig):
+    # the latency trace rides beside the HandPoseMsg fields; it must not make the hand invalid
+    session, driver, _, _ = rig
+    data = json.loads(hand(u=0.3).model_dump_json())
+    data["trace"] = {"cap": 1.0, "send": 2.0, "relay_in": 3.0, "relay_out": 4.0}
+    assert dispatch(session, json.dumps(data)) is None
+    session.step()
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+
+
+def _traced(u: float, **stamps) -> str:
+    data = json.loads(hand(u=u).model_dump_json())
+    if stamps:
+        data["trace"] = stamps
+    return json.dumps(data)
+
+
+def test_apply_inbox_uses_only_the_newest_hand_and_counts_the_stale_ones(rig):
+    session, driver, _, _ = rig
+    trace = LatencyTrace()
+    items = [(_traced(0.1, cap=1.0), 10.0), (_traced(0.2, cap=2.0), 11.0), (_traced(0.3, cap=3.0), 12.0)]
+    problems, stamps = apply_inbox(session, items, trace=trace)
+    assert problems == [] and stamps == {"cap": 3.0, "recv": 12.0}
+    session.step()
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+    assert trace.summary()["messages"]["stale_dropped"] == 2
+
+
+def test_apply_inbox_keeps_controls_in_order(rig):
+    session, driver, _, _ = rig
+    items = [(_traced(0.1), 1.0), (json.dumps({"type": "control", "action": "record_start"}), 2.0),
+             (_traced(0.2), 3.0), (_traced(0.3), 4.0)]
+    problems, stamps = apply_inbox(session, items)
+    assert problems == [] and session.state == "recording" and stamps == {"recv": 4.0}
+    session.step()
+    assert driver.applied[-1][0] == to_ee_target(hand(u=0.3))
+
+
+def test_apply_inbox_with_no_hand_applies_nothing_new(rig):
+    session, _, _, _ = rig
+    problems, stamps = apply_inbox(session, [("not json", 1.0)])
+    assert stamps is None and len(problems) == 1 and "invalid" in problems[0]
+    assert apply_inbox(session, []) == ([], None)
 
 
 def _free_port() -> int:
@@ -534,6 +733,33 @@ def test_relay_loop_records_a_demo_end_to_end_through_the_real_relay(relay_serve
     assert len(saved) == 1 and len(saved[0].demo.trajectory.t) == done["steps"] >= 10
 
 
+def test_relay_loop_traces_a_traced_hand_through_the_real_relay(relay_server):
+    from websockets.sync.client import connect
+
+    lines, stop = [], threading.Event()
+    trace = LatencyTrace(report_every_s=0.3, log=lines.append)
+    session = TeleopSession(FakeDriver(), SCENE, lambda r: "ok")
+    sink = threading.Thread(target=relay_loop, args=(session, relay_server + "?role=sim"),
+                            kwargs={"should_stop": stop.is_set, "trace": trace, "log": lambda m: None}, daemon=True)
+    sink.start()
+    try:
+        with connect(relay_server + "?role=browser") as browser:
+            while json.loads(browser.recv(timeout=10)) != {"type": "status", "sim_connected": True}:
+                pass
+            deadline = time.monotonic() + 10
+            while not any("to_sink" in line for line in lines) and time.monotonic() < deadline:
+                t = time.time() * 1000.0
+                browser.send(_traced(0.4, cap=t - 5.0, send=t))
+                time.sleep(0.03)
+    finally:
+        stop.set()
+        sink.join(timeout=10)
+    line = next(line for line in lines if "to_sink" in line)
+    for stage in ("browser", "to_relay", "relay", "to_sink", "wait", "step", "total"):
+        assert f" {stage} " in line
+    assert "steps/s" in line
+
+
 def test_relay_loop_keeps_stepping_while_the_relay_is_down():
     """No backend at all: the loop keeps the robot stepping (holding) and retries, and stops on request."""
     driver, stop = FakeDriver(), threading.Event()
@@ -546,3 +772,170 @@ def test_relay_loop_keeps_stepping_while_the_relay_is_down():
     sink.join(timeout=10)
     assert not sink.is_alive()
     assert len(driver.applied) > 5
+
+
+# --- discarding a recording -------------------------------------------------------------
+
+def test_discard_ends_the_recording_without_saving(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 10, hand())
+    session.on_control("record_discard")
+    assert session.state == "idle" and saved == []
+    status = session.status()
+    assert status["recording"] is False and status["demo_id"] is None
+    assert status["last_result"] == "discarded: 10 step(s) not saved"
+    run(session, clock, 3, hand())  # idle again: follows the hand, records nothing
+    assert session.status()["steps"] == 10
+
+
+def test_discard_forgets_the_last_saved_demo_so_delete_cannot_hit_an_older_one(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    session.on_control("record_stop")
+    assert session.status()["demo_id"] == "human_test_0"
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    session.on_control("record_discard")
+    assert session.status()["demo_id"] is None and len(saved) == 1
+
+
+def test_discard_while_idle_is_refused(rig):
+    session, _, _, saved = rig
+    session.on_control("record_discard")
+    assert session.last_result == "not recording; nothing to discard" and session.state == "idle"
+    assert saved == []
+
+
+def test_discard_writes_no_demo_folder(tmp_path):
+    store = DemoStore(tmp_path)
+    clock = FakeClock()
+    session = TeleopSession(FakeDriver(), SCENE, make_store_saver(store), clock=clock, new_id=lambda: "human_x")
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    session.on_control("record_discard")
+    assert not (tmp_path / "demos").exists() and store.list_demos() == []
+
+
+def test_the_driver_is_told_recording_ended_on_discard():
+    driver = CameraDriver()
+    session = TeleopSession(driver, SCENE, lambda r: "saved", clock=FakeClock())
+    session.on_control("record_discard")  # refused: not recording
+    session.on_control("record_start")
+    session.on_hand(hand())
+    session.step()
+    session.on_control("record_discard")
+    assert driver.recording_calls == [True, False]
+
+
+# --- keyboard and mouse input: set_input, smoothing, the demo's "input" ------------------
+
+from demo_pipeline.measure import jerk_rms  # noqa: E402
+from demo_pipeline.rules import JITTER_MIN_JERK  # noqa: E402
+from sim_worker.teleop_session import SMOOTH_TAU_S  # noqa: E402
+
+
+def drive_msg(x: float, t_ms: float = 0.0) -> HandPoseMsg:
+    """What drive.ts sends for target (x, 0, 0.21): control is the target in workspace fractions."""
+    return HandPoseMsg(t_ms=t_ms, tracking_ok=True, wrist_uv=(0.5, 0.5), palm_width=0.1, pinch_ratio=0.8, yaw_rad=0.0,
+                       frame_w=640, frame_h=480, control=(0.5, 0.5, (x - 0.3) / 0.4), grip=0)
+
+
+def record_staircase(session, clock, input_mode):
+    """A smooth 0.1 m/s glide sent at 30 Hz, the sim ticking at 50 Hz: each tick sees the newest message."""
+    if input_mode:
+        session.on_control("set_input", input_mode)
+    session.on_control("record_start")
+    sent_every = 1 / 30
+    for k in range(150):  # 3 s of ticks
+        t = k * TELEOP_DT
+        x_sent = 0.4 + 0.1 * min(2.0, max(0.0, (t // sent_every) * sent_every - 0.5))
+        session.on_hand(drive_msg(x_sent, t_ms=t * 1000))
+        session.step()
+        clock.advance(TELEOP_DT)
+    session.on_control("record_stop")
+
+
+def max_window_jerk(traj):
+    return max(jerk_rms(traj, t0, t0 + 0.5) for t0 in np.arange(0.0, traj.t[-1], 0.5))
+
+
+def test_set_input_is_kept_and_saved_with_the_demo(rig):
+    session, _, clock, saved = rig
+    assert session.input is None
+    session.on_control("set_input", "keyboard")
+    assert session.input == "keyboard" and session.last_result == "input: keyboard"
+    session.on_control("record_start")
+    run(session, clock, 5, drive_msg(0.45))
+    session.on_control("record_stop")
+    assert saved[0].demo.input == "keyboard"
+
+
+def test_an_unknown_input_is_refused(rig):
+    session, *_ = rig
+    with pytest.raises(ValueError):
+        session.on_control("set_input", "joystick")
+    with pytest.raises(ValueError):
+        session.on_control("set_input")
+
+
+def test_a_demo_without_set_input_has_no_input(rig):
+    session, _, clock, saved = rig
+    session.on_control("record_start")
+    run(session, clock, 5, hand())
+    session.on_control("record_stop")
+    assert saved[0].demo.input is None
+
+
+def test_keyboard_targets_are_smoothed_enough_to_pass_the_jitter_check(rig):
+    session, _, clock, saved = rig
+    record_staircase(session, clock, "keyboard")
+    assert max_window_jerk(saved[0].demo.trajectory) < JITTER_MIN_JERK
+
+
+def test_the_same_stream_unsmoothed_fails_it_which_is_why_keyboard_and_mouse_are_smoothed(rig):
+    session, _, clock, saved = rig
+    record_staircase(session, clock, None)  # the camera path: no smoothing, as before
+    assert max_window_jerk(saved[0].demo.trajectory) > JITTER_MIN_JERK
+
+
+def test_mouse_is_smoothed_too_and_camera_is_not(rig):
+    session, driver, clock, _ = rig
+    session.on_control("set_input", "camera")
+    run(session, clock, 1, drive_msg(0.6))
+    assert driver.applied[-1][0].pos == pytest.approx(to_ee_target(drive_msg(0.6)).pos)  # straight to the target
+    session.on_control("set_input", "mouse")
+    run(session, clock, 1, drive_msg(0.4))
+    assert driver.applied[-1][0].pos[0] > 0.5  # one tick after a 20 cm jump it is still on its way
+    run(session, clock, int(10 * SMOOTH_TAU_S / TELEOP_DT), drive_msg(0.4))
+    assert driver.applied[-1][0].pos == pytest.approx(to_ee_target(drive_msg(0.4)).pos, abs=1e-3)
+
+
+def test_switching_to_a_smoothed_input_starts_from_where_the_arm_is_told_to_be(rig):
+    session, driver, clock, _ = rig
+    run(session, clock, 3, drive_msg(0.6))  # camera (no input yet): at 0.6
+    session.on_control("set_input", "keyboard")
+    run(session, clock, 1, drive_msg(0.6))
+    assert driver.applied[-1][0].pos[0] == pytest.approx(0.6)  # no jump back to the start pose
+
+
+def test_reset_scene_restarts_the_smoothing_at_the_start_pose(rig):
+    session, driver, clock, _ = rig
+    session.on_control("set_input", "keyboard")
+    run(session, clock, 30, drive_msg(0.6))
+    session.on_control("reset_scene")
+    run(session, clock, 1)  # no hand yet: holds the start pose
+    assert driver.applied[-1][0].pos == pytest.approx(START_TCP)
+
+
+def test_the_kit_window_looks_from_behind_the_robot_over_its_right_shoulder():
+    from sim_worker.teleop_session import KIT_CAMERA_EYE, KIT_CAMERA_TARGET
+
+    eye, target = np.asarray(KIT_CAMERA_EYE), np.asarray(KIT_CAMERA_TARGET)
+    assert eye[0] < 0 < target[0]  # behind the base, looking forward
+    assert eye[1] < 0 and eye[2] > target[2] + 1.0  # a little to the robot's right, well above
+    forward = (target - eye) / np.linalg.norm(target - eye)
+    screen_right = np.cross(forward, (0.0, 0.0, 1.0))
+    assert screen_right @ (0.0, -1.0, 0.0) > 0  # the robot's right (-y) is on the screen's right
+    assert np.allclose(eye - target, (-0.8, -0.5, 1.25))  # the Record page twin's View offset, in the sim frame

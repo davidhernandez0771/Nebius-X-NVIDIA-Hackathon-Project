@@ -270,7 +270,7 @@ Made unattended:
 
 - **Scanners live in the session scratchpad, not the repo.** They are throwaway audit
   tools. Paths:
-  `C:\Users\dhrce\AppData\Local\Temp\claude\C--dev-pm-t7\86c6cf8f-a082-4991-8fdc-890f8910a14f\scratchpad\scan_secrets.py`
+  `C:\Users\<user>\AppData\Local\Temp\claude\C--dev-pm-t7\86c6cf8f-a082-4991-8fdc-890f8910a14f\scratchpad\scan_secrets.py`
   and `...\scan_entropy.py`.
   - They ran with the system `py -3 -I` (stdlib only), so the `C:\venvs\pm-t7` venv was
     never created.

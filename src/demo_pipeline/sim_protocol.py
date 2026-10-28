@@ -15,6 +15,7 @@ from typing import Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .data_recipe import Fix
 from .schemas import RobotName, Scene, SimSignals, Trajectory, VerificationResult
 
 DEFAULT_PORT = 8770
@@ -109,8 +110,33 @@ class MultiplyRequest(_Model):
     seed0: int
     record_cameras: bool = False
     out_prefix: str
+    # Optional: the exact scenes to multiply into (e.g. a failure analyst's recipe, demo_pipeline.data_recipe).
+    # Without it the variants are sample_scene(seed) for seeds seed0..seed0+n-1, as always. With it, n must equal
+    # len(scenes) and each variant takes its scene's seed (unique).
+    scenes: list[Scene] | None = None
+    # Optional: the recipe's fixes (demo_pipeline.data_fixes), applied to every variant before its replay. A variant a
+    # filter drops is not replayed: it is reported with the reason "filtered".
+    fixes: list[Fix] = Field(default_factory=list)
 
     _check_prefix = field_validator("out_prefix")(classmethod(lambda cls, v: _safe_name(v)))
+
+    @model_validator(mode="after")
+    def _check_scenes(self) -> "MultiplyRequest":
+        from .data_fixes import fix_errors  # it imports repair, which this module's importers don't all need
+
+        errors = fix_errors(self.fixes)
+        if errors:
+            raise ValueError("; ".join(errors))
+        if self.scenes is None:
+            return self
+        if len(self.scenes) != self.n:
+            raise ValueError(f"n is {self.n} but {len(self.scenes)} scenes were given")
+        seeds = [s.seed for s in self.scenes]
+        if len(set(seeds)) != len(seeds):
+            raise ValueError("the given scenes' seeds must be unique (they name the variant folders)")
+        if any(s.robot != self.robot for s in self.scenes):
+            raise ValueError(f"every given scene must be for robot {self.robot!r}")
+        return self
 
 
 class MultiplyVariant(_Model):
@@ -119,6 +145,7 @@ class MultiplyVariant(_Model):
     trajectory: Trajectory
     verification: VerificationResult
     ep_dir: str | None
+    fixes: list[dict] = Field(default_factory=list)  # what each of the request's fixes did (data_fixes.apply_fixes)
 
 
 class MultiplyResponse(_Model):

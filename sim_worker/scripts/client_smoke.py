@@ -16,6 +16,9 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 from demo_pipeline.schemas import Pose, Scene  # noqa: E402
 from demo_pipeline.sim_protocol import (  # noqa: E402
@@ -46,6 +49,7 @@ def call(path: str, body: str | None = None, timeout: float = 3600) -> tuple[int
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     status, body = call("/health")
     health = HealthResponse.model_validate(body)
     print("HEALTH", status, health.model_dump_json(), flush=True)

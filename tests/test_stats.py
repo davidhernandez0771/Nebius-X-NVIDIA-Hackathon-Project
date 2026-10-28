@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from demo_pipeline.stats import fisher_exact, fisher_power, n_per_arm, wilson_ci
+from demo_pipeline.stats import fisher_exact, fisher_power, mcnemar_exact, n_per_arm, wilson_ci
 
 
 # --- Wilson ---------------------------------------------------------------------------------------------
@@ -142,3 +142,14 @@ def test_fisher_power_reaches_about_80_percent_at_the_corrected_n():
 
 def test_fisher_power_grows_with_n():
     assert fisher_power(0.10, 0.30, 60) > fisher_power(0.10, 0.30, 20)
+
+
+def test_mcnemar_exact_matches_the_binomial_tail():
+    assert mcnemar_exact(0, 0) == 1.0
+    assert mcnemar_exact(0, 5) == pytest.approx(2 / 32)  # 0.0625: 5 one-sided wins is not significant
+    assert mcnemar_exact(0, 6) == pytest.approx(2 / 64)
+    assert mcnemar_exact(1, 6) == pytest.approx(2 * (1 + 7) / 128)
+    assert mcnemar_exact(3, 3) == 1.0
+    assert mcnemar_exact(2, 5) == mcnemar_exact(5, 2)
+    with pytest.raises(ValueError):
+        mcnemar_exact(-1, 2)

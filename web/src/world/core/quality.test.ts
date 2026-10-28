@@ -1,0 +1,77 @@
+import { describe, expect, it } from "vitest";
+import { TIERS, pickQuality } from "./quality";
+
+const pick = (s: Partial<Parameters<typeof pickQuality>[0]>) => {
+  const q = pickQuality({ gpu: "high", ...s });
+  return q.mode === "stills" ? "stills" : q.tier.name;
+};
+
+describe("pickQuality", () => {
+  it("lets ?quality= and ?static win", () => {
+    expect(pick({ query: "low", gpu: "ultra" })).toBe("low");
+    expect(pick({ query: "ULTRA", gpu: "low", saveData: true })).toBe("ultra");
+    expect(pick({ query: "medium" })).toBe("high");
+    expect(pick({ query: "stills", gpu: "ultra" })).toBe("stills");
+    expect(pick({ forceStatic: true, gpu: "ultra" })).toBe("stills");
+    expect(pick({ query: "nonsense", gpu: "low" })).toBe("low");
+  });
+
+  it("follows the GPU check", () => {
+    expect(pick({ gpu: "ultra", deviceMemory: 16, cores: 16 })).toBe("ultra");
+    expect(pick({ gpu: "high" })).toBe("high");
+    expect(pick({ gpu: "low" })).toBe("low");
+    expect(pick({ gpu: "stills" })).toBe("stills");
+  });
+
+  it("keeps phones, data saver and tiny machines on low, and ultra off small CPUs", () => {
+    expect(pick({ gpu: "ultra", mobile: true })).toBe("low");
+    expect(pick({ gpu: "ultra", saveData: true })).toBe("low");
+    expect(pick({ gpu: "high", cores: 2 })).toBe("low");
+    expect(pick({ gpu: "ultra", cores: 4, deviceMemory: 16 })).toBe("high");
+    expect(pick({ gpu: "ultra", deviceMemory: 4, cores: 16 })).toBe("high");
+  });
+});
+
+describe("TIERS", () => {
+  it("caps the pixel ratio, keeps low still, and saves the haze for ultra", () => {
+    expect(TIERS.low.dpr[1]).toBe(1);
+    expect(TIERS.high.dpr[1]).toBe(1.5);
+    expect(TIERS.ultra.dpr[1]).toBe(2);
+    expect(TIERS.low.idleMotion).toBe(false);
+    expect([TIERS.low.haze, TIERS.high.haze, TIERS.ultra.haze]).toEqual([false, false, true]);
+    expect(Object.values(TIERS).every((t) => !t.shadows)).toBe(true);
+  });
+});
+
+describe("anti-aliasing", () => {
+  it("multisamples every tier exactly once: the canvas on low (no post), the post target on high and ultra", () => {
+    // Without it, thin edges (the library's spines, the bench's turntable ring, the pedestal's rim)
+    // step on and off pixels as the hub's mouse look moves the camera by millimetres.
+    expect(TIERS.low.antialias).toBe(true);
+    for (const t of Object.values(TIERS)) {
+      expect(t.antialias || t.msaa > 0).toBe(true);
+      // Post draws a full-screen pass to the canvas: multisampling the canvas too would only cost.
+      expect(t.antialias && t.post).toBe(false);
+      expect(t.msaa > 0).toBe(t.post);
+    }
+  });
+});
+
+describe("a saved tier", () => {
+  it("wins over the GPU check but not over the URL or a missing GPU", () => {
+    expect(pick({ gpu: "high", saved: "ultra" })).toBe("ultra");
+    expect(pick({ gpu: "ultra", saved: "low" })).toBe("low");
+    expect(pick({ gpu: "ultra", saved: "low", query: "high" })).toBe("high");
+    expect(pick({ gpu: "stills", saved: "ultra" })).toBe("stills");
+    expect(pick({ gpu: "high", saved: "nonsense" })).toBe("high");
+  });
+});
+
+describe("the brief's particle and post numbers", () => {
+  it("scales the logo, the dust and the post with the tier", () => {
+    expect([TIERS.low.logoParticles, TIERS.high.logoParticles, TIERS.ultra.logoParticles]).toEqual([18000, 70000, 140000]);
+    expect([TIERS.low.dustParticles, TIERS.high.dustParticles, TIERS.ultra.dustParticles]).toEqual([4000, 14000, 28000]);
+    expect([TIERS.low.post, TIERS.high.post, TIERS.ultra.post]).toEqual([false, true, true]);
+    expect([TIERS.low.msaa, TIERS.high.msaa, TIERS.ultra.msaa]).toEqual([0, 4, 4]);
+  });
+});

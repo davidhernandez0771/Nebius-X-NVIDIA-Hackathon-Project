@@ -1,0 +1,167 @@
+{
+ "about": "web/src/record/drive/drive.ts driveMessage(target, grip, t_ms); tests/test_drive_mapping.py maps each msg with to_ee_target and expects target",
+ "rows": [
+  {
+   "target": [
+    0.45,
+    0,
+    0.35
+   ],
+   "grip": 0,
+   "msg": {
+    "t_ms": 1000,
+    "tracking_ok": true,
+    "wrist_uv": [
+     0.5,
+     0.5
+    ],
+    "palm_width": 0.1,
+    "pinch_ratio": 0.8,
+    "yaw_rad": 0,
+    "frame_w": 640,
+    "frame_h": 480,
+    "control": [
+     0.5,
+     0.13157894736842113,
+     0.3750000000000001
+    ],
+    "grip": 0
+   }
+  },
+  {
+   "target": [
+    0.3,
+    -0.35,
+    0.02
+   ],
+   "grip": 1,
+   "msg": {
+    "t_ms": 1033,
+    "tracking_ok": true,
+    "wrist_uv": [
+     0.5,
+     0.5
+    ],
+    "palm_width": 0.1,
+    "pinch_ratio": 0.2,
+    "yaw_rad": 0,
+    "frame_w": 640,
+    "frame_h": 480,
+    "control": [
+     0,
+     1,
+     0
+    ],
+    "grip": 1
+   }
+  },
+  {
+   "target": [
+    0.7,
+    0.35,
+    0.4
+   ],
+   "grip": 0,
+   "msg": {
+    "t_ms": 1066,
+    "tracking_ok": true,
+    "wrist_uv": [
+     0.5,
+     0.5
+    ],
+    "palm_width": 0.1,
+    "pinch_ratio": 0.8,
+    "yaw_rad": 0,
+    "frame_w": 640,
+    "frame_h": 480,
+    "control": [
+     1,
+     0,
+     1
+    ],
+    "grip": 0
+   }
+  },
+  {
+   "target": [
+    0.5,
+    0,
+    0.025
+   ],
+   "grip": 1,
+   "msg": {
+    "t_ms": 1099,
+    "tracking_ok": true,
+    "wrist_uv": [
+     0.5,
+     0.5
+    ],
+    "palm_width": 0.1,
+    "pinch_ratio": 0.2,
+    "yaw_rad": 0,
+    "frame_w": 640,
+    "frame_h": 480,
+    "control": [
+     0.5,
+     0.9868421052631579,
+     0.5000000000000001
+    ],
+    "grip": 1
+   }
+  },
+  {
+   "target": [
+    0.62,
+    -0.12,
+    0.18
+   ],
+   "grip": 0,
+   "msg": {
+    "t_ms": 1132,
+    "tracking_ok": true,
+    "wrist_uv": [
+     0.5,
+     0.5
+    ],
+    "palm_width": 0.1,
+    "pinch_ratio": 0.8,
+    "yaw_rad": 0,
+    "frame_w": 640,
+    "frame_h": 480,
+    "control": [
+     0.32857142857142857,
+     0.5789473684210527,
+     0.8
+    ],
+    "grip": 0
+   }
+  },
+  {
+   "target": [
+    0.38,
+    0.3,
+    0.3
+   ],
+   "grip": 1,
+   "msg": {
+    "t_ms": 1165,
+    "tracking_ok": true,
+    "wrist_uv": [
+     0.5,
+     0.5
+    ],
+    "palm_width": 0.1,
+    "pinch_ratio": 0.2,
+    "yaw_rad": 0,
+    "frame_w": 640,
+    "frame_h": 480,
+    "control": [
+     0.9285714285714285,
+     0.26315789473684215,
+     0.20000000000000007
+    ],
+    "grip": 1
+   }
+  }
+ ]
+}

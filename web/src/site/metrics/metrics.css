@@ -1,0 +1,797 @@
+/* /metrics (MetricsPage.tsx), inside the holo frame (holo.css): the void, teal hairlines, IBM Plex Mono for figures,
+   Instrument Serif for headings. The one bold thing is the hall; everything under it stays quiet and tabular.
+   Chart marks use a validated pair (dataviz validator, dark, on #040607: lightness band, chroma, CVD ΔE 12, contrast
+   ≥ 3:1): teal #11a985 for the climb, amber #cc7f00 for the reference series. The hall's light is brighter: it is
+   light, not ink. Motion: one draw-in per chart when it scrolls into view, none with reduced motion. */
+
+.mx {
+  --mx-teal: #11a985;
+  --mx-amber: #cc7f00;
+  --mx-glow: #19f5c2;
+  --mx-goal: #f3eadb;
+  --mx-ink: var(--holo-ink, #e6eeec);
+  --mx-ink-2: var(--holo-ink-2, #8fa3a0);
+  --mx-line: var(--holo-line-dim, rgba(25, 245, 194, 0.14));
+  --mx-mono: var(--holo-mono, "IBM Plex Mono", ui-monospace, monospace);
+  --mx-serif: var(--holo-serif, "Instrument Serif", Georgia, serif);
+  max-width: 1240px;
+  margin: 0 auto;
+  color: var(--mx-ink);
+}
+
+/* ------------------------------------------------------------------ the stage: the hall and the headline */
+
+.mx-stage {
+  position: relative;
+}
+
+.mx[data-hall="on"] .mx-stage {
+  height: clamp(480px, 72vh, 800px);
+  margin: -24px -16px 0;
+}
+
+.mx-hall,
+.mx-hall__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* The hall fades into the page's grid at its edges instead of ending in a box. */
+.mx-hall__canvas {
+  --mx-fade-x: linear-gradient(to right, transparent, #000 6%, #000 92%, transparent);
+  --mx-fade-y: linear-gradient(to bottom, #000 78%, transparent);
+  -webkit-mask-image: var(--mx-fade-x), var(--mx-fade-y);
+  -webkit-mask-composite: source-in;
+  mask-image: var(--mx-fade-x), var(--mx-fade-y);
+  mask-composite: intersect;
+}
+
+.mx-hall__canvas {
+  display: block;
+}
+
+.mx-headline {
+  position: relative;
+  z-index: 2;
+  max-width: 34rem;
+  padding: 8px 0 32px;
+}
+
+.mx[data-hall="on"] .mx-headline {
+  position: absolute;
+  left: clamp(16px, 4vw, 48px);
+  top: clamp(20px, 5vh, 56px);
+  padding: 0;
+  pointer-events: none;
+}
+
+.mx[data-hall="on"] .mx-headline a {
+  pointer-events: auto;
+}
+
+.mx-headline__figure {
+  margin: 0;
+  font: 400 clamp(4.5rem, 3rem + 7vw, 9.5rem) / 0.82 var(--mx-serif);
+  letter-spacing: -0.02em;
+  font-variant-numeric: lining-nums;
+  color: #f6fffd;
+  text-shadow: 0 0 42px rgba(25, 245, 194, 0.35);
+}
+
+.mx-headline__title {
+  margin: 10px 0 0;
+  max-width: 24ch;
+  font: 400 clamp(1.35rem, 1rem + 1.1vw, 1.9rem) / 1.15 var(--mx-serif);
+  color: var(--mx-ink);
+}
+
+.mx-headline__srcs {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  margin: 0;
+}
+
+.mx-headline__stats {
+  margin: 14px 0 8px;
+  max-width: 40ch;
+  font: 400 13px/1.6 var(--mx-mono);
+  color: var(--mx-ink);
+}
+
+/* The pillar index: the hall's keyboard and screen-reader way in. */
+.mx-picker {
+  position: absolute;
+  z-index: 2;
+  right: clamp(16px, 3vw, 40px);
+  bottom: 20px;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  max-width: min(560px, calc(100% - 32px));
+}
+
+.mx-picker__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.mx-picker__btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(143, 163, 160, 0.28);
+  border-radius: 2px;
+  background: rgba(4, 6, 7, 0.72);
+  color: var(--mx-ink-2);
+  font: 400 12px/1.2 var(--mx-mono);
+  cursor: pointer;
+  transition: border-color 160ms var(--holo-ease), color 160ms var(--holo-ease);
+}
+
+.mx-picker__btn::before {
+  content: "";
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--mx-teal);
+}
+
+.mx-picker__btn[data-series="scripted"]::before {
+  background: var(--mx-amber);
+}
+
+.mx-picker__btn[aria-pressed="true"] {
+  border-color: var(--holo-line-hi, rgba(25, 245, 194, 0.55));
+  color: var(--mx-ink);
+}
+
+.mx-picker__btn:focus-visible {
+  outline: 2px solid var(--mx-glow);
+  outline-offset: 2px;
+}
+
+.mx-picker__count {
+  color: var(--mx-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.mx-picker__readout {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 2px solid var(--mx-glow);
+  background: rgba(4, 6, 7, 0.78);
+  text-align: right;
+}
+
+.mx-picker__label {
+  font-size: 13px;
+  color: var(--mx-ink-2);
+}
+
+.mx-picker__value {
+  font: 400 13px/1.4 var(--mx-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--mx-ink);
+}
+
+/* Labels the hall projects into the page (drei Html). Decoration: the picker carries them for assistive tech. */
+.mx-l3d {
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  font: 400 11px/1 var(--mx-mono);
+  color: var(--mx-ink-2);
+}
+
+.mx-l3d__pill {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border: 1px solid rgba(25, 245, 194, 0.18);
+  background: rgba(4, 6, 7, 0.6);
+}
+
+.mx-l3d__pill[data-series="scripted"] {
+  border-color: rgba(255, 176, 0, 0.22);
+}
+
+.mx-l3d__pill[data-selected] {
+  border-color: rgba(25, 245, 194, 0.7);
+  color: var(--mx-ink);
+}
+
+.mx-l3d__count {
+  font-size: 15px;
+  color: var(--mx-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.mx-l3d--goal span {
+  display: inline-block;
+  transform: translateY(2px);
+  color: var(--mx-goal);
+}
+
+.mx-l3d--axis span {
+  display: inline-block;
+  transform: translate(-100%, -50%);
+  font-size: 10px;
+  color: #5f7470;
+}
+
+/* ------------------------------------------------------------------ sections */
+
+.mx-nogl {
+  margin: 0 0 8px;
+}
+
+.mx-grid-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 40px;
+  margin-top: 40px;
+}
+
+.mx-section {
+  min-width: 0;
+  padding: 28px 0 32px;
+  border-top: 1px solid var(--mx-line);
+}
+
+.mx-section--wide {
+  grid-column: 1 / -1;
+}
+
+.mx-climb {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 8px 40px;
+  align-items: start;
+}
+
+.mx-climb .mx-table {
+  margin-top: 30px;
+}
+
+@media (max-width: 1000px) {
+  .mx-climb {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mx-h2 {
+  margin: 0 0 8px;
+  font: 400 clamp(1.5rem, 1.2rem + 0.9vw, 2rem) / 1.15 var(--mx-serif);
+  color: var(--mx-ink);
+}
+
+.mx-lede {
+  margin: 0 0 18px;
+  max-width: 66ch;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--mx-ink-2);
+}
+
+.mx-foot,
+.mx-quiet {
+  max-width: 72ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--mx-ink-2);
+}
+
+.mx-quiet a,
+.mx-foot a {
+  color: var(--mx-glow);
+}
+
+.mx-srcs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--mx-ink-2);
+}
+
+.mx-src {
+  font-size: 12px;
+  color: var(--mx-ink-2);
+  text-decoration: underline;
+  text-decoration-color: rgba(143, 163, 160, 0.4);
+  text-underline-offset: 3px;
+}
+
+.mx-src:hover {
+  color: var(--mx-ink);
+}
+
+a.mx-src:focus-visible,
+.mx a:focus-visible {
+  outline: 2px solid var(--mx-glow);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ charts */
+
+.mx-chart {
+  position: relative;
+}
+
+.mx-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--mx-ink-2);
+}
+
+.mx-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mx-legend li::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--mx-teal);
+}
+
+.mx-legend li[data-series="scripted"]::before {
+  background: var(--mx-amber);
+}
+
+.mx-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: var(--mx-mono);
+}
+
+.mx-grid line {
+  stroke: rgba(143, 163, 160, 0.12);
+  stroke-width: 1;
+}
+
+.mx-grid text,
+.mx-tick,
+.mx-axis-title {
+  font-size: 11px;
+  fill: var(--mx-ink-2);
+}
+
+.mx-axis {
+  stroke: rgba(143, 163, 160, 0.45);
+  stroke-width: 1;
+}
+
+.mx-divider {
+  stroke: rgba(143, 163, 160, 0.18);
+  stroke-dasharray: 2 4;
+}
+
+.mx-col__hit {
+  fill: transparent;
+}
+
+.mx-bar {
+  fill: var(--mx-teal);
+  stroke: var(--mx-teal);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.mx-col[data-series="scripted"] .mx-bar {
+  fill: var(--mx-amber);
+  stroke: var(--mx-amber);
+}
+
+.mx-ci line {
+  stroke: var(--mx-ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.mx-val,
+.mx-goal text {
+  paint-order: stroke;
+  stroke: var(--holo-void, #040607);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.mx-val {
+  font-size: 12px;
+  fill: var(--mx-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.mx-col {
+  transition: opacity 160ms var(--holo-ease);
+}
+
+.mx-svg:hover .mx-col:not([data-hover]) {
+  opacity: 0.45;
+}
+
+.mx-goal line {
+  stroke: var(--mx-goal);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+.mx-goal text {
+  font-size: 11px;
+  fill: var(--mx-goal);
+}
+
+.mx-cross {
+  stroke: rgba(230, 238, 236, 0.35);
+  stroke-width: 1;
+}
+
+.mx-line path {
+  fill: none;
+  stroke: var(--mx-teal);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.mx-line circle {
+  fill: var(--mx-teal);
+  stroke: var(--holo-void, #040607);
+  stroke-width: 2;
+}
+
+.mx-line[data-series="scripted"] path {
+  stroke: var(--mx-amber);
+}
+
+.mx-line[data-series="scripted"] circle {
+  fill: var(--mx-amber);
+}
+
+.mx-readout {
+  min-height: 1.5em;
+  margin: 6px 0 0;
+  font: 400 12px/1.5 var(--mx-mono);
+  color: var(--mx-ink-2);
+}
+
+/* The one draw-in, when a chart scrolls into view (never with reduced motion). */
+.mx[data-motion="full"] .mx-chart .mx-bar {
+  transition: transform 900ms var(--holo-ease);
+  transition-delay: calc(var(--i, 0) * 90ms);
+}
+
+.mx[data-motion="full"] .mx-chart:not([data-seen]) .mx-bar {
+  transform: scaleY(0);
+}
+
+.mx[data-motion="full"] .mx-chart .mx-ci,
+.mx[data-motion="full"] .mx-chart .mx-val {
+  transition: opacity 400ms var(--holo-ease) 700ms;
+}
+
+.mx[data-motion="full"] .mx-chart:not([data-seen]) .mx-ci,
+.mx[data-motion="full"] .mx-chart:not([data-seen]) .mx-val {
+  opacity: 0;
+}
+
+.mx[data-motion="full"] .mx-line path {
+  transition: stroke-dashoffset 1400ms var(--holo-ease);
+}
+
+.mx[data-motion="full"] .mx-chart:not([data-seen]) .mx-line path {
+  stroke-dashoffset: 1;
+}
+
+/* ------------------------------------------------------------------ the table */
+
+.mx-table {
+  width: 100%;
+  margin-top: 18px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.mx-table caption {
+  margin-bottom: 8px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--mx-ink-2);
+}
+
+.mx-table th,
+.mx-table td {
+  padding: 8px 10px 8px 0;
+  border-bottom: 1px solid rgba(143, 163, 160, 0.12);
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.mx-table thead th {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--mx-ink-2);
+}
+
+.mx-table tbody th {
+  font-weight: 400;
+  color: var(--mx-ink-2);
+}
+
+.mx-table td {
+  font-family: var(--mx-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mx-table__tag {
+  display: block;
+  margin-bottom: 2px;
+  font-family: var(--mx-mono);
+  font-size: 12px;
+  color: var(--mx-ink);
+}
+
+.mx-table tr[data-goal="met"] td,
+.mx-table tr[data-goal="met"] th {
+  color: var(--mx-ink);
+}
+
+.mx-table tr[data-goal="met"] td:first-of-type {
+  color: var(--mx-glow);
+}
+
+/* ------------------------------------------------------------------ Stage A's selection */
+
+.mx-sel {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.mx-sel__row {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr) 3.5em 4em;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.mx-sel__label,
+.mx-sel__count,
+.mx-sel__pick {
+  font-family: var(--mx-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mx-sel__label,
+.mx-sel__pick {
+  color: var(--mx-ink-2);
+}
+
+.mx-sel__track {
+  position: relative;
+  height: 12px;
+  background: rgba(143, 163, 160, 0.1);
+}
+
+.mx-sel__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 0 3px 3px 0;
+  background: rgba(17, 169, 133, 0.55);
+}
+
+.mx-sel__row[data-picked] .mx-sel__fill {
+  background: var(--mx-teal);
+}
+
+.mx-sel__row[data-picked] .mx-sel__pick {
+  color: var(--mx-glow);
+}
+
+.mx-notes,
+.mx-limits__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mx-notes li,
+.mx-limits__list li {
+  position: relative;
+  padding-left: 18px;
+  max-width: 78ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--mx-ink);
+}
+
+.mx-notes li::before,
+.mx-limits__list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 8px;
+  height: 1px;
+  background: var(--mx-ink-2);
+}
+
+.mx-limits__list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 14px 40px;
+}
+
+/* ------------------------------------------------------------------ the analyst strip */
+
+.mx-analyst {
+  grid-column: 1 / -1;
+}
+
+.mx-analyst__grid {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  gap: 18px 36px;
+  margin: 0;
+}
+
+.mx-analyst__grid > div {
+  min-width: 0;
+}
+
+.mx-analyst__grid dt {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--mx-ink-2);
+}
+
+.mx-analyst__grid dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.mx-analyst__grid b {
+  font: 500 15px/1 var(--mx-mono);
+}
+
+.mx-analyst__grid .mx-analyst__big {
+  font: 400 2rem/1 var(--mx-serif);
+}
+
+.mx-num {
+  font-family: var(--mx-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mx-analyst__model {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.mx-analyst__verdict {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  border-left: 2px solid var(--mx-teal);
+  background: rgba(14, 22, 24, 0.6);
+}
+
+.mx-analyst__verdict[data-weak] {
+  border-left-color: var(--mx-amber);
+}
+
+/* ------------------------------------------------------------------ narrower */
+
+@media (max-width: 1000px) {
+  .mx-grid-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mx-analyst__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .mx[data-hall="on"] .mx-stage {
+    height: auto;
+    margin: -16px -12px 0;
+    overflow: visible;
+  }
+
+  .mx[data-hall="on"] .mx-hall {
+    position: relative;
+    height: 56vh;
+    min-height: 360px;
+  }
+
+  .mx[data-hall="on"] .mx-headline {
+    position: relative;
+    left: auto;
+    top: auto;
+    padding: 20px 12px 8px;
+  }
+
+  .mx-picker {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .mx-picker__readout {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .mx-picker {
+    display: none;
+  }
+
+  .mx-grid-sections {
+    margin-top: 16px;
+  }
+
+  /* The charts' viewBox shrinks to a phone's width: their text grows in user units to stay readable. */
+  .mx-svg .mx-tick {
+    font-size: 15px;
+  }
+
+  .mx-svg .mx-grid text,
+  .mx-svg .mx-goal text,
+  .mx-svg .mx-axis-title {
+    font-size: 17px;
+  }
+
+  .mx-svg .mx-val {
+    font-size: 19px;
+  }
+
+  .mx-table th,
+  .mx-table td {
+    padding-right: 8px;
+    font-size: 12px;
+  }
+
+  .mx-table__tag {
+    display: block;
+  }
+
+  .mx-table td {
+    white-space: normal;
+  }
+
+  .mx-sel__row {
+    grid-template-columns: 7.2em minmax(0, 1fr) 3em 3.4em;
+    gap: 8px;
+    font-size: 12px;
+  }
+}

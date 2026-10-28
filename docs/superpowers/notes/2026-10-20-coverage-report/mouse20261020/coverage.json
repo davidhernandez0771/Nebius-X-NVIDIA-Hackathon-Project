@@ -1,0 +1,707 @@
+{
+ "takes_per_scene": 2,
+ "scenes": {
+  "s1": {
+   "name": "S1 Standard",
+   "in_eval": true,
+   "outside": [],
+   "takes": 10,
+   "raw_verified": 10,
+   "repaired_verified": 10,
+   "verified_takes": 10,
+   "variants": 100,
+   "variants_verified": 100,
+   "grasp": {
+    "takes": {
+     "n": 10,
+     "swoops": 7,
+     "frames_in_3cm_median": 7.5,
+     "close_speed_median_m_s": 0.1445
+    },
+    "verified_episodes": {
+     "n": 110,
+     "swoops": 77,
+     "frames_in_3cm_median": 7.5,
+     "close_speed_median_m_s": 0.1648
+    }
+   },
+   "spread": {
+    "cube_x": [
+     0.403,
+     0.598
+    ],
+    "cube_y": [
+     -0.198,
+     0.189
+    ],
+    "cube_face_yaw": [
+     -43.473,
+     43.849
+    ],
+    "bin_x": [
+     0.403,
+     0.647
+    ],
+    "bin_y": [
+     -0.299,
+     0.3
+    ]
+   }
+  },
+  "s2": {
+   "name": "S2 Cube at the edge of reach",
+   "in_eval": false,
+   "outside": [
+    "cube x 0.63 (eval 0.4 to 0.6)",
+    "cube y -0.26 (eval -0.2 to 0.2)"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s3": {
+   "name": "S3 Bin turned, other side",
+   "in_eval": false,
+   "outside": [
+    "bin turned 90 degrees"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s4": {
+   "name": "S4 Small cube",
+   "in_eval": false,
+   "outside": [
+    "4 cm cube"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s5": {
+   "name": "S5 Large cube",
+   "in_eval": false,
+   "outside": [
+    "6 cm cube"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s6": {
+   "name": "S6 Cube turned 35 degrees",
+   "in_eval": true,
+   "outside": [],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s7": {
+   "name": "S7 Yellow distractor",
+   "in_eval": false,
+   "outside": [
+    "1 more object"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s8": {
+   "name": "S8 Taller bin",
+   "in_eval": false,
+   "outside": [
+    "bin walls 11 cm (eval 8 cm)"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  }
+ },
+ "unassigned": [],
+ "pool": {
+  "n": 110,
+  "episodes": [
+   "human_20261020183738_00ab_rules_home",
+   "human_20261020183738_00ab_rules_home_m3109",
+   "human_20261020183738_00ab_rules_home_m3108",
+   "human_20261020183738_00ab_rules_home_m3107",
+   "human_20261020183738_00ab_rules_home_m3106",
+   "human_20261020183738_00ab_rules_home_m3105",
+   "human_20261020183738_00ab_rules_home_m3104",
+   "human_20261020183738_00ab_rules_home_m3103",
+   "human_20261020183738_00ab_rules_home_m3102",
+   "human_20261020183738_00ab_rules_home_m3101",
+   "human_20261020183738_00ab_rules_home_m3100",
+   "human_20261020183801_da08_rules_home",
+   "human_20261020183801_da08_rules_home_m3209",
+   "human_20261020183801_da08_rules_home_m3208",
+   "human_20261020183801_da08_rules_home_m3207",
+   "human_20261020183801_da08_rules_home_m3206",
+   "human_20261020183801_da08_rules_home_m3205",
+   "human_20261020183801_da08_rules_home_m3204",
+   "human_20261020183801_da08_rules_home_m3203",
+   "human_20261020183801_da08_rules_home_m3202",
+   "human_20261020183801_da08_rules_home_m3201",
+   "human_20261020183801_da08_rules_home_m3200",
+   "human_20261020184043_be76_rules_home",
+   "human_20261020184043_be76_rules_home_m3309",
+   "human_20261020184043_be76_rules_home_m3308",
+   "human_20261020184043_be76_rules_home_m3307",
+   "human_20261020184043_be76_rules_home_m3306",
+   "human_20261020184043_be76_rules_home_m3305",
+   "human_20261020184043_be76_rules_home_m3304",
+   "human_20261020184043_be76_rules_home_m3303",
+   "human_20261020184043_be76_rules_home_m3302",
+   "human_20261020184043_be76_rules_home_m3301",
+   "human_20261020184043_be76_rules_home_m3300",
+   "human_20261020184117_dc3e_rules_home",
+   "human_20261020184117_dc3e_rules_home_m3409",
+   "human_20261020184117_dc3e_rules_home_m3408",
+   "human_20261020184117_dc3e_rules_home_m3407",
+   "human_20261020184117_dc3e_rules_home_m3406",
+   "human_20261020184117_dc3e_rules_home_m3405",
+   "human_20261020184117_dc3e_rules_home_m3404",
+   "human_20261020184117_dc3e_rules_home_m3403",
+   "human_20261020184117_dc3e_rules_home_m3402",
+   "human_20261020184117_dc3e_rules_home_m3401",
+   "human_20261020184117_dc3e_rules_home_m3400",
+   "human_20261020184146_ee42_rules_home",
+   "human_20261020184146_ee42_rules_home_m3509",
+   "human_20261020184146_ee42_rules_home_m3508",
+   "human_20261020184146_ee42_rules_home_m3507",
+   "human_20261020184146_ee42_rules_home_m3506",
+   "human_20261020184146_ee42_rules_home_m3505",
+   "human_20261020184146_ee42_rules_home_m3504",
+   "human_20261020184146_ee42_rules_home_m3503",
+   "human_20261020184146_ee42_rules_home_m3502",
+   "human_20261020184146_ee42_rules_home_m3501",
+   "human_20261020184146_ee42_rules_home_m3500",
+   "human_20261020184211_3cd0_rules_home",
+   "human_20261020184211_3cd0_rules_home_m3609",
+   "human_20261020184211_3cd0_rules_home_m3608",
+   "human_20261020184211_3cd0_rules_home_m3607",
+   "human_20261020184211_3cd0_rules_home_m3606",
+   "human_20261020184211_3cd0_rules_home_m3605",
+   "human_20261020184211_3cd0_rules_home_m3604",
+   "human_20261020184211_3cd0_rules_home_m3603",
+   "human_20261020184211_3cd0_rules_home_m3602",
+   "human_20261020184211_3cd0_rules_home_m3601",
+   "human_20261020184211_3cd0_rules_home_m3600",
+   "human_20261020184230_b27d_rules_home",
+   "human_20261020184230_b27d_rules_home_m3709",
+   "human_20261020184230_b27d_rules_home_m3708",
+   "human_20261020184230_b27d_rules_home_m3707",
+   "human_20261020184230_b27d_rules_home_m3706",
+   "human_20261020184230_b27d_rules_home_m3705",
+   "human_20261020184230_b27d_rules_home_m3704",
+   "human_20261020184230_b27d_rules_home_m3703",
+   "human_20261020184230_b27d_rules_home_m3702",
+   "human_20261020184230_b27d_rules_home_m3701",
+   "human_20261020184230_b27d_rules_home_m3700",
+   "human_20261020184247_68ce_rules_home",
+   "human_20261020184247_68ce_rules_home_m3809",
+   "human_20261020184247_68ce_rules_home_m3808",
+   "human_20261020184247_68ce_rules_home_m3807",
+   "human_20261020184247_68ce_rules_home_m3806",
+   "human_20261020184247_68ce_rules_home_m3805",
+   "human_20261020184247_68ce_rules_home_m3804",
+   "human_20261020184247_68ce_rules_home_m3803",
+   "human_20261020184247_68ce_rules_home_m3802",
+   "human_20261020184247_68ce_rules_home_m3801",
+   "human_20261020184247_68ce_rules_home_m3800",
+   "human_20261020184302_848e_rules_home",
+   "human_20261020184302_848e_rules_home_m3909",
+   "human_20261020184302_848e_rules_home_m3908",
+   "human_20261020184302_848e_rules_home_m3907",
+   "human_20261020184302_848e_rules_home_m3906",
+   "human_20261020184302_848e_rules_home_m3905",
+   "human_20261020184302_848e_rules_home_m3904",
+   "human_20261020184302_848e_rules_home_m3903",
+   "human_20261020184302_848e_rules_home_m3902",
+   "human_20261020184302_848e_rules_home_m3901",
+   "human_20261020184302_848e_rules_home_m3900",
+   "human_20261020184318_4c66_rules_home",
+   "human_20261020184318_4c66_rules_home_m4009",
+   "human_20261020184318_4c66_rules_home_m4008",
+   "human_20261020184318_4c66_rules_home_m4007",
+   "human_20261020184318_4c66_rules_home_m4006",
+   "human_20261020184318_4c66_rules_home_m4005",
+   "human_20261020184318_4c66_rules_home_m4004",
+   "human_20261020184318_4c66_rules_home_m4003",
+   "human_20261020184318_4c66_rules_home_m4002",
+   "human_20261020184318_4c66_rules_home_m4001",
+   "human_20261020184318_4c66_rules_home_m4000"
+  ]
+ },
+ "eval": {
+  "n": 40,
+  "seeds": [
+   5020,
+   5059
+  ],
+  "axes": {
+   "cube_x": [
+    {
+     "lo": 0.4,
+     "hi": 0.45,
+     "eval": 11,
+     "pool": 18,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.45,
+     "hi": 0.5,
+     "eval": 9,
+     "pool": 27,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.55,
+     "eval": 11,
+     "pool": 38,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.55,
+     "hi": 0.6,
+     "eval": 9,
+     "pool": 27,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "cube_y": [
+    {
+     "lo": -0.2,
+     "hi": -0.1,
+     "eval": 11,
+     "pool": 28,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -0.1,
+     "hi": 0.0,
+     "eval": 3,
+     "pool": 13,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "eval": 9,
+     "pool": 26,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.2,
+     "eval": 17,
+     "pool": 43,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "cube_face_yaw": [
+    {
+     "lo": -45.0,
+     "hi": -30.0,
+     "eval": 4,
+     "pool": 19,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -30.0,
+     "hi": -15.0,
+     "eval": 4,
+     "pool": 12,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -15.0,
+     "hi": 0.0,
+     "eval": 9,
+     "pool": 23,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.0,
+     "hi": 15.0,
+     "eval": 7,
+     "pool": 19,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 15.0,
+     "hi": 30.0,
+     "eval": 9,
+     "pool": 16,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 30.0,
+     "hi": 45.0,
+     "eval": 7,
+     "pool": 21,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "bin_x": [
+    {
+     "lo": 0.4,
+     "hi": 0.45,
+     "eval": 8,
+     "pool": 16,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.45,
+     "hi": 0.5,
+     "eval": 7,
+     "pool": 17,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.55,
+     "eval": 8,
+     "pool": 30,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.55,
+     "hi": 0.6,
+     "eval": 11,
+     "pool": 19,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.6,
+     "hi": 0.65,
+     "eval": 6,
+     "pool": 28,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "bin_y": [
+    {
+     "lo": -0.3,
+     "hi": -0.2,
+     "eval": 20,
+     "pool": 40,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -0.2,
+     "hi": -0.1,
+     "eval": 6,
+     "pool": 19,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -0.1,
+     "hi": 0.0,
+     "eval": 0,
+     "pool": 0,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "eval": 0,
+     "pool": 0,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.2,
+     "eval": 6,
+     "pool": 11,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.2,
+     "hi": 0.3,
+     "eval": 8,
+     "pool": 40,
+     "gap": false,
+     "thin": false
+    }
+   ]
+  },
+  "nearest": {
+   "tolerance": {
+    "cube_m": 0.05,
+    "bin_m": 0.08,
+    "cube_face_yaw_deg": 15.0
+   },
+   "covered": 18,
+   "uncovered_seeds": [
+    5020,
+    5021,
+    5022,
+    5026,
+    5027,
+    5029,
+    5030,
+    5031,
+    5035,
+    5037,
+    5038,
+    5039,
+    5042,
+    5043,
+    5045,
+    5047,
+    5049,
+    5050,
+    5053,
+    5054,
+    5058,
+    5059
+   ],
+   "median_scaled_distance": 1.33
+  }
+ },
+ "sources": {
+  "human_20261020183738_00ab": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020183801_da08": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184043_be76": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184117_dc3e": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184146_ee42": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184211_3cd0": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184230_b27d": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184247_68ce": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184302_848e": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  },
+  "human_20261020184318_4c66": {
+   "scene": "s1",
+   "raw": true,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 10
+  }
+ },
+ "requests": [
+  {
+   "kind": "record",
+   "scene": "s6",
+   "scene_name": "S6 Cube turned 35 degrees",
+   "in_eval": true,
+   "text": "Record 2 more takes in S6 Cube turned 35 degrees: 0 verified of 0 recorded."
+  },
+  {
+   "kind": "record",
+   "scene": "s2",
+   "scene_name": "S2 Cube at the edge of reach",
+   "in_eval": false,
+   "text": "Record 2 more takes in S2 Cube at the edge of reach: 0 verified of 0 recorded. Generalization only, not in the eval distribution (cube x 0.63 (eval 0.4 to 0.6); cube y -0.26 (eval -0.2 to 0.2))."
+  },
+  {
+   "kind": "record",
+   "scene": "s3",
+   "scene_name": "S3 Bin turned, other side",
+   "in_eval": false,
+   "text": "Record 2 more takes in S3 Bin turned, other side: 0 verified of 0 recorded. Generalization only, not in the eval distribution (bin turned 90 degrees)."
+  },
+  {
+   "kind": "record",
+   "scene": "s4",
+   "scene_name": "S4 Small cube",
+   "in_eval": false,
+   "text": "Record 2 more takes in S4 Small cube: 0 verified of 0 recorded. Generalization only, not in the eval distribution (4 cm cube)."
+  },
+  {
+   "kind": "record",
+   "scene": "s5",
+   "scene_name": "S5 Large cube",
+   "in_eval": false,
+   "text": "Record 2 more takes in S5 Large cube: 0 verified of 0 recorded. Generalization only, not in the eval distribution (6 cm cube)."
+  },
+  {
+   "kind": "record",
+   "scene": "s7",
+   "scene_name": "S7 Yellow distractor",
+   "in_eval": false,
+   "text": "Record 2 more takes in S7 Yellow distractor: 0 verified of 0 recorded. Generalization only, not in the eval distribution (1 more object)."
+  },
+  {
+   "kind": "record",
+   "scene": "s8",
+   "scene_name": "S8 Taller bin",
+   "in_eval": false,
+   "text": "Record 2 more takes in S8 Taller bin: 0 verified of 0 recorded. Generalization only, not in the eval distribution (bin walls 11 cm (eval 8 cm))."
+  },
+  {
+   "kind": "swoop",
+   "scene": "s1",
+   "scene_name": "S1 Standard",
+   "text": "In S1 Standard, 7 of 10 takes close while still moving (median 0.14 m/s, 7.5 frames in the last 3 cm; the scripted grasp stops and spends 16): retake with a stop before closing, or repair with --grasp-retime."
+  },
+  {
+   "kind": "eval_uncovered",
+   "text": "22 of 40 eval scenes have no verified episode within 5 cm (cube), 8 cm (bin) and 15 degrees (cube yaw): seeds 5020, 5021, 5022, 5026, 5027, 5029, 5030, 5031, 5035, 5037, 5038, 5039 and 10 more."
+  }
+ ],
+ "store": "C:\\dev\\pm-t6\\data\\human_exp\\mouse20261020\\store"
+}

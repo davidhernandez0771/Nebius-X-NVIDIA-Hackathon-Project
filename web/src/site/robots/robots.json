@@ -1,0 +1,84 @@
+{
+  "copies": {
+    "verified": 100,
+    "total": 100,
+    "sources": ["docs/superpowers/notes/2026-10-15-t2-status.md (sprint 6 Task 2)"]
+  },
+  "robots": [
+    {
+      "id": "franka",
+      "name": "Franka Panda",
+      "code": "FRANKA",
+      "sub": "7-DOF · PARALLEL GRIPPER",
+      "status": "Tested",
+      "year": "2026",
+      "note": "30/30 copies · policy 30/40",
+      "pal": ["#0b3b46", "#19f5c2", "#e8fffa", "#0f6e6a"],
+      "fx": "scan",
+      "sources": [
+        "docs/superpowers/notes/2026-10-15-t2-status.md (sprint 4 Task 1)",
+        "https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project/blob/pm/live-13/docs/superpowers/notes/2026-10-23-bigtest-prereg.md#L744"
+      ]
+    },
+    {
+      "id": "openarm",
+      "name": "OpenArm",
+      "code": "OPENARM",
+      "sub": "7-DOF · OPEN SOURCE",
+      "status": "Design flaw",
+      "year": "2026",
+      "note": "0/30 · wrist range",
+      "pal": ["#3a1406", "#ff5a1f", "#ffd2a8", "#a3300b"],
+      "fx": "glitch",
+      "sources": ["docs/superpowers/notes/2026-10-15-t2-status.md (sprint 2 Task 5; sprint 3 Task 3)"]
+    },
+    {
+      "id": "rizon",
+      "name": "Flexiv Rizon 4s",
+      "code": "RIZON",
+      "sub": "7-DOF · FORCE CONTROL",
+      "status": "Tested",
+      "year": "2026",
+      "note": "9/30 · gripper drag",
+      "pal": ["#0d2a10", "#5fd36a", "#e4ffe2", "#1f6b28"],
+      "fx": "blocks",
+      "sources": ["docs/superpowers/notes/2026-10-15-t2-status.md (sprint 3 Task 3)"]
+    },
+    {
+      "id": "so101",
+      "name": "SO-101",
+      "code": "SO-101",
+      "sub": "5-DOF + JAW · HOBBY ARM",
+      "status": "Next",
+      "year": "2026",
+      "note": "URDF · Apache-2.0",
+      "pal": ["#3b2f00", "#f0c419", "#fff7cf", "#8a6b00"],
+      "fx": "dots",
+      "sources": ["https://github.com/TheRobotStudio/SO-ARM100"]
+    },
+    {
+      "id": "piper",
+      "name": "AgileX PiPER",
+      "code": "PIPER",
+      "sub": "6-DOF · LOW COST",
+      "status": "Next",
+      "year": "2026",
+      "note": "URDF · MIT",
+      "pal": ["#14104a", "#6e5bff", "#e1dcff", "#3a2fb0"],
+      "fx": "blocks",
+      "sources": ["https://github.com/agilexrobotics/piper_ros"]
+    },
+    {
+      "id": "add",
+      "name": "Your robot",
+      "code": "+ ADD",
+      "sub": "UPLOAD A URDF",
+      "status": "Preview",
+      "year": "2026",
+      "note": "base · hand · gripper",
+      "pal": ["#3d0a2c", "#ff4fb3", "#ffe0f2", "#9b1c6a"],
+      "fx": "dots",
+      "sources": []
+    }
+  ]
+}

@@ -50,6 +50,9 @@ export type Handedness = "Left" | "Right";
 export interface TrackedHand {
   landmarks: HandLandmark[]; // exactly 21, raw, unmirrored
   handedness: Handedness | null;
+  /** MediaPipe's worldLandmarks: the same 21 points in meters, origin near the hand's center.
+   *  Optional: the teleop pinch (teleop/pinch.ts) uses them, falling back to 2D without. */
+  worldLandmarks?: HandLandmark[];
 }
 
 /**
@@ -122,6 +125,8 @@ export interface TrackingAdapter {
   cleanup(): void;
   onFrame(cb: (frame: HandFrame) => void): () => void; // returns unsubscribe
   onStatus(cb: (status: TrackingStatus) => void): () => void;
+  /** The camera's stream while it runs (for recording it, e.g. Record's "Save camera video"), else null. */
+  stream?(): MediaStream | null;
 }
 
 /**

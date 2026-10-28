@@ -1,0 +1,223 @@
+{
+ "k": 3,
+ "calls": 6,
+ "cost_usd": 0.035792,
+ "model": "nvidia/nemotron-3-super-120b-a12b",
+ "api_errors": 0,
+ "recipe": {
+  "summary": "Most failures are drops that happen when the cube is on the robot's left side (+y) and the bin is on the robot's right side (\u2011y), with the cube positioned roughly in the middle of the workspace in x.",
+  "hypotheses": [
+   {
+    "claim": "Drops cluster where the cube is in the middle x range (0.467\u20110.533 m), left of center in y (0.067\u20110.2 m), and the bin is on the robot's right side (\u20110.3 to \u20110.1 m)",
+    "evidence_seeds": [
+     5502,
+     5507,
+     5508,
+     5517,
+     5522
+    ]
+   }
+  ],
+  "mechanism": [],
+  "fixes": [],
+  "regions": [
+   {
+    "name": "left_cube_right_bin",
+    "targets": [
+     "dropped"
+    ],
+    "cube_x": [
+     0.467,
+     0.533
+    ],
+    "cube_y": [
+     0.067,
+     0.2
+    ],
+    "cube_yaw_deg": [
+     -45.0,
+     45.0
+    ],
+    "bin_x": [
+     0.4,
+     0.65
+    ],
+    "bin_y": [
+     -0.3,
+     -0.1
+    ],
+    "share": 0.6,
+    "rationale": "Failure rate is markedly higher in this region (5/5 episodes failed) compared to the rest of the data (7/24 failed)."
+   }
+  ],
+  "uniform_share": 0.4
+ },
+ "support": [
+  {
+   "region": "left_cube_right_bin",
+   "episodes_inside": 5,
+   "target_failures_inside": 5,
+   "target_failures_total": 12,
+   "coverage": 0.4166666666666667,
+   "rate_inside": 1.0,
+   "rate_overall": 0.41379310344827586,
+   "p_value": 0.006669,
+   "seeds_inside": [
+    5502,
+    5507,
+    5508,
+    5517,
+    5522
+   ]
+  }
+ ],
+ "agreement": 1.0,
+ "candidates": [
+  {
+   "summary": "Most failures are drops that happen when the cube is on the robot's left side (+y) and the bin is on the robot's right side (\u2011y), with the cube positioned roughly in the middle of the workspace in x.",
+   "hypotheses": [
+    {
+     "claim": "Drops cluster where the cube is in the middle x range (0.467\u20110.533 m), left of center in y (0.067\u20110.2 m), and the bin is on the robot's right side (\u20110.3 to \u20110.1 m)",
+     "evidence_seeds": [
+      5502,
+      5507,
+      5508,
+      5517,
+      5522
+     ]
+    }
+   ],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [
+    {
+     "name": "left_cube_right_bin",
+     "targets": [
+      "dropped"
+     ],
+     "cube_x": [
+      0.467,
+      0.533
+     ],
+     "cube_y": [
+      0.067,
+      0.2
+     ],
+     "cube_yaw_deg": [
+      -45.0,
+      45.0
+     ],
+     "bin_x": [
+      0.4,
+      0.65
+     ],
+     "bin_y": [
+      -0.3,
+      -0.1
+     ],
+     "share": 0.6,
+     "rationale": "Failure rate is markedly higher in this region (5/5 episodes failed) compared to the rest of the data (7/24 failed)."
+    }
+   ],
+   "uniform_share": 0.4
+  },
+  {
+   "summary": "Most failures are drops when the cube is in the middle forward region, left of the robot's centre, and the bin is on the robot's right side, requiring a cross\u2011body reach.",
+   "hypotheses": [
+    {
+     "claim": "drops cluster where cube_x is between 0.467 and 0.533 m, cube_y is between 0.067 and 0.2 m, and bin_y is between -0.3 and -0.1 m",
+     "evidence_seeds": [
+      5502,
+      5507,
+      5508,
+      5517,
+      5522
+     ]
+    }
+   ],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [
+    {
+     "name": "central_left_cube_right_bin",
+     "targets": [
+      "dropped"
+     ],
+     "cube_x": [
+      0.467,
+      0.533
+     ],
+     "cube_y": [
+      0.067,
+      0.2
+     ],
+     "cube_yaw_deg": [
+      -45.0,
+      45.0
+     ],
+     "bin_x": [
+      0.4,
+      0.65
+     ],
+     "bin_y": [
+      -0.3,
+      -0.1
+     ],
+     "share": 0.4,
+     "rationale": "this sub\u2011space contains 5 dropped episodes and no successes, giving a failure rate far above the background (one\u2011sided Fisher p < 0.01)"
+    }
+   ],
+   "uniform_share": 0.6
+  }
+ ],
+ "candidate_agreement": [
+  1.0,
+  1.0
+ ],
+ "attempts": [
+  {
+   "sample": 0,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops occurring when the cube is in the middle x-range, top y-range, and the bin is left of centre.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where cube_x between 0.467 and 0.533 m, cube_y between 0.067 and 0.2 m, and bin_x between 0.4 and 0.483 m\",\n      \"evidence_seeds\": [5502, 5507, 5508]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"mid_top_left\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.467, 0.533],\n      \"cube_y\": [0.067, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.483],\n      \"bin_y\": [-0.3, 0.3],\n      \"share\": 0.5\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [
+    "regions.0.rationale: Field required"
+   ],
+   "think": true
+  },
+  {
+   "sample": 0,
+   "reply": "{\n  \"summary\": \"Most failures are drops occurring when the cube is in the middle x-range, top y-range, and the bin is left of centre.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where cube_x between 0.467 and 0.533 m, cube_y between 0.067 and 0.2 m, and bin_x between 0.4 and 0.483 m\",\n      \"evidence_seeds\": [5502, 5507, 5508]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"mid_top_left\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.467, 0.533],\n      \"cube_y\": [0.067, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.483],\n      \"bin_y\": [-0.3, 0.3],\n      \"share\": 0.5,\n      \"rationale\": \"this region contains 3 dropped episodes and has a higher failure rate than the rest of the space\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [
+    "region 'mid_top_left' contains 2 episodes, 2 of the 12 episodes that failed by its targets; it must contain at least 3. Widen it to where those failures are"
+   ],
+   "think": false
+  },
+  {
+   "sample": 0,
+   "reply": "{\n  \"summary\": \"All failures are drops; no grasp or motion measurements exist, so no mechanism or fix can be inferred. Scene bins show higher drop rates when cube is in middle x, top y, and bin is left of centre.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where cube_x between 0.467 and 0.533 m, cube_y between 0.067 and 0.2 m, and bin_x between 0.4 and 0.483 m\",\n      \"evidence_seeds\": [5502, 5507, 5508, 5517, 5522]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"mid_top_left\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.467, 0.533],\n      \"cube_y\": [0.067, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.483],\n      \"bin_y\": [-0.3, 0.3],\n      \"share\": 0.5,\n      \"rationale\": \"this region contains 5 dropped episodes and has a higher failure rate than the rest of the space\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [
+    "region 'mid_top_left' contains 2 episodes, 2 of the 12 episodes that failed by its targets; it must contain at least 3. Widen it to where those failures are"
+   ],
+   "think": false
+  },
+  {
+   "sample": 1,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops that happen when the cube is on the robot's left side (+y) and the bin is on the robot's right side (\u2011y), with the cube positioned roughly in the middle of the workspace in x.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"Drops cluster where the cube is in the middle x range (0.467\u20110.533 m), left of center in y (0.067\u20110.2 m), and the bin is on the robot's right side (\u20110.3 to \u20110.1 m)\",\n      \"evidence_seeds\": [5502, 5507, 5508, 5517, 5522]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"left_cube_right_bin\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.467, 0.533],\n      \"cube_y\": [0.067, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.65],\n      \"bin_y\": [-0.3, -0.1],\n      \"share\": 0.6,\n      \"rationale\": \"Failure rate is markedly higher in this region (5/5 episodes failed) compared to the rest of the data (7/24 failed).\"\n    }\n  ],\n  \"uniform_share\": 0.4\n}",
+   "errors": [],
+   "think": true
+  },
+  {
+   "sample": 2,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops when the cube is on the robot's left side and the bin is on the robot's right side, requiring a cross\u2011body reach.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where the cube is left of the robot (cube_y > 0.07) and the bin is right of the robot (bin_y < -0.1)\",\n      \"evidence_seeds\": [5502, 5503, 5507, 5508, 5515, 5522]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"left_cube_right_bin\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.4, 0.6],\n      \"cube_y\": [0.07, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.65],\n      \"bin_y\": [-0.3, -0.1],\n      \"share\": 0.4,\n      \"rationale\": \"this quadrant shows a markedly higher drop rate than the rest of the workspace\"\n    }\n  ],\n  \"uniform_share\": 0.6\n}",
+   "errors": [
+    "region 'left_cube_right_bin' contains 12 episodes, 7 of the 12 episodes that failed by its targets: a rate of 0.58 vs 0.41 overall, but a difference this size is likely chance (one-sided Fisher p = 0.120 > 0.1). Drop the region unless a wider one shows a clear scene effect"
+   ],
+   "think": true
+  },
+  {
+   "sample": 2,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops when the cube is in the middle forward region, left of the robot's centre, and the bin is on the robot's right side, requiring a cross\u2011body reach.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where cube_x is between 0.467 and 0.533 m, cube_y is between 0.067 and 0.2 m, and bin_y is between -0.3 and -0.1 m\",\n      \"evidence_seeds\": [5502, 5507, 5508, 5517, 5522]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"central_left_cube_right_bin\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.467, 0.533],\n      \"cube_y\": [0.067, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.65],\n      \"bin_y\": [-0.3, -0.1],\n      \"share\": 0.4,\n      \"rationale\": \"this sub\u2011space contains 5 dropped episodes and no successes, giving a failure rate far above the background (one\u2011sided Fisher p < 0.01)\"\n    }\n  ],\n  \"uniform_share\": 0.6\n}",
+   "errors": [],
+   "think": true
+  }
+ ]
+}

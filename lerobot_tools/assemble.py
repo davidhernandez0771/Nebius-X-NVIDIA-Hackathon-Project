@@ -8,6 +8,13 @@ its lineage, human root, repairs and diagnosis source, read from the episode's p
 Integrity checks, so a cell can't quietly use more human data than its label says:
 - the episodes may descend from at most `n_human` distinct human demos (fewer is fine: some may be discarded);
 - `raw` and `raw_multiply` episodes must carry no repairs.
+Recovery copies (sim_worker.recovery) have the lineage root "recovery-<policy cell>": the expert finishing from a
+policy's own rollout state, no human demo. They don't count toward `n_human`, the manifest lists them apart, and a
+cell needs at least one human demo. The same goes for distillation episodes (sim_eval.distill): teacher rollouts
+("teacher-<teacher>") and student states relabelled by the teacher ("dagger-r<round>-<teacher>"). The manifest's
+"sources" counts episodes and frames per source (human, recovery, teacher, dagger), so a results table can say what
+each arm was trained on. A "distill" cell mixes them; an episode dir listed k times is k copies (the mix weights,
+sim_eval.distill_round.mix_cell).
 """
 
 from __future__ import annotations
@@ -23,8 +30,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from demo_pipeline.episode_io import load_episode
 
 MANIFEST_FILE = "manifest.json"
-Condition = Literal["raw", "raw_multiply", "perfected_multiply", "rules_multiply"]
+Condition = Literal["raw", "raw_multiply", "perfected_multiply", "rules_multiply", "distill"]
 UNREPAIRED_CONDITIONS = ("raw", "raw_multiply")
+RECOVERY_ROOT_PREFIX = "recovery-"  # sim_worker.recovery.RECOVERY_ROOT_PREFIX
+# lineage-root prefix -> source; anything else is a human demo (sim_eval.distill has the teacher/dagger ones)
+MACHINE_SOURCES = {RECOVERY_ROOT_PREFIX: "recovery", "teacher-": "teacher", "dagger-": "dagger"}
+
+
+def source_of(root: str) -> str:
+    return next((src for prefix, src in MACHINE_SOURCES.items() if root.startswith(prefix)), "human")
 
 
 class Cell(BaseModel):
@@ -33,10 +47,11 @@ class Cell(BaseModel):
     condition: Condition
     n_human: int = Field(gt=0)
     episode_dirs: list[Path] = Field(min_length=1)
+    label: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_\-]+$")  # overrides the derived name
 
     @property
     def name(self) -> str:
-        return f"{self.condition}_{self.n_human}"
+        return self.label or f"{self.condition}_{self.n_human}"
 
 
 def build_manifest(cell: Cell) -> dict:
@@ -59,11 +74,21 @@ def build_manifest(cell: Cell) -> dict:
             "has_passport": pp is not None,
             "lineage": lineage,
             "human_root": lineage[0],
+            "source": source_of(lineage[0]),
             "repairs": repairs,
             "diagnosis_source": pp.diagnosis_source if pp else None,
             "variant_seed": pp.variant_seed if pp else None,
         })
-    roots = sorted({r["human_root"] for r in rows})
+    recovery = sorted({r["human_root"] for r in rows if r["source"] == "recovery"})
+    machine = sorted({r["human_root"] for r in rows if r["source"] != "human"})
+    roots = sorted({r["human_root"] for r in rows} - set(machine))
+    if not roots:
+        raise ValueError(f"{cell.name}: no human demo among the episodes (only machine episodes {machine})")
+    sources: dict[str, dict] = {}
+    for r in rows:
+        s = sources.setdefault(r["source"], {"episodes": 0, "frames": 0})
+        s["episodes"] += 1
+        s["frames"] += r["n_steps"]
     if len(roots) > cell.n_human:
         raise ValueError(f"{cell.name}: episodes descend from {len(roots)} human demos {roots}, "
                          f"but the cell says n_human={cell.n_human}")
@@ -73,6 +98,9 @@ def build_manifest(cell: Cell) -> dict:
         "n_episodes": len(rows),
         "n_frames": sum(r["n_steps"] for r in rows),
         "human_roots": roots,
+        "recovery_roots": recovery,
+        "n_recovery_episodes": sum(r["human_root"] in recovery for r in rows),
+        "sources": sources,
         "diagnosis_sources": dict(Counter(r["diagnosis_source"] for r in rows if r["diagnosis_source"])),
         "episodes": rows,
     }

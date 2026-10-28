@@ -20,6 +20,9 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))  # repo root: sim_worker
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 parser = argparse.ArgumentParser(description="Replay a frozen demo set with cameras, keeping its ground truth.")
 parser.add_argument("--set", type=Path, required=True, help="set folder with manifest.json and <id>/demo.json")
@@ -41,6 +44,7 @@ from sim_worker.setrender import copy_case_files, must_fail, outcome_table, set_
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     root, cameras = Path(data_dir()), not args_cli.no_cameras
     manifest_bytes = (args_cli.set / "manifest.json").read_bytes()
     set_name = json.loads(manifest_bytes).get("name", args_cli.set.name)

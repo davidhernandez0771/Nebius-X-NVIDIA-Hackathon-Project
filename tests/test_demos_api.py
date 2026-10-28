@@ -481,3 +481,153 @@ def test_tagged_run_keeps_the_untagged_result_and_records_what_was_gated(store, 
     assert result["gated"] == gated
     assert result["issues_reported_by_model"] == 1  # 0 kept + 1 dropped by the gate
     assert result["nemotron"]["decision"] == "keep"
+
+
+# --- DELETE /demos/{id}: moves the demo to demos/_discarded, never deletes ---------------
+
+def test_delete_moves_the_demo_folder_under_discarded(demos_api, store, tmp_path):
+    _post(demos_api, _demo("human_1"))
+    _post(demos_api, _demo("human_2", minutes=1))
+    _write_episode(store, "human_1")
+
+    r = demos_api.delete("/demos/human_1")
+
+    assert r.status_code == 200
+    assert r.json() == {"id": "human_1", "discarded_to": "demos/_discarded/human_1"}
+    kept = tmp_path / "data" / "demos" / "_discarded" / "human_1"
+    assert (kept / "demo.json").is_file() and (kept / "episode" / "episode.json").is_file()
+    assert demos_api.get("/demos/human_1").status_code == 404
+    assert [d["id"] for d in demos_api.get("/demos").json()] == ["human_2"]
+    assert [d["id"] for d in demos_api.get("/demos", params={"source": "human"}).json()] == ["human_2"]
+
+
+def test_delete_missing_or_unsafe_or_reserved_id_is_404(demos_api):
+    assert demos_api.delete("/demos/nope").status_code == 404
+    assert demos_api.delete("/demos/bad.id").status_code == 404
+    _post(demos_api, _demo("human_1"))
+    demos_api.delete("/demos/human_1")
+    assert demos_api.delete("/demos/_discarded").status_code == 404
+    assert demos_api.delete("/demos/human_1").status_code == 404  # already discarded
+
+
+def test_delete_a_demo_other_demos_derive_from_is_409(demos_api, tmp_path):
+    _post(demos_api, _demo("human_1"))
+    _post(demos_api, _demo("variant_1", source="variant", parent_id="human_1", minutes=1))
+    r = demos_api.delete("/demos/human_1")
+    assert r.status_code == 409 and "variant_1" in r.json()["detail"]
+    assert demos_api.get("/demos/human_1").status_code == 200
+
+
+# --- PUT /demos/{id}/camera: the Record page's webcam video of the take ---------------------------------------
+
+WEBM = b"\x1a\x45\xdf\xa3" + b"\x00fake webm body" * 100
+
+
+def _timing(start=1000.0, frames=(1000.0, 1033.4, 1066.7, 1100.0), stop=1100.0, **over):
+    timing = {
+        "version": 1, "clock": "performance.now", "mime": "video/webm;codecs=vp9",
+        "start_ms": start, "stop_ms": stop, "record_start_ms": start - 12.5, "record_stop_ms": stop,
+        "frame_w": 640, "frame_h": 480,
+        "t_ms": list(frames), "video_s": [round((t - start) / 1000, 4) for t in frames],
+    }
+    return {**timing, **over}
+
+
+def _put_camera(api, demo_id="human_1", *, video=WEBM, timing=None, content_type="video/webm"):
+    return api.put(f"/demos/{demo_id}/camera",
+                   files={"video": ("camera.webm", video, content_type)},
+                   data={"timing": json.dumps(_timing() if timing is None else timing)})
+
+
+def test_camera_video_is_saved_beside_the_demo_with_its_timing(demos_api, tmp_path):
+    _post(demos_api, _demo("human_1"))
+
+    r = _put_camera(demos_api)
+
+    assert r.status_code == 200, r.text
+    assert r.json() == {"id": "human_1", "video": "demos/human_1/camera.webm", "bytes": len(WEBM), "frames": 4}
+    folder = tmp_path / "data" / "demos" / "human_1"
+    assert (folder / "camera.webm").read_bytes() == WEBM
+    saved = json.loads((folder / "camera.json").read_text(encoding="utf-8"))
+    assert saved["t_ms"] == [1000.0, 1033.4, 1066.7, 1100.0]
+    assert saved["video_s"] == [0.0, 0.0334, 0.0667, 0.1]  # (t_ms - start_ms) / 1000: lines up with the hand messages
+    assert not [p.name for p in folder.iterdir() if p.name.endswith(".tmp")]
+    assert demos_api.get("/demos/human_1").status_code == 200  # the demo itself is untouched
+
+
+def test_camera_video_put_again_replaces_it(demos_api, tmp_path):
+    _post(demos_api, _demo("human_1"))
+    _put_camera(demos_api)
+    again = WEBM + b"more"
+
+    assert _put_camera(demos_api, video=again, timing=_timing(frames=(1050.0,))).status_code == 200
+
+    folder = tmp_path / "data" / "demos" / "human_1"
+    assert (folder / "camera.webm").read_bytes() == again
+    assert json.loads((folder / "camera.json").read_text(encoding="utf-8"))["video_s"] == [0.05]
+
+
+def test_camera_video_goes_with_the_demo_when_it_is_discarded(demos_api, tmp_path):
+    _post(demos_api, _demo("human_1"))
+    _put_camera(demos_api)
+
+    demos_api.delete("/demos/human_1")
+
+    kept = tmp_path / "data" / "demos" / "_discarded" / "human_1"
+    assert (kept / "camera.webm").is_file() and (kept / "camera.json").is_file()
+
+
+def test_camera_video_for_a_missing_or_unsafe_demo_is_404(demos_api):
+    assert _put_camera(demos_api, "nope").status_code == 404
+    assert _put_camera(demos_api, "bad.id").status_code == 404
+    assert _put_camera(demos_api, "_discarded").status_code == 404
+
+
+@pytest.mark.parametrize("timing, why", [
+    (_timing(video_s=[0.0, 0.0334, 0.0667]), "3 video_s"),
+    (_timing(video_s=[0.0, 0.0334, 0.5, 0.1]), "video_s[2]"),  # doesn't line up with its t_ms
+    (_timing(frames=(1000.0, 1066.7, 1033.4, 1100.0)), "backwards"),
+    (_timing(frames=(990.0, 1033.4)), "outside the video"),
+    (_timing(stop=900.0, frames=()), "before start_ms"),
+    (_timing(clock="Date.now"), "clock"),
+    (_timing(extra=1), "extra"),
+])
+def test_camera_timing_that_doesnt_line_up_is_422(demos_api, tmp_path, timing, why):
+    _post(demos_api, _demo("human_1"))
+
+    r = _put_camera(demos_api, timing=timing)
+
+    assert r.status_code == 422
+    assert why in r.json()["detail"]
+    assert not (tmp_path / "data" / "demos" / "human_1" / "camera.webm").exists()
+
+
+def test_camera_timing_that_isnt_json_is_422(demos_api):
+    _post(demos_api, _demo("human_1"))
+    r = demos_api.put("/demos/human_1/camera", files={"video": ("camera.webm", WEBM, "video/webm")}, data={"timing": "{"})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("video, content_type, why", [
+    (WEBM, "video/mp4", "video/webm"),
+    (b"RIFF....AVI ", "video/webm", "isn't a webm"),
+    (b"", "video/webm", "empty"),
+])
+def test_camera_video_that_isnt_webm_is_422_and_leaves_nothing(demos_api, tmp_path, video, content_type, why):
+    _post(demos_api, _demo("human_1"))
+
+    r = _put_camera(demos_api, video=video, content_type=content_type)
+
+    assert r.status_code == 422
+    assert why in r.json()["detail"]
+    assert sorted(p.name for p in (tmp_path / "data" / "demos" / "human_1").iterdir()) == ["demo.json"]
+
+
+def test_camera_video_too_large_is_413_and_leaves_nothing(demos_api, tmp_path, monkeypatch):
+    monkeypatch.setattr("app.routers.demos.MAX_CAMERA_BYTES", 64)
+    _post(demos_api, _demo("human_1"))
+
+    r = _put_camera(demos_api)
+
+    assert r.status_code == 413
+    assert sorted(p.name for p in (tmp_path / "data" / "demos" / "human_1").iterdir()) == ["demo.json"]

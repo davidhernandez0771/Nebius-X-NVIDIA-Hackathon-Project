@@ -15,6 +15,9 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root, for `sim_worker`
+from sim_worker.own_code import check_own_code, put_own_code_first  # noqa: E402
+
+put_own_code_first()  # this checkout's src before the venv's editable install (it points at another worktree)
 
 from demo_pipeline.schemas import Demo, Pose, Scene  # noqa: E402
 from demo_pipeline.sim_protocol import MultiplyRequest, MultiplyResponse  # noqa: E402
@@ -33,6 +36,7 @@ args = parser.parse_args()
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
     if args.demo is not None:
         demo = Demo.model_validate_json(args.demo.read_text(encoding="utf-8"))
         traj, scene = demo.trajectory, demo.scene

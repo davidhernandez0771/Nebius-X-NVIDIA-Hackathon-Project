@@ -124,3 +124,31 @@ def test_assemble_writes_the_start_state_of_every_episode(multiply_eps, tmp_path
     out = assemble(Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps), tmp_path / "datasets")
     expected = [load_episode(Path(d))[1]["joint_pos"][0] for d in multiply_eps]
     np.testing.assert_allclose(load_starts(out), expected, rtol=1e-6)
+
+
+def test_a_label_names_the_cell(multiply_eps):
+    # Sprint 8: T2's 10 x 30 cell is also condition raw_multiply / n_human 10, like sprint 6's 10 x 10 cell.
+    cell = Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps, label="raw_multiply_2x2")
+    assert cell.name == "raw_multiply_2x2"
+    assert build_manifest(cell)["cell"]["name"] == "raw_multiply_2x2"
+    for bad in ("", "has space", "../up"):
+        with pytest.raises(ValidationError):
+            Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps, label=bad)
+
+
+def test_recovery_roots_are_not_human_demos(multiply_eps, tmp_path):
+    # Grasp fix run 2: recovery copies (sim_worker.recovery) start at a policy's own rollout state and the expert
+    # finishes from it; their lineage root "recovery-<policy cell>" is no human demo and must not use up n_human.
+    rec = [make_episode(tmp_path / "rec", "rec_5203_on_top", ["recovery-centered_10x10", "rec_5203_on_top"]),
+           make_episode(tmp_path / "rec", "rec_5204_hover_enter", ["recovery-centered_10x10", "rec_5204_hover_enter"])]
+    m = build_manifest(Cell(condition="raw_multiply", n_human=2, episode_dirs=multiply_eps + rec))
+    assert m["human_roots"] == ["h0", "h1"] and m["recovery_roots"] == ["recovery-centered_10x10"]
+    assert m["n_recovery_episodes"] == 2 and m["n_episodes"] == 7
+    with pytest.raises(ValueError, match="2 human demos .* n_human=1"):
+        build_manifest(Cell(condition="raw_multiply", n_human=1, episode_dirs=multiply_eps + rec))
+
+
+def test_a_cell_of_recovery_copies_only_is_refused(tmp_path):
+    rec = [make_episode(tmp_path / "rec", "rec_1", ["recovery-x", "rec_1"])]
+    with pytest.raises(ValueError, match="no human demo"):
+        build_manifest(Cell(condition="raw_multiply", n_human=1, episode_dirs=rec))

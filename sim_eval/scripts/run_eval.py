@@ -12,6 +12,12 @@ states come from --start-state (a dataset root with start_state.json) or from th
 With --cell, eval_success is written into that cell's row of DATA_DIR/results/registry.jsonl (matched by the
 checkpoint the server reports). Results go to DATA_DIR/evals/<cell>_<timestamp>.json unless --out is given.
 The last stdout line is "RESULT_JSON {...summary...}".
+
+Inference options (lerobot_tools.inference; all off by default): --binarize-gripper is applied here, to every action
+before the sim; --n-action-steps / --temporal-ensemble must match what the policy server was started with (its
+/health says), or this refuses to start. The results, the episode log header and the registry row record them.
+--row-checkpoint: the registry row (and start state) to use is the one trained to this checkpoint, though the server
+serves another of its saved checkpoints (a practice-seed selection's choice, recorded with --selection).
 """
 
 import argparse
@@ -28,8 +34,11 @@ REPO = Path(__file__).resolve().parents[2]
 # This worktree's demo_pipeline (src/) and sim_worker/sim_eval/lerobot_tools (root) go first: the Isaac env has an
 # editable demo_pipeline from C:\dev\pm-t2, which is being changed while we evaluate.
 sys.path[:0] = [str(REPO / "src"), str(REPO)]
+from sim_worker.own_code import check_own_code  # noqa: E402
 
 from isaaclab.app import add_launcher_args, launch_simulation  # noqa: E402
+
+from lerobot_tools.inference import InferenceOptions, add_inference_args, served_problems, wrap_gripper  # noqa: E402
 
 parser = argparse.ArgumentParser(description="Evaluate a served policy on seeded test scenes.")
 parser.add_argument("--checkpoint-url", default="http://127.0.0.1:8765", help="policy server URL")
@@ -38,6 +47,8 @@ parser.add_argument("--train-episodes", type=Path, nargs="*", default=[],
                     help="recorded training episode dirs: also evaluate on their scenes, from their own start pose")
 parser.add_argument("--record-seeds", type=int, nargs="*", default=[], help="save camera frames for these seeds")
 parser.add_argument("--record-every", type=int, default=5, help="keep every k-th frame of recorded seeds")
+parser.add_argument("--trace", action="store_true",
+                    help="save every control step of every episode (actions, joints, cube, contacts) to <out>_traces/")
 parser.add_argument("--seed0", type=int, default=5000, help="first test-scene seed (>= 5000)")
 parser.add_argument("--cell", default=None, help="experiment cell name; writes eval_success into the registry")
 parser.add_argument("--cameras", action="store_true", help="render front + wrist 128x128 (needed by image policies)")
@@ -52,10 +63,18 @@ parser.add_argument("--start-state", type=Path, default=None,
 parser.add_argument("--resume", action="store_true",
                     help="continue the run whose per-episode log sits next to --out (needs --out)")
 parser.add_argument("--num_envs", type=int, default=1, help="must be 1")
+add_inference_args(parser)
+parser.add_argument("--row-checkpoint", default=None,
+                    help="the registry row's checkpoint when the server serves another of that row's checkpoints")
+parser.add_argument("--selection", type=Path, default=None, help="the practice-seed selection that chose the checkpoint")
 add_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.num_envs != 1:
     parser.error("--num_envs must be 1")
+try:
+    inference = InferenceOptions.from_args(args_cli)
+except ValueError as e:
+    parser.error(str(e))
 if args_cli.resume and args_cli.out is None:
     parser.error("--resume needs --out (the per-episode log is <out>.episodes.jsonl)")
 if args_cli.cameras:
@@ -70,13 +89,14 @@ from sim_eval.report import (  # noqa: E402
     default_results_path,
     episode_log_path,
     group_summaries,
+    gpu_pids,
     isaac_gate,
     preflight,
     python_processes,
     resolve_start,
     write_results,
 )
-from sim_eval.recording import FrameRecorder  # noqa: E402
+from sim_eval.recording import FrameRecorder, StepTracer  # noqa: E402
 from sim_eval.results import aggregate  # noqa: E402
 from sim_eval.scenes import scene_plan  # noqa: E402
 from sim_eval.retry import RetryingPolicy  # noqa: E402
@@ -116,6 +136,10 @@ class VramPoller(threading.Thread):
 
 
 def main() -> None:
+    check_own_code()  # logs where demo_pipeline came from; stops if not this checkout
+    from sim_worker.teleop_qos import full_speed
+
+    full_speed()  # out of Windows power throttling (per process: a child does not inherit it)
     t0 = time.time()
     client = PolicyClient(args_cli.checkpoint_url, timeout=60)
     try:
@@ -123,15 +147,15 @@ def main() -> None:
     except PolicyServerError as e:
         print(f"[eval] policy server not reachable: {e}", flush=True)
         sys.exit(2)
-    problems = preflight(health, cameras=args_cli.cameras, image_size=IMAGE_SIZE)
+    problems = preflight(health, cameras=args_cli.cameras, image_size=IMAGE_SIZE) + served_problems(inference, health)
     if problems:
         print("[eval] refusing to start:\n  " + "\n  ".join(problems), flush=True)
         sys.exit(2)
     registry = args_cli.registry or data_dir() / "results" / "registry.jsonl"
+    row_checkpoint = args_cli.row_checkpoint or health.get("checkpoint")
     try:
         start_pose, start_check = resolve_start(args_cli.start_pose, start_state=args_cli.start_state,
-                                                registry=registry, cell=args_cli.cell,
-                                                checkpoint=health.get("checkpoint"))
+                                                registry=registry, cell=args_cli.cell, checkpoint=row_checkpoint)
     except FileNotFoundError as e:
         print(f"[eval] refusing to start: --start-pose dataset but {e}", flush=True)
         sys.exit(2)
@@ -142,7 +166,7 @@ def main() -> None:
     else:
         print(f"[eval] start pose: default (start-state check unavailable: {start_check['reason']})", flush=True)
     free_mib = VramPoller.read_free_mib()
-    gate_ok, gate = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib)
+    gate_ok, gate = isaac_gate(python_processes(), own_pid=os.getpid(), free_mib=free_mib, gpu_pids=gpu_pids())
     print(f"[eval] Isaac gate: {'ok' if gate_ok else 'REFUSED'}; other Isaac processes {gate['other_isaac']}; "
           f"GPU free {free_mib} MiB (need >= {gate['min_free_mib']})", flush=True)
     if not gate_ok:
@@ -152,7 +176,8 @@ def main() -> None:
     out = args_cli.out or default_results_path(data_dir(), args_cli.cell)
     header = {"checkpoint": health.get("checkpoint"), "seed0": args_cli.seed0, "max_seconds": args_cli.max_seconds,
               "cameras": args_cli.cameras, "reset_pose": start_pose, "n": args_cli.n, "cell": args_cli.cell,
-              "start_poses": {str(k): v for k, v in start_poses.items()} or None}
+              "start_poses": {str(k): v for k, v in start_poses.items()} or None,
+              "inference": None if inference.is_default else inference.record()}
     try:
         episode_log, done = EpisodeLog.open(episode_log_path(out), header, resume=args_cli.resume)
         scenes = remaining(all_scenes, done)
@@ -167,9 +192,12 @@ def main() -> None:
         "seed0": args_cli.seed0, "max_seconds": args_cli.max_seconds, "cameras": args_cli.cameras,
         "started": datetime.now(timezone.utc).isoformat(timespec="seconds"), "start_check": start_check,
         "gate": gate, "episode_log": str(episode_log.path), "resumed_episodes": len(done),
+        "inference": {**inference.record(), "served": health.get("inference")},
+        "row_checkpoint": args_cli.row_checkpoint, "selection": str(args_cli.selection) if args_cli.selection else None,
     }
     print(f"[eval] policy {health.get('checkpoint')} ({health.get('policy_type')}, {health.get('device')}); "
-          f"{len(all_scenes)} scenes {groups}; cameras={args_cli.cameras}", flush=True)
+          f"{len(all_scenes)} scenes {groups}; cameras={args_cli.cameras}; inference {inference.record()}",
+          flush=True)
 
     vram_baseline = VramPoller.read_mib()
     poller = VramPoller()
@@ -185,15 +213,20 @@ def main() -> None:
             env = FrameRecorder(env, args_cli.record_seeds, frames_dir, every=args_cli.record_every)
             print(f"[eval] recording seeds {args_cli.record_seeds} every {args_cli.record_every} steps to {frames_dir}",
                   flush=True)
+        if args_cli.trace:
+            traces_dir = out.with_name(out.stem + "_traces")
+            env = StepTracer(env, None, traces_dir)
+            print(f"[eval] tracing every step of every episode to {traces_dir}", flush=True)
         build_s = time.time() - t_build
         print(f"[eval] scene built in {build_s:.1f} s; joints {env.joint_names}", flush=True)
 
-        policy = RetryingPolicy(client)  # absorbs Windows loopback connection resets; see sim_eval/retry.py
+        retrying = RetryingPolicy(client)  # absorbs Windows loopback connection resets; see sim_eval/retry.py
+        policy = wrap_gripper(retrying, inference)
         retries_per_episode = []
 
         def progress(i, ep):
             episode_log.append(ep)  # durable before the next episode starts
-            retries_per_episode.append(policy.retries - sum(retries_per_episode))
+            retries_per_episode.append(retrying.retries - sum(retries_per_episode))
             print(f"[eval] {i + 1}/{len(scenes)} seed={ep.seed} success={ep.success} ended_by={ep.ended_by} "
                   f"steps={ep.steps} sim_s={ep.sim_s:.2f} wall_s={ep.wall_s:.1f} reasons={ep.reasons} "
                   f"retries={retries_per_episode[-1]}" + (f" error={ep.error}" if ep.error else ""), flush=True)
@@ -201,7 +234,7 @@ def main() -> None:
         new = []
         if scenes:
             new, _ = evaluate(env, policy, scenes, on_episode=progress, max_seconds=args_cli.max_seconds)
-        if isinstance(env, FrameRecorder):
+        if isinstance(env, (FrameRecorder, StepTracer)):
             env.close()
         poller.stop()
         episodes = sorted([*done, *new], key=lambda e: e.seed)
@@ -218,8 +251,12 @@ def main() -> None:
         )
         if args_cli.cell and not args_cli.no_registry:
             try:
-                n = update_registry(registry, args_cli.cell, summary, seed0=args_cli.seed0,
-                                    checkpoint=health.get("checkpoint"), results_file=str(out))
+                extra = {"inference": inference.record()}
+                if args_cli.row_checkpoint:
+                    extra.update(evaluated_checkpoint=health.get("checkpoint"),
+                                 selection=str(args_cli.selection) if args_cli.selection else None)
+                n = update_registry(registry, args_cli.cell, summary, seed0=args_cli.seed0, checkpoint=row_checkpoint,
+                                    results_file=str(out), extra=extra)
                 run["registry"] = {"path": str(registry), "rows_updated": n}
             except (LookupError, ValueError, FileNotFoundError) as e:
                 run["registry"] = {"path": str(registry), "rows_updated": 0, "error": f"{type(e).__name__}: {e}"}

@@ -1,0 +1,209 @@
+"""Train the RL teacher: Isaac Lab's own rsl_rl trainer (scripts/reinforcement_learning/train.py) on SANT's env
+(sim_worker/rl_register.py), with the GPU lock, Isaac's gate and KeepAwake, as every SANT GPU stage.
+
+    uv run --no-sync python scripts/rl_train.py --smoke                      # 64 envs x 20 iterations (~5 min)
+    uv run --no-sync python scripts/rl_train.py --run-name demo_v1           # 4096 envs x 1500 iterations
+    uv run --no-sync python scripts/rl_train.py --run-name nodemo_v1 --no-demos   # the "RL without demos" arm
+    ... --checkpoint <run dir or model_<i>.pt>      # resume
+    ... --override env.events.reset_scene.params.demo_prob=0.8   # Hydra overrides, repeatable (env.* / agent.*)
+
+The gated teacher (demo_v6c2 model_2098, replay 50/50 on 5350-5399) as two named presets:
+    uv run --no-sync python scripts/rl_train.py --preset teacher_v6                 # stage 1: 1500 iterations
+    uv run --no-sync python scripts/rl_train.py --preset teacher_v6c2 --checkpoint <stage 1 run>/model_1499.pt
+    uv run --no-sync python scripts/rl_train.py --preset teacher_v6h --checkpoint <demo_v6c2 run>/model_2098.pt
+                                                        # A': stage 2 again, executed as the student (held targets)
+Stage 2 first copies the checkpoint with the motion std reset to 0.3 (scripts/rl_checkpoint_std.py, CPU) into
+data/rl/resume/<run-name>/, then resumes from the copy with the speed cap for 600 iterations.
+
+Logs and checkpoints land in data/rl/logs/rsl_rl/<experiment>/<timestamp>_<run-name>/ (model_<i>.pt every 50
+iterations, TensorBoard events; data/ is gitignored); the trainer's console goes to data/rl/<run-name>.log too.
+Metrics/check_success there is the unchanged check_success on every 8th environment's episodes.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(REPO / "src"), str(REPO)]
+
+ISAACLAB = Path(os.environ.get("ISAACLAB", r"C:\isaac\IsaacLab"))
+ISAAC_PY = Path(os.environ.get("ISAAC_PY", r"C:\isaac\env_isaaclab\Scripts\python.exe"))
+WORKDIR = REPO / "data" / "rl"
+BANK = WORKDIR / "bank_mouse20261020.npz"
+TASKS = {True: "SANT-PickPlace-Franka-RL-v0", False: "SANT-PickPlace-Franka-RL-NoDemo-v0"}
+LIFT_TASK = "SANT-PickPlace-Franka-RL-Lift-v0"  # --reward lift: the stock-lift reward preset (with demo starts)
+SMOKE = {"num_envs": 64, "max_iterations": 20}
+FULL = {"num_envs": 4096, "max_iterations": 1500}
+
+V6C2_OVERRIDES = ["env.events.reset_scene.params.held_grace_steps=10",
+                  "env.events.reset_scene.params.curriculum_start=0.0",  # both curricula held at their end
+                  "env.events.reset_scene.params.uniform_share=0.5", "env.rewards.action_rate.weight=-0.1",
+                  "env.rewards.joint_vel.weight=-0.1", "agent.actor.distribution_cfg.std_range=[0.1,0.5]",
+                  "agent.algorithm.entropy_coef=0.005", "env.actions.gripper_action.deadband=0.25"]
+
+# The gated RL teacher (2026-10-21, docs/superpowers/notes/2026-10-21-rl-teacher-gate.md): the commands demo_v6 and
+# demo_v6c2 ran, word for word. Stage 1 trained before the speed cap existed, so it turns the (now default) cap off;
+# stage 2 resumes stage 1's last checkpoint with its motion std reset to resume_std and the cap at its defaults
+# (0.5 m/s, 2.5 rad/s). A from-scratch run with the cap on is untested.
+PRESETS = {
+    "teacher_v6": {
+        "reward": "lift", "max_iterations": 1500, "resume_std": None,
+        "overrides": ["env.events.reset_scene.params.held_grace_steps=10",
+                      "env.events.reset_scene.params.curriculum_steps=24000",
+                      "env.events.reset_scene.params.uniform_share=0.5", "agent.actor.distribution_cfg.init_std=0.6",
+                      "agent.actor.distribution_cfg.std_range=[0.3,1.0]", "agent.algorithm.entropy_coef=0.005",
+                      "env.actions.gripper_action.deadband=0.25",
+                      "env.actions.arm_action.v_max=0.0", "env.actions.arm_action.yaw_rate_max=0.0"],
+    },
+    "teacher_v6c2": {
+        "reward": "lift", "max_iterations": 600, "resume_std": 0.3,
+        "overrides": V6C2_OVERRIDES,
+    },
+    # A' (2026-10-21, after round 0's student scored 0/30 on the execution mismatch): demo_v6c2 fine-tuned with the
+    # arm executed as the student is (held_target: one IK solve per control step, held, zero velocity target), from
+    # demo_v6c2's model_2098 with the same std reset and settings.
+    "teacher_v6h": {
+        "reward": "lift", "max_iterations": 600, "resume_std": 0.3,
+        "overrides": [*V6C2_OVERRIDES, "env.actions.arm_action.held_target=True"],
+    },
+}
+
+
+def merge_overrides(base: list[str], extra: list[str]) -> list[str]:
+    """base with extra on top: an extra override replaces base's on the same key (Hydra refuses a key twice)."""
+    keys = {o.split("=", 1)[0] for o in extra}
+    return [o for o in base if o.split("=", 1)[0] not in keys] + list(extra)
+
+
+def std_command(checkpoint: Path, std: float, out: Path) -> list[str]:
+    """scripts/rl_checkpoint_std.py: a copy of checkpoint with the motion std set (a resume loads the checkpoint's)."""
+    return [str(ISAAC_PY), str(REPO / "scripts" / "rl_checkpoint_std.py"), "--checkpoint", str(checkpoint),
+            "--std", str(std), "--out", str(out)]
+
+
+def train_command(*, demos: bool, num_envs: int, max_iterations: int, run_name: str, checkpoint: str | None = None,
+                  overrides: list[str] = (), viz: bool = False, reward: str = "potential",
+                  fresh_optimizer: bool = False) -> list[str]:
+    """The trainer's command line. reward: "potential" (the default) or "lift" (the stock-lift preset, demo starts)."""
+    if reward == "lift" and not demos:
+        raise ValueError("the lift preset is registered with demo starts only")
+    task = LIFT_TASK if reward == "lift" else TASKS[demos]
+    cmd = [str(ISAAC_PY), str(ISAACLAB / "scripts" / "reinforcement_learning" / "train.py"), "--rl_library", "rsl_rl",
+           "--task", task, "--external_callback", "sim_worker.rl_register.register",
+           "--num_envs", str(num_envs), "--max_iterations", str(max_iterations), "--run_name", run_name]
+    if checkpoint:
+        # the trainer runs in data/rl: a path that exists from here goes absolute (selectors pass as given)
+        cmd += ["--checkpoint", str(Path(checkpoint).resolve()) if Path(checkpoint).exists() else str(checkpoint)]
+        if fresh_optimizer:
+            cmd += ["--no-resume_optimizer_state"]
+    if viz:
+        cmd += ["--viz", "kit"]
+    return cmd + list(overrides)
+
+
+def stock_command(task: str, *, num_envs: int, max_iterations: int, run_name: str, overrides: list[str] = (),
+                  viz: bool = False) -> list[str]:
+    """An unchanged Isaac Lab task (no SANT callback): the sanity run that RL itself learns on this machine."""
+    cmd = [str(ISAAC_PY), str(ISAACLAB / "scripts" / "reinforcement_learning" / "train.py"), "--rl_library", "rsl_rl",
+           "--task", task, "--num_envs", str(num_envs), "--max_iterations", str(max_iterations),
+           "--run_name", run_name]
+    if viz:
+        cmd += ["--viz", "kit"]
+    return cmd + list(overrides)
+
+
+def child_env() -> dict:
+    """This checkout's code first (the Isaac venv's editable install points at another worktree)."""
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    # utf-8: Isaac Lab's loading screen prints box-drawing characters, and a piped stdout is cp1252 on Windows
+    # (the first smoke run, 2026-10-21, died there)
+    env.update(PYTHONPATH=f"{REPO};{REPO / 'src'}", PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+    return env
+
+
+def _gpu_stage(log):
+    path = REPO / "scripts" / "run_human_demo_experiment.py"
+    spec = importlib.util.spec_from_file_location("run_human_demo_experiment", path)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod.make_gpu_stage(log)
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--smoke", action="store_true", help="64 envs x 20 iterations: does it run, how fast")
+    p.add_argument("--preset", choices=sorted(PRESETS), default=None,
+                   help="a named recipe (PRESETS): its reward, iterations and overrides; --override adds to them")
+    p.add_argument("--run-name", default=None)
+    p.add_argument("--no-demos", action="store_true", help="home starts only: the RL-without-demos control arm")
+    p.add_argument("--stock-task", default=None,
+                   help="train an unchanged Isaac Lab task instead (its own env and PPO config), e.g. the sanity run "
+                        "IsaacContrib-Lift-Cube-Franka; with the lock and logging as ours")
+    p.add_argument("--reward", choices=("potential", "lift"), default="potential",
+                   help="the reward preset: potential (default) or lift (Isaac Lab's stock lift + our parts)")
+    p.add_argument("--num-envs", type=int, default=None)
+    p.add_argument("--max-iterations", type=int, default=None)
+    p.add_argument("--checkpoint", default=None, help="resume from this run dir or model_<i>.pt")
+    p.add_argument("--fresh-optimizer", action="store_true",
+                   help="load the checkpoint's models but a new optimizer (Isaac Lab's --no-resume_optimizer_state): "
+                        "for a BC checkpoint (scripts/rl_bc_pretrain.py), which has none")
+    p.add_argument("--override", action="append", default=[], help="a Hydra override, e.g. agent.algorithm.gamma=0.995")
+    p.add_argument("--viz", action="store_true", help="open Kit's window (slower; Isaac runs headless by default)")
+    p.add_argument("--dry-run", action="store_true", help="print the command and exit")
+    args = p.parse_args(argv)
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # it echoes the trainer's Unicode, maybe into a file
+    preset = PRESETS[args.preset] if args.preset else None
+    if preset and (args.stock_task or args.no_demos):
+        p.error("--preset is a SANT lift recipe with demo starts: not with --stock-task or --no-demos")
+    size = {**(SMOKE if args.smoke else FULL)}
+    if preset and not args.smoke:
+        size["max_iterations"] = preset["max_iterations"]
+    if args.num_envs:
+        size["num_envs"] = args.num_envs
+    if args.max_iterations:
+        size["max_iterations"] = args.max_iterations
+    run = args.run_name or ("smoke" if args.smoke else args.preset or "run")
+    overrides, reward, checkpoint, std_cmd = args.override, args.reward, args.checkpoint, None
+    if preset:
+        overrides, reward = merge_overrides(preset["overrides"], args.override), preset["reward"]
+        if preset["resume_std"] is not None:
+            if not (args.checkpoint and Path(args.checkpoint).is_file()):
+                p.error(f"--preset {args.preset} resumes stage 1: give --checkpoint <stage 1 run>/model_<i>.pt")
+            checkpoint = WORKDIR / "resume" / run / Path(args.checkpoint).name
+            std_cmd = std_command(Path(args.checkpoint).resolve(), preset["resume_std"], checkpoint)
+            print(" ".join(std_cmd))
+    if args.stock_task:
+        cmd = stock_command(args.stock_task, run_name=run, overrides=overrides, viz=args.viz, **size)
+    else:
+        cmd = train_command(demos=not args.no_demos, run_name=run, checkpoint=checkpoint and str(checkpoint),
+                            overrides=overrides, viz=args.viz, reward=reward,
+                            fresh_optimizer=args.fresh_optimizer, **size)
+    print(" ".join(cmd))
+    if args.dry_run:
+        return 0
+    if std_cmd:
+        subprocess.run(std_cmd, cwd=REPO, env=child_env(), check=True)  # CPU only: before the GPU lock
+    if not args.stock_task and not args.no_demos and not BANK.is_file():
+        p.error(f"no demo-start bank at {BANK}: run scripts/rl_demo_bank.py first (see the note)")
+    WORKDIR.mkdir(parents=True, exist_ok=True)
+    log_path = WORKDIR / f"{run}.log"
+    with log_path.open("a", encoding="utf-8") as f, _gpu_stage(print)(f"rl-teacher:{run}"):
+        f.write(" ".join(cmd) + "\n")
+        f.flush()
+        proc = subprocess.Popen(cmd, cwd=WORKDIR, env=child_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, encoding="utf-8", errors="replace")
+        for line in proc.stdout:  # the console, and the log
+            sys.stdout.write(line)
+            f.write(line)
+        return proc.wait()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

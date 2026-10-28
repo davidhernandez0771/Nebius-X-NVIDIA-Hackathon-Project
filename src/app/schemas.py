@@ -108,3 +108,21 @@ class ChatOut(BaseModel):
     action: str
     result: str
     est_cost_usd: float
+
+
+class AskTool(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    description: str = Field(max_length=300)
+    values: list[str] | None = Field(default=None, max_length=64)
+
+
+class AskIn(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    tools: list[AskTool] = Field(min_length=1, max_length=12)
+
+
+class AskOut(BaseModel):
+    tool: str | None
+    arg: str | None
+    reply: str
+    est_cost_usd: float

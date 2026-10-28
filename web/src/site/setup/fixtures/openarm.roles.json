@@ -1,0 +1,86 @@
+{
+ "roles": {
+  "base": "openarm_link0",
+  "arm_joints": [
+   "openarm_joint1",
+   "openarm_joint2",
+   "openarm_joint3",
+   "openarm_joint4",
+   "openarm_joint5",
+   "openarm_joint6",
+   "openarm_joint7"
+  ],
+  "hand": "openarm_link7",
+  "gripper_joints": [
+   "openarm_finger_joint1",
+   "openarm_finger_joint2"
+  ],
+  "tcp_offset": null,
+  "gripper_open": null,
+  "gripper_closed": null,
+  "mount": {
+   "pos": [
+    0.2,
+    0.0,
+    0.25
+   ]
+  },
+  "start_joint_pos": null
+ },
+ "spec": {
+  "name": "byor_790916a678",
+  "ik_link": "openarm_link7",
+  "arm_joints": [
+   "openarm_joint1",
+   "openarm_joint2",
+   "openarm_joint3",
+   "openarm_joint4",
+   "openarm_joint5",
+   "openarm_joint6",
+   "openarm_joint7"
+  ],
+  "finger_joints": [
+   "openarm_finger_joint1"
+  ],
+  "passive_finger_joints": [
+   "openarm_finger_joint2"
+  ],
+  "gripper_open": 0.0439999998,
+  "gripper_closed": 0.0,
+  "tcp_offset": [
+   0.0,
+   0.0,
+   0.1931
+  ],
+  "hand_in_tool_wxyz": [
+   0.0,
+   0.0,
+   0.0,
+   1.0
+  ],
+  "base_pos": [
+   0.2,
+   0.0,
+   0.25
+  ],
+  "start_joint_pos": {
+   "openarm_joint1": 0.629621,
+   "openarm_joint2": -0.368205,
+   "openarm_joint3": -0.35948,
+   "openarm_joint4": 1.607138,
+   "openarm_joint5": -0.297911,
+   "openarm_joint6": 0.300824,
+   "openarm_joint7": -1.402014,
+   "openarm_finger_joint1": 0.044,
+   "openarm_finger_joint2": 0.044
+  },
+  "sources": {
+   "ik_link": "openarm_link7 is the last arm link",
+   "tcp_offset": "link openarm_ee_tcp: a fixed child of the hand named like a tool point",
+   "gripper": "the limit with the fingers farther apart is open (openarm_finger_joint1 0.0439999998); the other limit is closed",
+   "start_joint_pos": "IK for the tool at (0.45, 0, 0.35) pointing down, from the middle of each joint's range: residual 0.0 mm, 0.000 rad"
+  }
+ },
+ "issues": [],
+ "ready": true
+}

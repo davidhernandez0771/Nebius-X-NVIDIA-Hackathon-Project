@@ -22,7 +22,7 @@ from app.jobs import (
 )
 from app.sim_client import SimWorkerBusy, SimWorkerError, SimWorkerUnavailable
 from demo_pipeline import PIPELINE_VERSION
-from demo_pipeline.rules import TASK_TEXT
+from demo_pipeline.rules import TASK_TEXT, detect_rules
 from demo_pipeline.schemas import Demo, Diagnosis, Pose, Scene, SimSignals, Trajectory
 from demo_pipeline.store import DemoStore
 from fake_sim_worker import FakeSim, InlineExecutor, frame_bytes, verification
@@ -666,3 +666,21 @@ def test_rediagnosis_measures_the_grasp_on_the_failed_replays_signals(store, tmp
     with patch("app.jobs.diagnose_hybrid", side_effect=hybrid):
         _perfect(store, sim, diagnoser="hybrid")
     assert seen == [pytest.approx(0.5), pytest.approx(0.55)]
+
+
+def test_rules_see_the_verdict_the_replay_signals_and_the_scene(store, tmp_path):
+    # release_above_bin and recenter_grasp come from the replay's contacts and cube track, not the trajectory alone
+    store.save_demo(_demo())
+    seen = []
+    real = detect_rules
+
+    def spy(traj, windows, *a, **kw):
+        seen.append(kw)
+        return real(traj, windows, *a, **kw)
+
+    sim = FakeSim(tmp_path / "worker", results=[verification(False, reasons=["collision"]), verification()])
+    with patch("app.jobs.detect_rules", spy):
+        _perfect(store, sim)
+    assert seen and seen[0]["reasons"] == ["collision"]
+    assert seen[0]["scene"] == store.get_demo("human_1").scene
+    assert seen[0]["signals"] is not None and seen[0]["signals"].n_steps == len(store.get_demo("human_1").trajectory.t)

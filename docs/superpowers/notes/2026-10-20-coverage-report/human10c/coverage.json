@@ -1,0 +1,638 @@
+{
+ "takes_per_scene": 2,
+ "scenes": {
+  "s1": {
+   "name": "S1 Standard",
+   "in_eval": true,
+   "outside": [],
+   "takes": 10,
+   "raw_verified": 0,
+   "repaired_verified": 3,
+   "verified_takes": 3,
+   "variants": 30,
+   "variants_verified": 24,
+   "grasp": {
+    "takes": {
+     "n": 10,
+     "swoops": 10,
+     "frames_in_3cm_median": 12.5,
+     "close_speed_median_m_s": 0.2287
+    },
+    "verified_episodes": {
+     "n": 27,
+     "swoops": 27,
+     "frames_in_3cm_median": 12,
+     "close_speed_median_m_s": 0.1535
+    }
+   },
+   "spread": {
+    "cube_x": [
+     0.418,
+     0.598
+    ],
+    "cube_y": [
+     -0.191,
+     0.185
+    ],
+    "cube_face_yaw": [
+     -37.484,
+     43.849
+    ],
+    "bin_x": [
+     0.418,
+     0.647
+    ],
+    "bin_y": [
+     -0.285,
+     0.3
+    ]
+   }
+  },
+  "s2": {
+   "name": "S2 Cube at the edge of reach",
+   "in_eval": false,
+   "outside": [
+    "cube x 0.63 (eval 0.4 to 0.6)",
+    "cube y -0.26 (eval -0.2 to 0.2)"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s3": {
+   "name": "S3 Bin turned, other side",
+   "in_eval": false,
+   "outside": [
+    "bin turned 90 degrees"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s4": {
+   "name": "S4 Small cube",
+   "in_eval": false,
+   "outside": [
+    "4 cm cube"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s5": {
+   "name": "S5 Large cube",
+   "in_eval": false,
+   "outside": [
+    "6 cm cube"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s6": {
+   "name": "S6 Cube turned 35 degrees",
+   "in_eval": true,
+   "outside": [],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s7": {
+   "name": "S7 Yellow distractor",
+   "in_eval": false,
+   "outside": [
+    "1 more object"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  },
+  "s8": {
+   "name": "S8 Taller bin",
+   "in_eval": false,
+   "outside": [
+    "bin walls 11 cm (eval 8 cm)"
+   ],
+   "takes": 0,
+   "raw_verified": 0,
+   "repaired_verified": 0,
+   "verified_takes": 0,
+   "variants": 0,
+   "variants_verified": 0,
+   "grasp": {
+    "takes": {
+     "n": 0
+    },
+    "verified_episodes": {
+     "n": 0
+    }
+   },
+   "spread": {}
+  }
+ },
+ "unassigned": [],
+ "pool": {
+  "n": 27,
+  "episodes": [
+   "human_20261019185258_9f47_rules_home",
+   "human_20261019185258_9f47_rules_home_m3309",
+   "human_20261019185258_9f47_rules_home_m3308",
+   "human_20261019185258_9f47_rules_home_m3306",
+   "human_20261019185258_9f47_rules_home_m3304",
+   "human_20261019185258_9f47_rules_home_m3303",
+   "human_20261019185258_9f47_rules_home_m3301",
+   "human_20261019185503_a029_rules_home",
+   "human_20261019185503_a029_rules_home_m3509",
+   "human_20261019185503_a029_rules_home_m3507",
+   "human_20261019185503_a029_rules_home_m3506",
+   "human_20261019185503_a029_rules_home_m3505",
+   "human_20261019185503_a029_rules_home_m3504",
+   "human_20261019185503_a029_rules_home_m3503",
+   "human_20261019185503_a029_rules_home_m3502",
+   "human_20261019185503_a029_rules_home_m3501",
+   "human_20261019185503_a029_rules_home_m3500",
+   "human_20261019185902_c045_rules_home",
+   "human_20261019185902_c045_rules_home_m3909",
+   "human_20261019185902_c045_rules_home_m3908",
+   "human_20261019185902_c045_rules_home_m3907",
+   "human_20261019185902_c045_rules_home_m3906",
+   "human_20261019185902_c045_rules_home_m3904",
+   "human_20261019185902_c045_rules_home_m3903",
+   "human_20261019185902_c045_rules_home_m3902",
+   "human_20261019185902_c045_rules_home_m3901",
+   "human_20261019185902_c045_rules_home_m3900"
+  ]
+ },
+ "eval": {
+  "n": 40,
+  "seeds": [
+   5020,
+   5059
+  ],
+  "axes": {
+   "cube_x": [
+    {
+     "lo": 0.4,
+     "hi": 0.45,
+     "eval": 11,
+     "pool": 3,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.45,
+     "hi": 0.5,
+     "eval": 9,
+     "pool": 6,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.55,
+     "eval": 11,
+     "pool": 13,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.55,
+     "hi": 0.6,
+     "eval": 9,
+     "pool": 5,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "cube_y": [
+    {
+     "lo": -0.2,
+     "hi": -0.1,
+     "eval": 11,
+     "pool": 6,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -0.1,
+     "hi": 0.0,
+     "eval": 3,
+     "pool": 3,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "eval": 9,
+     "pool": 9,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.2,
+     "eval": 17,
+     "pool": 9,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "cube_face_yaw": [
+    {
+     "lo": -45.0,
+     "hi": -30.0,
+     "eval": 4,
+     "pool": 4,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -30.0,
+     "hi": -15.0,
+     "eval": 4,
+     "pool": 3,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -15.0,
+     "hi": 0.0,
+     "eval": 9,
+     "pool": 8,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.0,
+     "hi": 15.0,
+     "eval": 7,
+     "pool": 6,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 15.0,
+     "hi": 30.0,
+     "eval": 9,
+     "pool": 2,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 30.0,
+     "hi": 45.0,
+     "eval": 7,
+     "pool": 4,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "bin_x": [
+    {
+     "lo": 0.4,
+     "hi": 0.45,
+     "eval": 8,
+     "pool": 3,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.45,
+     "hi": 0.5,
+     "eval": 7,
+     "pool": 3,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.5,
+     "hi": 0.55,
+     "eval": 8,
+     "pool": 9,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.55,
+     "hi": 0.6,
+     "eval": 11,
+     "pool": 1,
+     "gap": false,
+     "thin": true
+    },
+    {
+     "lo": 0.6,
+     "hi": 0.65,
+     "eval": 6,
+     "pool": 11,
+     "gap": false,
+     "thin": false
+    }
+   ],
+   "bin_y": [
+    {
+     "lo": -0.3,
+     "hi": -0.2,
+     "eval": 20,
+     "pool": 13,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -0.2,
+     "hi": -0.1,
+     "eval": 6,
+     "pool": 2,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": -0.1,
+     "hi": 0.0,
+     "eval": 0,
+     "pool": 0,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.0,
+     "hi": 0.1,
+     "eval": 0,
+     "pool": 0,
+     "gap": false,
+     "thin": false
+    },
+    {
+     "lo": 0.1,
+     "hi": 0.2,
+     "eval": 6,
+     "pool": 1,
+     "gap": false,
+     "thin": true
+    },
+    {
+     "lo": 0.2,
+     "hi": 0.3,
+     "eval": 8,
+     "pool": 11,
+     "gap": false,
+     "thin": false
+    }
+   ]
+  },
+  "nearest": {
+   "tolerance": {
+    "cube_m": 0.05,
+    "bin_m": 0.08,
+    "cube_face_yaw_deg": 15.0
+   },
+   "covered": 6,
+   "uncovered_seeds": [
+    5020,
+    5021,
+    5022,
+    5026,
+    5027,
+    5028,
+    5029,
+    5030,
+    5031,
+    5032,
+    5033,
+    5034,
+    5035,
+    5036,
+    5037,
+    5038,
+    5039,
+    5041,
+    5042,
+    5043,
+    5044,
+    5045,
+    5046,
+    5047,
+    5049,
+    5050,
+    5051,
+    5052,
+    5053,
+    5054,
+    5055,
+    5057,
+    5058,
+    5059
+   ],
+   "median_scaled_distance": 1.59
+  }
+ },
+ "sources": {
+  "human_20261019184959_7b1f": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": false,
+   "variants": 0,
+   "variants_ok": 0
+  },
+  "human_20261019185223_66bc": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": false,
+   "variants": 0,
+   "variants_ok": 0
+  },
+  "human_20261019185258_9f47": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 6
+  },
+  "human_20261019185341_0576": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": false,
+   "variants": 0,
+   "variants_ok": 0
+  },
+  "human_20261019185503_a029": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 9
+  },
+  "human_20261019185540_87bd": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": false,
+   "variants": 0,
+   "variants_ok": 0
+  },
+  "human_20261019185613_fb12": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": false,
+   "variants": 0,
+   "variants_ok": 0
+  },
+  "human_20261019185745_a67b": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": false,
+   "variants": 0,
+   "variants_ok": 0
+  },
+  "human_20261019185902_c045": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": true,
+   "variants": 10,
+   "variants_ok": 9
+  },
+  "human_20261019185956_3997": {
+   "scene": "s1",
+   "raw": false,
+   "repaired": false,
+   "variants": 0,
+   "variants_ok": 0
+  }
+ },
+ "requests": [
+  {
+   "kind": "record",
+   "scene": "s6",
+   "in_eval": true,
+   "text": "Record 2 more takes in S6 Cube turned 35 degrees: 0 verified of 0 recorded."
+  },
+  {
+   "kind": "record",
+   "scene": "s2",
+   "in_eval": false,
+   "text": "Record 2 more takes in S2 Cube at the edge of reach: 0 verified of 0 recorded. Generalization only, not in the eval distribution (cube x 0.63 (eval 0.4 to 0.6); cube y -0.26 (eval -0.2 to 0.2))."
+  },
+  {
+   "kind": "record",
+   "scene": "s3",
+   "in_eval": false,
+   "text": "Record 2 more takes in S3 Bin turned, other side: 0 verified of 0 recorded. Generalization only, not in the eval distribution (bin turned 90 degrees)."
+  },
+  {
+   "kind": "record",
+   "scene": "s4",
+   "in_eval": false,
+   "text": "Record 2 more takes in S4 Small cube: 0 verified of 0 recorded. Generalization only, not in the eval distribution (4 cm cube)."
+  },
+  {
+   "kind": "record",
+   "scene": "s5",
+   "in_eval": false,
+   "text": "Record 2 more takes in S5 Large cube: 0 verified of 0 recorded. Generalization only, not in the eval distribution (6 cm cube)."
+  },
+  {
+   "kind": "record",
+   "scene": "s7",
+   "in_eval": false,
+   "text": "Record 2 more takes in S7 Yellow distractor: 0 verified of 0 recorded. Generalization only, not in the eval distribution (1 more object)."
+  },
+  {
+   "kind": "record",
+   "scene": "s8",
+   "in_eval": false,
+   "text": "Record 2 more takes in S8 Taller bin: 0 verified of 0 recorded. Generalization only, not in the eval distribution (bin walls 11 cm (eval 8 cm))."
+  },
+  {
+   "kind": "swoop",
+   "scene": "s1",
+   "text": "In S1 Standard, 10 of 10 takes close while still moving (median 0.23 m/s, 12.5 frames in the last 3 cm; the scripted grasp stops and spends 16): retake with a stop before closing, or repair with --grasp-retime."
+  },
+  {
+   "kind": "eval_thin",
+   "axis": "bin_x",
+   "text": "Only 1 of 27 verified episodes have the bin x between 0.55 and 0.6 m, where 11 of 40 eval scenes put it: add variants or takes there."
+  },
+  {
+   "kind": "eval_thin",
+   "axis": "bin_y",
+   "text": "Only 1 of 27 verified episodes have the bin y between 0.1 and 0.2 m, where 6 of 40 eval scenes put it: add variants or takes there."
+  },
+  {
+   "kind": "eval_uncovered",
+   "text": "34 of 40 eval scenes have no verified episode within 5 cm (cube), 8 cm (bin) and 15 degrees (cube yaw): seeds 5020, 5021, 5022, 5026, 5027, 5028, 5029, 5030, 5031, 5032, 5033, 5034 and 22 more."
+  }
+ ],
+ "store": "C:\\dev\\pm-t6\\data\\human_exp\\human10c\\store"
+}

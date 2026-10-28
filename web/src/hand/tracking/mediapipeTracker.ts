@@ -5,8 +5,11 @@
 // unplugged camera, wedged worker) is still caught -- see STALE_FRAME_MS in
 // contracts.ts.
 
-import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
+// MediaPipe itself (~130 KB of JS) is imported on start(), so the pages that offer hand control
+// don't carry it until it's switched on.
+import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import type { HandFrame, TrackingAdapter, TrackingStatus } from "../contracts";
+import { checkHandAssets, loadFailureMessage } from "./assets";
 import { STALE_FRAME_MS } from "../contracts";
 import { startCamera, type CameraHandle } from "./camera";
 import { buildTrackedHands } from "./handFrameBuilder";
@@ -46,7 +49,7 @@ export function createMediapipeTracker(): TrackingAdapter {
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       const timestamp = performance.now();
       const result = landmarker.detectForVideo(video, timestamp);
-      const hands = buildTrackedHands(result.landmarks, result.handedness);
+      const hands = buildTrackedHands(result.landmarks, result.handedness, result.worldLandmarks);
 
       emitFrame({
         timestamp,
@@ -109,7 +112,12 @@ export function createMediapipeTracker(): TrackingAdapter {
           camera = acquired;
         }
         if (!landmarker) {
+          const { FilesetResolver, HandLandmarker } = await import("@mediapipe/tasks-vision");
+          if (cleanedUp) return;
           const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_PATH);
+          if (cleanedUp) return;
+          // Say which file is missing, rather than MediaPipe's bare "[object Event]" (assets.ts).
+          await checkHandAssets([fileset.wasmLoaderPath, fileset.wasmBinaryPath, MODEL_ASSET_PATH]);
           if (cleanedUp) return;
           const acquiredLandmarker = await HandLandmarker.createFromOptions(fileset, {
             baseOptions: {
@@ -127,6 +135,8 @@ export function createMediapipeTracker(): TrackingAdapter {
             minHandDetectionConfidence: 0.6,
             minHandPresenceConfidence: 0.6,
             minTrackingConfidence: 0.5,
+          }).catch((err: unknown) => {
+            throw err instanceof Error ? err : new Error(loadFailureMessage(err, fileset.wasmLoaderPath));
           });
           if (cleanedUp) {
             acquiredLandmarker.close();
@@ -175,6 +185,10 @@ export function createMediapipeTracker(): TrackingAdapter {
     onStatus(cb) {
       statusListeners.add(cb);
       return () => statusListeners.delete(cb);
+    },
+
+    stream() {
+      return camera?.stream ?? null;
     },
   };
 }

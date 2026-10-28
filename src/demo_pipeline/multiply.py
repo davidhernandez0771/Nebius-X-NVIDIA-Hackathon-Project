@@ -3,6 +3,10 @@
 Up to the grasp the hand path is rigid in the cube's frame; from the release on it is rigid in
 the bin's frame. In between (the carry) it follows the new grasp-to-release chord. Only
 translation and yaw change between scenes (the table stays flat).
+
+wrap_yaw (2026-10-20 research note, finding 5): the cube looks the same every 90 degrees, so the hand only needs to
+turn with it to the nearest face (+-45 degrees), as the scripted expert does. Turned by the full cube yaw (+-90),
+46% of look-alike cube pairs got wrist turns more than 45 degrees apart: conflicting labels for one image.
 """
 
 from __future__ import annotations
@@ -72,9 +76,18 @@ def _quat_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     ], axis=1)
 
 
-def _move_with(src: Pose, dst: Pose, pos: np.ndarray, quat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Carry poses rigidly along with an object moving from src to dst (translation + yaw)."""
+def nearest_face_yaw(yaw: float) -> float:
+    """yaw turned to the nearest of a square's four faces: in [-45, 45] degrees (sim_worker.scripted's wrap)."""
+    return yaw - (math.pi / 2) * round(yaw / (math.pi / 2))
+
+
+def _move_with(src: Pose, dst: Pose, pos: np.ndarray, quat: np.ndarray,
+               wrap: bool = False) -> tuple[np.ndarray, np.ndarray]:
+    """Carry poses rigidly along with an object moving from src to dst (translation + yaw). wrap: the object looks
+    the same every 90 degrees, so turn only to its nearest face."""
     dyaw = _yaw(dst.quat_wxyz) - _yaw(src.quat_wxyz)
+    if wrap:
+        dyaw = nearest_face_yaw(dyaw)
     c, s = math.cos(dyaw), math.sin(dyaw)
     rel = pos - np.asarray(src.pos)
     moved = np.stack([c * rel[:, 0] - s * rel[:, 1], s * rel[:, 0] + c * rel[:, 1], rel[:, 2]], axis=1) + np.asarray(dst.pos)
@@ -99,7 +112,7 @@ def _chord_map(x: np.ndarray, a: np.ndarray, b: np.ndarray, a2: np.ndarray, b2: 
     return np.column_stack([xy, z]), u
 
 
-def transform_trajectory(traj: Trajectory, src: Scene, dst: Scene) -> Trajectory:
+def transform_trajectory(traj: Trajectory, src: Scene, dst: Scene, *, wrap_yaw: bool = False) -> Trajectory:
     """The demo as it would be in dst. Through the grasp the hand is rigid in the cube's frame, from
     the release on in the bin's; the carry between them (lift, move, descent) is re-planned along
     the new grasp-to-release chord, keeping the source's timing and its sideways and vertical shape.
@@ -108,6 +121,9 @@ def transform_trajectory(traj: Trajectory, src: Scene, dst: Scene) -> Trajectory
     path is continuous. A fixed-time handover (1.0 s + 0.5 s after the close) swung every variant
     to the source cube's place relative to the new bin, past the Franka's reach for bins on the -y
     side (T2 status note, 2026-10-16, Task 4). With no release, the carry runs to the last step.
+
+    wrap_yaw: turn the hand with the cube only to its nearest face (see the module docstring). A turn of 45 degrees
+    or less is the same either way.
     """
     t_close, t_open = gripper_events(traj)
     if t_close is None:
@@ -116,7 +132,7 @@ def transform_trajectory(traj: Trajectory, src: Scene, dst: Scene) -> Trajectory
     t, pos = a["t"], a["ee_pos"]
     i_close = int(np.argmin(np.abs(t - t_close)))
     i_open = len(t) - 1 if t_open is None else int(np.argmin(np.abs(t - t_open)))
-    p_cube, q_cube = _move_with(src.cube_pose, dst.cube_pose, pos, a["ee_quat"])
+    p_cube, q_cube = _move_with(src.cube_pose, dst.cube_pose, pos, a["ee_quat"], wrap=wrap_yaw)
     p_bin, q_bin = _move_with(src.bin_pose, dst.bin_pose, pos, a["ee_quat"])
     p_carry, u = _chord_map(pos, pos[i_close], pos[i_open], p_cube[i_close], p_bin[i_open])
     idx = np.arange(len(t))

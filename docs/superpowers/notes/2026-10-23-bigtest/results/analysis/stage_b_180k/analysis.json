@@ -1,0 +1,255 @@
+{
+ "k": 3,
+ "calls": 4,
+ "cost_usd": 0.021986,
+ "model": "nvidia/nemotron-3-super-120b-a12b",
+ "api_errors": 0,
+ "recipe": {
+  "summary": "Failures are mostly drops when the cube is on the robot's left side (positive y) and the bin is on the robot's right side (negative y), indicating difficulty with cross-body carries.",
+  "hypotheses": [
+   {
+    "claim": "Drops cluster where cube_y > 0.067 and bin_y < -0.1 (cross-body configuration)",
+    "evidence_seeds": [
+     5530,
+     5533,
+     5535
+    ]
+   }
+  ],
+  "mechanism": [],
+  "fixes": [],
+  "regions": [
+   {
+    "name": "cross_body_left_cube_right_bin",
+    "targets": [
+     "dropped"
+    ],
+    "cube_x": [
+     0.4,
+     0.6
+    ],
+    "cube_y": [
+     0.067,
+     0.2
+    ],
+    "cube_yaw_deg": [
+     -45.0,
+     45.0
+    ],
+    "bin_x": [
+     0.4,
+     0.65
+    ],
+    "bin_y": [
+     -0.3,
+     -0.1
+    ],
+    "share": 0.5,
+    "rationale": "Dropped episodes occur much more often when the cube is left of centre and the bin right of centre."
+   }
+  ],
+  "uniform_share": 0.5
+ },
+ "support": [
+  {
+   "region": "cross_body_left_cube_right_bin",
+   "episodes_inside": 14,
+   "target_failures_inside": 12,
+   "target_failures_total": 20,
+   "coverage": 0.6,
+   "rate_inside": 0.8571428571428571,
+   "rate_overall": 0.6896551724137931,
+   "p_value": 0.067966,
+   "seeds_inside": [
+    5529,
+    5530,
+    5533,
+    5535,
+    5536,
+    5537,
+    5538,
+    5539,
+    5541,
+    5542,
+    5544,
+    5545,
+    5547,
+    5557
+   ]
+  }
+ ],
+ "agreement": 0.8851294903926483,
+ "candidates": [
+  {
+   "summary": "Failures are mostly drops when the cube is on the robot's left side (positive y) and the bin is on the robot's right side (negative y), indicating difficulty with cross-body carries.",
+   "hypotheses": [
+    {
+     "claim": "Drops cluster where cube_y > 0.067 and bin_y < -0.1 (cross-body configuration)",
+     "evidence_seeds": [
+      5530,
+      5533,
+      5535
+     ]
+    }
+   ],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [
+    {
+     "name": "cross_body_left_cube_right_bin",
+     "targets": [
+      "dropped"
+     ],
+     "cube_x": [
+      0.4,
+      0.6
+     ],
+     "cube_y": [
+      0.067,
+      0.2
+     ],
+     "cube_yaw_deg": [
+      -45.0,
+      45.0
+     ],
+     "bin_x": [
+      0.4,
+      0.65
+     ],
+     "bin_y": [
+      -0.3,
+      -0.1
+     ],
+     "share": 0.5,
+     "rationale": "Dropped episodes occur much more often when the cube is left of centre and the bin right of centre."
+    }
+   ],
+   "uniform_share": 0.5
+  },
+  {
+   "summary": "Most failures are drops when the cube is left of the robot and the bin is right of the robot; no grasp or motion measurements are available to infer a mechanism.",
+   "hypotheses": [
+    {
+     "claim": "Drops cluster where the cube is left of the robot (cube_y > 0.07) and the bin is right of the robot (bin_y < -0.1)",
+     "evidence_seeds": [
+      5530,
+      5533,
+      5535
+     ]
+    }
+   ],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [
+    {
+     "name": "left_cube_right_bin",
+     "targets": [
+      "dropped"
+     ],
+     "cube_x": [
+      0.4,
+      0.6
+     ],
+     "cube_y": [
+      0.07,
+      0.2
+     ],
+     "cube_yaw_deg": [
+      -45.0,
+      45.0
+     ],
+     "bin_x": [
+      0.4,
+      0.65
+     ],
+     "bin_y": [
+      -0.3,
+      -0.1
+     ],
+     "share": 0.5,
+     "rationale": "In this region the cube is left of the robot and the bin is right, leading to longer reaches across the body and a markedly higher drop rate."
+    }
+   ],
+   "uniform_share": 0.5
+  },
+  {
+   "summary": "Most failures are drops when the cube is positioned to the robot's left (positive y).",
+   "hypotheses": [
+    {
+     "claim": "Dropped failures cluster where the cube is to the robot's left (cube_y > 0.067)",
+     "evidence_seeds": [
+      5530,
+      5533,
+      5535
+     ]
+    }
+   ],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [
+    {
+     "name": "left_cube",
+     "targets": [
+      "dropped"
+     ],
+     "cube_x": [
+      0.4,
+      0.6
+     ],
+     "cube_y": [
+      0.067,
+      0.2
+     ],
+     "cube_yaw_deg": [
+      -45.0,
+      45.0
+     ],
+     "bin_x": [
+      0.4,
+      0.65
+     ],
+     "bin_y": [
+      -0.3,
+      0.3
+     ],
+     "share": 0.5,
+     "rationale": "Dropped failures occur much more often when the cube is placed left of the robot centre."
+    }
+   ],
+   "uniform_share": 0.5
+  }
+ ],
+ "candidate_agreement": [
+  0.8851294903926483,
+  0.8838763575605681,
+  0.7765246449456975
+ ],
+ "attempts": [
+  {
+   "sample": 0,
+   "reply": "\n\n{\"summary\": \"Most failures are drops when the cube is on the robot's left side and the bin on the right side, requiring a cross-body carry.\", \"hypotheses\": [{\"claim\": \"Drops cluster where cube_x>0.533, cube_y>0.067, bin_x>0.567, and bin_y<-0.1 (cross-body configuration)\", \"evidence_seeds\": [5530, 5542, 5547]}], \"mechanism\": [], \"fixes\": [], \"regions\": [{\"name\": \"cross_body_drop\", \"targets\": [\"dropped\"], \"cube_x\": [0.533, 0.6], \"cube_y\": [0.067, 0.2], \"cube_yaw_deg\": [-45.0, 45.0], \"bin_x\": [0.567, 0.65], \"bin_y\": [-0.3, -0.1], \"share\": 0.5, \"rationale\": \"Dropped episodes happen most often when the cube is left of centre and the bin right of centre, indicating difficulty with cross-body carries.\"}], \"uniform_share\": 0.5}",
+   "errors": [
+    "region 'cross_body_drop' contains 3 episodes, 3 of the 20 episodes that failed by its targets: a rate of 1.00 vs 0.69 overall, but a difference this size is likely chance (one-sided Fisher p = 0.312 > 0.1). Drop the region unless a wider one shows a clear scene effect"
+   ],
+   "think": true
+  },
+  {
+   "sample": 0,
+   "reply": "\n\n{\n  \"summary\": \"Failures are mostly drops when the cube is on the robot's left side (positive y) and the bin is on the robot's right side (negative y), indicating difficulty with cross-body carries.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"Drops cluster where cube_y > 0.067 and bin_y < -0.1 (cross-body configuration)\",\n      \"evidence_seeds\": [5530, 5533, 5535]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"cross_body_left_cube_right_bin\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.4, 0.6],\n      \"cube_y\": [0.067, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.65],\n      \"bin_y\": [-0.3, -0.1],\n      \"share\": 0.5,\n      \"rationale\": \"Dropped episodes occur much more often when the cube is left of centre and the bin right of centre.\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [],
+   "think": true
+  },
+  {
+   "sample": 1,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops when the cube is left of the robot and the bin is right of the robot; no grasp or motion measurements are available to infer a mechanism.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"Drops cluster where the cube is left of the robot (cube_y > 0.07) and the bin is right of the robot (bin_y < -0.1)\",\n      \"evidence_seeds\": [5530, 5533, 5535]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"left_cube_right_bin\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.4, 0.6],\n      \"cube_y\": [0.07, 0.2],\n      \"cube_yaw_deg\": [-45, 45],\n      \"bin_x\": [0.4, 0.65],\n      \"bin_y\": [-0.3, -0.1],\n      \"share\": 0.5,\n      \"rationale\": \"In this region the cube is left of the robot and the bin is right, leading to longer reaches across the body and a markedly higher drop rate.\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [],
+   "think": true
+  },
+  {
+   "sample": 2,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops when the cube is positioned to the robot's left (positive y).\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"Dropped failures cluster where the cube is to the robot's left (cube_y > 0.067)\",\n      \"evidence_seeds\": [5530, 5533, 5535]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"left_cube\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.4, 0.6],\n      \"cube_y\": [0.067, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.4, 0.65],\n      \"bin_y\": [-0.3, 0.3],\n      \"share\": 0.5,\n      \"rationale\": \"Dropped failures occur much more often when the cube is placed left of the robot centre.\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [],
+   "think": true
+  }
+ ]
+}

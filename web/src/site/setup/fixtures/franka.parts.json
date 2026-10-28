@@ -1,0 +1,488 @@
+{
+ "id": "byor_3292d47ab6",
+ "name": "panda",
+ "root": "panda_link0",
+ "links": [
+  {
+   "name": "panda_link0",
+   "parent_joint": null,
+   "child_joints": [
+    "panda_joint1"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link1",
+   "parent_joint": "panda_joint1",
+   "child_joints": [
+    "panda_joint2"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link2",
+   "parent_joint": "panda_joint2",
+   "child_joints": [
+    "panda_joint3"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link3",
+   "parent_joint": "panda_joint3",
+   "child_joints": [
+    "panda_joint4"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link4",
+   "parent_joint": "panda_joint4",
+   "child_joints": [
+    "panda_joint5"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link5",
+   "parent_joint": "panda_joint5",
+   "child_joints": [
+    "panda_joint6"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link6",
+   "parent_joint": "panda_joint6",
+   "child_joints": [
+    "panda_joint7"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link7",
+   "parent_joint": "panda_joint7",
+   "child_joints": [
+    "panda_joint8"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_link8",
+   "parent_joint": "panda_joint8",
+   "child_joints": [
+    "panda_hand_joint"
+   ],
+   "has_geometry": false,
+   "has_inertial": false
+  },
+  {
+   "name": "panda_hand",
+   "parent_joint": "panda_hand_joint",
+   "child_joints": [
+    "panda_finger_joint1",
+    "panda_finger_joint2"
+   ],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_leftfinger",
+   "parent_joint": "panda_finger_joint1",
+   "child_joints": [],
+   "has_geometry": true,
+   "has_inertial": true
+  },
+  {
+   "name": "panda_rightfinger",
+   "parent_joint": "panda_finger_joint2",
+   "child_joints": [],
+   "has_geometry": true,
+   "has_inertial": true
+  }
+ ],
+ "joints": [
+  {
+   "name": "panda_joint1",
+   "type": "revolute",
+   "parent": "panda_link0",
+   "child": "panda_link1",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.333
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -2.8973,
+    "upper": 2.8973,
+    "effort": 87.0,
+    "velocity": 2.175
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_joint2",
+   "type": "revolute",
+   "parent": "panda_link1",
+   "child": "panda_link2",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     -1.57079632679,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -1.7628,
+    "upper": 1.7628,
+    "effort": 87.0,
+    "velocity": 2.175
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_joint3",
+   "type": "revolute",
+   "parent": "panda_link2",
+   "child": "panda_link3",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     -0.316,
+     0.0
+    ],
+    "rpy": [
+     1.57079632679,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -2.8973,
+    "upper": 2.8973,
+    "effort": 87.0,
+    "velocity": 2.175
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_joint4",
+   "type": "revolute",
+   "parent": "panda_link3",
+   "child": "panda_link4",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0825,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     1.57079632679,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -3.0718,
+    "upper": -0.0698,
+    "effort": 87.0,
+    "velocity": 2.175
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_joint5",
+   "type": "revolute",
+   "parent": "panda_link4",
+   "child": "panda_link5",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     -0.0825,
+     0.384,
+     0.0
+    ],
+    "rpy": [
+     -1.57079632679,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -2.8973,
+    "upper": 2.8973,
+    "effort": 12.0,
+    "velocity": 2.61
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_joint6",
+   "type": "revolute",
+   "parent": "panda_link5",
+   "child": "panda_link6",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     1.57079632679,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -0.0175,
+    "upper": 3.7525,
+    "effort": 12.0,
+    "velocity": 2.61
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_joint7",
+   "type": "revolute",
+   "parent": "panda_link6",
+   "child": "panda_link7",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "origin": {
+    "xyz": [
+     0.088,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     1.57079632679,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": -2.8973,
+    "upper": 2.8973,
+    "effort": 12.0,
+    "velocity": 2.61
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_joint8",
+   "type": "fixed",
+   "parent": "panda_link7",
+   "child": "panda_link8",
+   "axis": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.107
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": null,
+   "mimic": null
+  },
+  {
+   "name": "panda_hand_joint",
+   "type": "fixed",
+   "parent": "panda_link8",
+   "child": "panda_hand",
+   "axis": [
+    1.0,
+    0.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -0.785398163397
+    ]
+   },
+   "limits": null,
+   "mimic": null
+  },
+  {
+   "name": "panda_finger_joint1",
+   "type": "prismatic",
+   "parent": "panda_hand",
+   "child": "panda_leftfinger",
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.0584
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": 0.0,
+    "upper": 0.04,
+    "effort": 20.0,
+    "velocity": 0.2
+   },
+   "mimic": null
+  },
+  {
+   "name": "panda_finger_joint2",
+   "type": "prismatic",
+   "parent": "panda_hand",
+   "child": "panda_rightfinger",
+   "axis": [
+    0.0,
+    -1.0,
+    0.0
+   ],
+   "origin": {
+    "xyz": [
+     0.0,
+     0.0,
+     0.0584
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "limits": {
+    "lower": 0.0,
+    "upper": 0.04,
+    "effort": 20.0,
+    "velocity": 0.2
+   },
+   "mimic": {
+    "joint": "panda_finger_joint1",
+    "multiplier": 1.0,
+    "offset": 0.0
+   }
+  }
+ ],
+ "suggested_roles": {
+  "base": "panda_link0",
+  "arm_joints": [
+   "panda_joint1",
+   "panda_joint2",
+   "panda_joint3",
+   "panda_joint4",
+   "panda_joint5",
+   "panda_joint6",
+   "panda_joint7"
+  ],
+  "hand": "panda_hand",
+  "gripper_joints": [
+   "panda_finger_joint1",
+   "panda_finger_joint2"
+  ]
+ },
+ "why": {
+  "base": "the root link (no parent joint)",
+  "arm_joints": "the longest chain of revolute joints from the root (7)",
+  "hand": "the last arm link, followed through fixed joints to where the gripper joints start",
+  "gripper_joints": "the prismatic, mimic and finger/gripper/jaw-named joints after the hand (2; panda_finger_joint2 mimics panda_finger_joint1)"
+ },
+ "derived": {
+  "dof": 7,
+  "reach_m": {
+   "value": 1.09,
+   "source": "sum of joint-origin distances from the first arm joint to the tool point"
+  },
+  "tcp": {
+   "link": "panda_hand",
+   "offset": [
+    0.0,
+    0.0,
+    0.103279
+   ],
+   "approach_axis": [
+    0,
+    0,
+    1
+   ],
+   "source": "finger geometry: the fingertips are 0.1123 m along the hand's +z; the grasp point sits 0.009 m above them (Franka's documented TCP is 0.0089 m above its fingertips)"
+  },
+  "gripper": {
+   "open": 0.04,
+   "closed": 0.0,
+   "source": "the limit with the fingers farther apart is open (panda_finger_joint1 0.04); the other limit is closed"
+  }
+ },
+ "issues": []
+}

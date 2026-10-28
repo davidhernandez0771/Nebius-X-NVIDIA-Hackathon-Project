@@ -112,3 +112,27 @@ def test_flexiv_spec_matches_the_probed_stage():
 def test_flexiv_hand_sits_0_305_m_above_a_downward_tcp():
     hand_pos, _ = hand_from_tool(robot_spec("flexiv"), np.array([0.5, 0.0, 0.025]), np.array([0.0, 1.0, 0.0, 0.0]))
     assert np.allclose(hand_pos, [0.5, 0.0, 0.330])
+
+
+def test_an_uploaded_robot_is_found_by_name_but_is_not_a_builtin():
+    from dataclasses import replace
+
+    from sim_worker.robots import register_robot
+
+    spec = replace(robot_spec("franka"), name="byor_test000001")
+    register_robot(spec)
+    assert robot_spec("byor_test000001") is spec
+    assert "byor_test000001" not in ROBOTS
+    with pytest.raises(ValueError, match="built-in"):
+        register_robot(replace(spec, name="franka"))
+
+
+def test_finger_targets_repeat_one_value_or_take_one_per_joint():
+    from dataclasses import replace
+
+    from sim_worker.robots import finger_targets
+
+    f = robot_spec("franka")
+    assert finger_targets(f, closed=False) == (0.04, 0.04) and finger_targets(f, closed=True) == (0.0, 0.0)
+    two = replace(f, gripper_open=(0.035, -0.035), gripper_closed=(0.0, 0.0))
+    assert finger_targets(two, closed=False) == (0.035, -0.035)

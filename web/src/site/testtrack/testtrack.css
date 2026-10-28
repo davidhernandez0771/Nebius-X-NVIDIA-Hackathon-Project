@@ -1,0 +1,570 @@
+/* Buttons are scoped under .tt: the SANT root's `.sant button` reset (font, padding, border) outranks one class.
+   The test track (/test-track): a clean arena for replays, in the holo frame (../holo/holo.css). The arena is the
+   twin's void; the side panel, the tags and the transport are holo panels. Phones (under 760 px): one column,
+   the arena first, the tags under it rather than over it. */
+
+.tt {
+  display: grid;
+  gap: 14px;
+  max-width: 1480px;
+  margin: 0 auto;
+  font-family: var(--holo-mono);
+}
+
+.tt-lede {
+  max-width: 78ch;
+  margin: 0;
+  color: var(--holo-ink-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.tt-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.tt-layout--boot {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 320px;
+  position: relative;
+}
+
+/* ---- the side panel: sources, the summary, the runs */
+
+.tt-side {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  max-height: calc(100dvh - 150px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.tt-sources ol,
+.tt-runs__grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-sources ol {
+  display: grid;
+  gap: 4px;
+}
+
+.tt .tt-source {
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--holo-line-dim);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--holo-ink);
+  font: 12px/1.3 var(--holo-mono);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tt .tt-source:hover:not(:disabled),
+.tt .tt-source:focus-visible {
+  border-color: var(--holo-line-hi);
+}
+
+.tt .tt-source:focus-visible,
+.tt .tt-run:focus-visible,
+.tt .tt-btn:focus-visible,
+.holo-top .tt-btn:focus-visible {
+  outline: 2px solid var(--holo-teal);
+  outline-offset: 2px;
+}
+
+.tt .tt-source[aria-pressed="true"] {
+  border-color: var(--holo-teal);
+  background: rgba(25, 245, 194, 0.08);
+}
+
+.tt .tt-source:disabled {
+  opacity: 1; /* styles.css halves every disabled button; this one is a line people read */
+  cursor: default;
+  color: var(--holo-ink-2);
+  border-style: dashed;
+}
+
+.tt-source__key {
+  color: var(--holo-teal);
+}
+
+.tt .tt-source:disabled .tt-source__key {
+  color: var(--holo-ink-2);
+}
+
+.tt-source__count {
+  color: var(--holo-ink-2);
+  font-size: 12px;
+}
+
+.tt .tt-source:disabled .tt-source__count {
+  grid-column: 2 / -1;
+}
+
+.tt-summary {
+  margin: 0;
+  color: var(--holo-ink);
+  font-size: 12px;
+}
+
+.tt-what,
+.tt-ckpt,
+.tt-built {
+  margin: 0;
+  color: var(--holo-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tt-ckpt code {
+  color: var(--holo-ink);
+  font: inherit;
+  word-break: break-all;
+}
+
+.tt-runs {
+  display: grid;
+  gap: 8px;
+}
+
+.tt-runs__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); /* room for a failed cell's cross */
+  gap: 4px;
+}
+
+.tt .tt-run {
+  width: 100%;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid var(--holo-line-dim);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--holo-ink-2);
+  font: 12px/1 var(--holo-mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tt .tt-run[data-ok="true"] {
+  color: var(--holo-ink);
+}
+
+.tt .tt-run[data-ok="false"] {
+  border-color: rgba(255, 90, 31, 0.6);
+  color: #ff8a5c;
+}
+
+.tt .tt-run[data-recorded="false"] {
+  border-style: dashed;
+}
+
+.tt .tt-run:hover:not(:disabled),
+.tt .tt-run[aria-pressed="true"] {
+  border-color: var(--holo-teal);
+}
+
+.tt .tt-run[aria-pressed="true"] {
+  background: rgba(25, 245, 194, 0.14);
+  color: var(--holo-ink);
+}
+
+/* A failed run is told apart by more than its colour: a tinted cell with a cross in its corner. */
+.tt .tt-run[data-ok="false"] {
+  position: relative;
+  background: rgba(255, 90, 31, 0.1);
+}
+
+.tt .tt-run[data-ok="false"]::after {
+  content: "✕";
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tt .tt-run[data-ok="false"][aria-pressed="true"] {
+  border-color: #ff8a5c;
+  background: rgba(255, 90, 31, 0.24);
+}
+
+/* The runs' heading can be longer than the panel ("Runs · seeds 5400–5439 · 10 failed"): let it wrap, not overflow. */
+.tt-runs .holo-rule__label {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* ---- the filter: all, verified, failed */
+
+.tt-show {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tt .tt-show__btn {
+  flex: 1 1 auto;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--holo-line-dim);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--holo-ink-2);
+  font: 12px/1 var(--holo-mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tt .tt-show__btn:hover,
+.tt .tt-show__btn:focus-visible {
+  border-color: var(--holo-teal);
+  color: var(--holo-ink);
+}
+
+.tt .tt-show__btn[aria-pressed="true"] {
+  border-color: var(--holo-teal);
+  background: rgba(25, 245, 194, 0.14);
+  color: var(--holo-ink);
+}
+
+.tt .tt-show__btn[data-show="failed"][aria-pressed="true"] {
+  border-color: #ff8a5c;
+  background: rgba(255, 90, 31, 0.18);
+}
+
+/* ---- why each failed run failed */
+
+.tt-fails {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-fail {
+  display: grid;
+  grid-template-columns: 4.6em minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tt .tt-fail__seed {
+  min-height: 24px;
+  padding: 2px 4px;
+  border: 1px solid rgba(255, 90, 31, 0.6);
+  border-radius: 2px;
+  background: transparent;
+  color: #ff8a5c;
+  font: 12px/1 var(--holo-mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.tt .tt-fail__seed:hover,
+.tt .tt-fail__seed:focus-visible,
+.tt .tt-fail__seed[aria-pressed="true"] {
+  border-color: #ff8a5c;
+  background: rgba(255, 90, 31, 0.2);
+  color: var(--holo-ink);
+}
+
+.tt-fail__why {
+  color: var(--holo-ink-2);
+}
+
+.tt-note {
+  margin: 0;
+  color: var(--holo-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---- the stage: the arena with its tags, then the transport */
+
+.tt-stage {
+  position: relative; /* the tags lie over the arena, top right */
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tt-arena {
+  position: relative;
+  height: clamp(320px, calc(100dvh - 250px), 640px);
+  border: 1px solid var(--holo-line-dim);
+  background: var(--holo-void);
+  overflow: hidden;
+}
+
+.tt-arena__empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--holo-ink-2);
+  font-size: 13px;
+  text-align: center;
+}
+
+.tt-arena__empty p {
+  max-width: 44ch;
+  margin: 0;
+}
+
+.tt-tags {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  gap: 8px;
+  width: min(300px, 46%);
+  pointer-events: none;
+}
+
+.tt-verdict,
+.tt-facts {
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.tt-verdict__text {
+  margin: 6px 0 0;
+  color: var(--holo-ink);
+  font-size: 14px;
+}
+
+.tt-verdict[data-holo-state="fail"] .tt-verdict__text {
+  color: #ff8a5c;
+}
+
+.tt-verdict__sub {
+  margin: 4px 0 0;
+  color: var(--holo-ink-2);
+  font-size: 12px;
+}
+
+.tt-facts {
+  display: grid;
+  gap: 6px;
+}
+
+.tt-fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.tt-fact dd {
+  margin: 0;
+  color: var(--holo-ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tt-estimate {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--holo-amber);
+  background: var(--holo-glass);
+  color: var(--holo-ink);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tt-boot {
+  position: absolute;
+  left: 12px;
+  bottom: 34px;
+  display: grid;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  border: 1px solid var(--holo-line-dim);
+  background: var(--holo-glass);
+  color: var(--holo-ink-2);
+  font: 12px/1.5 var(--holo-mono);
+  pointer-events: none;
+}
+
+.tt-boot li[data-state="ok"] span {
+  color: var(--holo-teal);
+}
+
+.tt-boot li[data-state="fail"] {
+  color: #ff8a5c;
+}
+
+.tt-help {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100% - 24px));
+  padding: 14px;
+  background: var(--holo-glass-hi);
+}
+
+.tt-help__title {
+  margin: 0;
+  font: 600 12px/1 var(--holo-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tt-help dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.tt-help dl div {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  gap: 8px;
+}
+
+.tt-help dd,
+.tt-help__mouse {
+  margin: 0;
+  color: var(--holo-ink-2);
+  font-size: 12px;
+}
+
+kbd {
+  font: 12px/1 var(--holo-mono);
+  color: var(--holo-ink);
+}
+
+.tt-help kbd,
+.tt .tt-btn kbd,
+.holo-top .tt-btn kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--holo-line);
+  border-radius: 2px;
+}
+
+.tt-transport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.tt-scrub {
+  flex: 1 1 200px;
+  display: flex;
+}
+
+.tt-scrub input {
+  width: 100%;
+  accent-color: var(--holo-teal);
+}
+
+.tt-time,
+.tt-speed__now {
+  color: var(--holo-ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tt-speed,
+.tt-nav {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.tt-speed__now {
+  min-width: 3.4em;
+  text-align: center;
+}
+
+.tt .tt-btn,
+.holo-top .tt-btn {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--holo-line);
+  border-radius: 2px;
+  background: rgba(25, 245, 194, 0.06);
+  color: var(--holo-ink);
+  font: 12px/1 var(--holo-mono);
+  cursor: pointer;
+}
+
+.tt .tt-btn:hover:not(:disabled),
+.holo-top .tt-btn:hover:not(:disabled) {
+  border-color: var(--holo-teal);
+}
+
+.tt .tt-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.tt .tt-btn--quiet,
+.holo-top .tt-btn--quiet {
+  background: transparent;
+  padding: 4px 8px;
+}
+
+@media (max-width: 760px) {
+  .tt-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tt-stage {
+    order: -1;
+  }
+
+  .tt-side {
+    max-height: none;
+  }
+
+  .tt-arena {
+    height: 46dvh;
+  }
+
+  .tt-tags {
+    position: static;
+    width: auto;
+  }
+
+  .tt-boot {
+    bottom: auto;
+    top: 8px;
+  }
+
+  .tt-help {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: 80px;
+    width: auto;
+  }
+}
