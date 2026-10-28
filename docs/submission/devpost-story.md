@@ -1,98 +1,103 @@
 ## Inspiration
 
-Robots learn by copying human demonstrations, and they need a lot of them. **Good demos are expensive:** teleop rigs,
-trained operators, and 20–30% of takes thrown away. **Cheap demos are sloppy:** a mouse, a keyboard or a webcam gives
-you pauses, shaky paths, off-centre grabs, and a gripper pressed into the bin. Tools like NVIDIA's Isaac Lab Mimic
-multiply demos that already work. We asked about the step before that: **can a few sloppy human demos be turned into a
-robot that works?**
+Robots learn new tasks by copying people. Someone shows the robot what to do, a few hundred times, and a model learns
+from those recordings. The problem is that good recordings are expensive. You need a teleoperation rig and someone
+trained to use it, and a lot of takes still get thrown out.
+
+Cheap recordings are easy to get. Anyone can drive a robot with a mouse or a keyboard, or just move their hand in
+front of a webcam. But those demos are sloppy: the hand pauses, wobbles, grabs the cube off centre, and sometimes
+shoves the gripper straight into the bin. When we trained a robot to copy ten of our own mouse demos, it failed every
+single test.
+
+NVIDIA already has great tools for multiplying demos that work, like Isaac Lab Mimic. We wanted to know about the step
+before that: can you take a handful of sloppy human demos and still end up with a robot that works?
 
 ## What it does
 
-**SANT** (**S**imulate · **A**ugment · **N**eaten · **T**rain) turns a few cheap, sloppy human demos into a working
-robot. Ten demos, recorded with a mouse: copied directly, the robot succeeds **0 times in 40** new scenes; through
-SANT, it succeeds **30 times in 40**, on scenes it had never seen.
+SANT (Simulate, Augment, Neaten, Train) is a pipeline that turns a few cheap human demos into a working robot.
 
-You record a pick-and-place demo in the browser: your keyboard, mouse or webcam drives a simulated Franka arm in
-**NVIDIA Isaac Lab**, live. Then SANT:
+You record a demo in the browser. Your keyboard, mouse or webcam drives a simulated Franka arm in NVIDIA Isaac Lab,
+live, and the job is to pick up a cube and drop it in a bin. Then SANT takes over:
 
-1. **Checks it in physics.** Isaac Lab replays the demo with real contact forces, and code decides whether it worked:
-   cube in the bin, gripper open, no hard collision, no drop.
-2. **Repairs what fails,** with a menu of tested rules (trim, smooth, retime, recentre the grasp) or with **NVIDIA
-   Nemotron** proposing small edits to the path. Code limits every edit, and physics checks it again.
-3. **Multiplies what passes.** The cube and bin move to new places, every copy is replayed in physics, and only the
-   copies that pass are kept.
-4. **Teaches.** A reinforcement-learning teacher practises in Isaac Lab (4,096 arms at once), starting from the
-   verified human demos. Its skill is distilled into a robot that sees only through cameras.
-5. **Tests once,** on 40 scenes it has never seen, under rules written down before the run.
+1. It replays your demo in Isaac Lab with real physics and checks whether it actually worked. Did the cube end up in
+   the bin? Did anything slam into the table?
+2. If the demo failed, it tries to repair it, either with simple tested rules (trim, smooth, re-centre the grasp) or
+   with NVIDIA Nemotron suggesting small fixes to the path. Every fix gets checked in physics again.
+3. It multiplies the demos that pass by moving the cube and bin around and replaying each copy. Only copies that
+   still work are kept.
+4. A reinforcement-learning "teacher" practises the task in Isaac Lab, thousands of arms at once, starting from the
+   human demos. What it learns is then passed on to a robot that only sees through cameras.
 
-**NVIDIA Nemotron on Nebius Token Factory is SANT's language layer.** It labels demos, turns a sentence into a valid
-scene ("cube near the left edge, bin far right"), turns plain-English repair requests into repair steps, and proposes
-path repairs. **It never moves the robot:** code checks every answer, and physics decides.
+**The result:** our ten sloppy mouse demos became a robot that succeeds 30 out of 40 times on scenes it had never
+seen. Copying the same demos directly got 0 out of 40.
+
+Nemotron, running on Nebius Token Factory, handles the language side. It labels demos, turns a sentence like "put
+the cube near the left edge and the bin on the far right" into a scene, and suggests repairs. It never controls the
+robot, though. Code checks everything it says, and physics has the final word.
 
 ## How we built it
 
-- **NVIDIA Isaac Sim 6.2 + Isaac Lab 3.0, on Windows 11:** a pick-place scene with contact sensors and cameras, live
-  teleop, physics replay, multiplying, RL training (rsl_rl PPO, 4,096 parallel envs) and evaluation. **Isaac Lab
-  Mimic** also ran on SANT's demos.
-- **NVIDIA Nemotron on Nebius Token Factory:** `Nemotron-3.5-Super-VL` reads camera frames, and
-  `nemotron-3-super-120b-a12b` (thinking on) reasons about repairs and scenes. That's 483 calls for about $1.14, through
-  the OpenAI-compatible API, with no GPU of ours spent on it: our one RTX 5080 ran Isaac Lab all day.
-- **A pure-Python core** shared by the backend, the sim worker and the dataset exporter: the success check, the
-  repairs, the multiply transform and the statistics.
-- **LeRobot ACT** as the camera policy, trained on the teacher's physics-checked runs mixed with the verified human
-  demos.
-- **A FastAPI backend** with a WebSocket teleop relay, and a **React + three.js** site with a guided tour, a proof
-  wall and a test track that replays all 40 real test runs.
-- **Built tests-first:** 2,813 Python and 2,172 web tests, with every AI call mocked. **Every experiment was
-  pre-registered:** seeds, rules and goals committed before anything ran.
+The simulation side runs on NVIDIA Isaac Sim 6.2 and Isaac Lab 3.0, on a single Windows PC with one RTX 5080. Isaac
+Lab does the live teleop, the physics checks, the multiplying, the RL training (PPO with 4,096 parallel environments)
+and the final tests. We also ran Isaac Lab Mimic on our demos to compare against it.
+
+Nemotron runs on Nebius Token Factory. We used Nemotron 3.5 Super VL to look at camera frames and Nemotron 3 Super
+120B (with thinking on) for repairs and scenes. Because Token Factory hosts the models, our one GPU stayed free for
+Isaac Lab all day. The whole project took 483 calls and cost about $1.14.
+
+The camera robot is a LeRobot ACT policy, trained on the teacher's runs mixed with our verified human demos. Around
+it there's a Python core that holds the success check, the repairs and the statistics, a FastAPI backend, and a
+React and three.js website where you can record demos, run SANT, and replay all 40 real test runs.
+
+We wrote down every test before running it: which scenes, what counts as success, and what score we were aiming for.
+That way we couldn't fool ourselves after the fact.
 
 ## Challenges we ran into
 
-- **Real hands fail physics, even when they "work".** All 10 webcam demos dropped the cube in the bin, and the
-  physics check failed every one: the gripper pressed into the bin at up to 927 N against a 5 N limit.
-- **Copying alone hit a ceiling (3/40).** The robots grabbed the cube, then dropped it. So we added an RL teacher. It
-  took six reward designs before it learned the task, and every failed run is logged.
-- **The teacher cheated physics.** Its first version moved at an impossible 1.7 m/s. Replayed through SANT's check,
-  only 3 of 50 runs held up. Capped at 0.5 m/s: 50/50.
-- **The student couldn't follow the teacher at first** (0/30), until the teacher trained with the student's own
-  actuator.
-- **Measuring our own AI honestly.** Nemotron's first repair win (5/10 vs 3/10) didn't replicate (2/10 vs 3/10), and
-  code diagnosed demos slightly better than Nemotron. We published both and gave Nemotron the jobs it's good at.
-- **One GPU for everything:** simulation, RL, training and the site all shared one 16 GB card.
+Our real human demos failed physics even when they looked fine. All ten webcam demos put the cube in the bin, and
+SANT's check rejected every one of them, because the gripper was pushing into the bin with up to 927 N of force
+(the limit is 5 N).
+
+Copying demos only got us so far. Even with clean, verified demos, the robot would grab the cube and then drop it,
+topping out at 3 out of 40. That's why we added the RL teacher, which took six different reward designs before it
+learned the task.
+
+Then the teacher cheated. Its first good version moved at 1.7 m/s, which no real arm should do. When we ran it
+through SANT's own physics check, only 3 of 50 runs held up. Capping its speed fixed it, and all 50 passed.
+
+We also had to be honest about our own AI. Nemotron's first repair result looked great (5 out of 10 fixed, against
+3 for the rules), but when we ran it again it got 2. We published both results and moved Nemotron to the jobs it's
+actually good at.
 
 ## Accomplishments that we're proud of
 
-| Robot, tested on 40 unseen scenes | Success |
-|---|---|
-| Copying the 10 raw mouse demos | 0/40 |
-| Copying the SANT-verified demos | 3/40 |
-| RL teacher → camera robot, v1 | 15/40 |
-| **v2: same data, trained longer + a gripper fix** | **30/40 (75%, Wilson 60–86%)** |
+The main one: a robot that works from ten sloppy mouse demos, 30 out of 40 on new scenes, in a test we set up before
+running it. Our goal was 24, and we beat it.
 
-- **A working robot from 10 sloppy mouse demos:** 30/40, pre-registered, run once, beating the ≥ 24/40 goal we set
-  before the run. The comparisons between rows are descriptive: the 30/40 used fresh seeds.
-- **Proof the human demos matter:** the same RL teacher, with the same code, budget and seed but no human demo
-  starts, never lifted the cube: **0/128 vs 113/128** with them.
-- **SANT checks everything, even the teacher and Mimic:** it caught the teacher's impossible speed, and it caught 9 of
-  Isaac Lab Mimic's 100 self-reported successes as false.
-- **Nemotron labeled demos 40/40** in a pre-registered test, and turned 34/34 plain-English repair requests into the
-  right steps.
-- **We published the results that went against us** too.
+We also showed the human demos really matter. The same RL teacher, with the same code and the same budget but
+without the human demos to start from, never lifted the cube once (0 out of 128, against 113 out of 128 with them).
+
+SANT ended up catching problems everywhere we pointed it. It caught our teacher cheating, and it flagged 9 of Isaac
+Lab Mimic's 100 self-reported successes as actually failing.
+
+And we're proud that we published the results that didn't go our way, too.
 
 ## What we learned
 
-- **Physics is the judge.** Use language models for words (labels, scenes, proposals), and code plus physics for
-  verdicts.
-- **Verify every copy.** Multiplying only helps when each copy is checked.
-- **Human demos and RL need each other.** Imitation alone stalled at 3/40, and RL alone learned nothing. Together:
-  30/40.
-- **Pre-register, then report.** Two of our favourite results didn't replicate, and we'd never have known otherwise.
+Physics should be the judge. Language models are great at words, like labelling a demo or describing a scene, but
+when the question is "did this actually work?", a physics check beats them every time.
+
+Multiplying demos only helps if you check every copy. Human demos and RL need each other: copying alone stalled, RL
+alone learned nothing, and together they got to 30 out of 40.
+
+And writing the test down before running it saved us more than once. Two of our favourite early results didn't hold
+up when we checked them again.
 
 ## What's next for SANT
 
-- **A real robot:** the same recipe on an SO-101 or a Franka arm, starting from webcam demos.
-- **Fix the main failure:** all 10 test failures timed out, and every one of them dropped the cube at some point.
-- **Nemotron as the failure analyst:** it reads why the robot failed and proposes the next training data, with code
-  checking every claim.
-- **More tasks and more robots,** and an ablation to credit v2's two changes separately.
-- Everything so far is in simulation, and we say so.
+The big one is a real robot. Everything so far is in simulation, and the next step is running the same recipe on an
+SO-101 or a Franka arm, starting from webcam demos.
+
+We also want to fix the main failure. In the final test, every one of the 10 failures involved the robot dropping the
+cube at some point. We're working on having Nemotron read those failures and suggest what training data to make next,
+with code checking every claim. After that: more tasks and more robots.
