@@ -49,11 +49,11 @@ class ReplayingEnv:
 def test_a_replay_folder_loads_as_labels_start_pose_and_verified_path():
     ep = load_label_episode(DATA / "verified")
     assert ep.actions.shape == (404, 9) and ep.start_q.shape == (9,) and ep.ee_pos.shape == (404, 3)
-    assert ep.scene.seed == json.loads((DATA / "verified" / "scene.json").read_text())["seed"]
+    assert ep.scene.seed == json.loads((DATA / "verified" / "scene.json").read_text(encoding="utf-8"))["seed"]
 
 
 def test_a_folder_without_steps_is_refused(tmp_path):
-    (tmp_path / "scene.json").write_text((DATA / "verified" / "scene.json").read_text())
+    (tmp_path / "scene.json").write_text((DATA / "verified" / "scene.json").read_text(encoding="utf-8"), encoding="utf-8")
     np.savez(tmp_path / "steps.npz", joint_pos=np.zeros((3, 9)))
     with pytest.raises(ValueError, match="action"):
         load_label_episode(tmp_path)
@@ -105,4 +105,4 @@ def test_the_report_counts_reasons_and_drift(tmp_path):
     s = write_report(tmp_path / "r.json", rs, {"n": 3})
     assert s["successes"] == 1 and s["reasons"] == {"dropped": 2, "not_in_bin": 1}
     assert s["drift_mean_mm_median"] == 30.0
-    assert json.loads((tmp_path / "r.json").read_text())["summary"]["n"] == 3
+    assert json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))["summary"]["n"] == 3

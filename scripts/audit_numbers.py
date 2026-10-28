@@ -395,7 +395,7 @@ def claims() -> list[Claim]:
     A.check("DAgger r1 time limits", PRE, r"; (\d+) hit the time limit", str(d.ended_by["time_limit"]))
     A.check("DAgger r1 failure reasons", PRE, r"\*\*Failure reasons:\*\* (not_in_bin \d+, dropped \d+, collision \d+, gripper_closed \d+)",
             _reasons_text(d.reasons, ["not_in_bin", "dropped", "collision", "gripper_closed"]))
-    frames = json.loads((RESULTS / "dagger_r1" / "rollouts_done.json").read_text())["frames"]
+    frames = json.loads((RESULTS / "dagger_r1" / "rollouts_done.json").read_text(encoding="utf-8"))["frames"]
     A.check("DAgger r1 frames", PRE, r"\*\*Frames:\*\* ([\d,]+) labelled", f"{frames:,}")
     A.check("DAgger r1 frames (rows)", PRE, r"\*\*Frames:\*\* ([\d,]+) labelled",
             f"{sum(int(r['frames']) for r in load_rows(RAW_FILES['dagger_r1'])):,}")

@@ -105,7 +105,7 @@ def test_a_cached_run_is_shown_with_what_the_code_sent_back(client, tmp_path):
             {"sample": 0, "reply": CHANCE_REGION, "errors": ["region 'right_bin': likely chance (p = 0.4)"], "think": True},
             {"sample": 0, "reply": GOOD, "errors": [], "think": True},
             {"sample": 1, "reply": "", "errors": ["api_error: secret-key-123 at https://internal"], "think": True},
-        ]}))
+        ]}), encoding="utf-8")
     n = client.get("/analysis/bigtest_final").json()["nemotron"]
     first, ok, down = n["attempts"]
     assert not first["accepted"] and first["claimed"]["regions"] == ["right_bin"] and "likely chance" in first["errors"][0]
@@ -132,7 +132,7 @@ def test_a_live_run_asks_nemotron_caches_it_and_returns_the_analysis(client, mon
     assert n["calls"] == 2 and n["recipe"]["regions"] == [] and n["model"] == "nvidia/fake"
     assert [a["accepted"] for a in n["attempts"]] == [False, True]  # the chance region went back with its numbers
     assert chat.calls[0]["tier"] == "super"
-    saved = json.loads((tmp_path / "analysis" / "stage_a_60k" / "analysis.json").read_text())
+    saved = json.loads((tmp_path / "analysis" / "stage_a_60k" / "analysis.json").read_text(encoding="utf-8"))
     assert saved["calls"] == 2 and saved["ran_at"]
     assert client.get("/analysis/stage_a_60k").json()["nemotron"]["calls"] == 2  # GET now shows the cache
 
@@ -173,7 +173,7 @@ def test_an_api_outage_never_leaks_the_error_text(client, monkeypatch):
 def test_a_symlinked_cache_folder_pointing_outside_is_refused(client, tmp_path):
     outside = tmp_path.parent / f"{tmp_path.name}_outside"
     outside.mkdir()
-    (outside / "analysis.json").write_text(json.dumps({"attempts": []}))
+    (outside / "analysis.json").write_text(json.dumps({"attempts": []}), encoding="utf-8")
     (tmp_path / "analysis").mkdir()
     (tmp_path / "analysis" / "bigtest_final").symlink_to(outside, target_is_directory=True)
     assert client.get("/analysis/bigtest_final").status_code == 400
