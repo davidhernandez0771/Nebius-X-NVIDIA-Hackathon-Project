@@ -47,6 +47,7 @@ const DataPage = lazy(() => import("./site/data/DataPage"));
 const TestTrackPage = lazy(() => import("./site/testtrack/TestTrackPage"));
 // The LOOK clip alone (the hero and /site/results embed <LookClip /> from ./site/lookclip/LookClip).
 const LookClipPage = lazy(() => import("./site/lookclip/LookClipPage"));
+const FilmPage = lazy(() => import("./site/film/FilmPage"));
 
 const lazyPage = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
@@ -69,6 +70,15 @@ export default function App() {
       <Routes>
         {/* Hand v4's hand-art preview (live tooling, not archived). */}
         <Route path="/pm/hand-art" element={<HandArtPreviewRoute />} />
+        {/* The demo film (video/README.md): its own full-screen stage, outside the site's frame. */}
+        <Route
+          path="/film"
+          element={
+            <Suspense fallback={null}>
+              <FilmPage />
+            </Suspense>
+          }
+        />
         <Route element={<SantRoot />}>
           <Route path="/" element={lazyPage(<World />)} />
           <Route path="/world" element={lazyPage(<World />)} />
