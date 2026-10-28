@@ -4,7 +4,7 @@
 // small emitter on the object. Hovering or focusing a label lights it, stutters it in again
 // ("materialize") and unfolds it up and to the right to show its line. Entering the room view
 // materializes them all; a cartridge in the hand dims them. Text is crisp: a 3× canvas atlas, mipmapped.
-// All four in one geometry and one material: one draw call, none outside the room view.
+// All of them in one geometry and one material: one draw call, none outside the room view.
 //
 // The labels are only the picture: the clicks, the focus and the names stay on the HTML buttons
 // (HubTags), laid exactly over each label here every frame (they grow with it as it unfolds).
@@ -119,9 +119,9 @@ uniform sampler2D uMap;
 uniform float uTime;
 uniform float uOn;
 uniform float uDim;
-uniform vec4 uHot;
-uniform vec4 uOpen;
-uniform vec4 uSince;
+uniform float uHot[${HOLO_TAGS.length}];
+uniform float uOpen[${HOLO_TAGS.length}];
+uniform float uSince[${HOLO_TAGS.length}];
 uniform vec3 uTeal;
 uniform vec3 uGlassLo;
 uniform vec3 uGlassHi;
@@ -133,7 +133,12 @@ varying float vTag;
 
 const vec2 OPEN = vec2(${LABEL.openW.toFixed(1)}, ${LABEL.openH.toFixed(1)});
 
-float pick(vec4 v) { return dot(v, vec4(equal(vec4(floor(vTag + 0.5)), vec4(0.0, 1.0, 2.0, 3.0)))); }
+// Tag i's value (a loop with a constant bound: the index is never dynamic, which GLSL ES 1.0 needs).
+float pick(float v[${HOLO_TAGS.length}]) {
+  float r = 0.0;
+  for (int i = 0; i < ${HOLO_TAGS.length}; i++) r += v[i] * (1.0 - step(0.5, abs(float(i) - vTag)));
+  return r;
+}
 float hash(float n) { return fract(sin(n) * 43758.5453); }
 
 void main() {
@@ -213,9 +218,9 @@ export function HubHolograms({ texts, wraps, quality }: { texts: readonly HoloTe
           uTime: { value: 0 },
           uOn: { value: 0 },
           uDim: { value: 0 },
-          uHot: { value: new THREE.Vector4() },
-          uOpen: { value: new THREE.Vector4() },
-          uSince: { value: new THREE.Vector4(NEVER, NEVER, NEVER, NEVER) },
+          uHot: { value: new Float32Array(N) },
+          uOpen: { value: new Float32Array(N) },
+          uSince: { value: new Float32Array(N).fill(NEVER) },
           uTeal: { value: new THREE.Color(TEAL) },
           uGlassLo: { value: new THREE.Color("#020f0e") },
           uGlassHi: { value: new THREE.Color("#062a25") },
@@ -233,7 +238,7 @@ export function HubHolograms({ texts, wraps, quality }: { texts: readonly HoloTe
     [map],
   );
   const mesh = useRef<THREE.Mesh>(null);
-  const st = useRef({ on: 0, shown: false, dim: 0, hot: [0, 0, 0, 0], open: [0, 0, 0, 0], start: [-NEVER, -NEVER, -NEVER, -NEVER], hotWas: [false, false, false, false] });
+  const st = useRef({ on: 0, shown: false, dim: 0, hot: Array<number>(N).fill(0), open: Array<number>(N).fill(0), start: Array<number>(N).fill(-NEVER), hotWas: Array<boolean>(N).fill(false) });
 
   // The real fonts arriving reprint the atlas.
   useEffect(() => {
@@ -285,9 +290,11 @@ export function HubHolograms({ texts, wraps, quality }: { texts: readonly HoloTe
     u.uTime.value = now;
     u.uOn.value = s.on;
     u.uDim.value = s.dim;
-    u.uHot.value.set(s.hot[0], s.hot[1], s.hot[2], s.hot[3]);
-    u.uOpen.value.set(s.open[0], s.open[1], s.open[2], s.open[3]);
-    u.uSince.value.set(now - s.start[0], now - s.start[1], now - s.start[2], now - s.start[3]);
+    for (let i = 0; i < N; i++) {
+      u.uHot.value[i] = s.hot[i];
+      u.uOpen.value[i] = s.open[i];
+      u.uSince.value[i] = now - s.start[i];
+    }
     m.visible = s.on > 0;
 
     // The HTML buttons over the labels: the same box on screen, growing as it unfolds. drei mounts

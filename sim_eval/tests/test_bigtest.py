@@ -15,6 +15,17 @@ from sim_eval.overnight import PhaseFailed, run_phases
 from sim_eval.tests.test_distill_round import FakeRunner, make_episode, write_scene
 
 
+@pytest.fixture(autouse=True)
+def _data_disk_has_room(monkeypatch):
+    """The stages' preflight reads the real disk's free space (min_free_gb 40). The chain's GPU commands are faked and
+    write a few KB, so report plenty free: the tests must not depend on the machine (CI had 30 GB and failed)."""
+    import shutil
+    from collections import namedtuple
+
+    usage = namedtuple("usage", "total used free")
+    monkeypatch.setattr(shutil, "disk_usage", lambda _p: usage(2 * 10**12, 0, 10**12))
+
+
 def _human_grid(root: Path, name: str, n_steps: int = 30) -> Path:
     eps = root / "eps"
     for i in range(2):

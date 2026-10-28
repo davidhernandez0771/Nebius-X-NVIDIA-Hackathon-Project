@@ -40,6 +40,7 @@ import argparse
 import json
 import math
 import sys
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -52,11 +53,10 @@ from demo_pipeline.data_recipe import (  # noqa: E402
     DataRecipe, contrast_table, region_support, rules_mechanism, rules_recipe, sample_recipe_scenes, uniform_scenes,
     validate_recipe,
 )
-from demo_pipeline.failure_features import EpisodeFeatures, episode_features, result_features  # noqa: E402
+from demo_pipeline.failure_features import (  # noqa: E402
+    EVAL_SEED_MIN, TEST_SEEDS, EpisodeFeatures, episode_features, read_episode_log, result_features,
+)
 from demo_pipeline.multiply import sample_scene  # noqa: E402
-
-EVAL_SEED_MIN = 5000  # sim_eval.scenes: unseen scenes start here
-TEST_SEEDS = ((5020, 5059), (5400, 5439))  # the pre-registered tests: distill final, big test (sim_eval.distill_round)
 
 
 def parse_range(text: str) -> tuple[int, int]:
@@ -79,12 +79,7 @@ def read_eval(path: Path) -> tuple[list[dict], Path]:
     last row per seed wins, as a resume reads it). Traces are <name>_traces next to it."""
     path = Path(path)
     if path.name.endswith(".episodes.jsonl"):
-        latest: dict[int, dict] = {}
-        for line in path.read_text(encoding="utf-8").splitlines():
-            rec = json.loads(line) if line.strip() else {}
-            if "episode" in rec:
-                latest[int(rec["episode"]["seed"])] = rec["episode"]
-        return [latest[s] for s in sorted(latest)], path.with_name(path.name[: -len(".episodes.jsonl")] + "_traces")
+        return read_episode_log(path), path.with_name(path.name[: -len(".episodes.jsonl")] + "_traces")
     return json.loads(path.read_text(encoding="utf-8"))["episodes"], path.with_name(path.stem + "_traces")
 
 
@@ -177,7 +172,6 @@ def _fmt_recipe(r: DataRecipe, episodes: list[EpisodeFeatures]) -> str:
 
 
 def report_md(episodes: list[EpisodeFeatures], analysis: dict | None, rules: DataRecipe | None) -> str:
-    from collections import Counter
     n = len(episodes)
     k = sum(e.success for e in episodes)
     counts = Counter(e.primary for e in episodes if e.primary)

@@ -25,7 +25,39 @@ This project takes one cheap demo and cleans it up with code. NVIDIA Isaac Lab t
 physics, and the project multiplies it into many verified copies, each with the cube and bin in new
 places. The output is a standard LeRobot dataset that you can train a robot policy on.
 
-## The result
+## The headline result (2026-10-25, pre-registered)
+
+**From 10 human mouse demos to a camera policy that succeeds 30/40 (75%) on scenes it has never seen.**
+
+The pipeline: SANT checks the demos in Isaac Lab physics, repairs and multiplies them. An RL teacher (PPO in Isaac Lab)
+learns the task starting from them. It's distilled into a camera-only ACT policy, which is tested once on 40 fresh
+scenes. The scenes, the decision rules and the 60% goal were all committed before the run.
+
+| Policy | Success on 40 unseen scenes | Wilson 95% CI |
+|---|---|---|
+| Imitating the 10 raw mouse demos | 0 / 40 | 0–9% |
+| Imitating the SANT-verified, multiplied demos | 3 / 40 | 3–20% |
+| v1: the RL teacher distilled into the camera policy | 15 / 40 | 24–53% |
+| **v2: the same data, trained 3× longer + a gripper deadband** | **30 / 40 (75%)** | **60–86%** |
+
+**Did the human demos matter?** The same RL teacher, with the same code, budget and seed, but starting from home instead
+of the demos, never lifted the cube: **0/128 vs 113/128** home-start success.
+
+**What it does not show:**
+- **Real hardware:** everything runs in simulation.
+- **Which of v2's two changes caused the gain:** they were tested together.
+- **Strict comparisons between rows:** v2 was tested on fresh seeds (5400–5439), the others on 5020–5059, so the
+  comparisons are descriptive.
+- **DAgger:** a correction round ran, but it lost the pre-registered pick.
+- **The held human re-execution:** replaying the human demos through the student's actuator failed (0/110) and was
+  dropped by a pre-set rule.
+
+All of it, failures included, is in
+[2026-10-23-bigtest-prereg.md](docs/superpowers/notes/2026-10-23-bigtest-prereg.md) and
+[2026-10-21-distill-prereg.md](docs/superpowers/notes/2026-10-21-distill-prereg.md). The raw per-episode results are in
+`docs/superpowers/notes/2026-10-23-bigtest/results/`.
+
+## Earlier result: multiplying scripted demos (2026-10-17)
 
 We trained the same robot policy (ACT, 30k steps) twice from the same 10 source demos. Then we tested
 both policies on 40 new scenes. The scenes and the stopping rule were fixed in advance, and those
@@ -152,9 +184,40 @@ Details and the comparison table: [docs/submission/README.md](docs/submission/RE
 
 ## Where NVIDIA Nemotron fits (honestly)
 
+- **As a failure analyst, it now runs on real results (new, 2026-10-25).** It reads how a trained policy failed and
+  proposes the next training data. It works from numbers only: code measures every episode and labels each
+  failure, and Nemotron proposes the pattern.
+  - **What it proposes:** scene regions to generate more of, mechanism claims (for example "carry speed is higher in
+    failures"), and fixes from a fixed menu. Saying "keep the data as it is" is allowed.
+  - **What code checks:** each region must hold ≥ 3 of its target failures at a clearly higher rate than outside it
+    (one-sided Fisher p ≤ 0.1). Each mechanism must match a measured contrast (Mann–Whitney, |effect| ≥ 0.2). Every
+    cited seed must exist. A failed check goes back to the model with the numbers.
+  - **How we handle run-to-run variance:** it is asked 3 times, and we keep the answer the others agree with.
+  - **On synthetic traces with a planted pattern:**
+    - Drops planted on right-side bins: the region it found held 13/13 of the drops, for $0.015.
+    - Drops planted on carry speed: it chose no region, claimed `carry_speed_max`, and proposed slowing the carry to
+      0.4 m/s, for $0.026.
+    - Before the checks existed, it drew a box around 1 of 13 drops. The checks are what made it useful.
+  - **On the 30/40 model's real results** (69 episodes, post-hoc, result rows only, no traces):
+    - 17 of 18 failures were drops.
+    - Two of three samples flagged cross-body carries (cube on the left, bin on the right), at one-sided p = 0.092. The third
+      said there was no clear pattern.
+    - On five other checkpoints it never saw, pooled, the direction held, but not significantly
+      (0.62 vs 0.51 drop rate, one-sided p = 0.11; it held in 3 of the 5 checkpoints).
+    - **This is a weak lead, not a finding.** Explaining the drops needs the per-step traces.
+  - **What is built:** the diagnosis, the checks, and turning a recipe into scenes for multiply
+    (`--scene-recipe`). Whether a recipe trains a better policy has not been tested.
+  - **Built and unit-tested, not yet run on Isaac (2026-10-28):**
+    - the fixes, applied to multiplied variants before their physics replay (`src/demo_pipeline/data_fixes.py`:
+      recenter the grasp, slow the carry, filter training episodes);
+    - the `/analysis` page and its API (`src/app/routers/analysis.py`), which show the analysis. A live Nemotron
+      call runs only with `SANT_ANALYST_LIVE=1`.
+
+    Whether a fixed recipe trains a better policy is still untested. That needs the GPU.
+  <!-- src: docs/superpowers/notes/2026-10-25-failure-analyst.md (section 1 live runs table; section 1b); scripts/analyze_failures.py -->
 - **As a repairer, it is not yet better than the rules.** In a pre-registered, blind A/B on the 10 real webcam
-  demos, its trajectory edits repaired 5/10 against the rules' 3/10 (p = 0.50). The re-run gave 2/10 vs 3/10
-  (p = 1.0). Neither is significant, and the plans vary from run to run.
+  demos, its trajectory edits repaired 5/10 against the rules' 3/10 (McNemar p = 0.50). The re-run gave 2/10 vs 3/10
+  (McNemar p = 1.0). Neither is significant, and the plans vary from run to run.
   Code checks every edit; physics decides.
   <!-- src: docs/superpowers/notes/2026-10-20-nemotron-repair.md ("Result: the blind A/B") -->
 - **As a demo judge, it lost to code.** In a fair, pre-registered test on 32 synthetic demos, code
@@ -182,7 +245,7 @@ and the call counts come from our usage logs (see below).
 
 | Model | Calls logged | What it does | Why this one |
 |---|---|---|---|
-| `nvidia/nemotron-3-super-120b-a12b` (tier `super`) | 234 | **The trajectory repairer**, with thinking on and a 16,000-token cap for thinking plus answer (`src/app/ai/nemotron_repair.py`). **The scene creator** (a sentence → a validated scene plan). **The assist-zone planner** and **the repair-request translator** | Text tasks that reason over forces, offsets and geometry. A mixture-of-experts model with 12B active parameters is cheap per call, and with thinking on it plans several steps ahead |
+| `nvidia/nemotron-3-super-120b-a12b` (tier `super`) | 234 | **The trajectory repairer**, with thinking on and a 16,000-token cap for thinking plus answer (`src/app/ai/nemotron_repair.py`). **The failure analyst** (`src/app/ai/failure_analyst.py`, since 10-25; not in this call count). **The scene creator** (a sentence → a validated scene plan). **The assist-zone planner** and **the repair-request translator** | Text tasks that reason over forces, offsets and geometry. A mixture-of-experts model with 12B active parameters is cheap per call, and with thinking on it plans several steps ahead |
 | `nvidia/Nemotron-3.5-Super-VL` (tier `nemotron-vl`) | 249 | **The demo labeler and intent judge** (pre-registered: 40/40 and 59/60). Before that, **the demo diagnoser** (7 front frames + 1 wrist frame + a metrics table) | The only one here that takes images |
 | `nvidia/Nemotron-3_5-Lightning` (tier `nano`) | 0 | Wired to the site's Ask SANT box, the command and query helpers, `scripts/hello.py`, and the take review's optional rewording (`phrasing=nemotron`; the default is the rules' wording) | The fast tier, for short replies. **It isn't in our usage logs:** it was called only while the client was first set up (September), so none of these features has used it in a logged run |
 | `nvidia/Nemotron-3-Ultra-550b-a55b` (tier `ultra`) | 0 | **Nothing:** it's configured, and no code path calls it | We never needed more than Super |
@@ -232,7 +295,36 @@ and the call counts come from our usage logs (see below).
 
 Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
 
-## Status (2026-10-21)
+## Status (2026-10-29)
+
+| | What |
+|---|---|
+| **Done** | **v2, the headline:** 30/40 (75%) on fresh seeds 5400–5439, run once, goal ≥ 24/40 met ([prereg + full log](docs/superpowers/notes/2026-10-23-bigtest-prereg.md)) |
+| **Done** | **The RL teacher:** v6 learned the task after five logged failures. SANT's physics gate caught it moving at 1.7 m/s (3/50); a 0.5 m/s cap fixed it (50/50). The no-demo control: 0/128 vs 113/128 |
+| **Done** | The Nemotron failure analyst, run on the 30/40 model and four other checkpoints. Its one region is a weak lead (one-sided p = 0.092) ([note](docs/superpowers/notes/2026-10-25-failure-analyst.md)). All five runs are committed, so the site shows them with no API call |
+| **Done** | The site in one branch: the 3D story, `/site/results` (the big test scene by scene), `/metrics`, `/flow` and `/analysis` |
+| **Done** | A math audit: `scripts/audit_numbers.py` recomputes every stated number from the raw results; 197 checked, 0 mismatched ([note](docs/superpowers/notes/2026-10-29-math-audit.md)) |
+| **Done** | A security pass: no secret in git history; cross-site writes to the local API and sim worker are refused ([note](docs/superpowers/notes/2026-10-29-security.md)) |
+| **Done** | `scripts/wandb_report.py`: the results as a Weights & Biases project (dry run by default) |
+| **Next** | The traces of the big test's failures, for the analyst to measure grasps and carry speeds |
+| **Next** | The ablation that splits the two changes behind 30/40, the k = 5 held-human pilot and the closed loop on Isaac ([GPU runbook](docs/superpowers/notes/2026-10-26-gpu-runbook.md)) |
+| **Next** | The 3-minute video |
+
+<details><summary>Status on 2026-10-26</summary>
+
+| | What |
+|---|---|
+| **Done** | **v2, the headline:** 30/40 (75%) on fresh seeds 5400–5439, run once, goal ≥ 24/40 met ([prereg + full log](docs/superpowers/notes/2026-10-23-bigtest-prereg.md)) |
+| **Done** | **The RL teacher:** v6 learned the task after five logged failures. SANT's physics gate caught it moving at 1.7 m/s (3/50); a 0.5 m/s cap fixed it (50/50). The no-demo control: 0/128 vs 113/128 |
+| **Done** | **v1 distillation:** 15/40, goal not met. The first round's 0/30 was traced to an actuator mismatch between teacher and student, and fixed |
+| **Done** | The Nemotron failure analyst, run on the 30/40 model's results. Its one region is a weak lead (p = 0.092) ([note](docs/superpowers/notes/2026-10-25-failure-analyst.md)) |
+| **Next** | The traces of the big test's failures, for the analyst to measure grasps and carry speeds |
+| **Next** | The ablation that splits the two changes behind 30/40, and the k = 5 held-human pilot ([GPU runbook](docs/superpowers/notes/2026-10-26-gpu-runbook.md)) |
+| **Next** | The site's Results proof section, the combined site branch, and the 3-minute video |
+
+</details>
+
+<details><summary>Status on 2026-10-21</summary>
 
 | | What |
 |---|---|
@@ -242,16 +334,15 @@ Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
 | **Built, not run** | **Distillation of the teacher into the ACT camera policy, with DAgger rounds** (branch `pm/distill-dagger`, merged after the final test). It is pre-registered: one test on seeds 5020–5059, goal ≥ 24/40 ([prereg](docs/superpowers/notes/2026-10-21-distill-prereg.md)) |
 | **Next** | The distillation's single test, then the 3-minute video |
 
-<details><summary>Status on 2026-10-20</summary>
+</details>
 
-| | What |
-|---|---|
+<details><summary>Status on 2026-10-20</summary>
 
 | | What |
 |---|---|
 | **Done** | A live session with a real person: 10 webcam demos recorded (live test #10); 0/10 pass physics as recorded |
 | **Done** | Rules repair → multiply on them: 3/10 repaired, 24/30 copies verified |
-| **Done** | Nemotron as a repairer (trajectory edits, checked by code): blind A/B 5/10 vs rules 3/10 (p = 0.50), re-run 2/10 vs 3/10 (p = 1.0) |
+| **Done** | Nemotron as a repairer (trajectory edits, checked by code): blind A/B 5/10 vs rules 3/10 (McNemar p = 0.50), re-run 2/10 vs 3/10 (McNemar p = 1.0) |
 | **Done** | The site: a descent intro (forest → reactor → the ring → the workshop), the robot wall and catalog, drag a cartridge to the machine, the workbench, Record with keyboard/mouse/camera and three twin views |
 | **Done** | Training on what SANT made from the webcam demos (27 episodes, 3 repaired demos): 3/40, one arm |
 | **Done** | Pre-registered raw vs SANT on 10 mouse demos (live test #11): 0/40 vs 3/40, p = 0.24, not significant; SANT's policy collides a lot (27/40) |
@@ -291,8 +382,8 @@ Everything runs on Windows 11, through the pip install of Isaac Sim + Isaac Lab.
 | `sim_worker/` | The Isaac Lab scene, the robot, the scripted expert, replay and verify, and the HTTP server |
 | `sim_eval/` | Tests a trained policy in Isaac Lab on unseen scenes |
 | `lerobot_tools/` | LeRobot export, dataset assembly, training and the policy server |
-| `scripts/` | Batch runs, scoring, results and charts, and launch scripts (`scripts/launch/`) |
-| `web/` | The React pages (`web/src/pm/`) and the hand tracking |
+| `scripts/` | Batch runs, scoring, results and charts, launch scripts (`scripts/launch/`), `analyze_failures.py` (the Nemotron failure analyst), `sant_loop.py` (the closed loop: diagnosis → recipe arm vs uniform control → compare), `audit_numbers.py` (recomputes every stated number) and `wandb_report.py` (the results on W&B) |
+| `web/` | The React site (`web/src/`) and the hand tracking. Among its 2D pages: `/analysis` (the failure analyst), `/metrics` (every pre-registered number as a lit 3D hall, with 2D charts and a no-WebGL fallback) and `/flow` (the pipeline end to end, with the closed loop) |
 | `tests/` | Backend and pipeline tests (`uv run pytest -q`) |
 | `docs/` | [RUNBOOK](docs/RUNBOOK.md) (how to run), [TECHNICAL](docs/TECHNICAL.md) (full details), `media/`, `submission/`, and `superpowers/` (the spec, plans and dated notes behind every number) |
 
@@ -309,6 +400,33 @@ powershell -ExecutionPolicy Bypass -File scripts\launch\start.ps1 -Sim      # Is
 powershell -ExecutionPolicy Bypass -File scripts\launch\stop.ps1
 ```
 <!-- src: docs/RUNBOOK.md §3.2–3.3 (start/stop scripts, sim worker ~4.5 GB), §4 (/pm/record), §2.2 and §2.5 (test commands) -->
+
+**Just the site, on any machine (no GPU, macOS or Linux too).** The pages read the committed results, so this shows
+everything except live recording and simulation:
+
+```bash
+uv run uvicorn app.main:app --app-dir src --port 8000      # the API
+npm --prefix web ci && npm --prefix web run dev            # the site: http://localhost:5173
+```
+
+Start at `/` (the 3D story), then `/site/results`, `/metrics`, `/flow` and `/analysis`.
+
+The failure analyst runs on any machine, with no GPU. It reads an eval's results (and its traces, when the eval ran
+with `--trace`) and writes a report, a recipe and scenes for multiply. The test seeds are refused unless
+`--protect none`:
+
+```powershell
+uv run python scripts/analyze_failures.py --results-only --protect none --out data/analysis/bigtest_final `
+  --eval docs/superpowers/notes/2026-10-23-bigtest/results/stageA_selection/distill_r0_s180000.episodes.jsonl `
+  --eval docs/superpowers/notes/2026-10-23-bigtest/results/final_test/bigtest_final.episodes.jsonl
+```
+
+The closed loop (`scripts/sant_loop.py`) chains it all in one resumable command: the diagnosis, a frozen recipe, a
+recipe arm and a uniform control trained and evaluated on the same fresh seeds, then the comparison. `--dry-run`
+prints every stage's command and runs nothing. It is unit-tested but has not run on Isaac yet. The commands are in
+the [GPU runbook](docs/superpowers/notes/2026-10-26-gpu-runbook.md).
+
+On Node 26, run the web tests with `NODE_OPTIONS=--no-experimental-webstorage` (Node's own web storage hides jsdom's).
 
 ## Team and history
 

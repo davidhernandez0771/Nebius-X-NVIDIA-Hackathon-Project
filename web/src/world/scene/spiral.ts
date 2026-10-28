@@ -129,8 +129,12 @@ export function resetSpiral(): void {
   spiral.selected = -1;
 }
 
+/** A job's robot (items.ts) as a robot's label code; Nemotron and "any robot" are no arm. */
+const ITEM_ROBOT: Readonly<Record<string, string>> = { FR3: "FR3", OPENARM: "OPN", "SO-101": "S101" };
+
 /** The cartridge the machine gets for a job: what it projects and the route the zoom opens. */
 export function cartridgeOfItem(i: number): Cartridge {
   const it = ITEMS[i];
-  return { id: it.id, label: it.title, route: it.route, slot: slotOfItem(i) };
+  const robot = ITEM_ROBOT[it.robot];
+  return { id: it.id, label: it.title, route: it.route, slot: slotOfItem(i), ...(robot ? { robot } : {}) };
 }

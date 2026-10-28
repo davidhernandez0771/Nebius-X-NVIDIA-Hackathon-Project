@@ -1,25 +1,53 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { dissolvable, dissolve, DISSOLVE_EDGE, FIELD_MAX, injectDissolve, LAMPS_AT, revealAt } from "./dissolve";
+import { BUILT_AT, builtAt, dissolvable, dissolve, DISSOLVE_EDGE, FIELD_MAX, injectDissolve, MAX_STEP_S, REVEAL_S, revealOf, stepReveal } from "./dissolve";
 
 describe("the workshop's materialize", () => {
-  it("hides the whole room before the travel and shows all of it, edge gone, by the end", () => {
+  it("hides the whole room before it plays and shows all of it, edge gone, at the end", () => {
     // The field runs 0 (first to appear) to FIELD_MAX (last): below 0 nothing shows.
-    expect(revealAt(0)).toBeLessThan(0);
-    expect(revealAt(1)).toBeGreaterThan(FIELD_MAX + DISSOLVE_EDGE);
+    expect(revealOf(0)).toBeLessThan(0);
+    expect(revealOf(1)).toBeGreaterThan(FIELD_MAX + DISSOLVE_EDGE);
   });
 
-  it("only ever reveals more as the travel goes on", () => {
+  it("only ever reveals more as it plays", () => {
     let prev = -Infinity;
-    for (let a = 0; a <= 1; a += 0.01) {
-      expect(revealAt(a)).toBeGreaterThanOrEqual(prev);
-      prev = revealAt(a);
+    for (let p = 0; p <= 1; p += 0.01) {
+      expect(revealOf(p)).toBeGreaterThanOrEqual(prev);
+      prev = revealOf(p);
     }
   });
 
-  it("switches the lamps on once the room is whole", () => {
-    expect(revealAt(LAMPS_AT)).toBeGreaterThan(FIELD_MAX + DISSOLVE_EDGE);
-    expect(LAMPS_AT).toBeLessThan(1);
+  it("plays the moment the room is built (the descent's counter at 100%), not as the scroll goes", () => {
+    expect(builtAt(0)).toBe(false);
+    expect(builtAt(BUILT_AT - 0.01)).toBe(false);
+    expect(builtAt(BUILT_AT)).toBe(true);
+    expect(builtAt(1)).toBe(true);
+    // The counter reads 100% at the descent's t / 0.95 (descent/index.tsx).
+    expect(BUILT_AT).toBeCloseTo(0.95, 5);
+  });
+
+  it("is short: the whole room in REVEAL_S of time, at any frame rate, and back out if the visitor scrolls back up", () => {
+    expect(REVEAL_S).toBeGreaterThanOrEqual(0.6);
+    expect(REVEAL_S).toBeLessThanOrEqual(1.5);
+    for (const fps of [30, 60, 144]) {
+      let p = 0, t = 0;
+      while (p < 1) {
+        p = stepReveal(p, true, 1 / fps);
+        t += 1 / fps;
+        expect(p).toBeLessThanOrEqual(1);
+      }
+      expect(t).toBeCloseTo(REVEAL_S, 1);
+      // Scrolled back above the built point: it plays back out (the particles take the room again).
+      for (let k = 0; k < Math.round((REVEAL_S / 2) * fps); k++) p = stepReveal(p, false, 1 / fps);
+      expect(p).toBeCloseTo(0.5, 1);
+      for (let k = 0; k < 400; k++) p = stepReveal(p, false, 1 / fps);
+      expect(p).toBe(0);
+    }
+  });
+
+  it("jumps instead of playing a long frame (a hidden tab, a stall): never more than a frame's step at once", () => {
+    // A 2 s gap between frames counts as one step of at most MAX_STEP_S, so the room still plays in, not pops.
+    expect(stepReveal(0, true, 2)).toBeCloseTo(MAX_STEP_S / REVEAL_S, 5);
   });
 });
 
@@ -56,5 +84,20 @@ describe("dissolvable materials", () => {
     expect(m.onBeforeCompile).toBe(once);
     expect(m.customProgramCacheKey()).not.toBe(key);
     expect(m.customProgramCacheKey()).toContain("dissolve");
+  });
+});
+
+// site-nav (2026-10-26): after Skip the intro, a journey-rail jump, a return or a reload the room took seconds to
+// appear and light: the materialize (REVEAL_S, and each frame may step at most MAX_STEP_S, so a slow GPU plays it
+// longer), then the lamps' power-on. Whoever jumps past the descent wants to be there now.
+describe("landing in the room by a jump", () => {
+  it("stands the room whole at once when the jump lands with it built", async () => {
+    const { revealStep } = await import("./dissolve");
+    expect(revealStep(0, { built: true, ready: false, jumped: true }, 1 / 60)).toBe(1);
+    // Not built (a jump into the story): nothing to stand.
+    expect(revealStep(0, { built: false, ready: true, jumped: true }, 1 / 60)).toBe(0);
+    // Scrolled down into it, no jump: the materialize plays as before.
+    expect(revealStep(0, { built: true, ready: true, jumped: false }, 1 / 60)).toBe(stepReveal(0, true, 1 / 60));
+    expect(revealStep(0, { built: true, ready: false, jumped: false }, 1 / 60)).toBe(0);
   });
 });

@@ -25,6 +25,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from demo_pipeline.schemas import Scene
+from demo_pipeline.stats import wilson_ci
 
 FPS = 50
 TAIL_S = 2.0  # seconds of the last label held after the labels run out, so the cube can settle for check_success
@@ -119,13 +120,9 @@ def drift(verified_ee: np.ndarray, executed_tcp: np.ndarray, gripper: np.ndarray
     return float(d.mean()), float(d.max()), float(d[closes[0]]) if closes.size else None
 
 
-def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float, float]:
-    if n == 0:
-        return 0.0, 1.0
-    p = k / n
-    centre = (p + z * z / (2 * n)) / (1 + z * z / n)
-    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
-    return max(0.0, centre - half), min(1.0, centre + half)
+def wilson(k: int, n: int) -> tuple[float, float]:
+    """95% Wilson interval (demo_pipeline.stats), with the no-data case as the whole of [0, 1]."""
+    return (0.0, 1.0) if n == 0 else wilson_ci(k, n)
 
 
 def summarize(results: list[LabelResult]) -> dict:

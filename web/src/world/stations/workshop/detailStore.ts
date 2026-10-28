@@ -1,6 +1,6 @@
 // The detail view: a job's cartridge comes right out of the spiral and the camera closes in on it,
 // with its info block bottom left. Scrolling, Escape or "Close" puts it back; "Plug in" runs the
-// machine's plug-in and carries on into the projection (plug.autoplay).
+// machine's plug-in and stops there, the hologram up: the projection and the page open only from their buttons.
 import { useWorld } from "../../core/WorldContext";
 import { sendToMachine } from "../../scene/plug";
 import { cartridgeOfItem, matches, setFilter, setSelected, slotOfItem, spiral } from "../../scene/spiral";
@@ -14,7 +14,7 @@ export interface DetailApi {
 }
 
 export function useDetail(): DetailApi {
-  const { store, selectCartridge, goTo, mode, handoff } = useWorld();
+  const { store, selectCartridge, goTo } = useWorld();
   const close = () => {
     if (spiral.selected < 0) return;
     setSelected(-1);
@@ -33,9 +33,7 @@ export function useDetail(): DetailApi {
     plugIn(item) {
       close();
       selectCartridge(cartridgeOfItem(item));
-      // Without the canvas there is no plug-in to watch: open the page now.
-      if (mode !== "3d") return handoff();
-      sendToMachine(slotOfItem(item), true);
+      sendToMachine(slotOfItem(item));
       goTo("machine");
     },
   };

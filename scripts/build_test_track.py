@@ -1,11 +1,18 @@
 """Build the Test track's data (web/public/test-track-data): compact JSON replays of simulations that already ran in Isaac,
 for the /test-track page to play back. It never runs physics; every pose is one Isaac recorded.
 
-    uv run --no-sync python scripts/build_test_track.py [--gate DIR] [--replay-check DIR] [--round0 DIR] [--out DIR]
-                                                        [--check-estimate]
+    uv run --no-sync python scripts/build_test_track.py [--final DIR] [--gate DIR] [--replay-check DIR] [--round0 DIR]
+                                                        [--out DIR] [--check-estimate]
 
-Sources (read only; the defaults are where T3 and T6 wrote them on this machine):
-- gate:         T3's teacher gate 2, C:\\dev\\pm-t3\\data\\rl\\eval\\v6c2_gate2 (verify.json, in_env.json, replay/episodes).
+Sources (read only; the defaults are where T3 and T6 wrote them on this machine), in the page's order:
+- final:        the big test's pre-registered final test (seeds 5400-5439, run once): the camera policy's per-step traces
+                and the eval's episode log, C:\\dev\\pm-t6-big\\data\\evals\\bigtest_test (bigtest_final.episodes.jsonl,
+                bigtest_final_traces/seed_<seed>.npz + .json). The traces don't carry the bin, so it is re-made from each
+                scene's seed with the eval's own sampler (sim_eval.scenes.eval_scenes, as run_eval's scene_plan made it),
+                and every trace is re-judged by SANT's check_success against it, exactly as the eval scored it
+                (sim_eval.eval_policy._score). The build stops unless every verdict and its reasons come out as the eval
+                logged them. Success, reasons and time are the log's; path, peak contact and settle time are that re-judging's.
+- gate:        T3's teacher gate 2, C:\\dev\\pm-t3\\data\\rl\\eval\\v6c2_gate2 (verify.json, in_env.json, replay/episodes).
 - replay-check: T3's replayability check on non-gate seeds, ...\\v6c2_replaycheck_7000 (same layout).
 - round0:       T6's distill round 0 teacher episodes, C:\\dev\\pm-t6\\data\\distill\\distill_mouse\\r0 (rollouts.jsonl,
                 round_t300.json, episodes/teacher_r0_<seed>). Failed rollouts saved no episode: they are listed, not replayed.
@@ -13,12 +20,15 @@ Sources (read only; the defaults are where T3 and T6 wrote them on this machine)
 Writes:
     <out>/index.json                  {built, sources: [{id, title, what, checkpoint, seeds, summary, runs: [...]}]}
     <out>/runs/<source>/<seed>.json   the twin's episode payload (app.routers.twin: joint_pos, gripper, cube_pos, bin,
-                                      base, 4 decimals) + cube_source, contact_n, hand_pos (3 decimals), facts
+                                      base, 4 decimals) + cube_source, contact_n, hand_pos (3 decimals), facts. The
+                                      final test adds cube_quat_path (the cube's recorded rotation each step, 3
+                                      decimals) and contacts ({gripper_cube, arm_bin, arm_table}: [first, last + 1)
+                                      step ranges where Isaac's contact sensors fired). All its steps are kept (50 Hz).
 
 The cube: the gate and replay-check runs recorded its position every step (signals.npz). Round 0 did not record the
 cube at all, so its cube is ESTIMATED from the gripper (estimate_cube) and marked cube_source "estimated";
 --check-estimate measures that estimate against the runs that did record it. Neither recorded the cube's rotation:
-it keeps the scene's start orientation, as in the twin.
+it keeps the scene's start orientation, as in the twin. The final test recorded the cube's position and rotation.
 """
 from __future__ import annotations
 
@@ -36,6 +46,8 @@ OUT = REPO / "web" / "public" / "test-track-data"
 GATE = Path(r"C:\dev\pm-t3\data\rl\eval\v6c2_gate2")
 REPLAY_CHECK = Path(r"C:\dev\pm-t3\data\rl\eval\v6c2_replaycheck_7000")
 ROUND0 = Path(r"C:\dev\pm-t6\data\distill\distill_mouse\r0")
+FINAL = Path(r"C:\dev\pm-t6-big\data\evals\bigtest_test")
+FINAL_CELL = "bigtest_final"
 
 # The twin's joint order and base (app.routers.twin), so the page can use the twin's parser as is.
 JOINT_NAMES = (*(f"panda_joint{i}" for i in range(1, 8)), "panda_finger_joint1", "panda_finger_joint2")
@@ -208,6 +220,137 @@ def build_round0(root: Path, sid: str, title: str, what: str, out: Path) -> dict
     }
 
 
+def _repo_on_path() -> None:
+    """This worktree's own src and sim_eval first: a venv's editable .pth can point at another checkout's src."""
+    for p in (str(REPO), str(REPO / "src")):
+        while p in sys.path:
+            sys.path.remove(p)
+    sys.path[:0] = [str(REPO / "src"), str(REPO)]
+
+
+def final_scene(seed: int) -> dict:
+    """The scene the final test ran for this seed, as scene.json would hold it: run_eval's scene_plan takes its unseen
+    scenes from sim_eval.scenes.eval_scenes, which is multiply.sample_scene with np.random.default_rng(seed)."""
+    _repo_on_path()
+    from sim_eval.scenes import eval_scenes
+
+    return eval_scenes(1, seed)[0].model_dump(mode="json")
+
+
+def judge_trace(arrays: dict, scene: dict, fps: int) -> dict:
+    """SANT's check_success on a recorded trace against the scene's bin, exactly as the eval scored the episode
+    (sim_eval.eval_policy._score over the same step records)."""
+    _repo_on_path()
+    from demo_pipeline.schemas import Scene
+    from demo_pipeline.scene_geometry import BIN_INNER
+    from sim_eval.eval_policy import StepRecord, _score
+
+    a = arrays
+    records = [
+        StepRecord(tcp_pos=a["tcp_pos"][k], tcp_quat_wxyz=a["tcp_quat_wxyz"][k], cube_pos=a["cube_pos"][k],
+                   gripper=int(a["gripper"][k]), contact_gripper_cube=bool(a["contact_gripper_cube"][k]),
+                   contact_arm_bin=bool(a["contact_arm_bin"][k]), contact_arm_table=bool(a["contact_arm_table"][k]),
+                   max_contact_force=float(a["max_contact_force"][k]))
+        for k in range(len(a["gripper"]))
+    ]
+    return _score(records, Scene.model_validate(scene), BIN_INNER, fps).model_dump()
+
+
+CONTACTS = {"gripper_cube": "contact_gripper_cube", "arm_bin": "contact_arm_bin", "arm_table": "contact_arm_table"}
+TRACE_KEYS = ("joint_pos", "gripper", "tcp_pos", "tcp_quat_wxyz", "cube_pos", "cube_quat_wxyz", "max_contact_force", *CONTACTS.values())
+
+
+def _spans(flags) -> list[list[int]]:
+    """The steps where a flag is on, as [first, last + 1) ranges."""
+    d = np.diff(np.concatenate([[0], np.asarray(flags, dtype=bool).astype(np.int8), [0]]))
+    return [[int(a), int(b)] for a, b in zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1))]
+
+
+def build_final_test(root: Path, sid: str, title: str, what: str, out: Path, *, cell: str = FINAL_CELL,
+                     scene_for=None, judge=None) -> dict:
+    """The big test's final test: one replay per episode from its per-step trace, with the eval's own verdict.
+    scene_for(seed) -> scene dict and judge(arrays, scene, fps) -> verification dict default to final_scene and
+    judge_trace (looked up at call time, so tests can swap them)."""
+    scene_for = scene_for or final_scene
+    judge = judge or judge_trace
+    lines = [json.loads(line) for line in (root / f"{cell}.episodes.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+    header = next((r["header"] for r in lines if "header" in r), {})
+    eps = sorted((r["episode"] for r in lines if "episode" in r), key=lambda e: e["seed"])
+    seeds = [e["seed"] for e in eps]
+    if not eps or len(set(seeds)) != len(seeds):
+        raise ValueError(f"{cell}: expected one episode per seed, got {seeds}")
+    traces = root / f"{cell}_traces"
+    runs = []
+    for ep in eps:
+        seed = int(ep["seed"])
+        meta = _json(traces / f"seed_{seed}.json")
+        with np.load(traces / f"seed_{seed}.npz") as z:
+            a = {k: np.asarray(z[k]) for k in TRACE_KEYS}
+        n = len(a["gripper"])
+        fps = int(meta.get("fps") or 50)
+        if int(meta["seed"]) != seed or int(meta["n_steps"]) != n or int(ep["steps"]) != n:
+            raise ValueError(f"seed {seed}: the trace says seed {meta['seed']}, {meta['n_steps']} steps, its arrays {n}; the log {ep['steps']}")
+        if a["joint_pos"].shape != (n, len(JOINT_NAMES)) or any(len(a[k]) != n for k in TRACE_KEYS):
+            raise ValueError(f"seed {seed}: the trace's arrays aren't all {n} steps long")
+        if ep.get("final_cube_pos") is not None and not np.allclose(a["cube_pos"][-1], ep["final_cube_pos"], atol=1e-5):
+            raise ValueError(f"seed {seed}: the trace's last cube position isn't the one the log recorded")
+        scene = scene_for(seed)
+        v = judge(a, scene, fps)
+        if bool(v["success"]) != bool(ep["success"]) or sorted(v["reasons"]) != sorted(ep["reasons"]):
+            raise ValueError(f"seed {seed}: re-judging the trace gives {v['success']} {v['reasons']}, the log {ep['success']} {ep['reasons']}: "
+                             "the bin or the trace is not the one the eval used")
+        facts = {
+            "success": bool(ep["success"]),
+            "reasons": list(ep["reasons"]),
+            "duration_s": ep.get("sim_s"),
+            "path_m": round(v["path_length"], 3),
+            "peak_contact_n": round(v["max_contact_force"], 2),
+            "settle_s": None if v.get("settle_time") is None else round(v["settle_time"], 2),
+        }
+        cube, bin_ = scene["cube_pose"], scene["bin_pose"]
+        payload = {
+            "demo_id": f"{cell}_{seed}",
+            "source": "isaac",
+            "robot": scene.get("robot", "franka"),
+            "fps": fps,
+            "n_steps": n,
+            "joint_names": list(JOINT_NAMES),
+            "joint_pos": _round(a["joint_pos"]),
+            "gripper": [int(g) for g in a["gripper"]],
+            "cube_pos": _round(a["cube_pos"]),
+            "cube_quat": _round(cube["quat_wxyz"]),
+            "bin": _round([*bin_["pos"], *bin_["quat_wxyz"]]),
+            "base": BASE,
+            "verified": bool(ep["success"]),
+            "lineage": None,
+            "cube_source": "recorded",
+            "contact_n": _round(np.round(a["max_contact_force"], 2)),
+            "hand_pos": (np.round(a["tcp_pos"].astype(np.float64), 3) + 0.0).tolist(),
+            "cube_quat_path": (np.round(a["cube_quat_wxyz"].astype(np.float64), 3) + 0.0).tolist(),
+            "contacts": {name: _spans(a[key]) for name, key in CONTACTS.items()},
+            "facts": facts,
+        }
+        rel = f"runs/{sid}/{seed}.json"
+        _write(out / rel, payload)
+        runs.append({"id": str(seed), "seed": seed, "recorded": True, "file": rel, **facts, "in_env": None,
+                     "cube_source": "recorded", "ended_by": ep.get("ended_by"), "steps": n})
+    k = sum(r["success"] for r in runs)
+    summary_file = root / f"{cell}.json"
+    if summary_file.is_file():  # the eval's own summary must count the same
+        s = _json(summary_file).get("summary") or {}
+        if (s.get("successes"), s.get("n")) != (k, len(runs)):
+            raise ValueError(f"{summary_file.name} says {s.get('successes')}/{s.get('n')}, the episode log {k}/{len(runs)}")
+    return {
+        "id": sid, "title": f"{title} · {k}/{len(runs)}", "what": what, "checkpoint": header.get("checkpoint"),
+        "seeds": [min(seeds), max(seeds)],
+        "summary": {"successes": k, "n": len(runs), "ci95": wilson(k, len(runs)), "judge": "SANT's check_success, as each run ran"},
+        "note": ("Every pose is the run's own trace, recorded by Isaac at 50 Hz. The trace doesn't hold the bin, so its spot is "
+                 "re-made from the scene's seed with the eval's own scene sampler; judging each trace again against it gives "
+                 "the same verdict and reasons the eval logged, for all of them."),
+        "runs": runs,
+    }
+
+
 def _write(path: Path, body) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(body, separators=(",", ":")), encoding="utf-8", newline="\n")
@@ -241,8 +384,14 @@ def check_estimate(roots: list[Path]) -> dict:
             "landed_median_mm": mm(np.median(landed)), "landed_max_mm": mm(max(landed))}
 
 
-def build(gate: Path | None, replay_check: Path | None, round0: Path | None, out: Path) -> dict:
+def build(gate: Path | None, replay_check: Path | None, round0: Path | None, out: Path, final: Path | None = None) -> dict:
     sources = []
+    if final:  # first: the page opens on it
+        sources.append(build_final_test(
+            final, "final-test-v2", "The final test",
+            "The camera policy that passed the pre-registered test: 40 scenes it had never seen (seeds 5400–5439), run once. "
+            "It sees only its cameras and its joints; SANT judged every run as it ran.",
+            out, scene_for=final_scene, judge=judge_trace))
     if gate:
         sources.append(build_teacher_eval(
             gate, "teacher-gate", "Teacher · gate 2",
@@ -268,6 +417,7 @@ def build(gate: Path | None, replay_check: Path | None, round0: Path | None, out
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--final", type=Path, default=FINAL, help="the big test's eval folder (bigtest_final.*)")
     ap.add_argument("--gate", type=Path, default=GATE)
     ap.add_argument("--replay-check", type=Path, default=REPLAY_CHECK)
     ap.add_argument("--round0", type=Path, default=ROUND0)
@@ -278,10 +428,11 @@ def main(argv: list[str] | None = None) -> int:
     if a.check_estimate:
         print(json.dumps(check_estimate([p for p in found[:2] if p]), indent=1))
         return 0
-    for name, p, f in zip(("gate", "replay-check", "round0"), (a.gate, a.replay_check, a.round0), found):
+    final = a.final if a.final and (a.final / f"{FINAL_CELL}.episodes.jsonl").is_file() else None
+    for name, p, f in zip(("final", "gate", "replay-check", "round0"), (a.final, a.gate, a.replay_check, a.round0), (final, *found)):
         if f is None:
-            print(f"skipped {name}: {p} is not a folder", file=sys.stderr)
-    index = build(*found, a.out)
+            print(f"skipped {name}: {p} is not a folder with its runs", file=sys.stderr)
+    index = build(*found, a.out, final=final)
     for s in index["sources"]:
         rec = sum(r["recorded"] for r in s["runs"])
         print(f"{s['id']}: {s['summary']['successes']}/{s['summary']['n']} verified, {rec} replays")

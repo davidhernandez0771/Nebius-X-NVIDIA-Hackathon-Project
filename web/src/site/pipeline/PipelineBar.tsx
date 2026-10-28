@@ -9,8 +9,10 @@ import { conduitOf, formatDuration, stageOf, stagesFor, type Bar, type RunState,
 
 const CONN: Record<LiveConn, string> = { connecting: "connecting…", open: "live", closed: "" };
 
-export function PipelineBar({ run, bar, shown, conn, search = "" }: { run: RunState; bar: Bar; shown: StageId; conn: LiveConn; search?: string }) {
+export function PipelineBar({ run, bar, shown, conn, search = "", example = false }: { run: RunState; bar: Bar; shown: StageId; conn: LiveConn; search?: string; example?: boolean }) {
   const stages = stagesFor(run.kind);
+  // The example plays from a script in the browser: its stream is "open" like a real one, but it is never live.
+  const connLabel = example ? "example" : CONN[conn];
   const left = /^(done|failed|cancelled|dry run)/.test(bar.remaining) ? bar.remaining : `${bar.remaining} left`;
   return (
     <nav className="pipe-bar holo-panel" aria-label="Pipeline">
@@ -20,7 +22,7 @@ export function PipelineBar({ run, bar, shown, conn, search = "" }: { run: RunSt
           {/* a run cancelled before it started spent nothing */}
           {bar.elapsed !== "—" && <span>{bar.elapsed} spent</span>}
           <span>{left}</span>
-          {CONN[conn] && <span className="pipe-bar__conn">{CONN[conn]}</span>}
+          {connLabel && <span className="pipe-bar__conn">{connLabel}</span>}
         </p>
       </div>
       {bar.waiting && (

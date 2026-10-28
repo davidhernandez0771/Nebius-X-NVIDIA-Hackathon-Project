@@ -5,13 +5,14 @@
 // Owner: T1 (pm/data-holo); T2's /pipeline uses it. Ask before changing a class's box model.
 import { useEffect, useRef, type ComponentPropsWithoutRef, type ElementType, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, type LinkProps } from "react-router-dom";
+import { BackToWorkshop } from "../../sant/components/BackToWorkshop";
 import { Logo } from "../../sant/components/Logo";
 import { useMotion } from "../../sant/motion/MotionProvider";
 import { handingOff, handoffArrive, handoffStart } from "./handoff";
 import "./holo.css";
 
 /** The pages on the path, and the ones off it (in the More nav) that use the frame too. */
-export type HoloPageId = "record" | "pipeline" | "data" | "test-track";
+export type HoloPageId = "record" | "pipeline" | "data" | "test-track" | "analysis" | "metrics" | "flow";
 
 /** The path the work pages share, in the order the visitor goes. */
 export const PATH: { id: HoloPageId; to: string; label: string }[] = [
@@ -25,6 +26,12 @@ const MORE: { id?: HoloPageId; to: string; label: string }[] = [
   { to: "/site/results", label: "Results" },
   // A viewer of finished runs (T5's /test-track), not a step on the path.
   { id: "test-track", to: "/test-track", label: "Test track" },
+  // Nemotron reading how a trained policy failed (/analysis).
+  { id: "analysis", to: "/analysis", label: "Analyst" },
+  // Every pre-registered number, as a lit scene with 2D charts (/metrics).
+  { id: "metrics", to: "/metrics", label: "Metrics" },
+  // The closed loop, end to end: eval, Nemotron's recipe, recipe arm vs uniform control, compare (/flow).
+  { id: "flow", to: "/flow", label: "Flow" },
 ];
 
 const MAIN_ID = "holo-main";
@@ -46,7 +53,7 @@ export function HandoffLink({ to, label, onClick, ...rest }: Omit<LinkProps, "to
   return <Link to={to} onClick={click} {...rest} />;
 }
 
-/** The frame of a work page: Record's top strip (the mark, back to the workshop, the title, the path
+/** The frame of a work page: Record's top strip (the mark, "← Back to workshop", the title, the path
  *  Record › Pipeline › Data, the page's actions), then the page. Keeps the SANT app's root (.sant, Volt). */
 export function HoloPage({ title, here, actions, children }: { title: string; here: HoloPageId; actions?: ReactNode; children: ReactNode }) {
   const h1 = useRef<HTMLHeadingElement>(null);
@@ -62,9 +69,7 @@ export function HoloPage({ title, here, actions, children }: { title: string; he
           <span className="holo-top__brand">
             <Logo size="sm" lit="all" />
           </span>
-          <Link className="holo-top__eject" to="/" title="Back to the workshop">
-            <span aria-hidden="true">⏏</span> workshop
-          </Link>
+          <BackToWorkshop />
           <h1 ref={h1} className="holo-top__title" tabIndex={-1}>
             {title}
           </h1>

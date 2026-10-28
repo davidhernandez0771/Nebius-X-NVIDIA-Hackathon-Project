@@ -65,7 +65,7 @@ def failure_table(episodes: list[EpisodeFeatures], robot: str = "franka", n_bins
         vals = np.array([getattr(e.scene, axis) for e in episodes])
         idx = np.clip(np.searchsorted(edges, vals, side="right") - 1, 0, n_bins - 1)
         for b in range(n_bins):
-            members = [e for e, i in zip(episodes, idx) if i == b]
+            members = [e for e, i in zip(episodes, idx, strict=True) if i == b]
             rows.append({"axis": axis, "bin": [round(float(edges[b]), 3), round(float(edges[b + 1]), 3)],
                          "n": len(members), "successes": sum(e.success for e in members),
                          "failures": dict(Counter(e.primary for e in members if e.primary is not None))})

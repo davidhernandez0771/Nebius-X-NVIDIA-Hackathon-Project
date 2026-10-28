@@ -26,7 +26,9 @@ row: the scene, check_success's reasons and where the cube ended. The grasp and 
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -46,6 +48,8 @@ REACH_TOL = 0.03  # m, fingertip centre to cube centre (xy) counted as reaching 
 LIFT_MIN = 0.03  # m above its start height counted as lifted
 RELEASE_HEIGHT_MAX = 0.18  # m above the bin origin, as success.check_success
 BIN_INNER = (0.20, 0.20, 0.08)
+EVAL_SEED_MIN = 5000  # sim_eval.scenes: unseen scenes start here
+TEST_SEEDS = ((5020, 5059), (5400, 5439))  # the pre-registered tests: distill final, big test (sim_eval.distill_round)
 TRACE_FIELDS = ("tcp_pos", "cube_pos", "gripper", "contact_gripper_cube", "contact_arm_bin", "contact_arm_table",
                 "max_contact_force")
 
@@ -257,6 +261,17 @@ def episode_features(trace: dict[str, np.ndarray], scene: Scene, *, success: boo
 
 # check_success reason -> failure class, most specific first, for an episode with no trace (no event times)
 REASON_CLASSES = (("dropped", "dropped"), ("high_release", "high_release"), ("collision", "collision"))
+
+
+def read_episode_log(path: Path) -> list[dict]:
+    """An eval's episode log (<name>.episodes.jsonl): a header line, then {"episode": {...}} per line. The last row
+    per seed wins, as a resume reads it; rows come back in seed order."""
+    latest: dict[int, dict] = {}
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line) if line.strip() else {}
+        if "episode" in rec:
+            latest[int(rec["episode"]["seed"])] = rec["episode"]
+    return [latest[s] for s in sorted(latest)]
 
 
 def result_features(row: dict, scene: Scene, *, bin_inner: tuple[float, float, float] = BIN_INNER) -> EpisodeFeatures:

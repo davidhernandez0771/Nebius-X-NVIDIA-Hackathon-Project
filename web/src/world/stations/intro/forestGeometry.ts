@@ -7,6 +7,9 @@
 //   bands are drawn by every surface's place(), mistBands.ts: no geometry.)
 // - Ferns and moss mounds: one mesh each, instanced.
 // - Light shafts from the canopy: crossed quads, merged.
+// - The canopy: branch cards round the upper trunks (a card upright and one flat per branch: the limb seen from the
+//   side and from below), instanced; Forest.tsx's shader cuts the limb, twigs and leaf clumps out of each.
+// - A backdrop ring beyond the last trunks: rows of trunk silhouettes deeper in the fog (Forest.tsx), one draw.
 // The layout is computed once at the richest tier's counts; lower tiers take a prefix of each list (the seeded
 // samplers make trees(110) a prefix of trees(220)), so every tier and phones show the same places, fewer of them.
 import * as THREE from "three";
@@ -26,6 +29,8 @@ export const MOON = new THREE.Vector3(-0.45, 1, 0.3).normalize();
 
 export interface ForestTier {
   trees: number;
+  /** Branches round each near and mid trunk (two cards each). */
+  branches: [number, number];
   far: number;
   ferns: number;
   moss: number;
@@ -41,9 +46,9 @@ export interface ForestTier {
 }
 
 export const FOREST_TIERS: Record<TierName, ForestTier> = {
-  low: { trees: 110, far: 50, ferns: 70, moss: 60, logs: 3, shafts: 6, spores: 160, mistBands: 2, rootLayer: 0, maxDraws: 10, maxTriangles: 60_000 },
-  high: { trees: 220, far: 120, ferns: 160, moss: 120, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 160_000 },
-  ultra: { trees: 220, far: 160, ferns: 250, moss: 180, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 190_000 },
+  low: { trees: 110, branches: [3, 0], far: 50, ferns: 68, moss: 60, logs: 3, shafts: 6, spores: 160, mistBands: 2, rootLayer: 0, maxDraws: 10, maxTriangles: 60_000 },
+  high: { trees: 220, branches: [4, 2], far: 120, ferns: 145, moss: 120, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 160_000 },
+  ultra: { trees: 220, branches: [4, 2], far: 160, ferns: 235, moss: 180, logs: 5, shafts: 12, spores: 500, mistBands: 3, rootLayer: 1, maxDraws: 10, maxTriangles: 190_000 },
 };
 
 export interface ForestLayout {
@@ -260,6 +265,47 @@ export interface ForestPiece {
 const q = new THREE.Quaternion();
 const e = new THREE.Euler();
 
+/** The backdrop ring's radius (m from the forest's centre): beyond the last far trunks. */
+export const BACKDROP_R = FOREST.radius + 34;
+
+/**
+ * How far a trunk has wandered off its line at height y (0 foot to 1 top), in its own radii (x, z before its turn):
+ * Forest.tsx's trunk vertex shader mirrors this, so the branches stay on their trunks.
+ */
+export function trunkBend(tint: number, y: number): [number, number] {
+  const s = tint * 61.7;
+  return [Math.sin(y * 2.3 + s) * 1.8 * y * y, Math.cos(y * 1.9 + s * 1.3) * 1.8 * y * y];
+}
+
+const hash = (a: number, b: number) => {
+  const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
+  return v - Math.floor(v);
+};
+
+/** The branch cards round the upper trunks: `per[layer]` branches each, an upright and a flat card per branch. */
+export function canopyMatrices(list: readonly [Tree, number][], per: readonly number[]): THREE.Matrix4[] {
+  const out: THREE.Matrix4[] = [];
+  const up = new THREE.Vector3(0, 1, 0), z = new THREE.Vector3(0, 0, 1), x = new THREE.Vector3(1, 0, 0);
+  for (const [t, i] of list) {
+    const n = per[t.layer] ?? 0;
+    const tm = trunkMatrix(t, i);
+    for (let k = 0; k < n; k++) {
+      const r = (j: number) => hash(i * 7.3 + k, j);
+      const y = 0.3 + 0.55 * ((k + r(1)) / n);
+      const [bx, bz] = trunkBend(t.tint, y);
+      const base = new THREE.Vector3(bx, y, bz).applyMatrix4(tm);
+      const a = (k / n) * Math.PI * 2 + r(2) * 1.4;
+      const len = 3.5 + 4.5 * r(3);
+      const tilt = 0.12 + 0.35 * r(4);
+      const turn = new THREE.Quaternion().setFromAxisAngle(up, -a).multiply(new THREE.Quaternion().setFromAxisAngle(z, tilt));
+      out.push(new THREE.Matrix4().compose(base, turn, new THREE.Vector3(len, len * 0.55, 1)));
+      const flat = turn.clone().multiply(new THREE.Quaternion().setFromAxisAngle(x, -Math.PI / 2));
+      out.push(new THREE.Matrix4().compose(base, flat, new THREE.Vector3(len, len * 0.5, 1)));
+    }
+  }
+  return out;
+}
+
 function trunkMatrix(t: Tree, i: number): THREE.Matrix4 {
   return new THREE.Matrix4().compose(new THREE.Vector3(t.x, F, t.z), q.setFromEuler(e.set(t.lean[0], i * 1.7, t.lean[1])).clone(),
     new THREE.Vector3(t.radius, t.height, t.radius));
@@ -320,5 +366,12 @@ export function buildForest(tier: TierName): { pieces: ForestPiece[]; layout: Fo
       new THREE.Vector3(m.r, m.r * 0.42, m.r * (0.8 + 0.4 * ((m.x * 7.3) % 1 + 1) % 1)))),
   });
   pieces.push({ name: "shafts", geometry: shaftGeometry(layout.shafts) });
+  const branches = canopyMatrices([...byLayer[0], ...byLayer[1]], T.branches);
+  if (branches.length)
+    pieces.push({ name: "canopy", geometry: new THREE.PlaneGeometry(1, 1).translate(0.5, 0.5, 0), instances: branches.length, matrices: branches });
+  pieces.push({
+    name: "backdrop",
+    geometry: new THREE.CylinderGeometry(BACKDROP_R, BACKDROP_R, 48, tier === "low" ? 32 : 64, 1, true).translate(FOREST.center[0], F + 21, FOREST.center[1]),
+  });
   return { pieces, layout };
 }

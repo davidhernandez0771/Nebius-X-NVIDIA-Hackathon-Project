@@ -40,6 +40,10 @@ CONTRAST_FEATURES = ("grasp_offset_xy", "grasp_height", "n_closes", "carry_speed
 MIN_GROUP = 3  # episodes per group for a contrast
 MIN_EFFECT = 0.2  # |rank-biserial| a mechanism claim needs
 CARRY_SPEED_RANGE = (0.05, 1.0)  # m/s a slow_carry cap may set
+# what filter_training can measure on a training demo's commanded path (demo_pipeline.data_fixes.training_features);
+# max_lift and held_s need the cube in the simulator, so a filter on them can't run
+TRAINING_FEATURES = ("grasp_offset_xy", "grasp_height", "n_closes", "carry_speed_median", "carry_speed_max",
+                     "t_first_close", "min_reach_dist")
 
 
 class Contrast(BaseModel):
@@ -107,10 +111,12 @@ class MechanismClaim(BaseModel):
 
 
 class Fix(BaseModel):
-    """A change the pipeline can make. lever:
-    filter_training   keep training episodes whose `feature` is below/above `threshold` (measured on them)
-    recenter_grasp    run the repair's recenter op on the source demos before multiplying
-    slow_carry        retime the source demos' carry so the fingertips stay under max_speed_mps
+    """A change the pipeline can make, applied to every multiplied variant before its physics replay
+    (demo_pipeline.data_fixes). lever:
+    filter_training   keep variants whose `feature` (TRAINING_FEATURES, measured on the variant) is below/above
+                      `threshold`; the others are not replayed or trained on
+    recenter_grasp    the repair's recenter op: the close lands over the cube centre
+    slow_carry        retime the held part so the fingertips stay under max_speed_mps, on the same path
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -334,11 +340,18 @@ def mechanism_errors(recipe: DataRecipe, episodes: list[EpisodeFeatures], min_ef
             if f.feature not in CONTRAST_FEATURES or f.keep is None or f.threshold is None or not math.isfinite(f.threshold):
                 errors.append(f"{where} needs feature (one of {list(CONTRAST_FEATURES)}), keep (below/above) and a "
                               "finite threshold")
+            elif f.feature not in TRAINING_FEATURES:
+                errors.append(unmeasurable_text(where, f.feature))
         elif f.lever == "slow_carry":
             lo, hi = CARRY_SPEED_RANGE
             if f.max_speed_mps is None or not lo <= f.max_speed_mps <= hi:
                 errors.append(f"{where} needs max_speed_mps between {lo} and {hi}")
     return errors
+
+
+def unmeasurable_text(where: str, feature: str) -> str:
+    return (f"{where}: {feature!r} can't be measured on a training demo (it needs the cube in the simulator); "
+            f"filter on one of {list(TRAINING_FEATURES)}")
 
 
 def _allocate(shares: list[float], n: int) -> list[int]:
@@ -365,7 +378,7 @@ def sample_recipe_scenes(recipe: DataRecipe, n: int, seed0: int, robot: RobotNam
     counts = _allocate([r.share for r in recipe.regions] + [recipe.uniform_share], n)
     out: list[tuple[Scene, str]] = []
     seed = seed0
-    for region, k in zip([*recipe.regions, None], counts):
+    for region, k in zip([*recipe.regions, None], counts, strict=True):
         for _ in range(k):
             rng = np.random.default_rng(seed)
             if region is None:

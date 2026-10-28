@@ -30,4 +30,6 @@ export const STILLS: Record<StationId, string> = {
   workbench: `${BASE}stills/workbench.webp`,
   // No render of its own yet: the room's (the robot wall is in it, seen from the hub).
   robots: `${BASE}stills/workshop.webp`,
+  // The same: the proof wall is on the room's back wall.
+  proof: `${BASE}stills/workshop.webp`,
 };

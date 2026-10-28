@@ -7,9 +7,10 @@ import { useEffect } from "react";
 import { useWorld } from "../../core/WorldContext";
 import type { WorldStore } from "../../core/store";
 import type { HeldShot } from "../../core/types";
-import { spiral, stepCount } from "../../scene/spiral";
+import { setSelected, spiral, stepCount } from "../../scene/spiral";
 import { stepView } from "./camera";
 import { hiddenInstance } from "./drag";
+import { endTour } from "./tour";
 
 /** Wheel distance (px) that makes one step, and the pause between steps so a fling doesn't skip. */
 const WHEEL_STEP = 40;
@@ -50,6 +51,21 @@ export function closeShelf(store: WorldStore): void {
   if (!shelf.open) return;
   shelf.open = false;
   if (spiral.selected < 0) store.setOverride(null);
+}
+
+/**
+ * The page let go of the held shot (the journey rail, a branch opening, ↑ Story): the shelf, a detail view
+ * and the tour end with it. Before, they stayed open underneath: the wheel kept stepping the shelf (and the
+ * page never scrolled), the camera stayed on it over the story, and Back from the machine landed on it with
+ * none of the room's UI. Returns the unsubscribe.
+ */
+export function followRelease(store: WorldStore): () => void {
+  return store.subscribe(() => {
+    if (store.getCoarse().override !== null) return;
+    shelf.open = false;
+    if (spiral.selected >= 0) setSelected(-1);
+    endTour(store);
+  });
 }
 
 /** The shot the shelf holds now (the detail view returns to it). */
@@ -132,6 +148,8 @@ export function stepShelf(store: WorldStore, dir: 1 | -1): void {
 
 export function useStepper(): void {
   const { store, mode } = useWorld();
+  // The stills have a shelf too (the list, the detail view): let go of it with the page in both.
+  useEffect(() => followRelease(store), [store]);
   useEffect(() => {
     if (mode !== "3d") return;
     // Only the shelf itself: not under the detail view or an open branch, nor with a cartridge in the hand.

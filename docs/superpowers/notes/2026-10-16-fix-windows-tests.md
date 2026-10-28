@@ -34,10 +34,10 @@ app's engine lifecycle is fine for a running server.
 ## Root cause 2 — `~` expands via USERPROFILE on Windows (1 test)
 
 `tests/test_usage.py::test_tilde_in_log_path_is_expanded_to_home` patched only `HOME`.
-Confirmed: with only `HOME` set, `os.path.expanduser("~")` still returns `C:\Users\dhrce`;
+Confirmed: with only `HOME` set, `os.path.expanduser("~")` still returns `C:\Users\<user>`;
 setting `USERPROFILE` redirects it. Fix: patch both `HOME` and `USERPROFILE`.
 
-Side effect found: before the fix this test wrote to the **real** `C:\Users\dhrce\shared.jsonl`
+Side effect found: before the fix this test wrote to the **real** `C:\Users\<user>\shared.jsonl`
 on every Windows run. That file has 37 lines of test entries (`{"tier": "nano", "est_cost_usd": 0.5}`,
 dated 2026-09-23 to 2026-10-16). Verified it stayed at 37 lines across both post-fix runs.
 I did **not** delete it (outside allowed scope) — safe to remove by hand.

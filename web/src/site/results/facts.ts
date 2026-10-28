@@ -95,7 +95,7 @@ export const SCENES = { seeds: experiment("multiply").seeds.match(/^\d+–\d+/)!
 /** The H1 (spec §4), T3's own sentence for the result (R14), and the replication in one sentence (R18). */
 export const HEADLINE = {
   title: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more.",
-  text: "On 40 held-out home-start scenes, ACT trained on 10 demos + 100 multiplied variants succeeded 17/40 (43%, 95% CI 28–58%) vs 3/40 (8%, 3–20%) for the 10 demos alone (Fisher p < 0.001); one training run per cell, 30k steps each.",
+  text: "On 40 held-out home-start scenes, ACT trained on 10 demos + 100 multiplied variants succeeded 17/40 (43%, 95% CI 29–58%) vs 3/40 (8%, 3–20%) for the 10 demos alone (Fisher p < 0.001); one training run per cell, 30k steps each.",
   source: t3("1171–1173"),
   replicates: "A second, independently multiplied set of 300 copies scored 16/40 against the same 3/40 (p = 0.0012), so the effect replicates. The raw arm and the scenes are shared.",
   replicatesSource: t3("1313, 1318–1320"),

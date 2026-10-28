@@ -1,7 +1,7 @@
 // The Results page (Field Notes): the headline result with its CIs and limits, the 0 → 100 →
 // 300 copies chart replayed scene by scene, the other measured experiments, the robot report card,
-// and what is still pending. Every number comes from ./results.json (via ./data.ts and ./facts.ts)
-// and sits next to its note and line. Spec: docs/design/content-spec.md §4.
+// and what is still pending. Every number comes from ./results.json (via ./data.ts and ./facts.ts), or, in the proof
+// band of pre-registered results (./ProofSection.tsx), from ./proofData.ts, and sits next to its note and line. Spec: docs/design/content-spec.md §4.
 import { ChartFrame } from "../../sant/components/ChartFrame";
 import { CountUpTiles } from "../../sant/components/CountUpTiles";
 import { SectionHeader } from "../../sant/components/SectionHeader";
@@ -11,8 +11,11 @@ import { Cite } from "./Cite";
 import { CopiesChart } from "./CopiesChart";
 import { RESULTS, experiment } from "./data";
 import { ExperimentSection } from "./ExperimentSection";
+import { ProofCite, ProofSection } from "./ProofSection";
+import { LEAD, PROOF_NOTES } from "./proofData";
 import { ARMS, COMPARISONS, HEADLINE, LIMITS, NOTES, PLATEAU, PROOF_SO_FAR, REPORT_CARDS, SCENES, VERIFIED, cite } from "./facts";
 import { ReportCard } from "./ReportCard";
+import { SceneGrid, medianSuccessSeconds } from "./SceneGrid";
 import "./results.css";
 
 const [RAW, X100] = ARMS;
@@ -26,12 +29,56 @@ const PENDING = RESULTS.experiments.filter((e) => e.pending);
 const LINKS = [{ to: "/site/results", label: "Results" }];
 const CTA = { label: "Try it", to: "/pm/record" };
 
+/**
+ * What the page leads with (site-nav, 2026-10-26): the newest pre-registered one-shot result, from ./proofData.ts
+ * (LEAD). The home page's "See the result" links here (#proof).
+ */
+function Lead() {
+  const r = LEAD.result;
+  return (
+    <section id="proof" className="sant-results__hero sant-results__lead" aria-labelledby="results-lead">
+      <div className="sant-results__lead-text">
+        <p className="sant-results__kicker">Pre-registered, run once</p>
+        <h1 id="results-lead" className="sant-display sant-results__title">
+          {LEAD.headline}
+        </h1>
+        <div className="sant-results__sub">
+          <p className="sant-lede">
+            A camera policy that started from {LEAD.demos} human mouse demos, through SANT and an RL teacher, completed{" "}
+            <span className="sant-num">
+              {r.k} of {r.n}
+            </span>{" "}
+            fresh scenes (seeds <span className="sant-num">{r.seeds}</span>), 95% CI{" "}
+            <span className="sant-num">
+              {formatStat(100 * r.ci[0], 1)}–{formatStat(100 * r.ci[1], 1)}%
+            </span>
+            . The goal, written down before the test, was at least{" "}
+            <span className="sant-num">
+              {LEAD.goal.k}/{LEAD.goal.n}
+            </span>
+            . The test ran once. The successful scenes took a median{" "}
+            <span className="sant-num">{formatStat(medianSuccessSeconds(), 1)} s</span> of simulated time.
+          </p>
+          <p className="sant-results__cites">
+            <ProofCite source={r.source} prefix="Result: " />
+            <ProofCite source={LEAD.goal.source} prefix="Goal: " />
+            <ProofCite source={LEAD.demosSource} prefix="Demos: " />
+          </p>
+        </div>
+      </div>
+      <SceneGrid goal={LEAD.goal.k} />
+    </section>
+  );
+}
+
+/** The earlier result (scripted source demos), below the proof. */
 function Headline() {
   return (
-    <section className="sant-results__hero" aria-labelledby="results-title">
-      <h1 id="results-title" className="sant-display sant-results__title">
+    <section className="sant-results__hero sant-results__earlier" aria-labelledby="results-title">
+      <p className="sant-results__kicker">An earlier result, from scripted demos</p>
+      <h2 id="results-title" className="sant-display sant-results__title sant-results__title--earlier">
         {HEADLINE.title}
-      </h1>
+      </h2>
       <div className="sant-results__sub">
         <p className="sant-lede">
           {HEADLINE.text} {HEADLINE.replicates}
@@ -70,8 +117,8 @@ function Headline() {
             <tfoot>
               <tr>
                 <td colSpan={4}>
-                  Fisher exact, two-sided, against the 10 demos alone: p = <span className="sant-num">{COMPARISONS.rawVs100.p}</span>{" "}
-                  with 100 copies, p = <span className="sant-num">{COMPARISONS.rawVs300.p}</span> with 300.
+                  Fisher exact, two-sided, against the 10 demos alone: p = <span className="sant-num">{COMPARISONS.rawVs100.p}</span> with
+                  100 copies, p = <span className="sant-num">{COMPARISONS.rawVs300.p}</span> with 300.
                 </td>
               </tr>
             </tfoot>
@@ -79,12 +126,12 @@ function Headline() {
         </div>
         <aside className="sant-margin-note">
           <p>
-            The 40 scenes (seeds <span className="sant-num">{SCENES.seeds}</span>) were fixed before the run and never used to
-            choose anything.
+            The 40 scenes (seeds <span className="sant-num">{SCENES.seeds}</span>) were fixed before the run and never used to choose
+            anything.
           </p>
           <p>
-            Each copy is one of the 10 demos re-planned for a new cube and bin position, and kept only if it passed the physics
-            check in Isaac Lab:{" "}
+            Each copy is one of the 10 demos re-planned for a new cube and bin position, and kept only if it passed the physics check in
+            Isaac Lab:{" "}
             <span className="sant-num">
               {VERIFIED.x100.k}/{VERIFIED.x100.n}
             </span>{" "}
@@ -248,10 +295,10 @@ function Sources() {
         id="results-sources"
         level={3}
         title="Where the numbers come from"
-        lede={`Every number on this page comes from web/src/site/results/results.json (as of ${RESULTS.asOf}) or, for the real demos, stores.json, generated read-only from the experiment stores by scripts/build_site_results.py (newest store file ${RESULTS.storesAsOf ?? "unknown"}). Each cites a line in one of these notes, or the store file it was read from. The notes are append-only, so the lines stay put.`}
+        lede={`Every number on this page comes from web/src/site/results/results.json (as of ${RESULTS.asOf}), from stores.json for the real demos, generated read-only from the experiment stores by scripts/build_site_results.py (newest store file ${RESULTS.storesAsOf ?? "unknown"}), or, for the pre-registered proof, from web/src/site/results/proofData.ts. Each cites a line in one of these notes, or the store file it was read from. The notes are append-only, so the lines stay put.`}
       />
       <ul>
-        {Object.values(NOTES).map((n) => (
+        {[...Object.values(NOTES), ...Object.values(PROOF_NOTES)].map((n) => (
           <li key={n.path}>
             {n.name}: <code>{n.path}</code>
           </li>
@@ -263,8 +310,10 @@ function Sources() {
 
 export function ResultsPage() {
   return (
-    <StoryShell home="/site" links={LINKS} cta={CTA}>
+    <StoryShell home="/site" links={LINKS} cta={CTA} mode="volt" className="holo sant-results-page">
       <div className="sant-results">
+        <Lead />
+        <ProofSection />
         <Headline />
         <Limits />
         <Real />

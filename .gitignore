@@ -71,3 +71,15 @@ coverage/
 htmlcov/
 .coverage
 node_modules/
+
+# Security pass (2026-10-29): keys, local databases and phone/scan uploads never belong in this public repo
+*.pem
+*.key
+*.p12
+id_rsa*
+id_ed25519*
+*.db
+*.sqlite
+*.sqlite3
+.env.local
+web/.env.local

@@ -1,0 +1,223 @@
+{
+ "k": 3,
+ "calls": 4,
+ "cost_usd": 0.019702,
+ "model": "nvidia/nemotron-3-super-120b-a12b",
+ "api_errors": 0,
+ "recipe": {
+  "summary": "Most failures are drops occurring when the bin is placed farther to the robot's right (bin_x > 0.48). No grasp or motion measurements are available, so no mechanism can be inferred.",
+  "hypotheses": [
+   {
+    "claim": "drops cluster where the bin is at x > 0.48 m",
+    "evidence_seeds": [
+     5531,
+     5538,
+     5542
+    ]
+   }
+  ],
+  "mechanism": [],
+  "fixes": [],
+  "regions": [
+   {
+    "name": "right_bin_side",
+    "targets": [
+     "dropped",
+     "collision"
+    ],
+    "cube_x": [
+     0.4,
+     0.6
+    ],
+    "cube_y": [
+     -0.2,
+     0.2
+    ],
+    "cube_yaw_deg": [
+     -45.0,
+     45.0
+    ],
+    "bin_x": [
+     0.483,
+     0.65
+    ],
+    "bin_y": [
+     -0.3,
+     0.3
+    ],
+    "share": 0.5,
+    "rationale": "Failure rate for dropped/collision is markedly higher when the bin is placed on the robot's right side."
+   }
+  ],
+  "uniform_share": 0.5
+ },
+ "support": [
+  {
+   "region": "right_bin_side",
+   "episodes_inside": 18,
+   "target_failures_inside": 11,
+   "target_failures_total": 13,
+   "coverage": 0.8461538461538461,
+   "rate_inside": 0.6111111111111112,
+   "rate_overall": 0.4482758620689655,
+   "p_value": 0.028927,
+   "seeds_inside": [
+    5529,
+    5530,
+    5531,
+    5532,
+    5538,
+    5540,
+    5541,
+    5542,
+    5544,
+    5546,
+    5547,
+    5548,
+    5549,
+    5550,
+    5551,
+    5553,
+    5556,
+    5557
+   ]
+  }
+ ],
+ "agreement": 0.6946107784431137,
+ "candidates": [
+  {
+   "summary": "All failures are drops (or one collision) with no grasp or motion measurements available, so no scene-dependent mechanism can be inferred.",
+   "hypotheses": [],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [],
+   "uniform_share": 1.0
+  },
+  {
+   "summary": "Most failures are drops occurring when the bin is placed farther to the robot's right (bin_x > 0.48). No grasp or motion measurements are available, so no mechanism can be inferred.",
+   "hypotheses": [
+    {
+     "claim": "drops cluster where the bin is at x > 0.48 m",
+     "evidence_seeds": [
+      5531,
+      5538,
+      5542
+     ]
+    }
+   ],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [
+    {
+     "name": "right_bin_side",
+     "targets": [
+      "dropped",
+      "collision"
+     ],
+     "cube_x": [
+      0.4,
+      0.6
+     ],
+     "cube_y": [
+      -0.2,
+      0.2
+     ],
+     "cube_yaw_deg": [
+      -45.0,
+      45.0
+     ],
+     "bin_x": [
+      0.483,
+      0.65
+     ],
+     "bin_y": [
+      -0.3,
+      0.3
+     ],
+     "share": 0.5,
+     "rationale": "Failure rate for dropped/collision is markedly higher when the bin is placed on the robot's right side."
+    }
+   ],
+   "uniform_share": 0.5
+  },
+  {
+   "summary": "Most failures are drops when the bin is positioned in front-right of the robot (mid bin_x) and to the robot's left (positive bin_y).",
+   "hypotheses": [
+    {
+     "claim": "drops cluster where bin x in [0.483,0.567] and bin y in [0.1,0.3]",
+     "evidence_seeds": [
+      5531,
+      5546,
+      5550
+     ]
+    }
+   ],
+   "mechanism": [],
+   "fixes": [],
+   "regions": [
+    {
+     "name": "mid_bin_right_front",
+     "targets": [
+      "dropped"
+     ],
+     "cube_x": [
+      0.4,
+      0.6
+     ],
+     "cube_y": [
+      -0.2,
+      0.2
+     ],
+     "cube_yaw_deg": [
+      -45.0,
+      45.0
+     ],
+     "bin_x": [
+      0.483,
+      0.567
+     ],
+     "bin_y": [
+      0.1,
+      0.3
+     ],
+     "share": 0.5,
+     "rationale": "inside this region the drop failure rate is 80% versus 33% outside, with one-sided Fisher p = 0.078"
+    }
+   ],
+   "uniform_share": 0.5
+  }
+ ],
+ "candidate_agreement": [
+  0.6666666666666666,
+  0.6946107784431137,
+  0.6946107784431137
+ ],
+ "attempts": [
+  {
+   "sample": 0,
+   "reply": "\n\n{\"summary\": \"All failures are drops (or one collision) with no grasp or motion measurements available, so no scene-dependent mechanism can be inferred.\", \"hypotheses\": [], \"mechanism\": [], \"fixes\": [], \"uniform_share\": 1}",
+   "errors": [],
+   "think": true
+  },
+  {
+   "sample": 1,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops occurring when the bin is placed farther to the robot's right (bin_x > 0.48). No grasp or motion measurements are available, so no mechanism can be inferred.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where the bin is at x > 0.48 m\",\n      \"evidence_seeds\": [5531, 5538, 5542]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"right_bin_side\",\n      \"targets\": [\"dropped\", \"collision\"],\n      \"cube_x\": [0.4, 0.6],\n      \"cube_y\": [-0.2, 0.2],\n      \"cube_yaw_deg\": [-45, 45],\n      \"bin_x\": [0.483, 0.65],\n      \"bin_y\": [-0.3, 0.3],\n      \"share\": 0.5,\n      \"rationale\": \"Failure rate for dropped/collision is markedly higher when the bin is placed on the robot's right side.\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [],
+   "think": true
+  },
+  {
+   "sample": 2,
+   "reply": "\n\n{\n  \"summary\": \"Most failures are drops occurring when the cube is left of center, near the front-left of the workspace, and the bin is positioned to the right and front of the robot.\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where cube x in [0.4,0.533], cube y in [-0.2,0.067], bin x in [0.483,0.567], bin y in [0.1,0.3]\",\n      \"evidence_seeds\": [5531, 5546, 5553]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"left_front_cube_right_front_bin\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.4, 0.533],\n      \"cube_y\": [-0.2, 0.067],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.483, 0.567],\n      \"bin_y\": [0.1, 0.3],\n      \"share\": 0.5,\n      \"rationale\": \"inside this region the drop failure rate is 75% versus 40% outside, indicating a scene effect worth exposing the policy to\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [
+    "region 'left_front_cube_right_front_bin' contains 4 episodes, 3 of the 12 episodes that failed by its targets: a rate of 0.75 vs 0.41 overall, but a difference this size is likely chance (one-sided Fisher p = 0.178 > 0.1). Drop the region unless a wider one shows a clear scene effect"
+   ],
+   "think": true
+  },
+  {
+   "sample": 2,
+   "reply": "\n{\n  \"summary\": \"Most failures are drops when the bin is positioned in front-right of the robot (mid bin_x) and to the robot's left (positive bin_y).\",\n  \"hypotheses\": [\n    {\n      \"claim\": \"drops cluster where bin x in [0.483,0.567] and bin y in [0.1,0.3]\",\n      \"evidence_seeds\": [5531, 5546, 5550]\n    }\n  ],\n  \"mechanism\": [],\n  \"fixes\": [],\n  \"regions\": [\n    {\n      \"name\": \"mid_bin_right_front\",\n      \"targets\": [\"dropped\"],\n      \"cube_x\": [0.4, 0.6],\n      \"cube_y\": [-0.2, 0.2],\n      \"cube_yaw_deg\": [-45.0, 45.0],\n      \"bin_x\": [0.483, 0.567],\n      \"bin_y\": [0.1, 0.3],\n      \"share\": 0.5,\n      \"rationale\": \"inside this region the drop failure rate is 80% versus 33% outside, with one-sided Fisher p = 0.078\"\n    }\n  ],\n  \"uniform_share\": 0.5\n}",
+   "errors": [],
+   "think": true
+  }
+ ]
+}

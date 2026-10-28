@@ -554,6 +554,60 @@ def test_a_scene_recipe_is_frozen_and_gives_the_variants_their_scenes(hx, tmp_pa
     assert {"right_bin", "uniform"} <= set(regions)
 
 
+def _fixes_recipe(**filter_kw) -> dict:
+    """A fixes-only recipe: the scenes stay uniform; the variants are slowed and filtered."""
+    filt = {"lever": "filter_training", "addresses": ["carry_speed_max"], "feature": "carry_speed_max",
+            "keep": "below", "threshold": 0.31, "rationale": "r", **filter_kw}
+    return {"summary": "s", "hypotheses": [], "regions": [], "uniform_share": 1.0,
+            "mechanism": [{"feature": "carry_speed_max", "direction": "higher_in_failures", "explanation": "e"}],
+            "fixes": [{"lever": "slow_carry", "addresses": ["carry_speed_max"], "max_speed_mps": 0.3,
+                       "rationale": "r"}, filt]}
+
+
+def test_a_recipes_fixes_change_every_variant_before_its_replay(hx, tmp_path):
+    from demo_pipeline.data_fixes import training_features
+
+    exp, sim, _ = _exp(hx, tmp_path, name="fixes")
+    sr = {"path": "recipe_nemotron.json", "sha256": "0" * 64, "recipe": _fixes_recipe()}
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "variants": 3, "scene_recipe": sr})
+    exp.run(until="grid")
+    root = tmp_path / "human_exp" / "fixes"
+    prereg = (root / "preregistration.md").read_text()
+    assert "slow_carry" in prereg and "filter_training" in prereg and "0.3 m/s" in prereg
+    rows = [a for id in IDS for a in json.loads((root / "stages" / "multiply" / f"{id}.json").read_text())["attempts"]]
+    assert rows and all([f["lever"] for f in a["fixes"]] == ["slow_carry", "filter_training"] for a in rows)
+    for a in rows:
+        assert a["fixes"][1]["kept"] and a["region"] == "uniform"
+        if a["id"]:  # what was replayed and stored is the slowed variant
+            demo = exp.store.get_demo(a["id"])
+            assert training_features(demo.trajectory, demo.scene)["carry_speed_max"] <= 0.3 + 1e-6
+    assert json.loads((root / "stages" / "sim.json").read_text())["multiply"]["filtered"] == 0
+
+
+def test_a_variant_the_filter_drops_is_never_replayed_or_trained_on(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path, name="dropall")
+    sr = {"path": "r.json", "sha256": "0" * 64, "recipe": _fixes_recipe(keep="above", threshold=0.9)}
+    exp.select(ids=IDS[:1], tag=None, settings={**SMOKE, "variants": 3, "scene_recipe": sr})
+    exp.sim()
+    root = tmp_path / "human_exp" / "dropall"
+    mark = json.loads((root / "stages" / "multiply" / f"{IDS[0]}.json").read_text())
+    assert mark["attempts"] == [] and len(mark["filtered"]) == 3
+    assert all(not f["fixes"][-1]["kept"] for f in mark["filtered"])
+    assert not any(r.out_name and "_m" in r.out_name for r in sim.requests)  # no variant replay at all
+    summary = json.loads((root / "stages" / "sim.json").read_text())["multiply"]
+    assert summary["filtered"] == 3 and summary["attempts"] == 0
+    exp.sim()  # a re-run doesn't redo or replay them
+    assert json.loads((root / "stages" / "multiply" / f"{IDS[0]}.json").read_text()) == mark
+
+
+def test_the_cli_refuses_a_fix_the_pipeline_cannot_apply(hx, tmp_path):
+    bad = _fixes_recipe(feature="held_s")
+    path = tmp_path / "recipe.json"
+    path.write_text(json.dumps(bad))
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--scene-recipe", str(path)])
+
+
 def test_a_bad_scene_recipe_is_refused_before_anything_runs(hx, tmp_path):
     bad = _scene_recipe()
     bad["regions"][0]["bin_y"] = [-0.9, -0.1]

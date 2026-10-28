@@ -39,7 +39,10 @@ describe("App routes", () => {
     const nav = await screen.findByRole("navigation", { name: "Pipeline" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(["01 Record", "02 Review", "03 Dataset", "04 Results"]);
     expect(within(nav).getByRole("link", { name: "03 Dataset" }).className).toContain("active");
-    expect(screen.getByRole("link", { name: "← Workshop" }).getAttribute("href")).toBe("/");
+    // The way back (site-nav): the shared "← Back to workshop", right after the brand top left.
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(document.querySelectorAll(".work-top a")[1]).toBe(back);
   });
 
   it("points 04 Results at the measured results page, and sends the old /pm/results there", async () => {
@@ -53,8 +56,34 @@ describe("App routes", () => {
     );
     at("/pm/results");
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more." }, { timeout: 8000 }),
+      await screen.findByRole("heading", { level: 1, name: "10 human mouse demos → 30/40 (75%) on unseen scenes" }, { timeout: 8000 }),
     ).toBeTruthy();
     expect(screen.queryByText(/sample data/i)).toBeNull();
+  });
+
+  it("opens the failure analyst in the holo frame, with the one way back to the workshop", async () => {
+    at("/analysis");
+    expect(await screen.findByRole("heading", { level: 1, name: "Failure analyst" }, { timeout: 8000 })).toBeTruthy();
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(screen.getAllByRole("link", { name: "Back to workshop" })).toHaveLength(1);
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Analyst" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("opens the metrics in the holo frame, marked in the More nav", async () => {
+    at("/metrics");
+    expect(await screen.findByRole("heading", { level: 1, name: "Metrics" }, { timeout: 8000 })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Back to workshop" })).toHaveLength(1);
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Metrics" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("opens the flow in the holo frame, marked in the More nav", async () => {
+    at("/flow");
+    expect(await screen.findByRole("heading", { level: 1, name: "Flow" }, { timeout: 8000 })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Back to workshop" })).toHaveLength(1);
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Flow" }).getAttribute("aria-current")).toBe("page");
   });
 });

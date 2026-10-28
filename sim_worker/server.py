@@ -139,6 +139,11 @@ def make_http_server(worker: SimWorker, host: str = "127.0.0.1", port: int = DEF
 
         def do_POST(self) -> None:  # noqa: N802
             raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            if self.headers.get("Origin") is not None:
+                # Only the backend (no Origin) calls this; a browser page on any site could otherwise queue sim jobs
+                # with a no-preflight POST to 127.0.0.1 (security pass, 2026-10-29).
+                self._error(403, "invalid", "browser requests are refused; the backend calls the sim worker")
+                return
             model = REQUESTS.get(self.path)
             if model is None:
                 self._error(404, "not_found", f"no POST {self.path}")

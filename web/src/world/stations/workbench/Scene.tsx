@@ -1,9 +1,11 @@
 // The bench in 3D. In the room view the draft stands on the turntable as one of the spiral's
 // instances (Helix, its label the atlas's draft tile, reprinted here when the bench closes on a
 // changed draft). Open, the bench is where the cartridge is made, stage by stage (draft.ts):
-// - Material: six blank shells lie in a row on the mat, one per finish (one instanced draw for five,
-//   one for the see-through one, one for their insides). The pointer (or the editor's radio) lifts one;
-//   a pick flies it up, standing, onto the turntable; picking another flies the first back to its place.
+// - Material: six blank shells lie on the gridded mat (mat.ts), three either side of the turntable as in
+//   the lead's render C-workbench-v1.png (a phone: a column each side), one per finish, each wearing a
+//   blank label (one instanced draw for five, one for the see-through one, one for their insides, one
+//   for their labels). The pointer (or the editor's radio) lifts one and the mat brackets it; a pick
+//   flies it up, standing, onto the turntable; picking another flies the first back to its place.
 // - Colour: the shell eases to the new colour.
 // - Robot: the robot's hologram (holoMesh.ts) materializes on the cartridge's top, and again at each change.
 //   It fades when the stage moves on.
@@ -24,11 +26,14 @@ import { cartridgeParts, labelAtlas, offRedraw, redrawDraftTile, type Part } fro
 import { drawSingle, type LabelArt } from "../../scene/labels";
 import { BENCH_PIVOT } from "../../scene/layout";
 import { liveMaterial, trackLive } from "../../scene/materials";
+import { addBaked } from "../../scene/power";
+import { Materialize } from "../../scene/Materialize";
 import { FINISHES, finishOf, savedCartridges, type FinishId } from "../../scene/saved";
 import { bench, draftLabel, endFlight, pickFinish, setHover, subscribeBench } from "./draft";
 import { FINALE, finaleAt, popParticle, printWipe } from "./finale";
 import { makeHoloRobot } from "./holoMesh";
-import { BENCH_SCALE, HOLO_BASE, PICK_S, PRINT_H, PRINT_QUATERNION, PRINT_S, PRINT_W, benchCartridge, blankPose, flightPose, pickPose, printPose, type FlightPose } from "./layout";
+import { BENCH_SCALE, BLANK_SCALE, HOLO_BASE, PICK_S, PRINT_H, PRINT_QUATERNION, PRINT_S, PRINT_W, benchCartridge, blankPlaces, blankPose, flightPose, pickPose, printPose, type FlightPose } from "./layout";
+import { makeMat, setMatHover } from "./mat";
 import { holoFor, holoNow } from "./robotHolo";
 import { applyFinish, finishAttribute, withFinish, withPrintHead, type FinishUniforms } from "./shellSurface";
 
@@ -54,6 +59,8 @@ const ANCHOR = new THREE.Vector3(...BENCH_PIVOT.position);
 
 /** A blank label: the paper, before the print head has been over it. */
 const BLANK_ART: LabelArt = { band: "SANT  ·  YOUR CARTRIDGE", code: "", line: "", mark: "rgba(0,0,0,0)", serial: "" };
+/** The label the blanks on the mat wear, as in the lead's render (C-workbench-v1.png): an empty cartridge waiting for a robot. */
+const ROW_ART: LabelArt = { band: "SANT  ·  ROBOT CARTRIDGE", code: "+", line: "NAME YOUR ROBOT", mark: "#19F5C2", serial: "BRING-YOUR-ROBOT" };
 
 /** A close cartridge: its label canvas behind the print head, and its shell in a finish and a colour. */
 function makeCartridge(gltf: { scene: THREE.Object3D }, tier: StationSceneProps["quality"]) {
@@ -129,7 +136,7 @@ function makeCartridge(gltf: { scene: THREE.Object3D }, tier: StationSceneProps[
   };
 }
 
-/** The six blanks on the mat: the five opaque ones as one instanced draw, the see-through one alone, their insides as one. */
+/** The six blanks on the mat: the five opaque ones as one instanced draw, the see-through one alone, their insides as one, their labels as one. */
 function makeRow(parts: Part[], tier: StationSceneProps["quality"]) {
   const shellPart = parts.find((p) => p.name.startsWith("shell"))!;
   const opaqueIds = FINISHES.map((f, i) => (f.opacity < 1 ? -1 : i)).filter((i) => i >= 0);
@@ -167,13 +174,37 @@ function makeRow(parts: Part[], tier: StationSceneProps["quality"]) {
   insides.raycast = () => {};
   insides.frustumCulled = false;
 
+  // Their labels: one printed blank label (ROW_ART), drawn once (again when the fonts arrive).
+  const labelPart = parts.find((p) => p.name.startsWith("label"))!;
+  const labelCanvas = document.createElement("canvas");
+  drawSingle(labelCanvas, ROW_ART, LABEL_SCALE);
+  const labelMap = new THREE.CanvasTexture(labelCanvas);
+  labelMap.colorSpace = THREE.SRGBColorSpace;
+  labelMap.anisotropy = 4;
+  // The label mesh's v runs downward (as makeCartridge's).
+  labelMap.offset.set(0, 1);
+  labelMap.repeat.set(1, -1);
+  const labelMat = liveMaterial(labelPart.source, tier, { map: labelMap, color: "#ffffff" });
+  const labels = new THREE.InstancedMesh(labelPart.geometry, labelMat, FINISHES.length);
+  labels.raycast = () => {};
+  labels.frustumCulled = false;
+  labels.name = "bench:row-labels";
+
   return {
     opaque,
     opaqueIds,
     clearMesh,
     clearId,
     insides,
+    labels,
+    /** Reprint the row's labels (the real fonts have arrived). */
+    reprint: () => {
+      drawSingle(labelCanvas, ROW_ART, LABEL_SCALE);
+      labelMap.needsUpdate = true;
+    },
     release: () => {
+      labelMap.dispose();
+      labelMat.dispose();
       opaqueGeo.dispose();
       opaqueMat.dispose();
       clear.material.dispose();
@@ -192,7 +223,8 @@ function useBench(tier: StationSceneProps["quality"]) {
     main.group.visible = false;
     const row = makeRow(cartridgeParts(gltf.scene), tier);
     const holo = makeHoloRobot();
-    return { main, flying, row, holo, releases: [...main.releases, ...flying.releases, row.release, () => holo.dispose()] };
+    const mat = makeMat();
+    return { main, flying, row, holo, mat, releases: [...main.releases, ...flying.releases, row.release, () => holo.dispose(), mat.release] };
   }, [gltf, tier]);
 }
 
@@ -310,6 +342,8 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
   const open = useWorldState((c) => c.branch === "workbench");
   const invalidate = useThree((s) => s.invalidate);
   const gl = useThree((s) => s.gl);
+  // A tall screen (a phone): the blanks lie in two columns, not one row (layout.ts).
+  const tall = useThree((s) => s.size.height > s.size.width);
   const b = useBench(quality);
   const printed = usePrintedLabel();
   const sparks = useSparks();
@@ -349,6 +383,9 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
     place: -1,
     edits: bench.edits,
     editAt: -1,
+    /** The mat's brackets round the blank under the pointer: which, and how lit. */
+    hovered: -1,
+    hoverLevel: 0,
   });
   // A slow turn of the hologram while the bench is open (high and ultra only, never reduced).
   useWorldAnimating(open && !reduced && quality.idleMotion);
@@ -357,6 +394,7 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
   // Everything on the bench follows the draft; the real fonts arriving reprint the labels.
   useEffect(() => {
     const redraw = () => {
+      b.row.reprint();
       if (st.current.printedName) b.main.print(draftLabel());
       printed.print();
       invalidate();
@@ -369,6 +407,8 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
     };
   }, [b, printed, invalidate]);
   useEffect(() => () => b.releases.forEach((r) => r()), [b]);
+  // The mat is lit by the lamps, like the baked room round it.
+  useEffect(() => addBaked(b.mat.material), [b]);
   useEffect(() => () => printed.release(), [printed]);
   useEffect(() => () => sparks.release(), [sparks]);
 
@@ -442,6 +482,16 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
     // The store, not React's copy: the room view's instance (Helix) hides on this same frame.
     const isOpen = store.getCoarse().branch === "workbench";
     g.visible = isOpen;
+    // The mat: the turntable's pool brighter while the bench is open; brackets round the hovered blank.
+    const hov = isOpen && bench.stage === "material" ? bench.hover : -1;
+    if (hov >= 0) st.current.hovered = hov;
+    const hoverTo = hov >= 0 ? 1 : 0;
+    st.current.hoverLevel += (hoverTo - st.current.hoverLevel) * (reduced ? 1 : 1 - Math.exp(-Math.min(delta, 1 / 30) * 12));
+    if (Math.abs(st.current.hoverLevel - hoverTo) < 0.004) st.current.hoverLevel = hoverTo;
+    else invalidate();
+    const hp = st.current.hovered >= 0 ? blankPlaces(tall)[st.current.hovered] : null;
+    setMatHover(b.mat.uniforms, hp && { x: hp.x, z: hp.z, turn: hp.turn, halfW: 1.15 * BLANK_SCALE, halfL: 1.25 * BLANK_SCALE }, st.current.hoverLevel);
+    b.mat.uniforms.uTable.value.w = isOpen ? 1 : 0.55;
     const main = b.main;
     const flying = b.flying;
     if (!isOpen) {
@@ -536,7 +586,7 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
           busy = true;
         }
       }
-      blankPose(i, s.lift[i] + drop * 4, pose);
+      blankPose(i, s.lift[i] + drop * 4, pose, tall);
       const m = away ? HIDDEN : _m.compose(pose.position, pose.quaternion, _s.setScalar(pose.scale * (1 - 0.12 * drop)));
       const k2 = b.row.opaqueIds.indexOf(i);
       if (k2 >= 0) b.row.opaque.setMatrixAt(k2, m);
@@ -549,7 +599,9 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
         }
       }
       b.row.insides.setMatrixAt(i, m);
+      b.row.labels.setMatrixAt(i, m);
     }
+    b.row.labels.instanceMatrix.needsUpdate = true;
     b.row.opaque.instanceMatrix.needsUpdate = true;
     b.row.insides.instanceMatrix.needsUpdate = true;
 
@@ -562,7 +614,7 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
         s.backTo = -1;
         flying.group.visible = false;
       } else {
-        pickPose(s.backTo, 1 - u, pose);
+        pickPose(s.backTo, 1 - u, pose, tall);
         flying.group.visible = true;
         flying.group.position.copy(pose.position);
         flying.group.quaternion.copy(pose.quaternion);
@@ -582,7 +634,7 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
         const u = (now - s.pickAt) / PICK_S;
         if (u >= 1) s.pickAt = -1;
         else {
-          pickPose(s.pickFrom, u, pose);
+          pickPose(s.pickFrom, u, pose, tall);
           main.group.position.copy(pose.position);
           main.group.quaternion.copy(pose.quaternion);
           main.group.scale.setScalar(pose.scale);
@@ -713,16 +765,24 @@ export function WorkbenchScene({ quality, reduced }: StationSceneProps) {
   });
 
   return (
-    <group ref={holder} visible={false} name="workbench">
-      <primitive object={b.main.group} />
-      <primitive object={b.flying.group} />
-      <primitive object={b.row.opaque} {...rowEvents(b.row.opaque)} />
-      <primitive object={b.row.clearMesh} {...rowEvents(b.row.clearMesh)} />
-      <primitive object={b.row.insides} />
-      <primitive object={b.holo.mesh} />
-      <primitive object={sparks.points} />
-      <primitive object={printed.mesh} />
-    </group>
+    <>
+      {/* The mat stays in the room view too: it covers the baked mat's old shadows. It is part of the
+          room, so it materializes with it (Materialize: hidden, then dissolving in on the room's reveal). */}
+      <Materialize>
+        <primitive object={b.mat.mesh} />
+      </Materialize>
+      <group ref={holder} visible={false} name="workbench">
+        <primitive object={b.main.group} />
+        <primitive object={b.flying.group} />
+        <primitive object={b.row.opaque} {...rowEvents(b.row.opaque)} />
+        <primitive object={b.row.clearMesh} {...rowEvents(b.row.clearMesh)} />
+        <primitive object={b.row.insides} />
+        <primitive object={b.row.labels} />
+        <primitive object={b.holo.mesh} />
+        <primitive object={sparks.points} />
+        <primitive object={printed.mesh} />
+      </group>
+    </>
   );
 }
 

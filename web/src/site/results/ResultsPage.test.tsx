@@ -50,12 +50,29 @@ afterEach(() => {
 });
 
 describe("Results page", () => {
-  it("leads with the confirmatory result, its CIs and p", () => {
+  // site-nav (2026-10-26, the user): lead with the proof, the newest pre-registered one-shot result.
+  it("leads with the proof: 10 human mouse demos to 30/40, pre-registered and run once, with its CI, goal and source", () => {
     stubReducedMotion(true);
     page();
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
-      "Multiplying 10 demos made the robot better. Tripling the copies didn't help more.",
-    );
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1.textContent).toBe("10 human mouse demos → 30/40 (75%) on unseen scenes");
+    const lead = screen.getByRole("region", { name: h1.textContent! });
+    expect(lead.id).toBe("proof");
+    expect(lead.textContent).toMatch(/Pre-registered/);
+    expect(lead.textContent).toMatch(/run once/);
+    expect(lead.textContent).toMatch(/59\.8–85\.8%/);
+    expect(lead.textContent).toMatch(/at least 24\/40/);
+    expect(lead.textContent).toMatch(/5400–5439/);
+    expect(lead.textContent).toMatch(/note, lines? \d/);
+    // The proof band follows it, then the earlier scripted result.
+    const order = [...document.querySelectorAll("#proof, .sant-proof, #results-title")];
+    expect(order.map((e) => e.id || e.className.split(" ")[1])).toEqual(["proof", "sant-proof", "results-title"]);
+  });
+
+  it("keeps the earlier scripted result further down, its CIs and p", () => {
+    stubReducedMotion(true);
+    page();
+    expect(screen.getByRole("heading", { level: 2, name: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more." })).toBeTruthy();
     expect(screen.getByRole("group", { name: /^17\/40 / })).toBeTruthy();
     const ledger = screen.getByRole("table", { name: /headline result/i });
     for (const ci of ["2.6–19.9%", "28.5–57.8%", "26.3–55.4%"]) expect(within(ledger).getByText(ci)).toBeTruthy();
@@ -228,5 +245,135 @@ describe("Results page", () => {
     expect(within(run2).getByTestId("arm-recovery_60k").textContent).toMatch(/Pending/);
     expect(within(run2).getByTestId("arm-centered_10x10").textContent).toMatch(/20\/40/);
     expect(within(run2).getByTestId("comparison").textContent).toBe("+ recovery copies, 60k vs 20/40: pending");
+  });
+});
+
+describe("The proof band: the pre-registered results as charts", () => {
+  const SECTIONS = ["The climb: from 0/40 to 30/40", "Did the human demos matter? The teacher side", "Why the 10 v2 test failures failed", "What didn't work"];
+
+  function proof() {
+    return screen.getByRole("region", { name: "The proof: pre-registered, each run once" });
+  }
+
+  /** The text of the elements a node's aria-describedby points at. */
+  function description(el: Element) {
+    const ids = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+    return ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ").trim();
+  }
+
+  it("renders the four sections, each under its heading, after the lead and before the earlier result", () => {
+    stubReducedMotion(true);
+    page();
+    const band = proof();
+    for (const name of SECTIONS) {
+      const s = within(band).getByRole("region", { name });
+      expect(within(s).getByRole("heading", { level: 3, name })).toBeTruthy();
+    }
+    // site-nav: the lead (the h1) comes first, the band next, the earlier scripted result after it.
+    const lead = screen.getByRole("region", { name: /human mouse demos/ });
+    expect(lead.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const earlier = screen.getByRole("region", { name: /Multiplying 10 demos/ });
+    expect(band.compareDocumentPosition(earlier) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("gives each chart an accessible name, a description and a data table", () => {
+    stubReducedMotion(true);
+    page();
+    const figures = within(proof()).getAllByRole("figure");
+    expect(figures.map((f) => f.getAttribute("aria-labelledby") && document.getElementById(f.getAttribute("aria-labelledby")!)?.textContent)).toEqual([
+      "Success on the 40-scene one-shot test",
+      "Home-start success out of 128, by RL training iteration",
+      "Why each of the 10 failed scenes failed",
+    ]);
+    for (const f of figures) {
+      expect(description(f).length).toBeGreaterThan(60);
+      expect(within(f).getByRole("table")).toBeTruthy();
+    }
+  });
+
+  it("climbs from 0/40 to 30/40, with each CI, the 60% goal and the seed footnote", () => {
+    stubReducedMotion(true);
+    page();
+    const s = within(proof()).getByRole("region", { name: SECTIONS[0] });
+    const table = within(s).getByRole("table");
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows.map((r) => within(r).getAllByRole("cell")[0].textContent)).toEqual(["0/40", "3/40", "15/40", "30/40"]);
+    for (const ci of ["0.0–8.8%", "2.6–19.9%", "24.2–53.0%", "59.8–85.8%"]) expect(within(table).getByText(ci)).toBeTruthy();
+    expect(description(within(s).getByRole("figure"))).toMatch(/30\/40.*goal of 24\/40/);
+    expect(s.textContent).toMatch(/Goal 60% \(24\/40\)/);
+    expect(s.textContent).toContain(
+      "Each bar is its own pre-registered test, run once. v2 was tested on fresh seeds 5400–5439; the others on 5020–5059, so the comparisons are descriptive.",
+    );
+  });
+
+  it("shows the teacher with and without human demo starts, by iteration, and the final Wilson intervals", () => {
+    stubReducedMotion(true);
+    page();
+    const s = within(proof()).getByRole("region", { name: SECTIONS[1] });
+    const table = within(s).getByRole("table");
+    const rows = within(table).getAllByRole("row").slice(1).map((r) => r.textContent);
+    expect(rows).toEqual(["300 0/128 0/128", "600 10/128 0/128", "900 99/128 0/128", "1200 109/128 0/128", "1499 113/128 0/128"].map((t) => expect.stringMatching(new RegExp(`^${t.split(" ").join("\s*")}$`))));
+    expect(s.textContent).toMatch(/81\.6–92\.8%/);
+    expect(s.textContent).toMatch(/0\.0–2\.9%/);
+    expect(s.textContent).toContain("Same code, budget and seed; one run per arm.");
+  });
+
+  it("reads out an iteration on hover or focus, ending on the last by default", () => {
+    stubReducedMotion(true);
+    page();
+    const s = within(proof()).getByRole("region", { name: SECTIONS[1] });
+    const readout = within(s).getByTestId("curve-readout");
+    expect(readout.textContent).toMatch(/Iteration 1499.*113\/128.*0\/128/);
+    fireEvent.focus(within(s).getByRole("button", { name: /Iteration 900/ }));
+    expect(readout.textContent).toMatch(/Iteration 900.*99\/128.*0\/128/);
+    fireEvent.mouseEnter(within(s).getByRole("button", { name: /Iteration 600/ }));
+    expect(readout.textContent).toMatch(/Iteration 600.*10\/128/);
+  });
+
+  it("breaks down why v2's 10 failures failed, and says all 10 ran out the 30 s limit", () => {
+    stubReducedMotion(true);
+    page();
+    const s = within(proof()).getByRole("region", { name: SECTIONS[2] });
+    const table = within(s).getByRole("table");
+    const rows = within(table).getAllByRole("row").slice(1).map((r) => [within(r).getByRole("rowheader").textContent, within(r).getAllByRole("cell")[0].textContent]);
+    expect(rows).toEqual([
+      ["Dropped the cube", "10"],
+      ["Not in the bin", "9"],
+      ["Collision", "5"],
+      ["Gripper closed", "2"],
+    ]);
+    expect(s.textContent).toMatch(/All 10 ran out the 30 s time limit/);
+    expect(s.textContent).toMatch(/one failure can have several reasons/i);
+  });
+
+  it("lists what didn't work, with its numbers", () => {
+    stubReducedMotion(true);
+    page();
+    const s = within(proof()).getByRole("region", { name: SECTIONS[3] });
+    const items = within(s).getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[0].textContent).toMatch(/0\/110 passed/);
+    expect(items[1].textContent).toMatch(/7–8\/29.*unknown reason.*lost the pre-registered pick/);
+    expect(items[2].textContent).toMatch(/1\.7 m\/s.*3\/50.*0\.5 m\/s cap fixed it \(50\/50\)/);
+    for (const li of items) expect(li.textContent).toMatch(/note, lines? \d/);
+  });
+
+  it("names the two pre-registration notes among the sources", () => {
+    stubReducedMotion(true);
+    page();
+    const sources = screen.getByRole("region", { name: "Where the numbers come from" });
+    expect(sources.textContent).toMatch(/docs\/superpowers\/notes\/2026-10-23-bigtest-prereg\.md/);
+    expect(sources.textContent).toMatch(/docs\/superpowers\/notes\/2026-10-21-distill-prereg\.md/);
+    expect(sources.textContent).toMatch(/proofData\.ts/);
+  });
+
+  it("with motion on, the bars wait to be seen, then grow", () => {
+    stubReducedMotion(false);
+    const show = stubObserver();
+    page();
+    const plot = within(proof()).getByTestId("climb-plot");
+    expect(plot.dataset.grown).toBe("false");
+    act(() => show());
+    expect(plot.dataset.grown).toBe("true");
   });
 });

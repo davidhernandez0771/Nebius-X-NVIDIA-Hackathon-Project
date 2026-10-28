@@ -123,28 +123,66 @@ export const benchFrame = (p: THREE.Vector3) => p.clone().applyQuaternion(UNYAW)
 
 /** bx_B_Mat, the cutting mat on the bench top (8.2 × 3.9 m). */
 export const MAT_TOP = 3.335;
-/** The blanks are small: six lie between the turntable and the bench's front edge. */
-export const BLANK_SCALE = 0.2;
+/**
+ * The blanks, as in the lead's render docs/design/blender/C-workbench-v1.png: cartridges lying face
+ * up on a gridded mat, three either side of the turntable (where the picked one stands, spotlit),
+ * their row bending gently toward you at its ends and each turned a little in toward the middle.
+ */
+export const BLANK_SCALE = 0.32;
 /** Metres a blank lifts under the pointer. */
-export const BLANK_LIFT = 0.07;
-const ROW_Z = 1.66;
-const ROW_X = 0.25;
-const ROW_STEP = 0.62;
+export const BLANK_LIFT = 0.08;
+/** Across the bench (its own x) either side of the turntable, and forward (its own z): nearest the middle first. */
+const ROW_XS = [1.6, 2.45, 3.3] as const;
+const ROW_Z0 = 0.86;
+const ROW_BEND = 0.12;
+const ROW_TURN = 0.07;
 /** Half a cartridge's thickness at scale 1 (cartridge.glb's body: ±0.17 m). */
 const HALF_T = 0.17;
 
-/** The six blanks' places on the mat, left to right (one per finish, saved.ts FINISHES). */
-export const BLANKS: readonly THREE.Vector3[] = Array.from({ length: 6 }, (_, i) => benchPoint(ROW_X + (i - 2.5) * ROW_STEP, MAT_TOP + HALF_T * BLANK_SCALE, ROW_Z));
-/** Lying on its back, label up, its top toward the back of the bench. */
-const LYING = YAW.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
+/** On a tall screen (a phone) the row can't fit across: three in a column either side of the turntable, back to front. */
+const COL_X = 1.75;
+const COL_ZS = [-0.75, 0.15, 1.05] as const;
 
-/** Blank i on the mat, lifted by `lift` (0–1) of BLANK_LIFT. */
-export function blankPose(i: number, lift = 0, out: FlightPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: 1 }): FlightPose {
-  out.position.copy(BLANKS[i]).addScaledVector(UP, lift * BLANK_LIFT);
-  out.quaternion.copy(LYING);
+export interface BlankPlace {
+  x: number;
+  z: number;
+  turn: number;
+}
+
+/** Blank i's place in the bench's own frame: x, z and its turn (left to right, one per finish, saved.ts FINISHES). */
+export const BLANK_PLACES: readonly BlankPlace[] = Array.from({ length: 6 }, (_, i) => {
+  const side = i < 3 ? -1 : 1;
+  const k = i < 3 ? 2 - i : i - 3;
+  return { x: side * ROW_XS[k], z: ROW_Z0 + ROW_BEND * k, turn: -side * ROW_TURN * (k + 1) };
+});
+/** The tall screen's places: back to front down each column, the left column first. */
+export const BLANK_PLACES_TALL: readonly BlankPlace[] = Array.from({ length: 6 }, (_, i) => {
+  const side = i < 3 ? -1 : 1;
+  return { x: side * COL_X, z: COL_ZS[i % 3], turn: side * ROW_TURN };
+});
+export const blankPlaces = (tall = false) => (tall ? BLANK_PLACES_TALL : BLANK_PLACES);
+const centre = (p: BlankPlace) => benchPoint(p.x, MAT_TOP + HALF_T * BLANK_SCALE, p.z);
+/** The six blanks' places on the mat (local to the anchor), on a wide screen and on a tall one. */
+export const BLANKS: readonly THREE.Vector3[] = BLANK_PLACES.map(centre);
+export const BLANKS_TALL: readonly THREE.Vector3[] = BLANK_PLACES_TALL.map(centre);
+/** Lying on its back, label up, its top toward the back of the bench (turned a little, as its place says). */
+const lying = (p: BlankPlace) => YAW.clone().multiply(new THREE.Quaternion().setFromAxisAngle(UP, p.turn)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2));
+const LYING_WIDE = BLANK_PLACES.map(lying);
+const LYING_TALL = BLANK_PLACES_TALL.map(lying);
+
+/** Blank i on the mat, lifted by `lift` (0–1) of BLANK_LIFT; `tall`: a phone's layout. */
+export function blankPose(i: number, lift = 0, out: FlightPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: 1 }, tall = false): FlightPose {
+  out.position.copy((tall ? BLANKS_TALL : BLANKS)[i]).addScaledVector(UP, lift * BLANK_LIFT);
+  out.quaternion.copy((tall ? LYING_TALL : LYING_WIDE)[i]);
   out.scale = BLANK_SCALE;
   return out;
 }
+
+/** The turntable in the bench's own frame (x, z), and its ring's radius: the mat's spotlight and brackets centre there. */
+export const TURNTABLE_LOCAL = (() => {
+  const p = benchFrame(TURNTABLE);
+  return { x: p.x, z: p.z, r: 0.965 };
+})();
 
 /** Seconds a picked blank takes from the mat to the turntable. */
 export const PICK_S = 0.8;
@@ -153,17 +191,19 @@ const PICK_OVER = 0.75;
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _home = new THREE.Quaternion();
+const _from: FlightPose = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: 1 };
 
 /**
  * A picked blank on its way to the turntable, local: up off the mat, standing up as it goes over,
  * and down onto the turntable where the bench's cartridge stands, growing to its size. One cubic Bezier,
- * eased in and out (it moves on screen).
+ * eased in and out (it moves on screen). `tall`: from a phone's layout.
  */
-export function pickPose(i: number, u: number, out: FlightPose): FlightPose {
+export function pickPose(i: number, u: number, out: FlightPose, tall = false): FlightPose {
   const k = Math.min(1, Math.max(0, u));
   const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
   const home = benchCartridge();
-  const p0 = BLANKS[i];
+  const from = blankPose(i, 0, _from, tall);
+  const p0 = from.position;
   _a.copy(p0).addScaledVector(UP, PICK_UP);
   _b.copy(home.position).addScaledVector(UP, PICK_OVER);
   const a = 1 - e;
@@ -175,7 +215,7 @@ export function pickPose(i: number, u: number, out: FlightPose): FlightPose {
     .addScaledVector(home.position, e * e * e);
   _home.setFromAxisAngle(UP, home.yaw);
   // It stands up a little ahead of the move, so it comes down upright.
-  out.quaternion.slerpQuaternions(LYING, _home, Math.min(1, e * 1.25));
+  out.quaternion.slerpQuaternions(from.quaternion, _home, Math.min(1, e * 1.25));
   out.scale = BLANK_SCALE + (BENCH_SCALE - BLANK_SCALE) * e;
   return out;
 }
@@ -283,9 +323,9 @@ export function shotFor(stage: ShotStage, aspect: number) {
   const fov = phone ? 52 : EDIT_VIEW.fov;
   const home = benchCartridge().position;
   if (stage === "material") {
-    // The row and the turntable behind it.
-    const focus = benchPoint(ROW_X, MAT_TOP + 0.35, (ROW_Z + 0.4) / 2 + 0.1);
-    return frame(focus, ROW_DIR, 2.15, 1.05, phone ? PHONE : ABOVE, aspect, fov);
+    // The row either side of the turntable, and the turntable between (a phone: the two columns).
+    if (phone) return frame(benchPoint(0, MAT_TOP + 0.35, 0.3), ROW_DIR, COL_X + 0.8, 1.4, PHONE, aspect, fov);
+    return frame(benchPoint(0, MAT_TOP + 0.35, ROW_Z0 + 0.05), ROW_DIR, ROW_XS[2] + 0.55, 1.05, ABOVE, aspect, fov);
   }
   if (stage === "robot") {
     const top = HOLO_BASE.y + HOLO_H;

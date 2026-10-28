@@ -14,6 +14,7 @@ export function StoryShell({
   links,
   cta,
   className = "",
+  mode = "paper",
 }: {
   children: ReactNode;
   home?: string;
@@ -21,11 +22,13 @@ export function StoryShell({
   cta?: NavItem;
   /** A page's own root class, for styles scoped to that page. */
   className?: string;
+  /** Field Notes paper by default; Volt for a story page that sits in the work pages' dark look (Results). */
+  mode?: "paper" | "volt";
 }) {
   const { reduced } = useMotion();
   useLenis(!reduced);
   return (
-    <div className={`sant sant-shell sant-shell--story ${className}`.trim()} data-mode="paper">
+    <div className={`sant sant-shell sant-shell--story ${className}`.trim()} data-mode={mode}>
       <a className="sant-skip" href="#sant-main">
         Skip to content
       </a>

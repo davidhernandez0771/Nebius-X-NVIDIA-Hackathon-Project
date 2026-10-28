@@ -1,72 +1,73 @@
-# SANT demo video: 3 minutes
+# SANT demo video: 3 minutes (v3, 2026-10-26)
 
-<!-- Rewritten 2026-10-20 for the site on pm/live-11: the descent intro (hero → forest → reactor → THE RING →
-     the workshop), the workshop's four places (shelf, machine, bench, robot wall), dragging a cartridge to the
-     machine, Record with keyboard/mouse/camera and three twin views, and the Nemotron repairer's blind A/B.
-     The 2026-10-19 version (the older intro, no repairer) is in git history. Every number below is in
-     docs/submission/README.md's Results tables, with its note. -->
+<!-- Rewritten 2026-10-26 to lead with the pre-registered result (v2: 30/40 on fresh seeds). The 2026-10-20 version
+     (the scripted 3/40 → 17/40 story and the repair A/B) is in git history.
+     Every number below is in README.md "The headline result" and docs/superpowers/notes/2026-10-23-bigtest-prereg.md.
+     The judges asked for: a fast "aha", graphs over text, a real problem, honesty about failures. So the result is
+     on screen by 0:25, and the failures get their own beat. -->
 
-**The path:** the descent intro → the workshop and its robot wall → drag a cartridge to the machine → Record →
-the Nemotron repairer → the results.
+**The path:**
+1. The result first.
+2. Why demos are hard.
+3. What SANT does.
+4. Record.
+5. The teacher, and the proof the demos mattered.
+6. SANT catching the teacher.
+7. The real test runs.
+8. Nemotron's role.
+9. The close.
 
 **Tags:**
-- **[SCREEN]** a screen recording of the site, with no backend needed. The machine's hologram and Record's twin
-  replay `web/public/world/demo-episode.json`, a sim-verified episode.
-- **[LIVE]** needs the live session: the backend, the Isaac Lab sink and a person at the webcam or keyboard
-  ([live-test-10](../superpowers/notes/2026-10-19-live-test-10.md) has the terminals). Only one Isaac process at
-  a time. Each [LIVE] shot has a [SCREEN] fallback.
-- **[EDIT]** a card made in the edit (text over a still), for things the site doesn't show.
-- **[CHECK]** confirm the number on screen matches the README's Results tables before recording.
+- **[SCREEN]:** a screen recording of the site. No backend needed.
+- **[EDIT]:** a card made in the edit (text over a still), for things the site doesn't show.
+- **[CHECK]:** check the number on screen against the README right before recording.
 
 **Rules for what's on screen:**
-- Never show a number that isn't in the README's Results tables, and never show sample data as measured.
-- Say once, clearly, that the 3/40 → 17/40 policy result was trained on scripted demos, not human ones.
-- **The repair A/B is not significant, and it did not replicate:** 5/10 vs 3/10 (p = 0.50), then 2/10 vs 3/10 in the
-  re-run (p = 1.0). Never say "beats", and never show 5/10 without the re-run.
-- **The webcam training result is one arm: 3/40.** Show it as "3 repaired demos are not enough yet". Never put
-  it next to 17/40 as a comparison, and never next to the scripted raw 3/40 (a different setup that happens to
-  share the number).
-- Record at 1920×1080 with the site's quality tier fixed (`?q=high`; no tier change mid-shot), on the real GPU in
-  a normal browser window. Close Blender and any other GPU renderer, and keep Isaac closed during [SCREEN]
-  shots.
+- **Never show a number that isn't in the README or the prereg.**
+- **Comparisons are descriptive, never p-values.** 0/40 and 3/40 were tested on other seeds than 30/40. Say "imitating
+  the raw demos gave 0 of 40"; never "SANT beat raw, p = …".
+- **Nemotron is NOT in the 30/40 path.** The mouse demos passed physics as recorded (10/10), so they were verified
+  and multiplied by code, with no repair. Show Nemotron for what it does (descriptions, repair proposals, scenes), and
+  never as the reason for 30/40.
+- **Simulation only.** Never imply a real robot.
+- **Credit v2's gain to "longer training and a gripper fix" together,** never to one of them.
+- **Recording setup:**
+  - 1920×1080, quality fixed with `?q=high`, on the real GPU, in a normal browser window.
+  - Close Blender, Isaac, CARLA and games while recording.
 
 ## Shot list
 
 | # | Time | Tag | Picture | Voice-over |
 |---|---|---|---|---|
-| 1 | 0:00–0:10 | [SCREEN] | `http://localhost:5173/?q=high`: the loader, then the glass SANT logo in dark space, "SHOW A ROBOT ONCE." | "Robots learn by copying people. Show one a task once, and it should be able to learn it." |
-| 2 | 0:10–0:25 | [SCREEN] | Scroll: the drop into the misty forest, the Franka's parts half-buried in the moss. "ROBOTS NEED DEMOS." with its three lines; hold on "927 N against a 5 N limit". | "But robots need hundreds of demos, and each one costs a teleop rig and an operator's time. A webcam is free, but human demos are sloppy: when we recorded ten with a webcam, nine pressed the gripper into the bin." |
-| 3 | 0:25–0:48 | [SCREEN] [CHECK] | Through the crack into the reactor. It powers up with the scroll: S·A·N·T (Simulate, Augment, Neaten, Train), then the proof slab **3/40 → 17/40**, then "NEMOTRON PROPOSES. PHYSICS VERIFIES." | "SANT checks every demo in NVIDIA Isaac Lab, repairs what fails, and multiplies what passes into many verified copies. On scripted demos, multiplying took a policy from three successes in forty unseen scenes to seventeen. The rule: Nemotron proposes, physics verifies." |
-| 4 | 0:48–0:58 | [SCREEN] | At full power the ring lifts off; the camera dives through THE RING; it bursts into particles that build the workshop. | (music; no voice) |
-| 5 | 0:58–1:10 | [SCREEN] | The workshop: the spiral of cartridges, the four tags. Click **04 The wall**: the camera turns to the robot wall; hover the Franka, then the OpenArm; the catalog panel shows each one's status. | "Each robot SANT runs on stands on the wall. The Franka passed thirty of thirty copies in Isaac. The OpenArm passed none, and its report card names the wrist joint that stops it." |
-| 6 | 1:10–1:25 | [SCREEN] | Escape back to the room. Press a cartridge on the spiral and **drag it onto the machine**: it waits over the port, plugs in, and the hologram Franka replays a verified demo with its joints panel. | "A cartridge is a job. Drag one onto the machine, and it projects the robot: a real, physics-checked demo, replayed." |
-| 7 | 1:25–1:52 | [LIVE] | `/record` (Into the projection → Record). Keyboard (or Camera). Start; the Kit window and the twin pane, tagged `LIVE`, follow. Show the three twin views (behind, side, top) and the alignment grid lighting up over the cube. Grasp, carry, release over the bin; Enter to save. **Fallback [SCREEN]:** the same page with the twin tagged `REPLAY`; say "a recorded demo". | "To teach it, you record. Drive the simulated arm with your hand on a webcam, or with the keyboard. The twin shows the robot from behind, the side and above, and the grid lights up when you're over the cube. Stop, and it's saved as a demo." |
-| 8 | 1:52–2:25 | [EDIT] [CHECK] | Three cards. **1:** "10 real webcam demos → **0/10** pass physics as recorded." **2:** one demo's Nemotron plan in its own words, from the A/B (66bc: first grasp re-aimed 2.6 cm, gripper held closed across the regrasps, the tail lifted 3 cm → **pass** in round 3). If possible, its before/after replay from Isaac (record it in a [LIVE] session). **3:** the A/B: **Nemotron edits 5/10 vs rules 3/10 (p = 0.50, $0.21); re-run 2/10 vs 3/10 (p = 1.0)**. | "Real hands make demos that physics rejects: zero of our ten passed. So SANT repairs them. NVIDIA Nemotron reads what the simulator measured, the forces, the grasp offset, where the cube was let go, and writes small edits to the path. Code caps each edit at five centimetres; Isaac Lab replays it and sends back the verdict. In a blind test on those ten demos, Nemotron repaired five, the hand-written rules three; in the re-run, two against three. Its plans vary, so next it works on top of the rules, only where they fail." |
-| 9 | 2:25–2:50 | [SCREEN] [CHECK] | `/site/results`: the arms with their intervals, the 40 squares per arm. Overlay: **3/40 vs 17/40, p = 0.0005**, seeds 5020–5059, "source demos: scripted expert"; **16/40** with 300 copies. Then a separate card (not beside the bars): "webcam demos: 3 repaired by the rules → **24/30** verified copies → a policy trained on them: **3/40**. 3 repaired demos aren't enough yet." | "And the copies make better robots. On forty scenes fixed in advance, the same policy went from three successes to seventeen with verified copies, and a separately trained set gave sixteen. Our webcam demos aren't there yet: three repaired demos, multiplied, trained a policy that succeeds three times in forty. More repaired demos are next." |
-| 10 | 2:50–3:00 | [SCREEN] | Scroll back up through the ring to the glass logo. Title: "SANT: perfect one demo, then multiply it." The repo URL. | "One demo, perfected, then multiplied. SANT." |
+| 1 | 0:00–0:08 | [SCREEN] | `http://localhost:5173/?q=high`: the loader's digit tesseract fills, then the hero "SHOW A ROBOT ONCE." | "Robots learn by copying people. We gave one ten sloppy demos, made with a mouse." |
+| 2 | 0:08–0:25 | [SCREEN] [CHECK] | The hero's "See the result" link → `/site/results` proof section: the climb chart builds **0 → 3 → 15 → 30 of 40**, the 60% goal line. Hold on 30/40. | "Copy those demos directly, and the robot succeeds zero times in forty new scenes. Put them through SANT, and it succeeds thirty times in forty, on scenes it had never seen, in a test we registered before we ran it." |
+| 3 | 0:25–0:42 | [SCREEN] | Back to the start, scroll: the forest, robots half-buried in the moss; "927 N against a 5 N limit"; the reactor powering up with S·A·N·T. | "Human demos are cheap but sloppy. Our webcam demos pressed the gripper into the bin with almost a thousand newtons. SANT checks every demo in NVIDIA Isaac Lab physics, repairs what fails, and multiplies what passes into many verified copies." |
+| 4 | 0:42–0:55 | [SCREEN] | Through the ring into the workshop. Drag a cartridge to the machine; it plugs in; the hologram Franka replays a verified demo. | "Each cartridge is a job, and the machine replays a real, physics-checked demo." |
+| 5 | 0:55–1:12 | [SCREEN] | Click "Into the projection" → `/record`: keyboard and mouse modes, the twin's three views, the alignment grid. | "You record in the browser, with a mouse, a keyboard or a webcam, driving a simulated Franka arm while the twin shows it from three sides." |
+| 6 | 1:12–1:38 | [SCREEN] [CHECK] | `/site/results`, part 2: the teacher curve, **113/128 with the demos vs 0/128 without**. | "Copying ten demos isn't enough to learn a grasp. So a reinforcement-learning teacher practises in Isaac Lab, four thousand simulated arms at once, and it starts each try from the human demos. We trained it again without them: same code, same budget. It never lifted the cube." |
+| 7 | 1:38–1:58 | [EDIT] [CHECK] | Card: "The teacher cheated: **1.7 m/s** → SANT's physics replay: **3/50** pass. Capped at 0.5 m/s → **50/50**." Then "distilled into a camera-only policy". | "And SANT checks the teacher too. Its first version learned to move impossibly fast. Replayed through SANT's physics check, only three of fifty runs held up. Capped to a realistic speed, all fifty passed. Then its skill is distilled into a robot that only sees through cameras." |
+| 8 | 1:58–2:25 | [SCREEN] [CHECK] | `/test-track`, source "The final test · 30/40": play one success (the grasp, the carry, the drop into the bin), then one failure with its reason ("dropped"). | "These are the real test runs. Thirty succeed. Ten fail, and most of those still drop the cube. That's where we go next." |
+| 9 | 2:25–2:48 | [SCREEN] | `/site/results`, "What didn't work"; then a Nemotron scene card or the Record page's Nemotron description. | "We publish what failed too, like an idea that passed none of its hundred and ten tries. NVIDIA Nemotron, on Nebius Token Factory, describes demos and proposes repairs in plain words, but it never moves the robot. Code checks, and physics decides." |
+| 10 | 2:48–3:00 | [SCREEN] | Back to the hero. Title: "SANT: ten sloppy demos in, a robot that works out." The repo URL. | "Ten sloppy demos in. A robot that works out. SANT." |
 
 ## Notes for the edit
 
-- **Numbers to check against the README just before recording** ([CHECK] shots): 3/40, 17/40, p = 0.0005; 16/40;
-  0/10; 5/10 vs 3/10, p = 0.50, $0.21; re-run 2/10 vs 3/10, p = 1.0; 3/10 → 24/30 → 3/40 (one arm); 30/30 and 0/30 (the wall); if the mouse
-  result is shown, 0/40 vs 3/40, p = 0.24, not significant. If any note changes, change the
-  shot, not the README.
+- **Numbers to check just before recording** ([CHECK] shots):
+  - 0/40, 3/40, 15/40, 30/40, and the 60% goal;
+  - 113/128 vs 0/128;
+  - 1.7 m/s, 3/50 → 50/50;
+  - 30 succeed / 10 fail; 0/110 ("passed none of its hundred and ten tries" = the held-human re-execution).
 - **Don't say:**
-  - "human demos" for the 3/40 → 17/40 result;
-  - "Nemotron beats the rules" or "beats code";
-  - "the robot learned from my hand" (the webcam-trained policy got 3/40);
-  - that repairing webcam demos made a better robot (the webcam training has one arm, nothing to compare);
-  - that SANT beat raw on the mouse demos (0/40 vs 3/40 is p = 0.24, not significant, and SANT's policy
-    collided in 27/40).
-- **The A/B's caveats** stay out of the voice-over for time, but card 3 carries both runs and their p values.
-  Two caveats live in the README: the rules' two newest ops were written after seeing these 10 demos, and replays
-  reproduce live outcomes only 2–4 times in 10.
-- **Left out for time:** the Nemotron labeler/judge test (40/40, 59/60) and the grasp fix (20/40 vs 17/40,
-  p = 0.65). Both are in the README.
-- **Fallbacks:** every [LIVE] shot has a [SCREEN] version, so the video can be cut without Isaac running. Shot 8's
-  Isaac before/after is optional; the cards alone work.
-- **The site was checked only in headless Chrome** after the latest merges (software rendering). Do one full
-  walk on the real GPU before recording, and drag the cartridge by hand a few times: the drag needs a 6 px
-  press-and-move to start.
-- **Voice-over length:** about 340 words, about 2:25 at 140 words a minute, which leaves room for shot 4 and the site to breathe. If
-  it runs long, cut the second sentence of shot 5 and the "and a separately trained set" clause of shot 9.
+  - "beats" or "significant" when comparing 30/40 with 0/40 or 3/40 (different seeds);
+  - that Nemotron made the 30/40;
+  - "the robot learned from my hand" (the demos are mouse demos);
+  - anything about a real robot;
+  - that DAgger helped.
+- **Shot 6's "four thousand":** the teacher trains with 4,096 parallel environments on one RTX 5080. That's local, not
+  Nebius. Don't say "on Nebius" for training.
+- **Shot 8 depends on the test-track replay** of the final test (pm/test-track-final). If it isn't merged by recording
+  day, use the proof section's 40-scene strip with the 10 failures marked.
+- **Voice-over length:** about 390 words, about 2:50 at 140 words a minute. If it runs long:
+  - cut the second sentence of shot 4;
+  - cut "while the twin shows it from three sides" in shot 5.
+- **Before recording:** walk the whole site once on the real GPU. The latest checks were software-rendered only.

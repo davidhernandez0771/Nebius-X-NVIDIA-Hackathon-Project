@@ -63,4 +63,30 @@ describe("waiting in place", () => {
     });
     expect(screen.queryByText(/Loading the workshop/)).toBeNull();
   });
+
+  // The robot wall and the zoom have no scene of their own: they stand when the scene they are part of
+  // does. Before, both waited on their own name and never lifted ("Loading the robot wall 3.2 / 3.2 MB").
+  it.each([
+    ["robots", "workshop", /Loading the robot wall/],
+    ["zoom", "machine", /Loading the machine/],
+  ] as const)("lifts at %s once its files are in and the %s stands", async (branch, host, label) => {
+    const { store, assets, files, finish } = setup();
+    assets.want([...new Set([...files, ...stationFiles(branch, "high")])]);
+    const standing = new Set<string>();
+    const stands = (k: string) => standing.has(k);
+    act(() => {
+      store.jump(dwellStart(store.rail, "workshop")! + 10);
+      store.setBranch(branch);
+    });
+    render(<Wait store={store} assets={assets} tier="high" reduced={false} stands={stands} />);
+    act(() => vi.advanceTimersByTime(SHOW_AFTER_MS + 50));
+    expect(screen.getByText(label)).toBeTruthy();
+    finish();
+    standing.add(host);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    // Its host stood before the files finished: the files arriving is what lifts it now.
+    expect(screen.queryByText(label)).toBeNull();
+  });
 });

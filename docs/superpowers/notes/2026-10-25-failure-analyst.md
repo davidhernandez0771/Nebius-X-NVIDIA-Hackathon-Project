@@ -6,6 +6,20 @@ Built on a Mac, tests first where it mattered, no GPU. Nothing here has run on I
 not committed.** The big test scored **30/40** (Wilson 0.60–0.86, seeds 5400–5439). Nemotron has now run on that model's
 real results (section 1b). The label-execution question in section 2 is answered by David's held-human run.
 
+**Status on 2026-10-28 (still not committed, still nothing run on Isaac).**
+- **Built and unit-tested:**
+  - the fixes (`demo_pipeline/data_fixes.py`, below);
+  - the API (`app/routers/analysis.py`);
+  - the `/analysis` page (`web/src/site/analysis/`). It sits in the holo frame like `/test-track`, with the one
+    "← Back to workshop" link and "Analyst" in the More nav.
+- **Tests:** `tests/test_analysis_router.py`, `tests/test_data_fixes.py` and `tests/test_failure_analyst.py` pass
+  together, 104 tests, on macOS. The page has 5 tests in `AnalysisPage.test.tsx`, plus a route test in `App.test.tsx`.
+- **The closed loop** (`scripts/sant_loop.py`, stages in `demo_pipeline/loop.py`) chains the diagnosis, the frozen
+  recipe and the recipe vs uniform A/B into one resumable command. `tests/test_sant_loop.py` has 39 passing tests.
+  Its `--dry-run` was checked on the Mac. The `/flow` page shows the loop's stages.
+- **Not done:** whether a recipe with fixes trains a better policy. That is run (c) in `2026-10-26-gpu-runbook.md`,
+  by hand or with the loop.
+
 ## 1. The failure analyst
 
 **What it is for.** The README's own finding: Nemotron as a judge lost to code, and as a repairer it was not
@@ -58,21 +72,44 @@ uv run python scripts/analyze_failures.py --results-only --protect none --out da
 
 - **Input:** 69 episodes of the one final model (Stage A 180k): selection 5500–5528 and the test 5400–5439, post-hoc.
   51 succeeded. The 18 failures are 17 dropped and 1 collision.
-- **Nemotron** (3 samples, 5 calls, $0.043, agreement 0.83):
+- **Nemotron** (3 samples, 5 calls, $0.042, agreement 0.83):
   - Two samples gave one region: cube y 0.07–0.20 (left), bin y −0.30 to −0.10 (right), a cross-body carry.
-    It holds 10 of the 17 drops, a rate of 0.34 inside vs 0.18 outside, **p = 0.092**, just under the 0.1 bar.
+    It holds 10 of the 17 drops, a rate of 0.34 inside vs 0.18 outside, **p = 0.092** (one-sided Fisher, the
+    check's own test; two-sided 0.16), just under the 0.1 bar.
   - The third sample had two regions sent back (p = 0.175 and 3 drops short). It then answered "no clear
     scene-dependent pattern".
   - The rationale text's "~0.42 vs ~0.16" is the model's own figure and is wrong. The checked numbers are above.
 - **Held-out check** (scratch script, not in the repo): the five other checkpoints' selection evals, which the
-  analysis never saw. Inside the region the drop rate was 41/66 (0.62), outside 40/79 (0.51). The direction holds in
-  4 of 5 checkpoints, p = 0.11. Those evals reuse the same 58 seeds, so even that p is optimistic.
+  analysis never saw. Inside the region the drop rate was 41/66 (0.62), outside 40/79 (0.51). Pooled, the direction holds,
+  one-sided p = 0.11 (two-sided 0.18). Per checkpoint it holds in
+  3 of 5 checkpoints (A 60k and B 60k go the other way; this line said 4 of 5 until the 2026-10-29 math audit,
+  `scripts/audit_numbers.py`). Those evals reuse the same 58 seeds, so even that p is optimistic.
 - **Verdict:** a weak lead, not a finding. It agrees with the distill note that no scene feature clearly predicts
   success. The rules baseline's box holds 56 of 69 scenes, so it says nothing either. What causes the drops (grasp,
   carry speed, release) needs the traces.
 
-**Not built yet:** applying the fixes. `slow_carry`, `recenter_grasp` and `filter_training` are diagnosed and checked
-but not applied by any pipeline. Only the scene regions reach the data today.
+**The fixes are applied (2026-10-26, `demo_pipeline/data_fixes.py`).** A recipe's fixes now change the data.
+- **Where:** each multiplied variant's trajectory, after it is moved into its scene and before its physics replay.
+  - In `run_human_demo_experiment.py --scene-recipe`, the multiply stage.
+  - In the sim worker's `/multiply`, through `MultiplyRequest.fixes`.
+- **Order:** `recenter_grasp`, then `slow_carry`, then `filter_training`.
+- **What each one does:**
+  - `recenter_grasp`: the repair's own recenter op. The close lands over the cube centre, with 1 s ramps.
+  - `slow_carry`: a time-warp of the held part, from the first close to the open. It keeps the same path and the same
+    close step, and each step stays under the cap.
+  - `filter_training`: measures the variant's commanded path and drops a variant on the wrong side of the threshold.
+    A dropped variant is never replayed or trained on.
+- **What can be filtered on:** `max_lift` and `held_s` need the cube in the simulator, so they can't be filtered on.
+  `mechanism_errors` tells Nemotron so, and the CLI refuses such a recipe.
+- **Verification is unchanged:** every kept variant is still replayed and only verified ones are trained on, so a
+  fix can cost yield but never lets a bad demo through.
+- **Recorded:**
+  - each attempt row's `fixes`: carry time and peak speed before and after, the grasp shift in mm, the filter's
+    measured value;
+  - the multiply marker's `filtered` list;
+  - `multiply.filtered` in the sim summary;
+  - one line per fix in `preregistration.md`.
+- A recipe with no fixes runs exactly as before.
 
 ## 2. The label-execution check (the research report's top hypothesis)
 

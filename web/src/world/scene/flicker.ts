@@ -24,6 +24,11 @@ const smooth = (u: number) => {
   return x * x * (3 - 2 * x);
 };
 
+/** When the power-on began, for lamps switched on at `now`: a room stood whole by a jump starts already through it. */
+export function lampsOnAt(now: number, snapped: boolean): number {
+  return snapped ? now - POWER_ON_S : now;
+}
+
 export function powerOn(t: number): number {
   if (t < 0) return OFF;
   if (t >= RAMP[1]) return 1;

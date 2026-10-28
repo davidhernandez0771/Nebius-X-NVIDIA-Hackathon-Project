@@ -45,6 +45,11 @@ const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
 // The data showcase: real demos through SANT, in the twin and the sim's camera, and SANT working live.
 const DataPage = lazy(() => import("./site/data/DataPage"));
 const TestTrackPage = lazy(() => import("./site/testtrack/TestTrackPage"));
+const AnalysisPage = lazy(() => import("./site/analysis/AnalysisPage"));
+// Every pre-registered number as a lit 3D scene, with 2D charts and a no-WebGL fallback.
+const MetricsPage = lazy(() => import("./site/metrics/MetricsPage"));
+// The closed loop as one page: each stage's state, from the eval to the recipe A/B.
+const FlowPage = lazy(() => import("./site/flow/FlowPage"));
 
 const lazyPage = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
@@ -79,6 +84,9 @@ export default function App() {
           <Route path="/robots" element={lazyPage(<RobotsPage />)} />
           <Route path="/data" element={lazyPage(<DataPage />)} />
           <Route path="/test-track" element={lazyPage(<TestTrackPage />)} />
+          <Route path="/analysis" element={lazyPage(<AnalysisPage />)} />
+          <Route path="/metrics" element={lazyPage(<MetricsPage />)} />
+          <Route path="/flow" element={lazyPage(<FlowPage />)} />
           <Route path="/pipeline" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run/:stage" element={lazyPage(<PipelinePage />)} />

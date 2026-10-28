@@ -69,7 +69,10 @@ describe("the page frame", () => {
     expect(links.map((l) => l.textContent)).toEqual(["Record", "Pipeline", "Data"]);
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/record", "/pipeline", "/data"]);
     expect(links.map((l) => l.getAttribute("aria-current"))).toEqual([null, "page", null]);
-    expect(screen.getByRole("link", { name: /workshop/i }).getAttribute("href")).toBe("/");
+    // The way back (site-nav): "← Back to workshop", the first link after the mark, top left.
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(document.querySelector(".holo-top a")).toBe(back);
   });
 });
 
@@ -87,7 +90,7 @@ describe("a page off the path (the test track)", () => {
     const path = screen.getByRole("navigation", { name: "Pages" });
     expect(within(path).getAllByRole("link").map((l) => l.getAttribute("aria-current"))).toEqual([null, null, null]);
     const more = screen.getByRole("navigation", { name: "More" });
-    expect(within(more).getAllByRole("link").map((l) => l.textContent)).toEqual(["Robots", "Results", "Test track"]);
+    expect(within(more).getAllByRole("link").map((l) => l.textContent)).toEqual(["Robots", "Results", "Test track", "Analyst", "Metrics", "Flow"]);
     expect(within(more).getByRole("link", { name: "Test track" }).getAttribute("href")).toBe("/test-track");
     expect(within(more).getByRole("link", { name: "Test track" }).getAttribute("aria-current")).toBe("page");
   });

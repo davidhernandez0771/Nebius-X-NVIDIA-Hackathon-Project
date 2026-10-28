@@ -1,6 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 import { usePowerOn } from "../shells/PowerOn";
+import { BackToWorkshop } from "./BackToWorkshop";
 import { Button } from "./Button";
 import { EffectsToggle } from "./EffectsToggle";
 import { Logo } from "./Logo";
@@ -17,6 +18,8 @@ export function StoryNav({ home = "/", links = [], cta }: { home?: string; links
       <NavLink to={home} className="sant-nav__home" aria-label="SANT home">
         <Logo size="sm" lit="all" />
       </NavLink>
+      {/* The way back into the world, first after the mark (site-nav): the mark itself goes to the top of the story. */}
+      <BackToWorkshop />
       <ul className="sant-nav__links">
         {links.map((l) => (
           <li key={l.to}>
@@ -48,6 +51,8 @@ export function AppNav({ home = "/", active, links = [], status }: { home?: stri
       <NavLink to={home} className="sant-nav__home" aria-label="SANT home">
         <Logo size="sm" lit="all" />
       </NavLink>
+      {/* The way back into the world, first after the mark (site-nav): the mark itself goes to the top of the story. */}
+      <BackToWorkshop />
       <StepRail active={active} />
       {links.length > 0 && <PillNav items={links} label="Pages" />}
       <div className="sant-nav__end">
