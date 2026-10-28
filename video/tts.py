@@ -1,17 +1,19 @@
 """Speak narration.json with edge-tts, one MP3 per line, and keep each word's timing for the subtitles.
 
-    <python with edge-tts> video/tts.py   -> video/build/voice/<scene>_<n>.mp3 + video/build/voice/words.json
+    <python with edge-tts> video/tts.py [narration.json] [out dir]
+        -> <out dir, default video/build/voice>/<scene>_<n>.mp3 + words.json
 """
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 import edge_tts
 
 HERE = Path(__file__).parent
-OUT = HERE / "build" / "voice"
+OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "build" / "voice"
 OUT.mkdir(parents=True, exist_ok=True)
-cfg = json.loads((HERE / "narration.json").read_text(encoding="utf-8"))
+cfg = json.loads(Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "narration.json").read_text(encoding="utf-8"))
 
 
 async def speak(text: str, path: Path) -> list[dict]:

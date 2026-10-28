@@ -47,6 +47,10 @@ parser.add_argument("--high-qos", action=argparse.BooleanOptionalAction, default
 parser.add_argument("--kit-camera", choices=["behind", "isaac"], default="behind",
                     help="the window's camera: behind the robot, over its shoulder (as the Record page's twin), or Isaac's "
                          "default view from the front")
+parser.add_argument("--window-quality", default=None, metavar="WxH",
+                    help="for filming the window: render its viewport at this resolution (e.g. 2560x1440) with "
+                         "native-resolution anti-aliasing instead of upscaling; the recording cameras are unchanged "
+                         "(default: Isaac Lab's 1280x720 viewport)")
 parser.add_argument("--render", choices=["fast", "legacy", "fastest"], default=RENDER_DEFAULT,
                     help="fast: while not recording, render the window once per control step and pause the "
                          "recording cameras; recording renders as legacy (frames unchanged). legacy: render "
@@ -197,6 +201,19 @@ def main() -> int:
                 driver.s.sim.set_camera_view(KIT_CAMERA_EYE, KIT_CAMERA_TARGET)
             except Exception as e:  # a viewer that can't be aimed must never stop the sink
                 print(f"[teleop] could not aim the window camera: {type(e).__name__}: {e}", flush=True)
+        if args_cli.window_quality:
+            try:
+                import carb
+                from omni.kit.viewport.utility import get_active_viewport
+
+                w, h = (int(v) for v in args_cli.window_quality.lower().split("x"))
+                get_active_viewport().resolution = (w, h)
+                settings = carb.settings.get_settings()
+                settings.set("/rtx/post/aa/op", 4)  # DLAA: anti-aliasing at the native resolution, no upscaling
+                settings.set("/rtx/post/dlss/execMode", 2)
+                print(f"[teleop] window viewport: {w}x{h}, DLAA", flush=True)
+            except Exception as e:  # a viewer that can't be set must never stop the sink
+                print(f"[teleop] could not set the window quality: {type(e).__name__}: {e}", flush=True)
         # print and exit inside the context: closing the app ends the process
         if args_cli.fake_hand:
             return fake_hand_smoke(session, store, scene, trace, qos)
