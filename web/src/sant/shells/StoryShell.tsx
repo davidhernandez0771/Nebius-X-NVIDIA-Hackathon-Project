@@ -53,7 +53,7 @@ export function StoryShell({
               <NavLink to="/site/results">Results</NavLink>
             </li>
             <li>
-              <NavLink to="/robots">Robots</NavLink>
+              <NavLink to="/test-track">Test track</NavLink>
             </li>
           </ul>
         </div>

@@ -176,7 +176,8 @@
 
 .rg-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* Run SANT sits just after the crumb (the user, 2026-10-28: it floated alone in the middle), not centred. */
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   min-width: 0;
@@ -254,6 +255,22 @@
   align-items: center;
   font-size: 11px;
   color: var(--rg-ink-3);
+}
+
+/* Run SANT, the one way on from Record: lit teal like "? How to" when open, with a faint fill so it reads as the
+   page's main action. */
+.rg .rg-run {
+  margin-left: 8px;
+  color: var(--rg-live);
+  border-color: var(--rg-live);
+  background: rgba(25, 245, 194, 0.08);
+  font-weight: 600;
+}
+
+.rg .rg-run:hover,
+.rg .rg-run:focus-visible {
+  color: var(--rg-ink);
+  background: rgba(25, 245, 194, 0.18);
 }
 
 .rg-steps__item {
@@ -1279,7 +1296,7 @@
 
   .rg-steps {
     flex: 1 0 auto;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .rg-right {

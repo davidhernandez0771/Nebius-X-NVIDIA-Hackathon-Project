@@ -12,7 +12,7 @@ import { handingOff, handoffArrive, handoffStart } from "./handoff";
 import "./holo.css";
 
 /** The pages on the path, and the ones off it (in the More nav) that use the frame too. */
-export type HoloPageId = "record" | "pipeline" | "data" | "test-track";
+export type HoloPageId = "record" | "pipeline" | "data" | "test-track" | "results";
 
 /** The path the work pages share, in the order the visitor goes. */
 export const PATH: { id: HoloPageId; to: string; label: string }[] = [
@@ -22,8 +22,8 @@ export const PATH: { id: HoloPageId; to: string; label: string }[] = [
 ];
 
 const MORE: { id?: HoloPageId; to: string; label: string }[] = [
-  { to: "/robots", label: "Robots" },
-  { to: "/site/results", label: "Results" },
+  // No Robots: /robots is the old concept's robot wall, not part of the site (the user, 2026-10-28).
+  { id: "results", to: "/site/results", label: "Results" },
   // A viewer of finished runs (T5's /test-track), not a step on the path.
   { id: "test-track", to: "/test-track", label: "Test track" },
 ];

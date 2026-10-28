@@ -54,9 +54,8 @@ describe("Results page", () => {
   it("leads with the proof: 10 human mouse demos to 30/40, pre-registered and run once, with its CI, goal and source", () => {
     stubReducedMotion(true);
     page();
-    const h1 = screen.getByRole("heading", { level: 1 });
-    expect(h1.textContent).toBe("10 human mouse demos → 30/40 (75%) on unseen scenes");
-    const lead = screen.getByRole("region", { name: h1.textContent! });
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Results");
+    const lead = screen.getByRole("region", { name: "10 human mouse demos → 30/40 (75%) on unseen scenes" });
     expect(lead.id).toBe("proof");
     expect(lead.textContent).toMatch(/Pre-registered/);
     expect(lead.textContent).toMatch(/run once/);
@@ -64,110 +63,73 @@ describe("Results page", () => {
     expect(lead.textContent).toMatch(/at least 24\/40/);
     expect(lead.textContent).toMatch(/5400–5439/);
     expect(lead.textContent).toMatch(/note, lines? \d/);
-    // The proof band follows it, then the earlier scripted result.
-    const order = [...document.querySelectorAll("#proof, .sant-proof, #results-title")];
-    expect(order.map((e) => e.id || e.className.split(" ")[1])).toEqual(["proof", "sant-proof", "results-title"]);
+    // The proof band follows it, then the earlier experiments.
+    const order = [...document.querySelectorAll("#proof, .sant-proof, #results-earlier")];
+    expect(order.map((e) => e.id || e.className.split(" ")[1])).toEqual(["proof", "sant-proof", "results-earlier"]);
   });
 
-  it("keeps the earlier scripted result further down, its CIs and p", () => {
+  // 2026-10-28 (the user): the page is in the work pages' dark frame, and easy to move on from.
+  it("is a work page: the holo frame, Results marked in its nav, no Robots link, and the way on to the runs and Record", () => {
+    stubReducedMotion(true);
+    const { container } = page();
+    expect(container.querySelector(".holo-page")?.getAttribute("data-here")).toBe("results");
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Results" }).getAttribute("aria-current")).toBe("page");
+    expect(within(more).queryByRole("link", { name: "Robots" })).toBeNull();
+    expect(container.querySelector('a[href="/robots"]')).toBeNull();
+    const next = screen.getByRole("navigation", { name: "See it run" });
+    expect(within(next).getByRole("link", { name: /40 test runs/ }).getAttribute("href")).toBe("/test-track");
+    expect(within(next).getByRole("link", { name: /Record a demo/ }).getAttribute("href")).toBe("/record");
+  });
+
+  // 2026-10-28 (the user): nothing the project doesn't have. No pending runs, no previews, no stale wording.
+  it("shows only finished results: no pending runs, no report-card previews, no other-robot upload", () => {
+    stubReducedMotion(true);
+    const { container } = page();
+    const text = container.textContent!;
+    expect(text).not.toMatch(/Pending/);
+    expect(text).not.toMatch(/Not measured yet/);
+    expect(text).not.toMatch(/Your robot/);
+    expect(text).not.toMatch(/tonight/i);
+    expect(text).not.toMatch(/being traced/);
+    expect(text).not.toMatch(/sample/i);
+  });
+
+  it("keeps the earlier scripted result in the earlier experiments, its CIs and p", () => {
     stubReducedMotion(true);
     page();
-    expect(screen.getByRole("heading", { level: 2, name: "Multiplying 10 demos made the robot better. Tripling the copies didn't help more." })).toBeTruthy();
-    expect(screen.getByRole("group", { name: /^17\/40 / })).toBeTruthy();
-    const ledger = screen.getByRole("table", { name: /headline result/i });
-    for (const ci of ["2.6–19.9%", "28.5–57.8%", "26.3–55.4%"]) expect(within(ledger).getByText(ci)).toBeTruthy();
+    const earlier = screen.getByRole("region", { name: "Before the proof: the earlier experiments" });
+    const s = within(earlier).getByRole("region", { name: /Multiplying 10 demos made the robot better/ });
+    const ledger = within(s).getByRole("table", { name: /multiply result/i });
+    for (const a of ARMS) expect(within(ledger).getByText(a.ci.text)).toBeTruthy();
     expect(ledger.textContent).toMatch(/p = 0\.0005/);
     expect(ledger.textContent).toMatch(/p = 0\.0012/);
+    expect(s.textContent).toMatch(/scripted expert/);
   });
 
-  it("says the source demos were scripted, next to the proof", () => {
-    stubReducedMotion(true);
-    page();
-    const hero = screen.getByRole("region", { name: /Multiplying 10 demos/ });
-    expect(hero.textContent).toMatch(/Scripted-expert source demos\. The real webcam and mouse demos are further down\./);
-  });
-
-  it("shows the limits beside the result, not only in a footnote", () => {
+  it("states what it doesn't show", () => {
     stubReducedMotion(true);
     page();
     const limits = screen.getByRole("list", { name: /limits/i });
     expect(within(limits).getAllByRole("listitem")).toHaveLength(4);
-    expect(limits.textContent).toMatch(/scripted expert/);
+    expect(limits.textContent).toMatch(/simulation/);
+    expect(limits.textContent).toMatch(/One training run per recipe/);
   });
 
-  it("gives the copies chart all three arms, the plateau caveat and an accessible table", () => {
-    stubReducedMotion(true);
-    page();
-    const chart = screen.getByRole("figure", { name: /same 40 new scenes/i });
-    const table = within(chart).getByRole("table");
-    for (const a of ARMS) {
-      expect(within(table).getByText(`${a.k} of ${a.n}`)).toBeTruthy();
-      expect(within(table).getByText(a.ci.text)).toBeTruthy();
-    }
-    const copies = screen.getByRole("region", { name: /Did 300 copies beat 100/ });
-    expect(within(copies).getByText(/no detectable difference/)).toBeTruthy();
-    expect(within(copies).getByText(/about 1\.6 times/)).toBeTruthy();
-  });
-
-  it("cites a source for every figure and card", () => {
+  it("cites a source for every figure and margin note", () => {
     stubReducedMotion(true);
     const { container } = page();
-    const cited = container.querySelectorAll("figure, .sant-report:not(.sant-report--pending), .sant-margin-note, .sant-results__limits li");
-    expect(cited.length).toBeGreaterThan(8);
+    const cited = container.querySelectorAll("figure, .sant-margin-note");
+    expect(cited.length).toBeGreaterThan(6);
     for (const el of cited) expect(el.textContent).toMatch(/note, lines? \d/);
   });
 
-  it("with motion reduced, shows the finished run and no replay button", () => {
+  it("says where the numbers come from", () => {
     stubReducedMotion(true);
     page();
-    expect(screen.getByTestId("replay-progress").textContent).toBe("40 of 40 scenes");
-    expect(screen.queryByRole("button", { name: /replay/i })).toBeNull();
-  });
-
-  it("draws the chart scene by scene once it is seen, and can replay", () => {
-    stubReducedMotion(false);
-    vi.useFakeTimers();
-    const show = stubObserver();
-    page();
-    expect(screen.getByTestId("replay-progress").textContent).toBe("0 of 40 scenes");
-    act(() => show());
-    act(() => vi.advanceTimersByTime(600));
-    const mid = Number(screen.getByTestId("replay-progress").textContent!.split(" ")[0]);
-    expect(mid).toBeGreaterThan(0);
-    expect(mid).toBeLessThan(40);
-    act(() => vi.advanceTimersByTime(10_000));
-    expect(screen.getByTestId("replay-progress").textContent).toBe("40 of 40 scenes");
-
-    fireEvent.click(screen.getByRole("button", { name: "Replay the runs" }));
-    expect(screen.getByTestId("replay-progress").textContent).toBe("0 of 40 scenes");
-    act(() => vi.advanceTimersByTime(10_000));
-    expect(screen.getByTestId("replay-progress").textContent).toBe("40 of 40 scenes");
-  });
-
-  it("fills the report-card template, and says pending where nothing is measured", () => {
-    stubReducedMotion(true);
-    page();
-    const franka = screen.getByRole("region", { name: "Franka Panda" });
-    expect(franka.textContent).toMatch(/22 of 23/);
-    expect(franka.textContent).toMatch(/23 of 24/);
-    expect(franka.textContent).toMatch(/30\/30/);
-    expect(franka.textContent).toMatch(/27\/30 in the first run/);
-    expect(within(franka).getAllByText("Pending")).toHaveLength(1);
-    expect(franka.textContent).toMatch(/No reach map measured yet/);
-    const openarm = screen.getByRole("region", { name: "OpenArm" });
-    expect(openarm.textContent).toMatch(/0\/30/);
-    expect(openarm.textContent).toMatch(/Design flaw found/);
-    expect(openarm.textContent).toMatch(/±45° wrist/);
-    expect(screen.getByRole("region", { name: "Flexiv Rizon 4s" }).textContent).toMatch(/9\/30/);
-    const yours = screen.getByRole("region", { name: "Your robot" });
-    expect(within(yours).getAllByText("Pending")).toHaveLength(4);
-  });
-
-  it("shows no sample data, and says where the numbers come from", () => {
-    stubReducedMotion(true);
-    const { container } = page();
-    expect(container.textContent).not.toMatch(/sample/i);
-    expect(screen.getByRole("region", { name: "Where the numbers come from" }).textContent).toMatch(/web\/src\/site\/results\/results\.json/);
+    const s = screen.getByRole("region", { name: "Where the numbers come from" });
+    expect(s.textContent).toMatch(/web\/src\/site\/results\/proofData\.ts/);
+    expect(s.textContent).toMatch(/2026-10-23-bigtest-prereg\.md/);
   });
 
   it("shows the grasp fix as no detectable difference, with its seeds and pre-registered test", () => {
@@ -193,58 +155,30 @@ describe("Results page", () => {
     expect(s.textContent).toMatch(/sign test \(McNemar\)/);
   });
 
-  it("shows the bring-your-own-robot runs on seeds 100–129", () => {
+  it("shows the real webcam demos and the blind repair A/B from the stores", () => {
     stubReducedMotion(true);
     page();
-    const s = screen.getByRole("region", { name: "Does the pipeline work on another robot?" });
-    expect(within(s).getByTestId("arm-franka").textContent).toMatch(/30\/30/);
-    expect(within(s).getByTestId("arm-openarm").textContent).toMatch(/0\/30/);
-    expect(s.textContent).toMatch(/100–129/);
-  });
-
-  it("shows the real demos from the stores: webcam, the repair A/B and tonight's mouse demos", () => {
-    stubReducedMotion(true);
-    page();
-    const real = screen.getByRole("region", { name: "Real demos" });
-    const webcam = within(real).getByRole("region", { name: "Real webcam demos: checked, repaired, multiplied, trained" });
+    const webcam = screen.getByRole("region", { name: "Real webcam demos: checked, repaired, multiplied, trained" });
     expect(within(webcam).getByTestId("arm-webcam_raw").textContent).toMatch(/0\/10/);
     expect(within(webcam).getByTestId("arm-webcam_copies").textContent).toMatch(/24\/30/);
     expect(within(webcam).getByTestId("arm-webcam_policy").textContent).toMatch(/3\/40.*2\.6–19\.9%/);
     expect(webcam.textContent).toMatch(/one arm, not a comparison/);
-    const ab = within(real).getByRole("region", { name: "Blind repair A/B: Nemotron's edits vs the hand-written rules" });
+    expect(webcam.textContent).toMatch(/Experiment store: human_exp\/human10c\/results\.json/);
+    const ab = screen.getByRole("region", { name: "Blind repair A/B: Nemotron's edits vs the hand-written rules" });
     expect(within(ab).getAllByTestId("comparison").map((c) => c.textContent)).toEqual([
       "3/10 vs 5/10: p = 0.5, not significant (exact McNemar, paired)",
       "3/10 vs 2/10: p = 1.0, not significant (exact McNemar, paired)",
     ]);
     expect(within(ab).getByTestId("arm-union_edits").textContent).toMatch(/6\/10/);
-    const mouse = within(real).getByRole("region", { name: "Tonight's mouse demos: clean live, and raw vs SANT" });
-    const replay = within(mouse).getByTestId("arm-mouse_replay").textContent;
-    expect(replay).toMatch(/10\/10/);
-    expect(replay).toMatch(/1\.6–4\.6 mm on average \(max 11 mm\)/);
-    expect(within(mouse).getByTestId("arm-mouse_raw").textContent).toMatch(/0\/40/);
-    expect(within(mouse).getByTestId("arm-mouse_sant").textContent).toMatch(/3\/40.*2\.6–19\.9%/);
-    expect(within(mouse).getByTestId("comparison").textContent).toMatch(/^0\/40 vs 3\/40: p = 0\.24, not significant/);
-    expect(mouse.textContent).toMatch(/not significant, so this does not show SANT's data trains a better policy/);
   });
 
   it("links every note it cites to its lines", () => {
     stubReducedMotion(true);
     page();
-    const real = screen.getByRole("region", { name: "Real demos" });
-    const links = within(real).getAllByRole("link");
+    const earlier = screen.getByRole("region", { name: "Before the proof: the earlier experiments" });
+    const links = within(earlier).getAllByRole("link");
     expect(links.length).toBeGreaterThan(8);
     for (const a of links) expect(a.getAttribute("href")).toMatch(/\/docs\/superpowers\/notes\/[\w-]+\.md#L\d+(-L\d+)?$/);
-    expect(real.textContent).toMatch(/Experiment store: human_exp\/human10c\/results\.json/);
-  });
-
-  it("marks what hasn't run as pending, never 0%", () => {
-    stubReducedMotion(true);
-    page();
-    const pending = screen.getByRole("region", { name: "Not measured yet" });
-    const run2 = within(pending).getByRole("region", { name: "Grasp fix, run 2: recovery copies and longer training" });
-    expect(within(run2).getByTestId("arm-recovery_60k").textContent).toMatch(/Pending/);
-    expect(within(run2).getByTestId("arm-centered_10x10").textContent).toMatch(/20\/40/);
-    expect(within(run2).getByTestId("comparison").textContent).toBe("+ recovery copies, 60k vs 20/40: pending");
   });
 });
 
