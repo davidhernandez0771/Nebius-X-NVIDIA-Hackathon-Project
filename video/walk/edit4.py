@@ -2,7 +2,7 @@
 of the workshop build plays at 3.5x; the workshop line is split so its second half lands when the workshop appears;
 small UI (the take review, the scene plan, the pipeline, the test track) is shown as a punch-in crop; the Isaac shot
 says its speed; the end card sits on a dimmed workshop with its credits. Voice: walk/narration4.json via tts.py into
-build/walk4/voice.
+build/walk4/voice, with music.py's music under it.
 
     python video/walk/edit4.py          -> video/build/walk4/sant-walkthrough-v4.mp4      (1080p60)
     python video/walk/edit4.py --4k     -> also video/build/walk4/sant-walkthrough-v4-4k.mp4 (2160p60, for YouTube)
@@ -16,6 +16,8 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+from music import compose
 
 HERE = Path(__file__).parent
 BUILD = HERE.parent / "build"
@@ -176,17 +178,21 @@ def main():
         for n, (src, a, b, sp) in enumerate(PAN):
             if a <= s < b or n == len(PAN) - 1:
                 return starts[n + 1] + (s - a) / sp
+    free = 0.0  # when the previous line has finished
     for key, at in STORY_AT.items():
         scene, line = lines[key]
         g = 0.4 if at is None else story_to_film(at)
+        if g < free:  # its title is up, but the line before is still speaking: wait for it
+            if free - g > 1.5:
+                print(f"warning: {key} waits {free - g:.2f} s after its title")
+            g = free
         placed.append((key, line, g))
+        free = g + length(B2 / "voice" / f"{key}.mp3") + GAP
         if scene not in seen:
             seen.add(scene)
             chapters.append((max(0.0, g - LEAD), scene))
-    for (k1, _, g1), (k2, _, g2) in zip(placed, placed[1:]):
-        end = g1 + length(B2 / "voice" / f"{k1}.mp3")
-        if end + 0.1 > g2:
-            print(f"warning: {k1} runs {end - g2 + 0.1:.2f} s into {k2}")
+    if free > t:
+        print(f"warning: the story's last line runs {free - t:.2f} s past the story")
 
     # the rest: each line on its own shots, slowed if it must be to hold its voice
     speeds = []  # (film from, film to, speed) of the Isaac shots
@@ -256,19 +262,25 @@ def main():
     )
     (B2 / "subs.ass").write_text(ass, encoding="utf-8")
 
-    # the voice on its clock, a quiet drone under it (ducked while the voice speaks), loudness for YouTube
+    # the music (music.py, composed to the sections; v4's drone read as a hum and is gone)
+    starts = {scene: ct for ct, scene in chapters}
+    compose(total, {k: starts[k] for k in ("story", "workshop", "record", "future")}, B2 / "music.wav")
+
+    # the voice on its clock: resampled cleanly to 48 kHz, rumble cut, a little warmth, the harsh band eased, gently
+    # compressed; the music under it, dipping while the voice speaks; peaks held so the loudness pass reaches its target
     ains, chains = [], []
     for n, (key, _, at) in enumerate(placed):
         ains += ["-i", str(B2 / "voice" / f"{key}.mp3")]
-        chains.append(f"[{n + 1}:a]adelay={round(at * 1000)}:all=1[v{n}]")
-    drone = ("aevalsrc='0.30*sin(2*PI*55*t)*(0.7+0.3*sin(2*PI*0.05*t))+0.22*sin(2*PI*82.41*t)*(0.6+0.4*sin(2*PI*0.071*t+1))"
-             f"+0.16*sin(2*PI*110*t)*(0.6+0.4*sin(2*PI*0.043*t+2))':s=48000:d={total:.3f}")
+        chains.append(f"[{n + 1}:a]aresample=48000:resampler=soxr,adelay={round(at * 1000)}:all=1[v{n}]")
     nv = len(placed)
-    agraph = (";".join(chains) + f";{''.join(f'[v{n}]' for n in range(nv))}amix=inputs={nv}:normalize=0,apad=whole_dur={total:.3f},asplit=2[voice][key];"
-              f"[{nv + 1}:a]lowpass=f=700,afade=t=in:d=2,afade=t=out:st={total - 3:.2f}:d=3,volume=0.2,aformat=channel_layouts=stereo[bed];"
-              "[bed][key]sidechaincompress=threshold=0.02:ratio=6:attack=40:release=600[bedd];"
-              "[voice][bedd]amix=inputs=2:normalize=0[a]")
-    run(["-i", str(B2 / "picture.mp4"), *ains, "-f", "lavfi", "-i", drone, "-filter_complex", agraph, "-map", "[a]",
+    agraph = (";".join(chains) + f";{''.join(f'[v{n}]' for n in range(nv))}amix=inputs={nv}:normalize=0,apad=whole_dur={total:.3f},"
+              "aformat=sample_rates=48000:channel_layouts=stereo,highpass=f=80,equalizer=f=180:t=q:w=1.2:g=1.5,"
+              "equalizer=f=3400:t=q:w=1.4:g=-1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=160:makeup=2dB,"
+              "asplit=2[voice][key];"
+              f"[{nv + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.30[bed];"
+              "[bed][key]sidechaincompress=threshold=0.03:ratio=4:attack=80:release=700[bedd];"
+              "[voice][bedd]amix=inputs=2:normalize=0,alimiter=limit=0.7:attack=3:release=60:level=false[a]")
+    run(["-i", str(B2 / "picture.mp4"), *ains, "-i", str(B2 / "music.wav"), "-filter_complex", agraph, "-map", "[a]",
          "-c:a", "pcm_f32le", "-ar", "48000", "-t", f"{total:.3f}", str(B2 / "mix.wav")])
     # loudness in two passes (measure, then apply as one gain), so it lands on YouTube's -14 LUFS
     target = "I=-14:TP=-1.5:LRA=11"

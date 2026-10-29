@@ -23,9 +23,9 @@ Code: https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
 0:00 The site loads
 0:13 The story
 1:15 The workshop
-1:56 Record in Isaac Lab, and scenes from a sentence
-2:20 Run SANT and the test track
-2:40 What's next
+1:57 Record in Isaac Lab, and scenes from a sentence
+2:21 Run SANT and the test track
+2:41 What's next
 
 <!-- YouTube needs chapters of at least 10 s, so "Scenes from a sentence" (6 s) and "The test track" (9 s) share a chapter
 with the part before them. Times are the chapter labels in build/walk4/subs.ass, rounded down. -->

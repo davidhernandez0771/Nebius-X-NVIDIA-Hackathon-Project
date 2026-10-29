@@ -8,12 +8,27 @@ import json
 import sys
 from pathlib import Path
 
+import inspect
+
 import edge_tts
+import edge_tts.communicate
 
 HERE = Path(__file__).parent
 OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "build" / "voice"
 OUT.mkdir(parents=True, exist_ok=True)
 cfg = json.loads(Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "narration.json").read_text(encoding="utf-8"))
+
+# edge-tts always asks for 48 kbps MP3. The service also serves 96 kbps (tested 2026-10-29; 48 kHz and PCM are refused),
+# which has fewer of the codec's swishy artifacts. The format is a string inside the library, so swap it in a copy of
+# the module's code. Lines here are short enough to come back in one piece, so its bitrate-based offset fix never runs.
+FORMAT = cfg.get("format")
+if FORMAT:
+    src = inspect.getsource(edge_tts.communicate)
+    old = '"outputFormat":"audio-24khz-48kbitrate-mono-mp3"'
+    if old not in src:
+        raise SystemExit("edge-tts changed: can't set the output format")
+    exec(compile(src.replace(old, f'"outputFormat":"{FORMAT}"'), edge_tts.communicate.__file__, "exec"), edge_tts.communicate.__dict__)
+    edge_tts.Communicate = edge_tts.communicate.Communicate
 
 
 async def speak(text: str, path: Path) -> list[dict]:
