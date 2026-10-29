@@ -34,13 +34,19 @@ async def main() -> None:
     for scene in cfg["scenes"]:
         for n, text in enumerate(scene["lines"]):
             key = f"{scene['id']}_{n}"
-            for attempt in range(4):  # the service sometimes drops a request
+            for attempt in range(4):  # the service sometimes drops a request, or ends a stream early
                 try:
-                    out[key] = {"text": text, "words": await speak(text, OUT / f"{key}.mp3")}
-                    break
+                    words = await speak(text, OUT / f"{key}.mp3")
                 except edge_tts.exceptions.NoAudioReceived:
                     print(key, "no audio, retrying")
                     await asyncio.sleep(2)
+                    continue
+                if len(words) < 0.9 * len(text.split()):
+                    print(key, f"cut short ({len(words)} of {len(text.split())} words), retrying")
+                    await asyncio.sleep(2)
+                    continue
+                out[key] = {"text": text, "words": words}
+                break
             else:
                 raise SystemExit(f"{key}: no audio after 4 tries")
             print(key, len(out[key]["words"]), "words")
