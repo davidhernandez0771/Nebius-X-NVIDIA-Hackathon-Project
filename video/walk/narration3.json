@@ -1,0 +1,44 @@
+{
+  "voice": "en-US-AndrewMultilingualNeural",
+  "rate": "+3%",
+  "pitch": "-3Hz",
+  "note": "Walkthrough v3: the story is one constant 300 px/s scroll at 1x (build/walk3/take/story60.mp4), each line placed when its title is on screen (edit3.py). Numbers: 0/40, 30/40, 0/128 and 1.7 m/s are README 'The headline result' and the RL teacher row; 1 mm and 10/10 copies are this session's own take review and pipeline run, on screen. The last line is a plan, said as one ('Next, we want').",
+  "scenes": [
+    { "id": "boot", "lines": [
+      "This is SANT. It turns a few quick, imperfect human demos into a robot that actually works. Let's walk through it, from the moment the site loads."
+    ]},
+    { "id": "story", "lines": [
+      "The story starts with the problem. Robots learn by copying demonstrations, and they need hundreds. Good ones are expensive. Cheap ones, from a mouse or a webcam, are messy.",
+      "So we built SANT: Simulate, Augment, Neaten, Train. Every demo is replayed in NVIDIA Isaac Lab, repaired where physics says no, and multiplied into verified copies.",
+      "Nemotron, on Nebius Token Factory, proposes. Physics verifies.",
+      "Ten demos in. A tested robot out.",
+      "The result: zero out of forty, copied directly. Thirty out of forty, through SANT.",
+      "Without the human demos, the same reinforcement-learning teacher never lifted the cube.",
+      "And SANT checked the teacher too, and caught it moving too fast."
+    ]},
+    { "id": "workshop", "lines": [
+      "At the end of the descent, the workshop builds itself. This is where all the work happens.",
+      "The shelf holds every job as a cartridge: record, perfect, multiply, train.",
+      "Plug one into the machine, and it projects the robot, replaying a real, physics-checked demo.",
+      "At the bench, you make your own cartridge: a shell, a colour, a robot, a name.",
+      "The wall shows the arms SANT has run in Isaac, and the ones planned next.",
+      "And the proof screen steps through how we know it works."
+    ]},
+    { "id": "record", "lines": [
+      "Now, live. Record drives a Franka arm inside NVIDIA Isaac Lab. Down to the cube, grab it, carry it to the bin, and let go.",
+      "SANT reviews it on the spot: in the bin, no pushing, one millimetre off centre. Pass."
+    ]},
+    { "id": "scene", "lines": [
+      "Scenes can come from a sentence: Nemotron writes the plan, and code checks it."
+    ]},
+    { "id": "pipeline", "lines": [
+      "Run SANT replays the demo with real contact forces, then multiplies it. Every copy is replayed, and only the ones that pass are kept. Ten out of ten."
+    ]},
+    { "id": "testtrack", "lines": [
+      "The test track replays all forty final runs from Isaac. Thirty succeed."
+    ]},
+    { "id": "future", "lines": [
+      "Next, we want SANT to take any robot file, so anyone passionate about robotics can train their own robot, without the cost of a lab. A few human demos in, a robot that works out. This is SANT."
+    ]}
+  ]
+}

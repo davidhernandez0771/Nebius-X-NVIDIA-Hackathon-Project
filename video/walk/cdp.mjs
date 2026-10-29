@@ -105,6 +105,19 @@ switch (cmd) {
     );
     break;
   }
+  case "pan": {
+    // pan <to y> <px per second>: a constant, linear scroll (no easing), one step per frame the page draws
+    const [to, pps] = args;
+    console.log(
+      await evaluate(`new Promise((done) => {
+        const from = window.scrollY, top = ${Number(to)}, v = ${Number(pps)}, t0 = performance.now();
+        const D = Math.abs(top - from) / v * 1000, dir = Math.sign(top - from);
+        const tick = () => { const ms = performance.now() - t0; const y = ms >= D ? top : from + dir * v * ms / 1000; window.scrollTo(0, y); ms < D ? requestAnimationFrame(tick) : done(window.scrollY); };
+        requestAnimationFrame(tick);
+      })`),
+    );
+    break;
+  }
   case "type":
     await send("Input.insertText", { text: args.join(" ") });
     break;
