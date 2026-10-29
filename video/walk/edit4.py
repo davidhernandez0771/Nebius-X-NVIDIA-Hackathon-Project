@@ -277,7 +277,7 @@ def main():
               "aformat=sample_rates=48000:channel_layouts=stereo,highpass=f=80,equalizer=f=180:t=q:w=1.2:g=1.5,"
               "equalizer=f=3400:t=q:w=1.4:g=-1.5,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=160:makeup=2dB,"
               "asplit=2[voice][key];"
-              f"[{nv + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.30[bed];"
+              f"[{nv + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.22[bed];"
               "[bed][key]sidechaincompress=threshold=0.03:ratio=4:attack=80:release=700[bedd];"
               "[voice][bedd]amix=inputs=2:normalize=0,alimiter=limit=0.7:attack=3:release=60:level=false[a]")
     run(["-i", str(B2 / "picture.mp4"), *ains, "-i", str(B2 / "music.wav"), "-filter_complex", agraph, "-map", "[a]",

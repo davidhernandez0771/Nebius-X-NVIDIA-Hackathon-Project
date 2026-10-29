@@ -15,7 +15,7 @@
       "id": "story",
       "lines": [
         "The story starts with the problem. Robots learn by copying demonstrations, and they need hundreds. Good ones are expensive. Cheap ones, from a mouse or a webcam, are messy.",
-        "So we built SANT: Simulate, Augment, Neaten, Train. Every demo is replayed in NVIDIA Isaac Lab, repaired where physics says no, and multiplied into verified copies.",
+        "So we built SANT: Simulate, Augment, Neaten, and Train. Every demo is replayed in NVIDIA Isaac Lab, repaired where physics says no, and multiplied into verified copies.",
         "Nemotron, on Nebius Token Factory, proposes. Physics verifies.",
         "Ten demos in. A tested robot out.",
         "The result: zero out of forty, copied directly. Thirty out of forty, through SANT.",
@@ -28,9 +28,9 @@
       "lines": [
         "At the end of the descent, the workshop builds itself.",
         "This is where all the work happens.",
-        "The shelf holds every job as a cartridge: record, perfect, multiply, train.",
+        "The shelf holds every job as a cartridge: record, perfect, multiply, and train.",
         "Plug one into the machine, and it projects the robot, replaying a real, physics-checked demo.",
-        "At the bench, you make your own cartridge: a shell, a color, a robot, a name.",
+        "At the bench, you make your own cartridge: a shell, a color, a robot, and a name.",
         "The wall shows the arms SANT has run in Isaac, and the ones planned next.",
         "And the proof screen steps through how we know it works."
       ]
@@ -39,7 +39,7 @@
       "id": "record",
       "lines": [
         "Now, in real time. The Record page drives a Franka arm inside NVIDIA Isaac Lab. Down to the cube, grab it, carry it to the bin, and let go.",
-        "SANT reviews it on the spot: in the bin, no pushing, one millimeter off center. Pass."
+        "SANT reviews it on the spot: in the bin, no pushing, and one millimeter off center. Pass."
       ]
     },
     {
@@ -51,7 +51,7 @@
     {
       "id": "pipeline",
       "lines": [
-        "Run SANT replays the demo with real contact forces, then multiplies it. Every copy is replayed, and only the ones that pass are kept. Ten out of ten."
+        "Run SANT replays the demo with real contact forces, and then multiplies it. Every copy is replayed, and only the ones that pass are kept. Ten out of ten."
       ]
     },
     {

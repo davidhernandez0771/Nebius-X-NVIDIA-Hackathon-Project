@@ -9,7 +9,7 @@ SANT: 10 human demos in, a tested robot out (Nebius x NVIDIA Hackathon)
 
 ## Description
 
-SANT (Simulate, Augment, Neaten, Train) turns a few quick, imperfect human demos into a robot that works.
+SANT (Simulate, Augment, Neaten, and Train) turns a few quick, imperfect human demos into a robot that works.
 Every demo is replayed in NVIDIA Isaac Lab, repaired where physics says no, and multiplied into verified copies.
 NVIDIA Nemotron, on Nebius Token Factory, proposes; physics verifies.
 
