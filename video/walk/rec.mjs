@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, appendFileSync, readdirSync, rmSync, writeFileSy
 import { join } from "node:path";
 
 const PORT = 9351;
-const BUILD = join(import.meta.dirname, "..", "build", "walk");
+const BUILD = process.env.WALK_DIR ?? join(import.meta.dirname, "..", "build", "walk");
 const FRAMES = join(BUILD, "frames");
 mkdirSync(FRAMES, { recursive: true });
 rmSync(join(BUILD, "STOP"), { force: true });

@@ -18,7 +18,7 @@ cfg = json.loads(Path(sys.argv[1] if len(sys.argv) > 1 else HERE / "narration.js
 
 async def speak(text: str, path: Path) -> list[dict]:
     words = []
-    com = edge_tts.Communicate(text, cfg["voice"], rate=cfg["rate"], boundary="WordBoundary")
+    com = edge_tts.Communicate(text, cfg["voice"], rate=cfg["rate"], pitch=cfg.get("pitch", "+0Hz"), boundary="WordBoundary")
     with path.open("wb") as f:
         async for chunk in com.stream():
             if chunk["type"] == "audio":

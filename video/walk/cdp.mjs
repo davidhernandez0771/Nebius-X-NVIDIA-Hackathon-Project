@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 const PORT = 9351;
 const [, , cmd, ...args] = process.argv;
-const BUILD = join(import.meta.dirname, "..", "build", "walk");
+const BUILD = process.env.WALK_DIR ?? join(import.meta.dirname, "..", "build", "walk");
 const page = (await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json()).find((t) => t.type === "page");
 const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((r) => ws.addEventListener("open", r, { once: true }));
@@ -91,6 +91,20 @@ switch (cmd) {
   case "wheel":
     await send("Input.dispatchMouseEvent", { type: "mouseWheel", x: Number(args[0]), y: Number(args[1]), deltaX: 0, deltaY: Number(args[2]) });
     break;
+  case "glide": {
+    // glide <to y | +dy> <ms>: an even, eased scroll driven by the page's own frames (smooth on video)
+    const [to, ms] = args;
+    const target = to.startsWith("+") || to.startsWith("-") ? `window.scrollY + (${to})` : to;
+    console.log(
+      await evaluate(`new Promise((done) => {
+        const from = window.scrollY, top = ${target}, t0 = performance.now(), D = ${Number(ms)};
+        const e = (u) => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
+        const tick = () => { const u = Math.min(1, (performance.now() - t0) / D); window.scrollTo(0, from + (top - from) * e(u)); u < 1 ? requestAnimationFrame(tick) : done(window.scrollY); };
+        requestAnimationFrame(tick);
+      })`),
+    );
+    break;
+  }
   case "type":
     await send("Input.insertText", { text: args.join(" ") });
     break;
