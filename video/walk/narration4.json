@@ -3,7 +3,7 @@
   "rate": "+0%",
   "pitch": "-3Hz",
   "format": "audio-24khz-96kbitrate-mono-mp3",
-  "note": "Walkthrough v4 (voice at normal speed and 96 kbps since 2026-10-29): v3's cut and words, with wording the voice reads cleanly ('in real time' for 'live', 'the Record page' so 'record' is a noun), US spelling, the workshop line split so 'This is where all the work happens' lands when the workshop appears, and the failures named on the test track. Numbers: 0/40, 30/40, 0/128 and 1.7 m/s are README 'The headline result' and the RL teacher row; 1 mm and 10/10 copies are this session's own take review and pipeline run, on screen; '10 fail, each with its reason' is the test track's own 'Why runs failed' list, on screen. The last line is a plan, said as one ('Next, we want'); the Physical AI Workbench is Nebius's open-source framework (announced 2026-10-21), named as where we want SANT to run, not something it runs on today.",
+  "note": "Walkthrough v4 (voice at normal speed and 96 kbps since 2026-10-29): v3's cut and words, with wording the voice reads cleanly ('in real time' for 'live', 'the Record page' so 'record' is a noun), US spelling, the workshop line split so 'This is where all the work happens' lands when the workshop appears, and the failures named on the test track. Numbers: 0/40, 30/40, 0/128 and 1.7 m/s are README 'The headline result' and the RL teacher row; 1 mm and 10/10 copies are this session's own take review and pipeline run, on screen; '10 fail, each with its reason' is the test track's own 'Why runs failed' list, on screen. The last line is a plan, said as one ('Next, we want'); 'Isaac Lab Mimic multiplies demos that already work; SANT is the step before it' is README's Mimic section (its tutorial starts from 10 successful demos); the shelf line says 'to record, to perfect' so the voice stresses them as verbs; the Physical AI Workbench is Nebius's open-source framework (announced 2026-10-21), named as where we want SANT to run, not something it runs on today.",
   "scenes": [
     {
       "id": "boot",
@@ -20,7 +20,8 @@
         "Ten demos in. A tested robot out.",
         "The result: zero out of forty, copied directly. Thirty out of forty, through SANT.",
         "Without the human demos, the same reinforcement-learning teacher never lifted the cube.",
-        "And SANT checked the teacher too, and caught it moving too fast."
+        "And SANT checked the teacher too, and caught it moving too fast.",
+        "NVIDIA's Isaac Lab Mimic multiplies demos that already work. SANT is the step before it."
       ]
     },
     {
@@ -28,7 +29,7 @@
       "lines": [
         "At the end of the descent, the workshop builds itself.",
         "This is where all the work happens.",
-        "The shelf holds every job as a cartridge: record, perfect, multiply, and train.",
+        "The shelf holds every job as a cartridge: to record, to perfect, to multiply, and to train.",
         "Plug one into the machine, and it projects the robot, replaying a real, physics-checked demo.",
         "At the bench, you make your own cartridge: a shell, a color, a robot, and a name.",
         "The wall shows the arms SANT has run in Isaac, and the ones planned next.",

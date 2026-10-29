@@ -44,7 +44,7 @@ NAMES = ["NVIDIA Isaac Lab", "Nebius Token Factory", "Physical AI Workbench", "F
 BOOT = ("story", 3.0, 9.0, 1.0)
 PAN = [("story", 19.6, 90.0, 1.0), ("story", 90.0, 97.0, 3.5), ("story", 97.0, 105.2, 1.0)]
 STORY_AT = {"boot_0": None, "story_0": 27.8, "story_1": 40.6, "story_2": 53.3, "story_3": 58.9, "story_4": 65.6,
-            "story_5": 71.8, "story_6": 77.6, "workshop_0": 89.4, "workshop_1": 102.0}
+            "story_5": 71.8, "story_6": 77.6, "story_7": 82.4, "workshop_0": 89.4, "workshop_1": 102.0}
 
 REVIEW = (0, 477, 1072)  # the take review, bottom left
 PLAN = (860, 0, 1060)  # the scenes panel and Nemotron's plan, top right
@@ -54,9 +54,9 @@ FAILS = (200, 520, 960)  # the test track's run grid and why runs failed
 SHOTS = {
     "workshop_2": [("tour", 306.5, 316.0, 1.3)],
     "workshop_3": [("tour", 328.0, 338.0, 1.6)],
-    "workshop_4": [("tour", 384.5, 386.5, 1.0), ("tour", 389.0, 392.5, 1.0), ("tour", 419.5, 422.5, 1.0)],
+    "workshop_4": [("tour", 384.5, 386.5, 1.0), ("tour", 389.0, 392.5, 1.0), ("tour", 419.5, 422.0, 1.0)],
     "workshop_5": [("tour", 459.0, 462.0, 1.0), ("tour", 478.5, 481.5, 1.0)],
-    "workshop_6": [("tour", 505.0, 507.5, 1.0), ("tour", 523.0, 526.0, 1.0)],
+    "workshop_6": [("tour", 505.0, 507.5, 1.0), ("tour", 523.0, 525.5, 1.0)],
     "record_0": [("isaac", 6.0, 28.5, 2.3)],
     "record_1": [("browser", 137.0, 139.5, 1.0), ("browser", 139.5, 144.6, 1.0, REVIEW)],
     "scene_0": [("browser", 161.2, 166.9, 2.5, PLAN), ("browser", 168.5, 173.2, 1.0, PLAN)],
