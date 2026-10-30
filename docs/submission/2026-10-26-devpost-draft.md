@@ -9,6 +9,8 @@
      The structure follows the real form, field by field.
      Sources: docs/submission/description.md, feedback.md and video_script.md, the README and the dated notes. Each
      number cites its note in an HTML comment.
+     2026-10-28: merged the useful parts of docs/devpost.md (Susana's draft, now deleted): the failure analyst
+     (step 6, "How Nemotron is load-bearing", a results row, the Nemotron quality lines) and the /analysis page.
      Markers:
      - TODO (USER): only the user knows it;
      - SUGGESTED: a proposed answer with its evidence. The user decides. -->
@@ -105,6 +107,8 @@ through a webcam, the keyboard or the mouse. A 3D twin shows the arm from behind
 5. **Train and test.** The teacher's runs and the verified demos are exported as a LeRobot dataset, each episode with a
    record of where it came from and every repair. A camera-only ACT policy learns from them. Isaac Lab then tests it
    once on 40 scenes it has never seen.
+6. **Diagnose.** NVIDIA Nemotron reads how the trained policy failed and proposes what data to make next. Code checks
+   every claim it makes against the measurements. The `/analysis` page shows the episodes, the claims and the checks.
 
 **The result:** 10 human mouse demos became a camera policy that succeeds **30/40 (75%)** on unseen scenes, in a test
 pre-registered before it ran. Imitating the raw demos alone gave **0/40**.
@@ -120,7 +124,7 @@ shows a first-time visitor where to record, where SANT checks and multiplies, an
 the physics check.
 
 We report each policy's success as $\hat p = k/n$ on $n = 40$ unseen scenes, with a Wilson 95% interval. Arms are
-compared with a two-sided Fisher exact test. Every test is pre-registered: its seeds, rules and thresholds are
+compared with a two-sided Fisher exact test (paired arms with an exact McNemar test). Every test is pre-registered: its seeds, rules and thresholds are
 written down and committed before anything runs.
 
 ### How we built it
@@ -139,10 +143,12 @@ written down and committed before anything runs.
     2.5–5 cm.
 - **NVIDIA Nemotron on Nebius Token Factory** (OpenAI-compatible API):
   - `nvidia/Nemotron-3.5-Super-VL` labels demos and judges intent from camera frames;
-  - `nvidia/nemotron-3-super-120b-a12b`, with thinking on, is the trajectory repairer and the scene creator (a sentence
-    → a validated scene plan).
+  - `nvidia/nemotron-3-super-120b-a12b`, with thinking on, is the trajectory repairer, the scene creator (a sentence
+    → a validated scene plan) and the failure analyst (below).
 - **The backend and the web:** a FastAPI backend with a WebSocket teleop relay, a demo store and a pipeline API, and a
-  React + three.js site.
+  React + three.js site. Its 2D pages include `/analysis` (the failure analyst's episodes, claims and checks) and
+  `/metrics` (every pre-registered number, with 2D charts) and `/flow` (the pipeline end to end, from Record to the
+  recipe and back to Multiply: the closed loop).
 - **The experiments:** one command per experiment.
   - It freezes every demo by content hash and writes the pre-registration before anything trains.
   - A GPU lock lets only one heavy job run at a time on our single 16 GB GPU.
@@ -153,9 +159,36 @@ written down and committed before anything runs.
     A camera-only ACT policy trains on them for 180k steps, with a gripper deadband at inference.
   - **A one-command chain** with restartable stages: export → train → checkpoint selection on practice seeds → one
     final test. It survived three stops and resumes over two days.
-- **The tests:** built tests-first, with every AI call mocked. On `pm/live-14` (2026-10-27): 2,813 Python tests pass
-  (36 skipped) and 2,146 web tests pass.
-  <!-- src: the lead's runs on pm/live-14 c2a2dad, 2026-10-27. TODO: re-count on the final submission commit. -->
+- **The tests:** built tests-first, with every AI call mocked. On the submission branch (2026-10-29, macOS):
+  2,951 Python tests pass and 73 are skipped. 6 more fail only off the Windows GPU machine or on Apple silicon float
+  rounding. 2,134 web tests pass.
+  <!-- src: 2026-10-23-bigtest-prereg.md (b51086f, the full suite on c6bae0a); 2026-10-22-site-trial-merge.md.
+       Re-counted 2026-10-29 on susana/nemotron-failure-analyst; see 2026-10-28-overnight-plan.md. -->
+
+### How Nemotron is load-bearing
+
+Nemotron is the failure analyst in the loop that decides what data to make next. Code measures each failed episode
+and labels its failure. Nemotron gets those numbers and proposes:
+- which scene regions to generate more of;
+- which measured mechanism explains the failures;
+- which fix from a fixed menu to apply: recentre the grasp, slow the carry, or filter training episodes.
+
+Code checks every claim.
+- A region must hold at least 3 of its failures at a clearly higher rate than outside it (one-sided Fisher p ≤ 0.1).
+- A mechanism must match a measured contrast.
+- Every cited seed must exist.
+
+A claim that fails goes back to the model with the numbers. The model is asked three times, and we keep the answer
+the others agree with most.
+
+- **On synthetic data with a planted pattern, it found it.** Its region held 13/13 of the planted drops. Before the
+  checks existed, it drew a box around 1 of 13.
+- **On the 30/40 model's real results it found only a weak lead.** Two of three samples flagged cross-body carries
+  (cube on the left, bin on the right), at p = 0.092 (one-sided, the check's own test). On five checkpoints it never
+  saw, pooled, the direction held but was not significant (0.62 vs 0.51 drop rate, one-sided p = 0.11).
+- **The fixes it can pick now change the data.** They run on each multiplied copy before its physics replay, and
+  every kept copy is still verified. They are unit-tested, but have not run on Isaac yet.
+<!-- src: 2026-10-25-failure-analyst.md (section 1 live runs table; section 1b; "The fixes are applied") -->
 
 ### Results (measured; each one is in the repo's notes)
 
@@ -165,17 +198,20 @@ written down and committed before anything runs.
 | The same with 300 copies, trained separately | **16/40** |
 | 10 real webcam demos, physics as recorded | **0/10** pass (the gripper pressed into the bin, up to 927 N against a 5 N limit) |
 | Rules repair → multiply | 3/10 repaired → **24/30** copies verified |
-| Blind repair test: Nemotron edits vs rules | 5/10 vs 3/10 (p = 0.50), then **2/10 vs 3/10** in the re-run (p = 1.0). **Not significant, and it did not replicate** |
+| Blind repair test: Nemotron edits vs rules | 5/10 vs 3/10 (McNemar p = 0.50), then **2/10 vs 3/10** in the re-run (McNemar p = 1.0). **Not significant, and it did not replicate** |
 | 10 real mouse demos: raw vs SANT (pre-registered) | **0/40 vs 3/40**, p = 0.24. **Not significant** |
 | Isaac Lab Mimic on SANT's repaired demos | SANT verified Mimic's output at the same rate as its own multiplier: 82% vs 80% (p = 0.79). It rejected 9 of Mimic's 100 self-reported successes |
 | RL teacher gate: does the teacher's behaviour survive SANT's physics replay? | v1 moved at 1.7 m/s and passed only **3/50**. With a 0.5 m/s cap: **50/50** |
 | Did the human demos matter to the teacher? Same code, budget and seed, with vs without demo starts | **113/128 vs 0/128** home-start success at 1,500 iterations (Wilson 0.82–0.93 vs 0–0.03) |
 | v1: the teacher distilled into the camera policy (pre-registered, goal ≥ 24/40) | **15/40** (Wilson 0.24–0.53). The goal was **not met** |
 | **v2: same data, trained 3× longer + a gripper deadband (pre-registered, goal ≥ 24/40, fresh seeds)** | **30/40 (75%), Wilson 0.60–0.86. The goal was MET** |
+| Nemotron as failure analyst: a planted pattern in synthetic traces | Its checked region held **13/13** planted drops (1/13 before the checks) |
+| Nemotron as failure analyst on v2's 69 real episodes (post-hoc) | Cross-body carries, **p = 0.092**; on 5 unseen checkpoints p = 0.11 (both one-sided). **A weak lead, not a finding** |
 
 <!-- src: 2026-10-15-t3-status.md (sprint 7–8); 2026-10-19-live-test-10-results.md; 2026-10-20-nemotron-repair.md;
      2026-10-20-mouse20261020-results.md; 2026-10-20-mimic-export.md; 2026-10-21-rl-teacher-gate.md;
-     2026-10-21-distill-prereg.md (v1 and Amendment 6); 2026-10-23-bigtest-prereg.md (v2).
+     2026-10-21-distill-prereg.md (v1 and Amendment 6); 2026-10-23-bigtest-prereg.md (v2);
+     2026-10-25-failure-analyst.md (the analyst rows).
      Descriptive Fisher, v2 30/40 vs: v1 15/40 p = 0.0014; SANT 3/40 p = 5e-10; raw 0/40 p = 2e-13. The seeds
      differ (v2 5400–5439, the rest 5020–5059), so these are not one experiment's p-values. -->
 
@@ -252,6 +288,8 @@ is what made the RL teacher trustworthy. The human demos are what let it learn a
 - **Check the teacher too.** An RL policy will exploit whatever the simulator lets it get away with. Running its output
   through the same physics check as the human demos caught it.
 - **Match the actuator.** Labels only teach what the student's controller can actually execute.
+- **A language model in a robot data pipeline helps when code checks it.** Working from measured numbers, with every
+  claim tested, the analyst found a planted pattern. Without the checks, it confidently drew boxes around noise.
 - **Pre-register, then report.** Two of our favourite results didn't replicate. Without the pre-registration we
   wouldn't have known.
 
@@ -264,6 +302,12 @@ is what made the RL teacher trustworthy. The human demos are what let it learn a
 - **A real robot:** run the same recipe on an SO-101 or a Franka, starting from webcam demos.
 - **Fix the open failures:** grasp retention is still the main failure (dropped in 10 of v2's 10 test failures). We
   also want to understand why DAgger's restarted training degraded.
+- **Close the loop:** let a checked Nemotron recipe change the training data, and test it against uniform data on
+  fresh seeds. `scripts/sant_loop.py` runs it as one resumable command: diagnosis, frozen recipe, recipe arm and
+  uniform control on the same fresh seeds, then a Fisher test. It and the fixes are unit-tested; the run needs the
+  GPU.
+- **Run the analyst on the per-step traces** of v2's failures, to measure why the cube drops: grasp offset, carry
+  speed, release height.
 - **More robots and tasks** through "bring your robot". Deformables (cables) come later.
 
 ---
@@ -278,9 +322,7 @@ typescript, vite, mediapipe, blender, uv, openai-python-sdk
 
 ## "Try it out" links
 
-- Public repo: https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project (public, checked 2026-10-27).
-  Its default branch is `main`: merge `perfect-then-multiply` into `main` before submitting, or judges see an old
-  version.
+- Public repo: https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
 - Demo URL: optional for Physical AI. TODO (USER): add one only if the site is hosted.
 - Maybe the video, if the form allows it as a link.
 
@@ -364,9 +406,7 @@ TODO (USER): confirm no earlier private repo or prototype existed.
 
 ## Public repo URL, and what the repo must have
 
-https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project. It's public. **Before submitting,
-`main` must hold the final code:** it's the default branch, and on 2026-10-27 it was 731 commits behind
-`perfect-then-multiply`.
+https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
 
 **Requirements checked on `pm/live-14` (2026-10-27):**
 - **An OSI license:** `LICENSE` is MIT. ✓
@@ -436,6 +476,8 @@ TODO (USER): check against the Token Factory billing page. Other machines or che
 - **Path edits that physics verified:** 5/10 vs the rules' 3/10 in the first blind test.
 - **Real sentences into valid scene plans:** 4/5.
 - **It uses feedback:** 3 of its 5 repairs passed only after it read a failed replay.
+- **As the failure analyst, with code checks:** it found a planted pattern (13/13 drops in its region, against 1/13
+  before the checks), for about $0.015.
 
 **What fell short:**
 - **The repair didn't replicate:** 2/10 vs 3/10 in the re-run. Its plans vary from run to run.
@@ -443,12 +485,14 @@ TODO (USER): check against the Token Factory billing page. Other machines or che
 - **It never reported a drop.**
 - **It didn't read grasp centring from a 128×128 wrist frame.**
 - **Calibration was a seesaw:** after calibration it missed all 9 real issues.
+- **Its own numbers can be wrong:** on v2's results the analyst's rationale said "~0.42 vs ~0.16"; the checked rates
+  were 0.34 vs 0.18. We report the checked numbers only.
 - **Thinking overran the budget:** 3 of 23 thinking calls used up the 16,000-token cap (thinking + answer;
   `MAX_TOKENS = 16000` in `nemotron_repair.py`) and returned no answer. A one-time re-ask with thinking off rescues
   them.
 
 <!-- src: docs/submission/feedback.md §2; 2026-10-18-nemotron-judge.md; 2026-10-20-nemotron-repair.md;
-     2026-10-15-t4-status.md; 2026-10-19-scene-creator.md -->
+     2026-10-15-t4-status.md; 2026-10-19-scene-creator.md; 2026-10-25-failure-analyst.md -->
 
 ## Fine-tuned, prompt-engineered, or out of the box?
 

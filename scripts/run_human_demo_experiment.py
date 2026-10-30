@@ -80,6 +80,8 @@ from app.jobs import (EDITS_REPAIRER, HYBRID_REPAIRER, _copy_episode, is_infrast
                       stored_raw)
 from app.sim_client import SimWorkerClient, SimWorkerError  # noqa: E402
 from demo_pipeline import PIPELINE_VERSION  # noqa: E402
+from demo_pipeline.data_fixes import apply_fixes, fix_errors  # noqa: E402
+from demo_pipeline.data_recipe import DataRecipe, recipe_scene, validate_recipe  # noqa: E402
 from demo_pipeline.multiply import sample_scene  # noqa: E402
 from demo_pipeline.results import build_results  # noqa: E402
 from demo_pipeline.schemas import Demo, Passport, Trajectory, VerificationResult  # noqa: E402
@@ -390,6 +392,7 @@ class Experiment:
         for i, id in enumerate(self.ids):
             path = self.marker("multiply", id)
             mark = _read_json(path) or {"source": None, "attempts": [], "error": None}
+            mark.setdefault("filtered", [])  # variants the recipe's filter dropped: never replayed (data_fixes)
             if mark.get("done"):
                 continue
             neat = (_read_json(self.marker("align", id)) or {}).get("neat")
@@ -400,27 +403,45 @@ class Experiment:
             src_id, k = neat["id"], neat["k"]
             src = self.store.get_demo(src_id)
             mark["source"] = src_id
-            done = {a["seed"] for a in mark["attempts"]}
+            done = {a["seed"] for a in mark["attempts"] + mark["filtered"]}
+            recipe = (DataRecipe.model_validate(self.config["scene_recipe"]["recipe"])
+                      if self.config.get("scene_recipe") else None)
             for j in range(n_var):
                 seed = variant_seed(i, j)
                 if seed in done:
                     continue
-                dst = sample_scene(np.random.default_rng(seed), ROBOT, seed)
+                region = None
+                if recipe is not None:  # the failure analyst's recipe (scripts/analyze_failures.py)
+                    dst, region = recipe_scene(recipe, seed, ROBOT)
+                else:
+                    dst = sample_scene(np.random.default_rng(seed), ROBOT, seed)
                 vid = f"{src_id}_m{seed:04d}"
                 offset = self.config.get("approach_offset_m")
                 try:
                     vt = variant_trajectory(src.trajectory, k, src.scene, dst,
                                             wrap_yaw=bool(self.config.get("yaw_wrap")),
                                             approach=approach_misalignment(seed, offset) if offset else None)
+                    fixes, kept = [], True
+                    if recipe is not None and recipe.fixes:  # before the replay, so physics judges the fixed one
+                        vt, fixes, kept = apply_fixes(vt, dst, recipe.fixes)
                 except ValueError as e:
                     mark["error"] = str(e)
                     break
+                if not kept:
+                    mark["filtered"].append({"seed": seed, "fixes": fixes,
+                                             **({"region": region} if region is not None else {})})
+                    _write_json(path, mark)
+                    continue
                 try:
                     v = self._replay_into_store(client, vid, src_id, vt, dst, source="variant", variant_seed=seed)
                     row = {"seed": seed, "id": vid if v.success else None, "success": v.success,
                            "reasons": v.reasons}
                     if offset:  # whether the centered approach applied (a source with no hover keeps its own)
                         row["centred"] = find_hover(src.trajectory) is not None
+                    if region is not None:
+                        row["region"] = region
+                    if fixes:
+                        row["fixes"] = fixes
                 except SimWorkerError as e:
                     if is_infrastructure(e):
                         _write_json(path, mark)
@@ -432,6 +453,7 @@ class Experiment:
             _write_json(path, mark)
             ok = sum(a["success"] for a in mark["attempts"])
             self.log(f"multiply {id}: {ok}/{len(mark['attempts'])} variants verified"
+                     + (f", {len(mark['filtered'])} filtered out before replay" if mark["filtered"] else "")
                      + (f" (stopped: {mark['error']})" if mark["error"] else ""))
 
     def sim_summary(self) -> dict:
@@ -440,12 +462,13 @@ class Experiment:
                      "align": _read_json(self.marker("align", id)),
                      "multiply": _read_json(self.marker("multiply", id))} for id in self.ids}
         attempts = [a for r in rows.values() if r["multiply"] for a in r["multiply"]["attempts"]]
+        filtered = sum(len(r["multiply"].get("filtered", [])) for r in rows.values() if r["multiply"])
         ok = sum(a["success"] for a in attempts)
         return {
             "physics_verified": sum(bool(r["physics"] and r["physics"]["success"]) for r in rows.values()),
             "repair": {s: sum(r["repair"] == s for r in rows.values()) for s in ("perfected", "kept", "discarded")},
             "multiply": {"robot": ROBOT, "attempts": len(attempts), "successes": ok,
-                         "yield": ok / len(attempts) if attempts else None},
+                         "yield": ok / len(attempts) if attempts else None, "filtered": filtered},
             "demos": rows,
         }
 
@@ -844,9 +867,30 @@ def data_fixes_text(config: dict) -> str:
                      f"{config['approach_offset_m'] * 100:g} cm and turned up to 35 degrees (seeded per variant), then "
                      "centers and aligns before the descent; a variant whose source was not retimed has no hover and "
                      "keeps its own approach")
+    if config.get("scene_recipe"):
+        sr = config["scene_recipe"]
+        regions = sr["recipe"]["regions"]
+        what = (", ".join(f"{r['name']} {r['share']:.0%}" for r in regions) + f", uniform {sr['recipe']['uniform_share']:.0%}"
+                if regions else "uniform 100%")
+        fixes.append(f"**scene recipe** (variants): each variant's scene comes from the failure analyst's recipe "
+                     f"`{sr['path']}` (sha256 {sr['sha256'][:12]}, frozen in config.json): {what}; each seed's own "
+                     "draw picks its region (demo_pipeline.data_recipe.recipe_scene)")
+        for f in sr["recipe"].get("fixes", []):
+            fixes.append("**recipe fix** (variants, before each replay; demo_pipeline.data_fixes): " + fix_text(f))
     if not fixes:
         return ""
     return "\n\n**Data fixes** (2026-10-20 research note; the same for every seed):\n" + "\n".join(f"- {f};" for f in fixes)
+
+
+def fix_text(f: dict) -> str:
+    """One recipe fix in words, for the preregistration."""
+    if f["lever"] == "slow_carry":
+        return (f"`slow_carry`: the held part (first close to the open) retimed on the same path so the tool moves at "
+                f"most {f['max_speed_mps']:g} m/s")
+    if f["lever"] == "recenter_grasp":
+        return "`recenter_grasp`: the close moved over the cube centre with the repair's 1 s ramps"
+    return (f"`filter_training`: a variant is kept only if its commanded path's `{f['feature']}` is {f['keep']} "
+            f"{f['threshold']:g}; a dropped one is never replayed or trained on, and the count is reported")
 
 
 def preregistration_one_arm(config: dict, ids: str) -> str:
@@ -1070,6 +1114,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="repair: the rules also retime a swoop grasp (hover, slow last 4 cm, stop, close, hold, lift)")
     p.add_argument("--approach-offset", type=float, default=None, metavar="M",
                    help="multiply: the centered approach at the retimed grasp's hover, offsets up to M m (0.04)")
+    p.add_argument("--scene-recipe", type=Path, default=None, metavar="JSON",
+                   help="variant scenes from a failure analyst's recipe (recipe_*.json from scripts/analyze_failures.py)"
+                        " instead of sample_scene; the same seeds, frozen in the config")
     p.add_argument("--augment", choices=("off", "shift"), default=None, help="training image augmentation (default off)")
     p.add_argument("--dilation", action="store_true", help="training: replace ResNet's final stride with dilation")
     p.add_argument("--select-steps", type=int, nargs="+", default=None, metavar="STEP",
@@ -1102,6 +1149,17 @@ def main(argv: list[str] | None = None) -> int:
         if not 0 < args.approach_offset <= 0.05:
             p.error("--approach-offset is a radius in m, 0 < r <= 0.05 (the note suggests 0.04)")
         settings["approach_offset_m"] = args.approach_offset
+    if args.scene_recipe is not None:  # likewise; the recipe itself is frozen, so a later edit to the file can't change a run
+        try:
+            text = args.scene_recipe.read_text(encoding="utf-8")
+            recipe = DataRecipe.model_validate_json(text)
+        except (OSError, ValueError) as e:
+            p.error(f"--scene-recipe {args.scene_recipe}: {e}")
+        problems = validate_recipe(recipe, robot=ROBOT) + fix_errors(recipe.fixes)
+        if problems:
+            p.error(f"--scene-recipe {args.scene_recipe}: " + "; ".join(problems))
+        settings["scene_recipe"] = {"path": str(args.scene_recipe), "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                                    "recipe": recipe.model_dump()}
     # The improved recipe (research note Stage 1), likewise only when set
     if args.augment and args.augment != "off":
         settings["augment"] = args.augment

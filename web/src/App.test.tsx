@@ -60,4 +60,30 @@ describe("App routes", () => {
     ).toBeTruthy();
     expect(screen.queryByText(/sample data/i)).toBeNull();
   });
+
+  it("opens the failure analyst in the holo frame, with the one way back to the workshop", async () => {
+    at("/analysis");
+    expect(await screen.findByRole("heading", { level: 1, name: "Failure analyst" }, { timeout: 8000 })).toBeTruthy();
+    const back = screen.getByRole("link", { name: "Back to workshop" });
+    expect(back.getAttribute("href")).toBe("/");
+    expect(screen.getAllByRole("link", { name: "Back to workshop" })).toHaveLength(1);
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Analyst" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("opens the metrics in the holo frame, marked in the More nav", async () => {
+    at("/metrics");
+    expect(await screen.findByRole("heading", { level: 1, name: "Metrics" }, { timeout: 8000 })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Back to workshop" })).toHaveLength(1);
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Metrics" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("opens the flow in the holo frame, marked in the More nav", async () => {
+    at("/flow");
+    expect(await screen.findByRole("heading", { level: 1, name: "Flow" }, { timeout: 8000 })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Back to workshop" })).toHaveLength(1);
+    const more = screen.getByRole("navigation", { name: "More" });
+    expect(within(more).getByRole("link", { name: "Flow" }).getAttribute("aria-current")).toBe("page");
+  });
 });

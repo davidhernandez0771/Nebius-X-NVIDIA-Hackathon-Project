@@ -147,6 +147,6 @@ That one step adds a step's wall time to what the person sees: about 50 ms befor
    step (add about one step for the arm to catch up).
 
 **Artifacts** (scratch, not in git):
-`C:\Users\dhrce\AppData\Local\Temp\claude\C--dev-pm-t2\b36cdfba-819d-4afc-8171-bcd95ba87923\scratchpad\lat\`
+`C:\Users\<user>\AppData\Local\Temp\claude\C--dev-pm-t2\b36cdfba-819d-4afc-8171-bcd95ba87923\scratchpad\lat\`
 holds the logs, JSONL and stores of every run above, plus the probes (`kit_probe.py`, `substep_probe.py`,
 `fast_probe.py`, `cmp_frames.py`, `e2e.sh`).

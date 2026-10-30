@@ -1,0 +1,411 @@
+/* The whole pipeline (/flow), in the holo frame (../holo/holo.css): the void, teal for what passed, amber for the loop.
+   Layout: the hero line, the loop's status, then one spine of stages top to bottom. The six stages from Multiply on sit
+   inside the loop's bracket, whose amber return line carries a light back up to Multiply.
+   Each row: the numbered node on the spine | what the stage does | its number | the link to the page that shows it.
+   Phones: the node and the content in two columns, the rest stacked.
+   Motion: the spine fills once on load; the return light climbs the bracket on a slow loop. Both still with reduced
+   motion (the OS setting or the site's own switch, [data-motion="reduced"]). */
+
+.fl {
+  --fl-node: 40px;
+  --fl-gap: 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  max-width: 1180px;
+  margin: 0 auto;
+  font-family: var(--holo-mono);
+  color: var(--holo-ink);
+}
+
+/* ---- hero */
+
+.fl-hero {
+  display: grid;
+  gap: 12px;
+  max-width: 62rem;
+  padding: 12px 0 4px;
+}
+
+.fl-hero__title {
+  margin: 0;
+  font: 400 clamp(1.75rem, 4.2vw, 3rem) / 1.08 var(--holo-serif);
+  letter-spacing: -0.01em;
+  color: var(--holo-ink);
+  text-wrap: balance;
+}
+
+.fl-hero__lede {
+  margin: 0;
+  max-width: 72ch;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--holo-ink-2);
+}
+
+.fl-offline {
+  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--holo-ink);
+}
+
+/* ---- the loop's status */
+
+.fl-loop {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.fl-loop__head {
+  display: grid;
+  gap: 6px;
+}
+
+.fl-loop__line {
+  margin: 0;
+  font: 400 1.25rem/1.3 var(--holo-serif);
+  color: var(--holo-ink);
+}
+
+.fl-loop__stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fl-chip {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--holo-line-dim);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.fl-chip__label {
+  color: var(--holo-ink);
+}
+
+.fl-chip__status {
+  color: var(--holo-ink-3);
+}
+
+.fl-chip[data-status="done"],
+.fl-chip[data-status="provided"] {
+  border-color: var(--holo-line);
+}
+
+.fl-chip[data-status="done"] .fl-chip__status,
+.fl-chip[data-status="provided"] .fl-chip__status {
+  color: var(--holo-teal);
+}
+
+.fl-chip[data-status="running"] {
+  border-color: var(--holo-line-hi);
+  background: rgba(25, 245, 194, 0.06);
+}
+
+.fl-chip[data-status="running"] .fl-chip__status {
+  color: var(--holo-teal);
+}
+
+.fl-chip[data-status="failed"] {
+  border-color: rgba(255, 176, 0, 0.45);
+}
+
+.fl-chip[data-status="failed"] .fl-chip__status {
+  color: var(--holo-amber);
+}
+
+.fl-loop__seeds {
+  margin: 0;
+  max-width: 90ch;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--holo-ink-2);
+}
+
+.fl-loop__seeds code {
+  color: var(--holo-ink);
+  font-family: inherit;
+}
+
+/* ---- the spine */
+
+.fl-track,
+.fl-cycle__list {
+  display: grid;
+  gap: var(--fl-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fl-track {
+  position: relative;
+}
+
+/* The spine: a hairline through the nodes, filled once from the top on load. */
+.fl-track::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--fl-node) / 2);
+  width: 1px;
+  background: linear-gradient(var(--holo-line-hi), var(--holo-line) 60%, rgba(255, 176, 0, 0.4));
+  transform-origin: top;
+  animation: fl-spine 1400ms var(--holo-ease) both;
+}
+
+@keyframes fl-spine {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+.fl-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--fl-node) minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 10px;
+  align-items: start;
+}
+
+.fl-node {
+  grid-row: span 3;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--fl-node);
+  height: var(--fl-node);
+  border: 1px solid var(--holo-line-hi);
+  background: var(--holo-void);
+  font-size: 12px;
+  color: var(--holo-teal);
+  font-variant-numeric: tabular-nums;
+}
+
+.fl-cycle .fl-node {
+  border-color: rgba(255, 176, 0, 0.6);
+  color: var(--holo-amber);
+}
+
+.fl-what {
+  display: grid;
+  gap: 4px;
+}
+
+.fl-title {
+  margin: 0;
+  font: 400 1.5rem/1.15 var(--holo-serif);
+  color: var(--holo-ink);
+}
+
+.fl-does {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--holo-ink-2);
+}
+
+.fl-metric {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-left: 1px solid var(--holo-line);
+  background: var(--holo-glass);
+}
+
+.fl-headline {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--holo-teal);
+  font-variant-numeric: tabular-nums;
+}
+
+.fl-cycle .fl-metric {
+  border-left-color: rgba(255, 176, 0, 0.4);
+}
+
+.fl-bars {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+}
+
+.fl-bar__track {
+  fill: rgba(230, 238, 236, 0.06);
+}
+
+.fl-bar--before .fl-bar__fill {
+  fill: var(--holo-ink-3);
+}
+
+.fl-bar--after .fl-bar__fill {
+  fill: var(--holo-teal);
+}
+
+.fl-bar__ci {
+  stroke: var(--holo-ink);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.fl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--holo-ink-2);
+}
+
+.fl-legend__after {
+  color: var(--holo-ink);
+}
+
+.fl-detail,
+.fl-source {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--holo-ink-2);
+}
+
+.fl-source,
+.fl .fl-source a {
+  color: var(--holo-ink-3);
+}
+
+.fl .fl-source a:hover,
+.fl .fl-source a:focus-visible {
+  color: var(--holo-ink);
+}
+
+.fl .fl-open {
+  justify-self: start;
+  padding: 6px 10px;
+  border: 1px solid var(--holo-line);
+  font-size: 12px;
+  color: var(--holo-ink);
+  text-decoration: none;
+}
+
+.fl .fl-open:hover {
+  border-color: var(--holo-line-hi);
+  color: var(--holo-teal);
+}
+
+.fl .fl-open:focus-visible,
+.fl .fl-source a:focus-visible {
+  outline: 2px solid var(--holo-teal);
+  outline-offset: 2px;
+}
+
+/* ---- the loop's bracket and its return line */
+
+.fl-cycle-wrap {
+  display: block;
+}
+
+.fl-cycle {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding-right: 34px;
+}
+
+.fl-return {
+  position: absolute;
+  top: calc(var(--fl-node) / 2);
+  bottom: 44px;
+  right: 10px;
+  width: 14px;
+  border: 1px dashed rgba(255, 176, 0, 0.55);
+  border-left: 0;
+}
+
+/* The arrowhead at the top, pointing back into Multiply. */
+.fl-return::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: -2px;
+  border: 5px solid transparent;
+  border-right-color: var(--holo-amber);
+  border-left: 0;
+}
+
+.fl-return__light {
+  position: absolute;
+  right: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--holo-amber);
+  box-shadow: 0 0 8px var(--holo-amber);
+  animation: fl-return 4.5s var(--holo-ease) infinite;
+}
+
+@keyframes fl-return {
+  0% { top: 100%; opacity: 0; }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 0; opacity: 0; }
+}
+
+.fl-return__label {
+  margin: 0 0 0 calc(var(--fl-node) + 16px);
+  font: 400 1.125rem/1.3 var(--holo-serif);
+  color: var(--holo-amber);
+}
+
+/* ---- wider screens: one row per stage */
+
+@media (min-width: 900px) {
+  .fl-stage {
+    grid-template-columns: var(--fl-node) minmax(0, 0.9fr) minmax(0, 1.1fr) 11.5rem; /* fixed link column: the cards line up */
+    column-gap: 24px;
+  }
+
+  .fl-node {
+    grid-row: auto;
+  }
+
+  .fl .fl-open {
+    align-self: start;
+  }
+}
+
+/* ---- reduced motion: the spine drawn, the light still at the top */
+
+@media (prefers-reduced-motion: reduce) {
+  .fl-track::before,
+  .fl-return__light {
+    animation: none !important;
+  }
+
+  .fl-return__light {
+    top: 0;
+  }
+}
+
+[data-motion="reduced"] .fl-track::before,
+[data-motion="reduced"] .fl-return__light {
+  animation: none !important;
+}
+
+[data-motion="reduced"] .fl-return__light {
+  top: 0;
+}

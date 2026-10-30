@@ -18,6 +18,7 @@ from typing import Callable
 
 import numpy as np
 
+from demo_pipeline.data_fixes import apply_fixes
 from demo_pipeline.multiply import sample_scene, transform_trajectory
 from demo_pipeline.schemas import Scene, SimSignals, Trajectory, VerificationResult
 from demo_pipeline.sim_protocol import (
@@ -49,7 +50,16 @@ def variant_name(prefix: str, seed: int) -> str:
 
 
 def multiply_seeds(req: MultiplyRequest) -> list[int]:
+    if req.scenes is not None:
+        return [s.seed for s in req.scenes]
     return list(range(req.seed0, req.seed0 + req.n))
+
+
+def multiply_scenes(req: MultiplyRequest) -> list[Scene]:
+    """The given scenes, else sample_scene for each seed (the scenes multiply has always used)."""
+    if req.scenes is not None:
+        return list(req.scenes)
+    return [sample_scene(np.random.default_rng(seed), req.robot, seed) for seed in multiply_seeds(req)]
 
 
 def _check(robot: str, record_cameras: bool, worker_robot: str, worker_cameras: bool) -> None:
@@ -117,11 +127,16 @@ def run_multiply(req: MultiplyRequest, replay_fn: ReplayFn, *, root: Path, worke
     _check(req.robot, req.record_cameras, worker_robot, worker_cameras)
     t0 = time.time()
     variants = []
-    for seed in multiply_seeds(req):
-        scene = sample_scene(np.random.default_rng(seed), req.robot, seed)
-        traj = transform_trajectory(req.trajectory, req.scene, scene)
+    for scene in multiply_scenes(req):
+        seed = scene.seed
+        traj, fixes, kept = apply_fixes(transform_trajectory(req.trajectory, req.scene, scene), scene, req.fixes)
         ep = (episodes_dir(root) / variant_name(req.out_prefix, seed)).resolve()
         stored = _stored_variant(ep, scene)
+        if not kept:  # a filter dropped it: never replayed, never trained on
+            log(f"[multiply] seed {seed}: filtered ({fixes})")
+            variants.append(MultiplyVariant(seed=seed, scene=scene, trajectory=traj, ep_dir=None, fixes=fixes,
+                                            verification=_sim_error(traj).model_copy(update={"reasons": ["filtered"]})))
+            continue
         if stored is not None:
             executed, result = stored
             log(f"[multiply] seed {seed}: reused {ep.name} (success={result.success})")
@@ -137,6 +152,6 @@ def run_multiply(req: MultiplyRequest, replay_fn: ReplayFn, *, root: Path, worke
                 executed, result = traj, _sim_error(traj)
             log(f"[multiply] seed {seed}: success={result.success} reasons={result.reasons}")
         variants.append(MultiplyVariant(seed=seed, scene=scene, trajectory=executed, verification=result,
-                                        ep_dir=str(ep) if ep.exists() else None))
+                                        ep_dir=str(ep) if ep.exists() else None, fixes=fixes))
     return MultiplyResponse(attempts=len(variants), successes=sum(v.verification.success for v in variants),
                             variants=variants, wall_s=time.time() - t0)

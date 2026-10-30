@@ -8,9 +8,10 @@
 // from the Results page's data (./proof.ts): raw vs SANT-multiplied (3/40 vs 17/40, p = 0.0005 today), the user's
 // webcam demos (0/10 passed physics → 3 repaired → 24 verified variants; 9 pressed into the bin at up to 927 N),
 // Nemotron's labels (40/40).
-import { useRef, type ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { LEAD } from "../../../site/results/proofData";
+import sceneData from "../../../site/results/scenes.json";
 import { useStationFrame, useWorld } from "../../core/WorldContext";
 import { scramble } from "../../ui/scramble";
 import { PROOF } from "./proof";
@@ -47,6 +48,12 @@ const COPY: BeatCopy[] = [
             · {LEAD.result.k}/{LEAD.result.n} on unseen scenes, pre-registered
           </span>
           <span aria-hidden="true"> →</span>
+          {/* The test itself, one cell per scene, lit if the cube ended in the bin (Results' SceneGrid data). */}
+          <span className="intro-proof__strip" aria-hidden="true">
+            {sceneData.scenes.map((sc, i) => (
+              <i key={sc.seed} data-ok={sc.success || undefined} style={{ "--i": i } as CSSProperties} />
+            ))}
+          </span>
         </Link>
       </p>,
     ],
@@ -59,8 +66,8 @@ const COPY: BeatCopy[] = [
       <p key="a">A robot learns a task from demonstrations, and it takes hundreds of them.</p>,
       <p key="b">Teleoperation is expensive: the rig, and an operator's time for every demo.</p>,
       <p key="c">
-        Human demos are sloppy: placing the cube, {PROOF.pressed.split("/")[0]} of our {PROOF.webcam.demos} webcam demos pressed the gripper into
-        the bin, up to <b>{PROOF.peak}</b> against a 5 N limit.
+        Human demos are sloppy: placing the cube, {PROOF.pressed.split("/")[0]} of our {PROOF.webcam.demos} webcam demos pressed the gripper
+        into the bin, up to <b>{PROOF.peak}</b> against a 5 N limit.
       </p>,
     ],
   },

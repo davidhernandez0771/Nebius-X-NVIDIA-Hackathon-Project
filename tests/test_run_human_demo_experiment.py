@@ -412,10 +412,10 @@ def test_repairer_nemotron_edits_routes_the_repair_step(hx, tmp_path):
     exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "nemotron-edits"})
     exp.run(until="grid", sim_until="repair")
     root = tmp_path / "human_exp" / "smoke1"
-    marks = [json.loads(p.read_text()) for p in sorted((root / "stages" / "repair").glob("*.json"))]
+    marks = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((root / "stages" / "repair").glob("*.json"))]
     assert marks and all(m["diagnoser"] == "nemotron-edits" for m in marks)
     assert all(m["output_demo_id"].endswith("_edits") for m in marks if m["status"] == "kept")
-    assert json.loads((root / "config.json").read_text())["repair"] == "nemotron-edits"
+    assert json.loads((root / "config.json").read_text(encoding="utf-8"))["repair"] == "nemotron-edits"
     assert "repaired with Nemotron's trajectory edits" in (root / "preregistration.md").read_text(encoding="utf-8")
     with pytest.raises(hx.Refused, match="repair must be one of"):
         _exp(hx, tmp_path, name="other")[0].select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "magic"})
@@ -426,7 +426,7 @@ def test_repairer_hybrid_routes_the_repair_step(hx, tmp_path):
     exp.select(ids=None, tag="standin_*", settings={**SMOKE, "repair": "hybrid"})
     exp.run(until="grid", sim_until="repair")
     root = tmp_path / "human_exp" / "smoke1"
-    marks = [json.loads(p.read_text()) for p in sorted((root / "stages" / "repair").glob("*.json"))]
+    marks = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((root / "stages" / "repair").glob("*.json"))]
     assert marks and all(m["diagnoser"] == "hybrid" and m["stage"] == "rules" for m in marks)  # the fakes pass
     assert "rules first; Nemotron's trajectory edits for a demo the rules discard" in (
         root / "preregistration.md").read_text(encoding="utf-8")
@@ -458,7 +458,7 @@ def test_multiplied_only_trains_and_evals_one_cell_and_reports_it_alone(hx, tmp_
 def test_multiplied_only_is_left_out_of_the_config_unless_set(hx, tmp_path):
     exp, _, _ = _exp(hx, tmp_path)
     exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
-    assert "multiplied_only" not in json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    assert "multiplied_only" not in json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
     with pytest.raises(hx.Refused, match="multiplied_only"):
         exp.select(ids=None, tag=None, settings={**SMOKE, "multiplied_only": True})
 
@@ -503,7 +503,7 @@ def test_the_data_fixes_are_frozen_only_when_set_and_reach_the_repair_and_the_va
 
     exp, _, _ = _exp(hx, tmp_path)
     exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
-    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
     assert not {"yaw_wrap", "grasp_retime", "approach_offset_m"} & set(config)  # older configs resume unchanged
 
     exp, _, _ = _exp(hx, tmp_path, name="fixes")
@@ -511,17 +511,110 @@ def test_the_data_fixes_are_frozen_only_when_set_and_reach_the_repair_and_the_va
     exp.select(ids=None, tag="standin_*", settings={**SMOKE, **fixes})
     exp.run(until="grid")
     root = tmp_path / "human_exp" / "fixes"
-    config = json.loads((root / "config.json").read_text())
+    config = json.loads((root / "config.json").read_text(encoding="utf-8"))
     assert {k: config[k] for k in fixes} == fixes
     retimed = []
     for id in IDS:
-        rep = json.loads((root / "stages" / "repair" / f"{id}.json").read_text())
+        rep = json.loads((root / "stages" / "repair" / f"{id}.json").read_text(encoding="utf-8"))
         retimed.append("retime_grasp" in [r["op"] for r in rep["repairs"]])
         # the repaired demo has the retimed grasp's hover exactly when the rules retimed it
         assert (find_hover(exp.store.get_demo(rep["output_demo_id"]).trajectory) is not None) == retimed[-1], id
-        mult = json.loads((root / "stages" / "multiply" / f"{id}.json").read_text())
+        mult = json.loads((root / "stages" / "multiply" / f"{id}.json").read_text(encoding="utf-8"))
         assert mult["attempts"] and all(a["centred"] == retimed[-1] for a in mult["attempts"])
     assert any(retimed)  # the stand-ins swoop: the retime really ran
+
+
+def _scene_recipe() -> dict:
+    return {"summary": "s", "hypotheses": [], "mechanism": [], "fixes": [], "uniform_share": 0.4,
+            "regions": [{"name": "right_bin", "targets": ["dropped"], "cube_x": [0.40, 0.60], "cube_y": [0.0, 0.20],
+                         "cube_yaw_deg": [-45, 45], "bin_x": [0.45, 0.65], "bin_y": [-0.30, -0.10], "share": 0.6,
+                         "rationale": "r"}]}
+
+
+def test_a_scene_recipe_is_frozen_and_gives_the_variants_their_scenes(hx, tmp_path):
+    from demo_pipeline.data_recipe import DataRecipe, recipe_scene
+
+    recipe = _scene_recipe()
+    exp, _, _ = _exp(hx, tmp_path, name="recipe")
+    sr = {"path": "recipe_nemotron.json", "sha256": "0" * 64, "recipe": recipe}
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "variants": 6, "scene_recipe": sr})
+    exp.run(until="grid")
+    root = tmp_path / "human_exp" / "recipe"
+    assert json.loads((root / "config.json").read_text(encoding="utf-8"))["scene_recipe"] == sr
+    assert "scene recipe" in (root / "preregistration.md").read_text(encoding="utf-8")
+    regions = []
+    for id in IDS:
+        mult = json.loads((root / "stages" / "multiply" / f"{id}.json").read_text(encoding="utf-8"))
+        for a in mult["attempts"]:
+            want, region = recipe_scene(DataRecipe.model_validate(recipe), a["seed"])
+            assert a["region"] == region
+            regions.append(region)
+            if a["id"]:
+                assert exp.store.get_demo(a["id"]).scene == want
+    assert {"right_bin", "uniform"} <= set(regions)
+
+
+def _fixes_recipe(**filter_kw) -> dict:
+    """A fixes-only recipe: the scenes stay uniform; the variants are slowed and filtered."""
+    filt = {"lever": "filter_training", "addresses": ["carry_speed_max"], "feature": "carry_speed_max",
+            "keep": "below", "threshold": 0.31, "rationale": "r", **filter_kw}
+    return {"summary": "s", "hypotheses": [], "regions": [], "uniform_share": 1.0,
+            "mechanism": [{"feature": "carry_speed_max", "direction": "higher_in_failures", "explanation": "e"}],
+            "fixes": [{"lever": "slow_carry", "addresses": ["carry_speed_max"], "max_speed_mps": 0.3,
+                       "rationale": "r"}, filt]}
+
+
+def test_a_recipes_fixes_change_every_variant_before_its_replay(hx, tmp_path):
+    from demo_pipeline.data_fixes import training_features
+
+    exp, sim, _ = _exp(hx, tmp_path, name="fixes")
+    sr = {"path": "recipe_nemotron.json", "sha256": "0" * 64, "recipe": _fixes_recipe()}
+    exp.select(ids=None, tag="standin_*", settings={**SMOKE, "variants": 3, "scene_recipe": sr})
+    exp.run(until="grid")
+    root = tmp_path / "human_exp" / "fixes"
+    prereg = (root / "preregistration.md").read_text(encoding="utf-8")
+    assert "slow_carry" in prereg and "filter_training" in prereg and "0.3 m/s" in prereg
+    rows = [a for id in IDS for a in json.loads((root / "stages" / "multiply" / f"{id}.json").read_text(encoding="utf-8"))["attempts"]]
+    assert rows and all([f["lever"] for f in a["fixes"]] == ["slow_carry", "filter_training"] for a in rows)
+    for a in rows:
+        assert a["fixes"][1]["kept"] and a["region"] == "uniform"
+        if a["id"]:  # what was replayed and stored is the slowed variant
+            demo = exp.store.get_demo(a["id"])
+            assert training_features(demo.trajectory, demo.scene)["carry_speed_max"] <= 0.3 + 1e-6
+    assert json.loads((root / "stages" / "sim.json").read_text(encoding="utf-8"))["multiply"]["filtered"] == 0
+
+
+def test_a_variant_the_filter_drops_is_never_replayed_or_trained_on(hx, tmp_path):
+    exp, sim, _ = _exp(hx, tmp_path, name="dropall")
+    sr = {"path": "r.json", "sha256": "0" * 64, "recipe": _fixes_recipe(keep="above", threshold=0.9)}
+    exp.select(ids=IDS[:1], tag=None, settings={**SMOKE, "variants": 3, "scene_recipe": sr})
+    exp.sim()
+    root = tmp_path / "human_exp" / "dropall"
+    mark = json.loads((root / "stages" / "multiply" / f"{IDS[0]}.json").read_text(encoding="utf-8"))
+    assert mark["attempts"] == [] and len(mark["filtered"]) == 3
+    assert all(not f["fixes"][-1]["kept"] for f in mark["filtered"])
+    assert not any(r.out_name and "_m" in r.out_name for r in sim.requests)  # no variant replay at all
+    summary = json.loads((root / "stages" / "sim.json").read_text(encoding="utf-8"))["multiply"]
+    assert summary["filtered"] == 3 and summary["attempts"] == 0
+    exp.sim()  # a re-run doesn't redo or replay them
+    assert json.loads((root / "stages" / "multiply" / f"{IDS[0]}.json").read_text(encoding="utf-8")) == mark
+
+
+def test_the_cli_refuses_a_fix_the_pipeline_cannot_apply(hx, tmp_path):
+    bad = _fixes_recipe(feature="held_s")
+    path = tmp_path / "recipe.json"
+    path.write_text(json.dumps(bad), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--scene-recipe", str(path)])
+
+
+def test_a_bad_scene_recipe_is_refused_before_anything_runs(hx, tmp_path):
+    bad = _scene_recipe()
+    bad["regions"][0]["bin_y"] = [-0.9, -0.1]
+    path = tmp_path / "recipe.json"
+    path.write_text(json.dumps(bad), encoding="utf-8")
+    with pytest.raises(SystemExit):
+        hx.main(["--name", "x", "--tag", "standin_*", "--scene-recipe", str(path)])
 
 
 @pytest.mark.parametrize("bad", ["0", "-0.01", "0.2"])
@@ -533,12 +626,12 @@ def test_the_approach_offset_must_be_a_small_radius(hx, bad):
 def test_the_preregistration_states_the_data_fixes_only_when_used(hx, tmp_path):
     exp, _, _ = _exp(hx, tmp_path)
     exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
-    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text()))
+    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8")))
     assert "Data fixes" not in plain and hx.data_fixes_text({}) == ""
     exp, _, _ = _exp(hx, tmp_path, name="fixes")
     exp.select(ids=IDS[:2], tag=None, settings={**SMOKE, "yaw_wrap": True, "grasp_retime": True,
                                                 "approach_offset_m": 0.04})
-    config = json.loads((tmp_path / "human_exp" / "fixes" / "config.json").read_text())
+    config = json.loads((tmp_path / "human_exp" / "fixes" / "config.json").read_text(encoding="utf-8"))
     text = hx.preregistration(config)
     assert "**Data fixes**" in text and "grasp retime" in text and "yaw wrap" in text and "up to 4 cm" in text
     assert "**Data fixes**" in hx.preregistration({**config, "multiplied_only": True})
@@ -553,13 +646,13 @@ RECIPE = {"augment": "shift", "dilation": True, "select_steps": [1000, 2000], "p
 def test_the_recipe_is_frozen_only_when_set_and_reaches_training_and_the_eval(hx, tmp_path):
     exp, _, _ = _exp(hx, tmp_path)
     exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
-    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text())
+    config = json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8"))
     assert not set(RECIPE) & set(config)  # older configs resume unchanged
 
     exp, _, _ = _exp(hx, tmp_path, name="recipe")
     exp.select(ids=None, tag="standin_*", settings={**SMOKE, "save_freq": 1000, **RECIPE})
     exp.run()
-    config = json.loads((tmp_path / "human_exp" / "recipe" / "config.json").read_text())
+    config = json.loads((tmp_path / "human_exp" / "recipe" / "config.json").read_text(encoding="utf-8"))
     assert {k: config[k] for k in RECIPE} == RECIPE
     train_cmd, eval_cmd = exp.deps.run.cmds
     assert train_cmd[train_cmd.index("--augment") + 1] == "shift" and "--dilation" in train_cmd
@@ -603,7 +696,7 @@ def test_the_cli_allows_80k_steps_with_selection_at_40_60_80k(hx, tmp_path):
 def test_the_preregistration_states_the_recipe_only_when_used(hx, tmp_path):
     exp, _, _ = _exp(hx, tmp_path)
     exp.select(ids=IDS[:2], tag=None, settings=SMOKE)
-    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text()))
+    plain = hx.preregistration(json.loads((tmp_path / "human_exp" / "smoke1" / "config.json").read_text(encoding="utf-8")))
     assert "Training and evaluation recipe" not in plain and hx.recipe_text({}) == ""
     text = hx.recipe_text({**SMOKE, "save_freq": 1000, **RECIPE})
     assert "**Training and evaluation recipe**" in text

@@ -210,7 +210,7 @@ Run from `C:\dev\pm-t3`, in PowerShell. The script takes `C:\dev\gpu.lock` itsel
 
 ```
 cd C:\dev\pm-t3
-uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python scripts/run_repair_ab.py --name repair_ab1 --tag "human_20261019*" --data-dir C:\dev\pm-t6\data
+uv run --env-file <path to your .env> python scripts/run_repair_ab.py --name repair_ab1 --tag "human_20261019*" --data-dir C:\dev\pm-t6\data
 ```
 
 - **Time:** about 25–30 min.
@@ -323,7 +323,7 @@ gpu.lock itself):
 
 ```
 cd C:\dev\pm-t3
-uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python scripts/run_repair_ab.py --name repair_ab2 --tag "human_20261019*" --data-dir C:\dev\pm-t6\data --max-cost-usd 1.0
+uv run --env-file <path to your .env> python scripts/run_repair_ab.py --name repair_ab2 --tag "human_20261019*" --data-dir C:\dev\pm-t6\data --max-cost-usd 1.0
 ```
 
 - **Time and cost.** About 55 min, like repair_ab1. Spend should be about $0.25: a rescue costs one short extra
@@ -505,7 +505,7 @@ user's OK), so it has `Demo.input` and the `--input` filter.
 
 ```
 cd C:\dev\pm-t3
-uv run --env-file C:/Users/dhrce/OneDrive/DOCUME~1/HACKAT~1/NEBIUS~1/.env python scripts/run_repair_ab.py --name repair_kb1 --tag "human_2026102[01]*" --input keyboard --data-dir C:\dev\pm-t6\data --max-cost-usd 1.0
+uv run --env-file <path to your .env> python scripts/run_repair_ab.py --name repair_kb1 --tag "human_2026102[01]*" --input keyboard --data-dir C:\dev\pm-t6\data --max-cost-usd 1.0
 ```
 
 - **Time:** about 2 min of Isaac start, plus 5–6 min per demo, as in repair_ab1 and repair_ab2.

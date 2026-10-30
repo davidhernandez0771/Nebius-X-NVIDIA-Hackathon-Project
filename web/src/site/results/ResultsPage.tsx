@@ -13,6 +13,7 @@ import { ExperimentSection } from "./ExperimentSection";
 import { ProofCite, ProofSection } from "./ProofSection";
 import { LEAD, PROOF_NOTES } from "./proofData";
 import { ARMS, COMPARISONS, HEADLINE, NOTES, SCENES, VERIFIED } from "./facts";
+import { SceneGrid, medianSuccessSeconds } from "./SceneGrid";
 import "./results.css";
 
 /** The earlier experiments, all finished: the real webcam demos and the blind repair test on them, the centred
@@ -27,33 +28,37 @@ function Lead() {
   const r = LEAD.result;
   return (
     <section id="proof" className="sant-results__hero sant-results__lead" aria-labelledby="results-lead">
-      <p className="sant-results__kicker">Pre-registered · run once</p>
-      <h2 id="results-lead" className="sant-display sant-results__title">
-        {LEAD.headline}
-      </h2>
-      <div className="sant-results__sub">
-        <p className="sant-lede">
-          A camera policy that started from {LEAD.demos} human mouse demos, through SANT and an RL teacher, completed{" "}
-          <span className="sant-num">
-            {r.k} of {r.n}
-          </span>{" "}
-          fresh scenes (seeds <span className="sant-num">{r.seeds}</span>), 95% CI{" "}
-          <span className="sant-num">
-            {formatStat(100 * r.ci[0], 1)}–{formatStat(100 * r.ci[1], 1)}%
-          </span>
-          . The goal, written down before the test, was at least{" "}
-          <span className="sant-num">
-            {LEAD.goal.k}/{LEAD.goal.n}
-          </span>
-          . The test ran once.
-        </p>
-        <p className="sant-results__cites">
-          <ProofCite source={r.source} prefix="Result: " />
-          <ProofCite source={LEAD.goal.source} prefix="Goal: " />
-          <ProofCite source={LEAD.demosSource} prefix="Demos: " />
-        </p>
-        <Next />
+      <div className="sant-results__lead-text">
+        <p className="sant-results__kicker">Pre-registered · run once</p>
+        <h2 id="results-lead" className="sant-display sant-results__title">
+          {LEAD.headline}
+        </h2>
+        <div className="sant-results__sub">
+          <p className="sant-lede">
+            A camera policy that started from {LEAD.demos} human mouse demos, through SANT and an RL teacher, completed{" "}
+            <span className="sant-num">
+              {r.k} of {r.n}
+            </span>{" "}
+            fresh scenes (seeds <span className="sant-num">{r.seeds}</span>), 95% CI{" "}
+            <span className="sant-num">
+              {formatStat(100 * r.ci[0], 1)}–{formatStat(100 * r.ci[1], 1)}%
+            </span>
+            . The goal, written down before the test, was at least{" "}
+            <span className="sant-num">
+              {LEAD.goal.k}/{LEAD.goal.n}
+            </span>
+            . The test ran once. The successful scenes took a median{" "}
+            <span className="sant-num">{formatStat(medianSuccessSeconds(), 1)} s</span> of simulated time.
+          </p>
+          <p className="sant-results__cites">
+            <ProofCite source={r.source} prefix="Result: " />
+            <ProofCite source={LEAD.goal.source} prefix="Goal: " />
+            <ProofCite source={LEAD.demosSource} prefix="Demos: " />
+          </p>
+          <Next />
+        </div>
       </div>
+      <SceneGrid goal={LEAD.goal.k} />
     </section>
   );
 }
@@ -103,8 +108,8 @@ function Multiply() {
             <tfoot>
               <tr>
                 <td colSpan={4}>
-                  Fisher exact, two-sided, against the 10 demos alone: p = <span className="sant-num">{COMPARISONS.rawVs100.p}</span>{" "}
-                  with 100 copies, p = <span className="sant-num">{COMPARISONS.rawVs300.p}</span> with 300.
+                  Fisher exact, two-sided, against the 10 demos alone: p = <span className="sant-num">{COMPARISONS.rawVs100.p}</span> with
+                  100 copies, p = <span className="sant-num">{COMPARISONS.rawVs300.p}</span> with 300.
                 </td>
               </tr>
             </tfoot>
@@ -113,10 +118,11 @@ function Multiply() {
         <aside className="sant-margin-note">
           <p>
             The 10 source demos came from a scripted expert, so this tested multiplying, not cleaning up. The 40 scenes (seeds{" "}
-            <span className="sant-num">{SCENES.seeds}</span>) were fixed before the run.
+            <span className="sant-num">{SCENES.seeds}</span>) were fixed before the run and never used to choose anything.
           </p>
           <p>
-            Each copy was kept only if it passed the physics check in Isaac Lab:{" "}
+            Each copy is one of the 10 demos re-planned for a new cube and bin position, and kept only if it passed the physics check in
+            Isaac Lab:{" "}
             <span className="sant-num">
               {VERIFIED.x100.k}/{VERIFIED.x100.n}
             </span>{" "}

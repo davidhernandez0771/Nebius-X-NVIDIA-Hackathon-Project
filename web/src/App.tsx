@@ -48,6 +48,11 @@ const TestTrackPage = lazy(() => import("./site/testtrack/TestTrackPage"));
 // The LOOK clip alone (the hero and /site/results embed <LookClip /> from ./site/lookclip/LookClip).
 const LookClipPage = lazy(() => import("./site/lookclip/LookClipPage"));
 const FilmPage = lazy(() => import("./site/film/FilmPage"));
+const AnalysisPage = lazy(() => import("./site/analysis/AnalysisPage"));
+// Every pre-registered number as a lit 3D scene, with 2D charts and a no-WebGL fallback.
+const MetricsPage = lazy(() => import("./site/metrics/MetricsPage"));
+// The closed loop as one page: each stage's state, from the eval to the recipe A/B.
+const FlowPage = lazy(() => import("./site/flow/FlowPage"));
 
 const lazyPage = (el: JSX.Element) => <Suspense fallback={null}>{el}</Suspense>;
 
@@ -92,6 +97,9 @@ export default function App() {
           <Route path="/data" element={lazyPage(<DataPage />)} />
           <Route path="/test-track" element={lazyPage(<TestTrackPage />)} />
           <Route path="/look" element={lazyPage(<LookClipPage />)} />
+          <Route path="/analysis" element={lazyPage(<AnalysisPage />)} />
+          <Route path="/metrics" element={lazyPage(<MetricsPage />)} />
+          <Route path="/flow" element={lazyPage(<FlowPage />)} />
           <Route path="/pipeline" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run" element={lazyPage(<PipelinePage />)} />
           <Route path="/pipeline/:run/:stage" element={lazyPage(<PipelinePage />)} />

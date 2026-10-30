@@ -12,7 +12,7 @@ import { handingOff, handoffArrive, handoffStart } from "./handoff";
 import "./holo.css";
 
 /** The pages on the path, and the ones off it (in the More nav) that use the frame too. */
-export type HoloPageId = "record" | "pipeline" | "data" | "test-track" | "results";
+export type HoloPageId = "record" | "pipeline" | "data" | "test-track" | "results" | "analysis" | "metrics" | "flow";
 
 /** The path the work pages share, in the order the visitor goes. */
 export const PATH: { id: HoloPageId; to: string; label: string }[] = [
@@ -26,6 +26,12 @@ const MORE: { id?: HoloPageId; to: string; label: string }[] = [
   { id: "results", to: "/site/results", label: "Results" },
   // A viewer of finished runs (T5's /test-track), not a step on the path.
   { id: "test-track", to: "/test-track", label: "Test track" },
+  // Nemotron reading how a trained policy failed (/analysis).
+  { id: "analysis", to: "/analysis", label: "Analyst" },
+  // Every pre-registered number, as a lit scene with 2D charts (/metrics).
+  { id: "metrics", to: "/metrics", label: "Metrics" },
+  // The closed loop, end to end: eval, Nemotron's recipe, recipe arm vs uniform control, compare (/flow).
+  { id: "flow", to: "/flow", label: "Flow" },
 ];
 
 const MAIN_ID = "holo-main";
