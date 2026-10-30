@@ -53,7 +53,7 @@ export function HubBar() {
       </span>
       <span className="world-hubbar__go" role="group" aria-label="Go to">
         {GO.map((g) => (
-          <button key={g.id} type="button" onClick={() => openHubItem(g.id, store, goTo)}>
+          <button key={g.id} type="button" data-hub={g.id} onClick={() => openHubItem(g.id, store, goTo)}>
             {g.label}
           </button>
         ))}

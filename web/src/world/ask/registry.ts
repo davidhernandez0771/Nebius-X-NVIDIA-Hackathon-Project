@@ -20,7 +20,7 @@ export const TOOLS: readonly ToolSpec[] = [
   { name: "go_to_section", description: "Move the camera to a part of the journey: the top (logo), the story, the workshop's spiral, the machine, the bench where new cartridges are made, or the robots (the wall of robots SANT tests with, and their catalog)", values: [...SECTIONS] },
   { name: "show_cartridges_with_tag", description: "Filter the spiral to the cartridges for one job: " + TAGS.map((t) => `${t.id} (${t.label})`).join(", "), values: TAGS.map((t) => t.id) },
   { name: "open_cartridge", description: "Open one cartridge's detail: " + ITEMS.map((i) => `${i.id} (${i.title}, ${i.sub})`).join("; "), values: ITEMS.map((i) => i.id) },
-  { name: "start_tutorial", description: "A short guided tour of the workshop: pick a cartridge, plug it in, make a new one", values: null },
+  { name: "start_tutorial", description: "The guided tour of the workshop, four short cards: what SANT does, recording a demo, how SANT checks and multiplies it, and the proof", values: null },
 ];
 
 export interface ToolCall {

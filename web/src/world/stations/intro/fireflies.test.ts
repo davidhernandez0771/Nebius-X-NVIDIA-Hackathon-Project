@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { makeFireflies } from "./fireflies";
-import { LANTERNS, blinkAt, driftAt, fireflies, KIND } from "./fireflyPlan";
+import { LANTERNS, blinkAt, driftAt, fireflies, KIND, settle, SOLIDS_EACH, solidsOf } from "./fireflyPlan";
 import { forestLayout } from "./forestGeometry";
 import { ROBOT_TIERS } from "./forestRobots";
 
@@ -14,6 +14,9 @@ describe("the fireflies, drawn", () => {
     const g = f.points.geometry;
     expect(g.attributes.position.count).toBe(300);
     for (const a of ["aCenter", "aColor", "aKind", "aRand"]) expect(g.attributes[a]).toBeDefined();
+    // The solids each keeps out of ride along as attributes (fireflyPlan.ts settle, mirrored in the shader).
+    for (let k = 0; k < SOLIDS_EACH; k++) expect(g.attributes[`aSolid${k}`].itemSize).toBe(4);
+    expect((f.points.material as THREE.ShaderMaterial).vertexShader).toContain("settle(");
     const m = f.points.material as THREE.ShaderMaterial;
     expect(m.blending).toBe(THREE.AdditiveBlending);
     expect(m.depthWrite).toBe(false);
@@ -42,11 +45,13 @@ describe("the fireflies, drawn", () => {
     const lanterns = [...Array(plan.count).keys()].filter((i) => plan.kind[i] === KIND.lantern);
     lanterns.forEach((i, k) => {
       const r = [plan.rand[i * 4], plan.rand[i * 4 + 1], plan.rand[i * 4 + 2], plan.rand[i * 4 + 3]] as const;
-      const d = driftAt(r, 7);
+      // Where the shader draws it: drifted (driftAt, scaled by how far it wanders), then settled out of the solids.
+      const d = driftAt(r, 7).map((v) => v * plan.center[i * 4 + 3]);
+      const q = settle([plan.position[i * 3] + d[0], plan.position[i * 3 + 1] + d[1], plan.position[i * 3 + 2] + d[2]], solidsOf(plan, i));
       const p = f.glows.position[k];
-      expect(p.x).toBeCloseTo(plan.position[i * 3] + d[0], 4);
-      expect(p.y).toBeCloseTo(plan.position[i * 3 + 1] + d[1], 4);
-      expect(p.z).toBeCloseTo(plan.position[i * 3 + 2] + d[2], 4);
+      expect(p.x).toBeCloseTo(q[0], 4);
+      expect(p.y).toBeCloseTo(q[1], 4);
+      expect(p.z).toBeCloseTo(q[2], 4);
       expect(p.w).toBeCloseTo(blinkAt(r, 7), 4);
     });
     // Through the fall (the forest out) they light nothing: the crack's light is its own.

@@ -16,7 +16,6 @@ import ScanStage from "./ScanStage";
 import "./review2.css";
 
 const LINKS = [
-  { to: "/robots", label: "Robots" },
   { to: "/pm/record", label: "Record" },
   { to: "/review2", label: "Review" },
   { to: "/pm/dataset", label: "Dataset" },

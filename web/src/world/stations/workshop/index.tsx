@@ -20,7 +20,6 @@ import { HubBar } from "./HubBar";
 import { ShelfBar } from "./ShelfBar";
 import { hubTagLayer } from "./hubTagLayer";
 import { useStepper } from "./stepper";
-import { TourCaption } from "./TourCaption";
 
 // The room's 3D mounts only once the loader is done (WorldCanvas), so its code (and the GLTF loader)
 // loads then too, after the first frame (firstLoad.test.ts).
@@ -39,7 +38,6 @@ function Overlay(_: StationOverlayProps) {
         <AskBox />
       </Dock>
       <Detail />
-      <TourCaption />
     </>
   );
 }

@@ -6,7 +6,6 @@ import { createWorldStore } from "../../core/store";
 import { setSelected, spiral } from "../../scene/spiral";
 import { STATIONS } from "..";
 import { followRelease, scrollToStep, shelf } from "./stepper";
-import { startTour, tourStep } from "./tour";
 
 const setup = () => {
   const store = createWorldStore(STATIONS, 800, 0);
@@ -28,15 +27,6 @@ describe("letting go of the held shot", () => {
     store.setOverride(null);
     expect(shelf.open).toBe(false);
     expect(spiral.selected).toBe(-1);
-    off();
-  });
-
-  it("ends the tour too", () => {
-    const { store, off } = setup();
-    startTour(store);
-    expect(tourStep()).toBe(0);
-    store.setOverride(null);
-    expect(tourStep()).toBe(-1);
     off();
   });
 

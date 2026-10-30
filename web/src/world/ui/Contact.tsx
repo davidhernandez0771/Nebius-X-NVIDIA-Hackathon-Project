@@ -1,15 +1,16 @@
 // A quiet Contact entry point, top right: a small button that opens a panel under it listing the links
 // in site/contact.ts (the panel says they are coming if it is ever empty). Escape, Close or a click
-// outside closes it, and focus goes back to the button.
+// outside closes it, and focus goes back to the button. Anything passed as children stands just before it, in the
+// same row (the guide's "?", guide/Guide.tsx).
 import { Logo } from "../../sant/components/Logo";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { CONTACT_LINKS, type ContactLink } from "../../site/contact";
 import "./ui.css";
 
 /** Only links a visitor can safely follow from here. */
 const SAFE = /^(https?:\/\/|mailto:)/i;
 
-export function Contact({ links = CONTACT_LINKS }: { links?: readonly ContactLink[] }) {
+export function Contact({ links = CONTACT_LINKS, children }: { links?: readonly ContactLink[]; children?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -34,6 +35,7 @@ export function Contact({ links = CONTACT_LINKS }: { links?: readonly ContactLin
 
   return (
     <div className="world-contact world-u">
+      {children}
       <button ref={button} type="button" className="world-contact__open" aria-expanded={open} aria-controls={id} onClick={() => (open ? close() : setOpen(true))}>
         Contact
       </button>

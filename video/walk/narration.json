@@ -1,0 +1,62 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "rate": "+6%",
+  "note": "The walkthrough's voice-over: one line per shot, over real screen recordings of the site and of Isaac Lab's own window (video/walk/edit.py). Numbers: 30/40, 0/40 and the drop failures are README 'The headline result'; 14.2 s, 0 N, the 1 mm grasp and 10/10 copies are what this recording's own take review and pipeline run showed on screen.",
+  "scenes": [
+    {
+      "id": "workshop",
+      "lines": [
+        "This is SANT. It turns a few sloppy human demos into a robot that works. Let me show you the whole thing, live.",
+        "The story explains the problem. Robots need hundreds of demos, and the cheap ones are sloppy.",
+        "And this is the workshop, where all the work happens. Every cartridge on the shelf is a job: record a demo, perfect it, multiply it, train.",
+        "I'll plug in the Record cartridge. The machine projects a real, physics-checked demo, and takes me inside."
+      ]
+    },
+    {
+      "id": "record",
+      "lines": [
+        "This is Record. I pick the keyboard, press Start, and the page connects to a Franka arm running in NVIDIA Isaac Lab.",
+        "And this is Isaac Lab itself. W, A, S and D move the hand, R and F go up and down, and Space closes the gripper. Down to the cube, grab it, over to the bin, and let go.",
+        "When I stop, SANT reviews the take right away: the cube is in the bin, no pushing, and the grasp was one millimetre off centre. Pass."
+      ]
+    },
+    {
+      "id": "scene",
+      "lines": [
+        "Scenes can come from a sentence. I describe one, and NVIDIA Nemotron, on Nebius Token Factory, writes the scene plan. Code validates it before it ever reaches the robot."
+      ]
+    },
+    {
+      "id": "pipeline",
+      "lines": [
+        "Now, Run SANT. I'll keep it to the data today, no training, and it starts: check, repair, multiply.",
+        "First, Isaac replays my demo with real contact forces. Verified: fourteen seconds, zero newtons of pushing.",
+        "Then it multiplies it. The cube and the bin move, every copy is replayed in Isaac Lab, and only the copies that pass are kept. Ten out of ten, from one demo, and my data is ready to download."
+      ]
+    },
+    {
+      "id": "data",
+      "lines": [
+        "The Data page shows every demo behind our main result: what the person did, what SANT repaired, and every verified copy, in the robot twin and in Isaac's own camera."
+      ]
+    },
+    {
+      "id": "results",
+      "lines": [
+        "Results has the proof. Ten mouse demos, copied directly, scored zero out of forty. Through SANT and a reinforcement-learning teacher, the camera robot scored thirty out of forty, on scenes it had never seen, in a test we registered before running it."
+      ]
+    },
+    {
+      "id": "testtrack",
+      "lines": [
+        "And the test track replays all forty of those runs, straight from what Isaac recorded. Thirty succeed. Every failure dropped the cube, so that's what we fix next."
+      ]
+    },
+    {
+      "id": "close",
+      "lines": [
+        "Everything you saw ran live on one PC: Isaac Lab for the physics, Nemotron for the language. Ten sloppy demos in, a robot that works out. That's SANT."
+      ]
+    }
+  ]
+}

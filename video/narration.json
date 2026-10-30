@@ -1,0 +1,70 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "rate": "+8%",
+  "note": "The film's voice-over, one entry per line, grouped by scene. Every number is in README.md 'The headline result' or the lines it cites; 927 N and 9 of 10 are README 'Physics check, as recorded'; 483 calls / about $1.14 is README's Token Factory usage; 1.7 m/s, 3/50, 50/50 and 0/128 vs 113/128 are README's roadmap rows. Nemotron is never credited with the 30/40.",
+  "scenes": [
+    {
+      "id": "open",
+      "lines": [
+        "Ten demos, made with a computer mouse. Sloppy ones.",
+        "Copy them directly, and the robot fails all forty test scenes.",
+        "Run them through SANT, and it succeeds thirty out of forty, on scenes it had never seen."
+      ]
+    },
+    {
+      "id": "problem",
+      "lines": [
+        "Robots learn new skills by copying people, and good demonstrations are expensive: a teleoperation rig, a trained operator, take after take.",
+        "Cheap demos, from a mouse or a webcam, are easy to get, but sloppy. They pause, they wobble, they grab off centre.",
+        "Our ten webcam demos all put the cube in the bin, and physics rejected every one. This one pressed into the bin with nine hundred and twenty-seven newtons. The limit is five."
+      ]
+    },
+    {
+      "id": "stack",
+      "lines": [
+        "NVIDIA's tools, like Isaac Lab Mimic, multiply demos that already work. SANT is the step before: it turns cheap, sloppy demos into ones worth multiplying.",
+        "Simulate, Augment, Neaten, Train. It runs on NVIDIA Isaac Sim and Isaac Lab, with Nemotron on Nebius Token Factory."
+      ]
+    },
+    {
+      "id": "pipeline",
+      "lines": [
+        "You record a demo in the browser. Your mouse, keyboard or webcam drives a Franka arm inside Isaac Lab, live.",
+        "Then SANT takes over. It replays every demo with real contact forces, and code decides whether it actually worked.",
+        "Demos that fail get repaired, by tested rules or with fixes Nemotron proposes, and every fix is checked in physics again.",
+        "Then it multiplies. The cube and the bin move, every copy is replayed, and only the copies that pass are kept."
+      ]
+    },
+    {
+      "id": "nemotron",
+      "lines": [
+        "Nemotron labels demos, turns a sentence into a scene, and proposes repairs. It never moves the robot. Code checks every answer, and physics has the final word.",
+        "Because Token Factory hosts the models, our one GPU stayed free for Isaac Lab. Four hundred and eighty-three calls cost about a dollar fourteen."
+      ]
+    },
+    {
+      "id": "teacher",
+      "lines": [
+        "But copying even clean, verified demos stalled at three out of forty.",
+        "So a reinforcement-learning teacher practises in Isaac Lab, four thousand arms at once, starting from the human demos.",
+        "Without the demos, the same teacher never lifted the cube. Zero out of a hundred and twenty-eight, against a hundred and thirteen with them.",
+        "SANT checked the teacher too. Its first good version moved at one point seven metres a second, and only three of fifty runs held up. Capped, all fifty passed."
+      ]
+    },
+    {
+      "id": "test",
+      "lines": [
+        "The teacher's skill is distilled into a robot that sees only through cameras. These are its real test runs, replayed from Isaac.",
+        "Forty fresh scenes, one try, and a goal of twenty-four, written down before the run. It got thirty.",
+        "All ten failures were drops. That's what we fix next."
+      ]
+    },
+    {
+      "id": "close",
+      "lines": [
+        "Everything here is simulation: one task, one arm. A real robot is next.",
+        "Ten sloppy demos in. A robot that works out. This is SANT."
+      ]
+    }
+  ]
+}

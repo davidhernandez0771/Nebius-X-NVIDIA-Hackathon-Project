@@ -267,18 +267,25 @@ def _spans(flags) -> list[list[int]]:
 
 
 def build_final_test(root: Path, sid: str, title: str, what: str, out: Path, *, cell: str = FINAL_CELL,
-                     scene_for=None, judge=None) -> dict:
+                     scene_for=None, judge=None, seeds=None) -> dict:
     """The big test's final test: one replay per episode from its per-step trace, with the eval's own verdict.
     scene_for(seed) -> scene dict and judge(arrays, scene, fps) -> verification dict default to final_scene and
-    judge_trace (looked up at call time, so tests can swap them)."""
+    judge_trace (looked up at call time, so tests can swap them). seeds: only these episodes (every one must be in
+    the log); the eval's summary is then not cross-checked, since it counts them all."""
     scene_for = scene_for or final_scene
     judge = judge or judge_trace
     lines = [json.loads(line) for line in (root / f"{cell}.episodes.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     header = next((r["header"] for r in lines if "header" in r), {})
     eps = sorted((r["episode"] for r in lines if "episode" in r), key=lambda e: e["seed"])
+    only = None if seeds is None else {int(s) for s in seeds}
     seeds = [e["seed"] for e in eps]
     if not eps or len(set(seeds)) != len(seeds):
         raise ValueError(f"{cell}: expected one episode per seed, got {seeds}")
+    if only is not None:
+        if missing := sorted(only - set(seeds)):
+            raise ValueError(f"{cell}: no episode for seeds {missing}")
+        eps = [e for e in eps if int(e["seed"]) in only]
+        seeds = [e["seed"] for e in eps]
     traces = root / f"{cell}_traces"
     runs = []
     for ep in eps:
@@ -336,7 +343,7 @@ def build_final_test(root: Path, sid: str, title: str, what: str, out: Path, *, 
                      "cube_source": "recorded", "ended_by": ep.get("ended_by"), "steps": n})
     k = sum(r["success"] for r in runs)
     summary_file = root / f"{cell}.json"
-    if summary_file.is_file():  # the eval's own summary must count the same
+    if only is None and summary_file.is_file():  # the eval's own summary must count the same
         s = _json(summary_file).get("summary") or {}
         if (s.get("successes"), s.get("n")) != (k, len(runs)):
             raise ValueError(f"{summary_file.name} says {s.get('successes')}/{s.get('n')}, the episode log {k}/{len(runs)}")

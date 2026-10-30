@@ -90,7 +90,7 @@ describe("a page off the path (the test track)", () => {
     const path = screen.getByRole("navigation", { name: "Pages" });
     expect(within(path).getAllByRole("link").map((l) => l.getAttribute("aria-current"))).toEqual([null, null, null]);
     const more = screen.getByRole("navigation", { name: "More" });
-    expect(within(more).getAllByRole("link").map((l) => l.textContent)).toEqual(["Robots", "Results", "Test track", "Analyst", "Metrics", "Flow"]);
+    expect(within(more).getAllByRole("link").map((l) => l.textContent)).toEqual(["Results", "Test track", "Analyst", "Metrics", "Flow"]);
     expect(within(more).getByRole("link", { name: "Test track" }).getAttribute("href")).toBe("/test-track");
     expect(within(more).getByRole("link", { name: "Test track" }).getAttribute("aria-current")).toBe("page");
   });

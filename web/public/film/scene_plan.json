@@ -1,0 +1,74 @@
+{
+  "id": "20261020_010612_a_green_cube_on_the_right_and_a_yellow_c",
+  "text": "a green cube on the right and a yellow cube on the left; both go into one big bin far from the robot",
+  "created": "2026-10-20T01:06:12+00:00",
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "calls": 2,
+  "est_cost_usd": 0.001146,
+  "plan": {
+    "version": 1,
+    "robot": "franka",
+    "objects": [
+      {
+        "id": "cube_green",
+        "kind": "cube",
+        "color": "green",
+        "size": 0.05,
+        "pose": {
+          "x": 0.55,
+          "y": -0.215,
+          "yaw_deg": 0.0
+        },
+        "on": null
+      },
+      {
+        "id": "cube_yellow",
+        "kind": "cube",
+        "color": "yellow",
+        "size": 0.05,
+        "pose": {
+          "x": 0.55,
+          "y": 0.215,
+          "yaw_deg": 0.0
+        },
+        "on": null
+      },
+      {
+        "id": "bin_big",
+        "kind": "bin",
+        "color": "white",
+        "inner": [
+          0.3,
+          0.3,
+          0.1
+        ],
+        "pose": {
+          "x": 0.6,
+          "y": 0.0,
+          "yaw_deg": 0.0
+        }
+      }
+    ],
+    "goals": [
+      {
+        "object": "cube_green",
+        "bin": "bin_big"
+      },
+      {
+        "object": "cube_yellow",
+        "bin": "bin_big"
+      }
+    ],
+    "reach": {
+      "x": [
+        0.4,
+        0.65
+      ],
+      "y": [
+        -0.3,
+        0.3
+      ],
+      "z_max": 0.25
+    }
+  }
+}

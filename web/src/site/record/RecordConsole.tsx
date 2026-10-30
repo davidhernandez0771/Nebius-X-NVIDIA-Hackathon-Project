@@ -37,6 +37,8 @@ import { GAIN_MAX, GAIN_MIN } from "../../record/teleop/controlRegion";
 import { ContactBar } from "./ContactBar";
 import { WristDial } from "./WristDial";
 import { DrivePanel, InputSwitch } from "./DrivePanel";
+import { useHowTo } from "./HowTo";
+import { RecordTour, TourButton } from "./tour/RecordTour";
 import { TakeCoach, useTakeReview } from "./TakeCoach";
 import { RecordSettings } from "./RecordSettings";
 import { ScenePicker } from "./ScenePicker";
@@ -48,11 +50,26 @@ const DRAWER_ID = "rg-settings";
 const SCENES_ID = "rg-scenes";
 const BOOT_MS = 1600; // the plug-in: panes draw in and one scanline sweeps, then it's gone
 const CONFIRM_MS = 4000; // "Delete last demo" waits this long for the confirming click, then backs off
-const STEPS = ["S · show", "A · check", "N · neaten", "T · train"];
 const TRACK_DETAIL: Partial<Record<TrackingStatus, string>> = { loading: "starting", "no-hand": "no hand", error: "frames stopped" };
 
 type Tone = "ok" | "wait" | "off" | "rec";
 type ChipView = { label: string; state: Tone; detail?: string };
+
+/** What each status chip is, in plain words (its tooltip), whatever state it is in. */
+export const CHIP_TIPS: Record<string, string> = {
+  keyboard: "keyboard: your keys drive the arm, once you press Start",
+  mouse: "mouse: your mouse drives the arm, once you press Start and click the robot",
+  hand: "hand: the camera follows your hand, and your hand drives the arm",
+  relay: "relay: the link from this page to the SANT backend, which passes your moves on to the simulator",
+  sim: "sim: the Isaac Lab simulator is connected and runs the robot",
+};
+
+/** The chip's tooltip: what it is, then what it says now. */
+export function chipTip(c: ChipView): string {
+  const what = CHIP_TIPS[c.label] ?? c.label;
+  if (c.label === "sim" && c.state !== "ok") return `sim: the Isaac Lab simulator runs the robot; not connected yet (${c.detail ?? "waiting"})`;
+  return c.detail ? `${what} (now: ${c.detail})` : what;
+}
 
 /** The stage canvas in the hologram's colours, read from the page's own tokens. */
 function stagePalette(el: HTMLElement): StagePalette {
@@ -150,6 +167,7 @@ export default RecordConsole;
 
 /** The page for a session: the live one above, or a stand-in when checking the layout. */
 export function RecordView({ session, onPalette }: { session: RecordSession; onPalette: (p: StagePalette) => void }) {
+  const howto = useHowTo();
   const { phase, relay, sim, pose, settings, streaming, lost, simReady, recording, resetToast } = session;
   const input = session.drive.input;
   const driving = input !== "camera";
@@ -272,20 +290,9 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           </button>
         </div>
         <nav className="rg-steps" aria-label="SANT steps">
-          {STEPS.map((step, i) => {
-            // "S · show": the letter, then the word (hidden on laptop widths, still read by screen readers).
-            const [letter, word] = step.split(" · ");
-            return (
-              <span key={step} className="rg-steps__item">
-                {i > 0 && <em aria-hidden="true" />}
-                <span className="rg-step" aria-current={i === 0 ? "step" : undefined} title={step}>
-                  {letter}
-                  <span className="rg-step__word"> · {word}</span>
-                </span>
-              </span>
-            );
-          })}
-          {/* After Record: the rest of SANT, live, on the demos saved this visit (the pipeline pages). */}
+          {/* The S · A · N · T step strip that stood here was removed (the user, 2026-10-27): it looked like buttons
+              and wasn't. The way on is this one link. After Record: the rest of SANT, live, on the demos saved this
+              visit (the pipeline pages). */}
           <HandoffLink className="rg-btn rg-btn--small rg-run" label="Pipeline" to={kept.length ? `/pipeline?demos=${kept.map(encodeURIComponent).join(",")}` : "/pipeline"}>
             {kept.length ? `Run SANT on ${kept.length} demo${kept.length === 1 ? "" : "s"} →` : "Run SANT →"}
           </HandoffLink>
@@ -293,7 +300,7 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
         <div className="rg-right">
           <div className="rg-chips" role="group" aria-label="Status">
             {chipsFor(session).map((c) => (
-              <span key={c.label} className="rg-chip" data-state={c.state} title={c.detail}>
+              <span key={c.label} className="rg-chip" data-state={c.state} title={chipTip(c)}>
                 <span className="rg-dot" aria-hidden="true" />
                 {c.label}
                 {c.detail && <span className="rg-sr">: {c.detail}</span>}
@@ -350,6 +357,8 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
           <div className="rg-hd">
             <InputSwitch session={session} />
             <span className="rg-hd__tools">
+              {howto.toggle}
+              <TourButton />
               {!driving && (
                 <label className="rg-sens" title="Sensitivity: how far the arm moves for a hand movement (2× = half the hand motion)">
                   <span aria-hidden="true">sens</span>
@@ -378,6 +387,8 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
               <span className="rg-hd__tag">{driving ? "robot frame" : "mirror"}</span>
             </span>
           </div>
+          {/* How to use it: four steps for a first-timer (HowTo.tsx), folded away and remembered. */}
+          {howto.box}
           {driving ? (
             <div className="rg-cam__media">
               <DrivePanel session={session} />
@@ -466,12 +477,22 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
                   soft floor
                 </label>
                 <span className="rg-hd__tag" data-mode={twin.mode}>
-                  {twin.mode}
+                  {twin.mode === "live" ? "live" : "example"}
                 </span>
               </span>
             </div>
             <div className="rg-twin3d">
               <RobotTwin {...twin.view} caption={twin.caption} aids facing={facing} interactive={!mouse} />
+              {/* The idle replay is an example, not you (2026-10-27: visitors thought it was them). Gone once live. */}
+              {twin.mode === "replay" && (
+                <p className="rg-example" role="note">
+                  <b>Example</b>
+                  <span>
+                    {" · a verified demo replaying. "}
+                    {streaming ? "Yours appears here once the simulator connects." : "Yours appears here when you Start."}
+                  </span>
+                </p>
+              )}
               {twin.mode === "live" && <ContactBar contact={twin.view.contact} peakN={sim?.contactPeakN ?? null} floor={twin.floor} />}
               {mouse && !mouseLocked && (
                 <div className="rg-take">
@@ -565,6 +586,8 @@ export function RecordView({ session, onPalette }: { session: RecordSession; onP
 
       <RecordSettings id={DRAWER_ID} open={drawer} onClose={closeDrawer} session={session} />
       <ScenePicker id={SCENES_ID} open={scenesOpen} onClose={() => setScenesOpen(false)} session={session} />
+      {/* The first-visit tour (tour/RecordTour.tsx): six cards ringing the real things above; "? Tour" replays it. */}
+      <RecordTour streaming={streaming} />
     </div>
   );
 }

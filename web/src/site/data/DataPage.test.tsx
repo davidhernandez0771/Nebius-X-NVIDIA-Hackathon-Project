@@ -135,13 +135,16 @@ describe("the data page", () => {
     expect(within(row).getByText("−1.42 s")).toBeTruthy();
   });
 
+  // Flaky in the full suite under load (about 1 run in 3, polish 2026-10-27): the page's fetches and the click's
+  // episode load can take longer than findBy*'s default 1 s when many files run at once. Same checks, more time.
   it("shows the variants with their badges, and one in the right view on a click", async () => {
+    const slow = { timeout: 8000 };
     page();
-    expect(await screen.findByText("Multiplied variants: 1 of 2 verified")).toBeTruthy();
-    expect(screen.getByText("Physics: failed (dropped the cube)")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Show Variant 3101 in the right view" }));
-    expect(await screen.findByRole("heading", { name: "Variant 3101" })).toBeTruthy();
-  });
+    expect(await screen.findByText("Multiplied variants: 1 of 2 verified", undefined, slow)).toBeTruthy();
+    expect(await screen.findByText("Physics: failed (dropped the cube)", undefined, slow)).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Show Variant 3101 in the right view" }, slow));
+    expect(await screen.findByRole("heading", { name: "Variant 3101" }, slow)).toBeTruthy();
+  }, 20000);
 
   it("features tonight's experiments and keeps the others behind Show all", async () => {
     const f = vi.fn(async (url: string) => {

@@ -167,7 +167,7 @@ export function HubTags() {
       {holo ? <HubHolograms texts={texts} wraps={wrap} quality={quality} /> : null}
       {TAGS.map((t, i) => (
         <Html key={t.id} position={holo ? holoTag(t.id).anchor : at[t.id]} center={!holo} zIndexRange={[20, 10]} portal={hubTagLayer as MutableRefObject<HTMLElement>}>
-          <div ref={(el) => el && (wrap.current[i] = el)} className="world-hubtag" data-on="false" data-holo={holo} data-first={tutorial && t.id === "shelf"}>
+          <div ref={(el) => el && (wrap.current[i] = el)} className="world-hubtag" data-hub={t.id} data-on="false" data-holo={holo} data-first={tutorial && t.id === "shelf"}>
             <button
               type="button"
               onClick={() => open(t.id)}

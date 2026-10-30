@@ -19,6 +19,7 @@ import { OUT, placeUniforms, surfaceFrag, surfaceMaterial } from "./placeShaders
 const [AX, AZ] = CAVERN.axis;
 const TEAL = new THREE.Color("#19f5c2");
 const WARM = new THREE.Color("#ff9a4a");
+const WHITE = new THREE.Color(1, 1, 1);
 
 export interface ReactorState {
   /** The reactor's light: its place light, gone dark again as the descent bursts THE RING. */
@@ -54,32 +55,98 @@ void main(){
   ${OUT}
 }`;
 
+// The core (polish, 2026-10-27, the user: "make the ring/reactor inside more realistic"). Outside, a glass column of
+// light (the bands flowing up it). Inside, what you see looking down the well from THE RING and diving in: a steel
+// liner of stacked rings and vertical seams, slots between the seams where the plasma shows, all lit more the deeper
+// it goes (the glow falls off up the well, not one flat colour), the light catching the liner's lips; and at the foot
+// the source, a hot disc that is white at the middle and teal at its rim, turning slowly, with rings of heat running
+// out from its middle. The colours stay the brand's teal and white (no green, no eye).
 const coreFrag = /* glsl */ `
-uniform float uPower, uFlow; uniform vec3 uTeal;
-void main(){
-  vec3 v = normalize(cameraPosition - vW);
-  float fres = pow(max(1. - abs(dot(normalize(vN), v)), 0.), 2.);
-  float bands = fbm2(vec2(vUv.x * 9., vW.y * .32 - uFlow));
-  float streak = smoothstep(.5, .9, bands);
-  float lit = .04 + uPower * (.4 + .6 * streak);
-  vec3 c = mix(uTeal, vec3(1.), .2 + .45 * uPower) * lit;
-  c += vec3(.25, .4, .42) * fres * (.05 + .3 * uPower);
-  gl_FragColor = vec4(place(c, vW), 1.);
-  ${OUT}
-}`;
-
-const metalFrag = /* glsl */ `
-uniform float uPower; uniform vec2 uAxis; uniform vec3 uTeal;
+uniform float uPower, uFlow; uniform vec2 uAxis; uniform vec3 uTeal;
+const float CB = ${CORE.bottom.toFixed(2)}, CT = ${CORE.top.toFixed(2)}, CR = ${CORE.radius.toFixed(3)};
 void main(){
   vec3 n = normalize(vN);
   vec3 v = normalize(cameraPosition - vW);
-  vec3 toAxis = vec3(uAxis.x, vW.y, uAxis.y) - vW;
+  vec3 hot = mix(uTeal, vec3(1.), .55);
+  vec3 c;
+  // Light made inside the well (not fogged: the cavern's mist is outside it).
+  vec3 e = vec3(0.);
+  if (abs(n.y) > .5) {
+    // The source: a radial falloff from a white-hot middle to a teal rim, slow swirls and heat rings running out.
+    vec2 q = (vW.xz - uAxis) / CR;
+    float r = length(q);
+    float a = atan(q.y, q.x);
+    float swirl = fbm2(vec2(a * 2.2 + r * 3. - uFlow * .35, r * 5. - uFlow * .6));
+    float rings = pow(max(.5 + .5 * sin(r * 26. - uFlow * 4.), 0.), 6.) * (1. - r);
+    float core = exp(-r * r * 6.);
+    float k = (.05 + uPower) * (.5 * core + .25 * (.6 + .8 * swirl) * (1. - r * r) + .3 * rings);
+    // The rim, where the liner meets it: dark.
+    c = vec3(.004, .005, .006);
+    e = mix(uTeal, vec3(1.), .25 + .6 * core) * k * smoothstep(1., .86, r);
+  } else if (gl_FrontFacing) {
+    // Outside: the glass column of light.
+    float fres = pow(max(1. - abs(dot(n, v)), 0.), 2.);
+    float bands = fbm2(vec2(vUv.x * 9., vW.y * .32 - uFlow));
+    float streak = smoothstep(.5, .9, bands);
+    float lit = .04 + uPower * (.4 + .6 * streak);
+    c = mix(uTeal, vec3(1.), .2 + .45 * uPower) * lit;
+    c += vec3(.25, .4, .42) * fres * (.05 + .3 * uPower);
+  } else {
+    // Inside: the liner. h is how far up the well (0 the source, 1 the mouth).
+    float h = clamp((vW.y - CB) / (CT - CB), 0., 1.);
+    float deep = (1. - h) * (1. - h);
+    float ring = fract(vW.y / 1.15);
+    float lip = smoothstep(.0, .05, ring) * smoothstep(.16, .05, ring);
+    float seamX = fract(vUv.x * 24.);
+    float seam = smoothstep(.04, 0., min(seamX, 1. - seamX));
+    float slot = step(.42, seamX) * step(seamX, .58) * step(.3, ring) * step(ring, .85);
+    float plasma = smoothstep(.35, .85, fbm2(vec2(vUv.x * 30., vW.y * .5 - uFlow * 1.4)));
+    // Steel, darker at the seams, picking up the source's light more the deeper it is.
+    vec3 steel = vec3(.009, .010, .012) * (.65 + .7 * fbm2(vec2(vUv.x * 60., vW.y * 3.)));
+    c = steel * (1. - .5 * seam);
+    e = hot * steel * 30. * deep * (.1 + uPower);
+    // The lips of the rings catch the light from below; the slots show the plasma behind.
+    e += hot * lip * (.015 + .35 * uPower) * (.2 + .8 * deep);
+    e += mix(uTeal, vec3(1.), .3) * slot * (.03 + uPower * (.25 + .75 * plasma)) * (.25 + .75 * deep);
+    // A soft spill of glow up the well over everything.
+    e += uTeal * (.004 + .06 * uPower) * deep;
+  }
+  gl_FragColor = vec4(place(c, vW) + e * uLight, 1.);
+  ${OUT}
+}`;
+
+// The steel (the plinth, the cap's collar, the cage's ribs, the cable clamps): brushed panels with seams and a bolt at
+// each corner, the core's light on the faces turned to it with a highlight that moves as the camera goes round, and on
+// the collar's top (the mouth of the well, under THE RING) a glowing lip where the light spills over.
+const metalFrag = /* glsl */ `
+uniform float uPower; uniform vec2 uAxis; uniform vec3 uTeal;
+const float CT = ${CORE.top.toFixed(2)}, CR = ${CORE.radius.toFixed(3)};
+void main(){
+  vec3 n = normalize(vN);
+  vec3 v = normalize(cameraPosition - vW);
+  vec3 toAxis = vec3(uAxis.x, clamp(vW.y, ${CORE.bottom.toFixed(2)}, CT), uAxis.y) - vW;
   float d = length(toAxis);
-  float face = max(0., dot(n, toAxis / max(d, .001)));
-  vec3 c = vec3(.006, .0065, .0075) * (.7 + .6 * fbm3(vW * 3.));
-  c += uTeal * face * (.01 + uPower * .35) / (1. + d * d * .15);
+  vec3 l = toAxis / max(d, .001);
+  float face = max(0., dot(n, l));
+  // Panels: a grid round the axis and up, seams between, a bolt in each corner; brushed along y.
+  vec2 rel = vW.xz - uAxis;
+  float around = atan(rel.y, rel.x) * 3.8197;
+  vec2 cell = fract(vec2(around, vW.y / 1.6));
+  float seam = smoothstep(.025, 0., min(min(cell.x, 1. - cell.x), min(cell.y, 1. - cell.y)));
+  float bolt = smoothstep(.06, .035, length(min(cell, 1. - cell) - vec2(.07)));
+  float brushed = .7 + .5 * fbm2(vec2(around * 40., vW.y * 1.2)) + .15 * vn2(vec2(around * 300., vW.y * 2.));
+  vec3 c = vec3(.006, .0065, .0075) * brushed * (1. - .45 * seam) + vec3(.03, .034, .038) * bolt;
+  // The core's light: diffuse on the faces turned to it, falling off with distance, and a tight highlight.
+  float fall = 1. / (1. + d * d * .15);
+  c += uTeal * face * (.01 + uPower * .35) * fall;
+  vec3 hv = normalize(l + v);
+  c += mix(uTeal, vec3(1.), .5) * pow(max(dot(n, hv), 0.), 48.) * (.02 + uPower * .5) * fall * brushed;
   c += vec3(.03, .04, .045) * pow(max(1. - max(0., dot(n, v)), 0.), 3.) * (.3 + .7 * uPower);
   c += vec3(.02, .025, .028) * max(0., n.y);
+  // The collar's top: the light spilling over the mouth of the well, brightest at its inner edge.
+  float top = step(.9, n.y) * step(CT + .3, vW.y) * step(vW.y, CT + .8);
+  float lipR = 1. - smoothstep(CR, CR + .45, length(rel));
+  c += mix(uTeal, vec3(1.), .4) * top * lipR * lipR * (.02 + .6 * uPower);
   gl_FragColor = vec4(place(c, vW), 1.);
   ${OUT}
 }`;
@@ -326,20 +393,29 @@ function makeTheRing(low: boolean, env: THREE.Texture) {
     emissiveIntensity: 0,
   });
   const tube = { value: 1 };
+  // The core's light on it from below and from inside the ring (its underside and inner face), as the power climbs.
+  const glow = { value: new THREE.Color(0, 0, 0) };
   mat.onBeforeCompile = (s) => {
     s.uniforms.uTube = tube;
-    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTube;").replace(
+    s.uniforms.uCoreGlow = glow;
+    s.vertexShader = s.vertexShader.replace("#include <common>", "#include <common>\nuniform float uTube;\nvarying float vUnder;").replace(
       "#include <begin_vertex>",
       `#include <begin_vertex>
   vec3 ringC = vec3(normalize(transformed.xy) * ${RING.radius.toFixed(3)}, 0.0);
-  transformed = ringC + (transformed - ringC) * uTube;`,
+  transformed = ringC + (transformed - ringC) * uTube;
+  // Local z is up once the ring lies flat: its underside and its inner face look at the core.
+  vUnder = clamp(-objectNormal.z, 0., 1.) * .7 + clamp(-dot(objectNormal.xy, normalize(ringC.xy)), 0., 1.) * .45;`,
+    );
+    s.fragmentShader = s.fragmentShader.replace("#include <common>", "#include <common>\nuniform vec3 uCoreGlow;\nvarying float vUnder;").replace(
+      "#include <emissivemap_fragment>",
+      "#include <emissivemap_fragment>\n  totalEmissiveRadiance += uCoreGlow * vUnder * vUnder;",
     );
   };
   const geo = new THREE.TorusGeometry(RING.radius, RING.tube, low ? 24 : 48, low ? 96 : 200);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = "intro:the-ring";
   mesh.raycast = () => {};
-  return { mesh, mat, tube, dispose: () => (geo.dispose(), mat.dispose()) };
+  return { mesh, mat, tube, glow, dispose: () => (geo.dispose(), mat.dispose()) };
 }
 
 export interface ReactorHandle {
@@ -479,6 +555,8 @@ export function useReactor(quality: QualityTier): ReactorHandle {
         ring.tube.value = 1 - s.burst;
         ring.mat.envMapIntensity = 0.9 * s.ringLight;
         ring.mat.emissiveIntensity = (0.02 + 0.14 * p * p) * s.ringLight * (1 - s.burst);
+        // Lit from the core below, fading as it lifts away (and gone as it bursts).
+        ring.glow.value.copy(TEAL).lerp(WHITE, 0.5).multiplyScalar(0.2 * p * p * s.ringLight * (1 - s.burst) * (1 - 0.5 * s.lift));
         ring.mat.iridescenceThicknessRange[1] = 700 + 220 * Math.sin(s.time * 0.7);
         ring.mesh.visible = s.ringLight > 0 && s.burst < 0.999;
         // The rest of the reactor only while its light is up.

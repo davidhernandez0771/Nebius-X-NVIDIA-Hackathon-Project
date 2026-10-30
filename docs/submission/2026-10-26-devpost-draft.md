@@ -1,4 +1,4 @@
-# SANT: Devpost submission draft, in the form's fields (2026-10-26)
+# SANT: Devpost submission draft, in the form's fields (2026-10-26, updated 2026-10-27)
 
 <!-- For the user to paste into Devpost. The deadline is Fri 2026-10-30, 10:00 a.m. PDT.
      This version supersedes 2026-10-21-devpost-draft.md (kept for history): every TODO (RESULT) is now filled from the
@@ -114,6 +114,11 @@ through a webcam, the keyboard or the mouse. A 3D twin shows the arm from behind
 pre-registered before it ran. Imitating the raw demos alone gave **0/40**.
 <!-- src: 2026-10-23-bigtest-prereg.md (30/40 on 5400–5439); 2026-10-20-mouse20261020-results.md (raw 0/40 on
      5020–5059). Different seeds: a descriptive comparison. -->
+
+**See it:** the site opens with the same scene played twice, side by side: the robot that copied the raw demos
+fumbles, and the SANT robot picks the cube and drops it in the bin. Those scenes were picked to show the difference, and
+the page says so. The test track replays all 40 real test runs, the 10 failures included. A four-step guided tour
+shows a first-time visitor where to record, where SANT checks and multiplies, and where the proof is.
 
 **The rule:** the AI proposes, code checks, physics decides. The model never moves the robot, and it never overrules
 the physics check.
@@ -346,8 +351,13 @@ These already exist in the repo. Two caveats:
 | 14 | The pipeline page: the teacher recipe | `2026-10-20-live-13-merge/pipeline-teacher-5173.jpg` |
 | 15 | Raw vs perfected demo in Isaac Lab (GIF → still) | `docs/media/s1_0002_raw_vs_perfected.gif` (outside `notes/`) |
 
-**Swap shot 12 (and maybe 13) for the new Results proof section** (the climb 0 → 3 → 15 → 30 of 40, and the
-with/without-demos curve). It's being built on `pm/site-results-proof`. Shoot it once it's merged.
+**Swaps for the final set (2026-10-27):** these are all merged now, on the real GPU at `?q=high`.
+- **Make the LOOK clip shot 1** (`/look`, the two robots mid-run, with the caption and the "illustrative replay"
+  kicker visible). Shoot it once its data is committed.
+- **Swap shot 12 for the Results proof section** (the climb 0 → 3 → 15 → 30 of 40).
+- **Swap shot 13 for the proof wall** in the workshop (`#proof`).
+- **Re-shoot shot 3:** the reactor's inside is new (the steel well).
+- **Optional:** one tour card in the room, to show the site teaches itself.
 
 **Optional:** an Isaac Lab frame of the v2 student succeeding. The final test saved traces in
 `C:\dev\pm-t6-big\data\evals\bigtest_test\bigtest_final_traces`, so a test-track replay can render one without new
@@ -355,33 +365,14 @@ training.
 
 ## Demo video (≤ 3 minutes reviewed)
 
-The full shot list, with the rules for what can be on screen, is `docs/submission/video_script.md`. Update it on the day
-of recording for:
-- **The hero:** shot 1 is now the tesseract hero and the real loader, not the glass logo.
-- **Lead with the result (the judges' "fast aha"):** put 30/40 on screen by 0:25, not at the end.
-- **The teacher beat, about 15 s:** "An RL teacher learns in Isaac Lab, starting from the verified human demos. It's
-  distilled into a camera policy, which scores 30 of 40 on scenes it has never seen. Without the human demos, the same
-  teacher learned nothing."
-  - Show the test-track replay of the final test if it's built. Otherwise use the Results proof chart.
-- **Token Factory:** a mention in the Nemotron shot. "Every Nemotron call runs on Nebius Token Factory: about 480
-  calls and about a dollar for the whole project." Confirm the number first (see the feedback below).
-- **Time:** to stay under 3:00, cut shot 4 (the ring, 10 s) and shorten shot 5 (the robot wall) to 6 s.
+The full shot list, with the rules for what can be on screen, is `docs/submission/video_script.md` (v4, 2026-10-27).
+It opens on the side-by-side LOOK clip (same scene: the raw-imitation robot vs the SANT robot, labelled as an
+illustrative replay), has 30/40 on screen by 0:28, and keeps the honest beats: the no-demo control, SANT catching the
+teacher, the real test runs with their failures, Nemotron's actual role. The earlier condensed plan that stood here is
+superseded by v4 and is in git history.
 
-The condensed plan:
-
-| Time | Picture | Voice-over (gist) |
-|---|---|---|
-| 0:00–0:10 | Loader → tesseract hero | "Robots learn by copying people. We gave one 10 sloppy mouse demos." |
-| 0:10–0:25 | Results proof chart: 0 → 3 → 15 → **30 of 40** | "Imitating them directly: 0 out of 40. After SANT: 30 out of 40 on scenes it had never seen, in a test we registered before running it." |
-| 0:25–0:45 | Forest → reactor: S·A·N·T | "SANT checks every demo in Isaac Lab physics, repairs what fails and multiplies what passes. It even caught our own RL teacher cheating at 1.7 m/s." |
-| 0:45–1:00 | Workshop → robot wall → drag a cartridge onto the machine → hologram | "A cartridge is a job. The machine replays a real, physics-checked demo." |
-| 1:00–1:30 | `/record`: keyboard or webcam, three twin views, grid, save | "Drive the simulated arm with your hand, keyboard or mouse." |
-| 1:30–2:05 | Cards: 0/10 as recorded → one Nemotron plan → the A/B with its re-run | "Nemotron, on Nebius Token Factory, reads the simulator's measurements and writes path edits. Code caps them; physics decides. 5/10 vs 3/10, then 2/10 vs 3/10: it adds to the rules." |
-| 2:05–2:35 | Results proof: the with/without-demos curve (113/128 vs 0/128), then the "what didn't work" list | "Without the human demos, the same teacher learned nothing. And here's what failed. We publish all of it." |
-| 2:35–2:52 | Test track: the v2 student's real test runs (or the climb chart) | "One test, run once: 30 of 40." |
-| 2:52–3:00 | Back to the hero, repo URL | "Perfect one demo, then multiply it." |
-
----
+**Token Factory:** a mention in the Nemotron shot. "Every Nemotron call runs on Nebius Token Factory." Add the call
+count and cost only after confirming them (see the feedback below).
 
 # ADDITIONAL INFO
 
@@ -417,15 +408,18 @@ TODO (USER): confirm no earlier private repo or prototype existed.
 
 https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
 
-**Requirements checked on `pm/live-13`:**
+**Requirements checked on `pm/live-14` (2026-10-27):**
 - **An OSI license:** `LICENSE` is MIT. ✓
 - **A README with setup:** "Run it" points to `docs/RUNBOOK.md` §2, which covers a fresh Windows setup: the SANT
   venv, Isaac Sim + Isaac Lab, LeRobot, Node, the MediaPipe files and `DATA_DIR`. `.env` is set up from
   `.env.example` with `NEBIUS_API_KEY`. ✓
 - **The README must highlight Nemotron/NVIDIA models, where Token Factory accelerated the workflow, and any other
-  Nebius tools.** Partly; see the gaps below.
+  Nebius tools.** ✓ The README has "The models: what each one does, and why that size", "Where Nebius Token Factory
+  accelerated the workflow", "Nebius tools used" (Token Factory only) and "The NVIDIA stack". `/pm/review` exists.
 
-**README gaps** (to fix before submitting):
+<details><summary>The gaps found on 2026-10-26, all fixed in the README since</summary>
+
+
 1. **There is no "where Token Factory accelerated the workflow" text.** README §"Where NVIDIA Nemotron fits" has one
    line ("runs on Nebius Token Factory … well under 1 cent per call") and nothing on how it helped. Suggested points:
    - a 120B model and a VL model with no GPU of our own, while our one GPU ran Isaac Lab all day;
@@ -444,6 +438,8 @@ https://github.com/davidhernandez0771/Nebius-X-NVIDIA-Hackathon-Project
    (rsl_rl PPO) appear across sections. A short "NVIDIA stack" list would help judges.
 5. **The run commands mention `/pm/record` and `/pm/review`.** `/pm/record` redirects to `/record`, so it works, but
    the current page is `/record`. I didn't check `/pm/review`.
+
+</details>
 
 ## Working demo URL
 
@@ -572,7 +568,7 @@ TODO (USER).
 
 ## AI tools used to build it
 
-**SUGGESTED:** Claude Code (Anthropic's Claude Opus models). 732 of the repo's 845 commits are co-authored with it: code, tests,
+**SUGGESTED:** Claude Code (Anthropic's Claude Opus models). 1,010 of the repo's 1,127 commits (on `pm/live-14`, 2026-10-27) are co-authored with it: code, tests,
 notes, parallel worktrees. NVIDIA Nemotron runs inside the product. TODO (USER): add any others you used.
 
 ## Learning level

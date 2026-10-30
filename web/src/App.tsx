@@ -45,6 +45,9 @@ const RobotsPage = lazy(() => import("./site/robots/RobotsPage"));
 // The data showcase: real demos through SANT, in the twin and the sim's camera, and SANT working live.
 const DataPage = lazy(() => import("./site/data/DataPage"));
 const TestTrackPage = lazy(() => import("./site/testtrack/TestTrackPage"));
+// The LOOK clip alone (the hero and /site/results embed <LookClip /> from ./site/lookclip/LookClip).
+const LookClipPage = lazy(() => import("./site/lookclip/LookClipPage"));
+const FilmPage = lazy(() => import("./site/film/FilmPage"));
 const AnalysisPage = lazy(() => import("./site/analysis/AnalysisPage"));
 // Every pre-registered number as a lit 3D scene, with 2D charts and a no-WebGL fallback.
 const MetricsPage = lazy(() => import("./site/metrics/MetricsPage"));
@@ -72,6 +75,15 @@ export default function App() {
       <Routes>
         {/* Hand v4's hand-art preview (live tooling, not archived). */}
         <Route path="/pm/hand-art" element={<HandArtPreviewRoute />} />
+        {/* The demo film (video/README.md): its own full-screen stage, outside the site's frame. */}
+        <Route
+          path="/film"
+          element={
+            <Suspense fallback={null}>
+              <FilmPage />
+            </Suspense>
+          }
+        />
         <Route element={<SantRoot />}>
           <Route path="/" element={lazyPage(<World />)} />
           <Route path="/world" element={lazyPage(<World />)} />
@@ -84,6 +96,7 @@ export default function App() {
           <Route path="/robots" element={lazyPage(<RobotsPage />)} />
           <Route path="/data" element={lazyPage(<DataPage />)} />
           <Route path="/test-track" element={lazyPage(<TestTrackPage />)} />
+          <Route path="/look" element={lazyPage(<LookClipPage />)} />
           <Route path="/analysis" element={lazyPage(<AnalysisPage />)} />
           <Route path="/metrics" element={lazyPage(<MetricsPage />)} />
           <Route path="/flow" element={lazyPage(<FlowPage />)} />

@@ -176,7 +176,8 @@
 
 .rg-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  /* Run SANT sits just after the crumb (the user, 2026-10-28: it floated alone in the middle), not centred. */
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
   min-width: 0;
@@ -254,6 +255,22 @@
   align-items: center;
   font-size: 11px;
   color: var(--rg-ink-3);
+}
+
+/* Run SANT, the one way on from Record: lit teal like "? How to" when open, with a faint fill so it reads as the
+   page's main action. */
+.rg .rg-run {
+  margin-left: 8px;
+  color: var(--rg-live);
+  border-color: var(--rg-live);
+  background: rgba(25, 245, 194, 0.08);
+  font-weight: 600;
+}
+
+.rg .rg-run:hover,
+.rg .rg-run:focus-visible {
+  color: var(--rg-ink);
+  background: rgba(25, 245, 194, 0.18);
 }
 
 .rg-steps__item {
@@ -1279,7 +1296,7 @@
 
   .rg-steps {
     flex: 1 0 auto;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .rg-right {
@@ -1767,4 +1784,140 @@
 .rg-plan__label {
   font: 400 22px var(--rg-mono);
   fill: var(--rg-ink-3);
+}
+
+/* ------------------------------------------------------------------ how to use it (HowTo.tsx) */
+
+/* Four steps for a first-timer, a strip across the top of the camera pane under the input switch (the first step
+   names it), over the pane's empty top: two steps a row, one line each, clear of the key table under it. Open on a
+   first visit, folded by Hide or the header's "? How to", and remembered. Below 960 px it is in the pane's flow. */
+.rg-howto {
+  position: absolute;
+  top: 38px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  box-sizing: border-box;
+  padding: 8px 12px 10px;
+  display: grid;
+  gap: 6px;
+  color: var(--rg-ink-2);
+  background: rgba(10, 17, 19, 0.95);
+  border: 1px solid var(--rg-hair-hi);
+  border-radius: 2px;
+}
+
+.rg-howto[hidden] {
+  display: none;
+}
+
+.rg-howto__hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rg .rg-howto__title {
+  margin: 0;
+  font: 500 11px var(--rg-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rg-live);
+}
+
+.rg-howto__steps {
+  margin: 0;
+  padding-left: 1.6em;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  gap: 3px 28px;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.rg-howto__steps b {
+  color: var(--rg-ink);
+  font-weight: 500;
+}
+
+.rg-howto__toggle[aria-expanded="true"] {
+  color: var(--rg-live);
+  border-color: var(--rg-hair-hi);
+}
+
+@media (max-width: 960px) {
+  .rg-howto {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    margin: 38px 12px 0;
+  }
+
+  .rg-howto__steps {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-flow: row;
+    grid-template-rows: none;
+  }
+
+  /* The drive panel clears the pane's header with its own top padding; under the box it needn't. */
+  .rg-cam:has(.rg-drive) .rg-howto:not([hidden]) + .rg-cam__media {
+    padding-top: 14px;
+  }
+}
+
+/* ------------------------------------------------------------------ the idle replay is an example (2026-10-27) */
+
+/* Until a live session, the twin replays a verified demo, and visitors took it for themselves. A tag on the view says
+   so in plain words, amber (not live), top right of the main view, clear of its "behind the robot" tag. It lets the
+   twin's drag through. Gone once the sim streams (RecordConsole: twin.mode === "replay"). */
+.rg-example {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  max-width: min(330px, 68%);
+  margin: 0;
+  padding: 5px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--rg-ink);
+  background: rgba(10, 17, 19, 0.88);
+  border: 1px solid rgba(255, 176, 0, 0.55);
+  border-left-width: 3px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.rg-example b {
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rg-hold);
+}
+
+.rg-hd__tag[data-mode="replay"] {
+  color: var(--rg-hold);
+}
+
+/* ------------------------------------------------------------------ narrow: Run SANT, and room for "? Tour" */
+
+@media (max-width: 960px) {
+  /* The S·A·N·T strip that this hid is gone (2026-10-27); what is left is Run SANT, the one way on: a phone gets it,
+     on its own line under the crumb. */
+  .rg-steps {
+    display: flex;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  /* The camera pane's header is the input switch, "? How to" and "? Tour": its "robot frame" / "mirror" tag goes. */
+  .rg-cam > .rg-hd .rg-hd__tag {
+    display: none;
+  }
 }

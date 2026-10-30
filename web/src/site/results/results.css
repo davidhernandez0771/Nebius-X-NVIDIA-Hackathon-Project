@@ -618,6 +618,101 @@
   overflow-wrap: anywhere;
 }
 
+/* ------------------------------------------------------------------ the holo page (2026-10-28) */
+
+/* The page now sits in HoloPage (the work pages' dark frame, like Record and Pipeline) instead of the cream Field
+   Notes shell: one column, centred, the proof band's fonts (Instrument Serif titles, Geist text, mono numbers). */
+.sant-results--holo {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--sant-space-6) 0 var(--sant-space-9);
+  color: var(--holo-ink);
+}
+
+.sant-results--holo .sant-results__title {
+  font-family: var(--holo-serif);
+  font-size: clamp(2.5rem, 1.6rem + 3.2vw, 4.5rem);
+  color: var(--holo-ink);
+}
+
+.sant-results--holo .sant-results__kicker {
+  font-family: var(--holo-mono);
+  color: var(--holo-teal);
+}
+
+.sant-results--holo .sant-lede,
+.sant-results--holo .sant-margin-note,
+.sant-results--holo .sant-results__finding {
+  color: var(--holo-ink-2);
+}
+
+.sant-results--holo .sant-cite a {
+  color: inherit;
+  text-decoration-color: var(--holo-line);
+  text-underline-offset: 2px;
+}
+
+/* See it run: the two ways on from the headline. */
+.sant-results__next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sant-space-3);
+  margin-top: var(--sant-space-2);
+}
+
+.sant-results__go {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--sant-space-4);
+  border: 1px solid var(--holo-line);
+  border-radius: 2px;
+  font: 500 13px/1 var(--holo-mono);
+  letter-spacing: 0.04em;
+  color: var(--holo-ink);
+  text-decoration: none;
+  transition: border-color var(--sant-dur-2), background-color var(--sant-dur-2);
+}
+
+.sant-results__go:first-child {
+  border-color: var(--holo-teal);
+  color: var(--holo-teal);
+  background: rgba(25, 245, 194, 0.08);
+}
+
+.sant-results__go:hover,
+.sant-results__go:focus-visible {
+  border-color: var(--holo-teal);
+  background: rgba(25, 245, 194, 0.16);
+}
+
+/* The earlier experiments: one band under a hairline, its sections a step quieter than the proof. */
+.sant-results__band {
+  display: grid;
+  gap: var(--sant-space-8);
+  padding-top: var(--sant-space-8);
+  border-top: 1px solid var(--holo-line-dim);
+}
+
+.sant-results--holo .sant-section-header h2,
+.sant-results--holo .sant-section-header h3 {
+  font-family: var(--holo-serif);
+  color: var(--holo-ink);
+}
+
+.sant-results--holo .sant-results__ledger th,
+.sant-results--holo .sant-results__ledger td {
+  border-color: var(--holo-line-dim);
+}
+
+.sant-results--holo .sant-results__sources code {
+  font-family: var(--holo-mono);
+  color: var(--holo-ink-2);
+}
+
+.sant-results--holo .sant-proof__head {
+  max-width: 52rem;
+
 /* ------------------------------------------------------------------ the page in the holo look (2026-10-29)
    The page wears the work pages' void and cutting-mat grid (holo.css), so going from the home page's 3D story to
    the numbers doesn't drop into a different site. The lead is the test itself: SceneGrid.tsx, one cell per scene. */

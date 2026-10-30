@@ -77,6 +77,14 @@
   font-size: clamp(24px, 2.7vw, 40px);
 }
 
+/* The graphs' data tables for screen readers (.world-sr): a table ignores the 1 px box, and where it sat (under the
+   graph) its full height ran past the panel's foot and made the screen scroll. Pinned to the screen's top corner it
+   stays inside (still clipped to nothing). */
+.world-proof .world-proof__screen .world-sr {
+  top: 0;
+  left: 0;
+}
+
 /* The head says what the figure is: its title stays for screen readers. */
 .world-proof .intro-pbeat__figure-title {
   position: absolute;
@@ -226,6 +234,83 @@
 
   .world-proof[data-on="true"] .world-proof__screen {
     animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ fitting the wall's screen (landscape) */
+
+/* On the wall's screen (polish, 2026-10-27): every panel fits without scrolling down to 1280 x 720 (it scrolled a little
+   on the climb and the teacher). On the three data panels the head sits over the summary in the left column, so the
+   graph takes the full height on the right (a subgrid: the figure shares the panel's rows); the links sit beside the
+   steps (wrapping to the right when the row is short); and on shorter screens the head and the spacing tighten. The
+   screen still scrolls if a smaller one needs it. */
+@media (min-width: 901px) {
+  .world-proof__panel:is([data-panel="climb"], [data-panel="teacher"], [data-panel="gate"]) {
+    grid-template-columns: minmax(0, 19.5rem) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    column-gap: 28px;
+  }
+
+  .world-proof__panel:is([data-panel="climb"], [data-panel="teacher"], [data-panel="gate"]) > .intro-pbeat__head-block {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .world-proof .world-proof__panel:is([data-panel="climb"], [data-panel="teacher"], [data-panel="gate"]) > .intro-pbeat__figure {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    grid-template-columns: subgrid;
+    grid-template-rows: subgrid;
+    grid-template-areas:
+      ". graph"
+      "summary graph"
+      "caption graph";
+  }
+
+  .world-proof__panel:is([data-panel="climb"], [data-panel="teacher"], [data-panel="gate"]) .intro-pbeat__graph {
+    align-self: center;
+  }
+
+  .world-proof__foot {
+    flex-wrap: nowrap;
+    gap: 8px 20px;
+  }
+
+  .world-proof__nav {
+    flex: none;
+  }
+
+  .world-proof .world-proof__links {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    gap: 0 18px;
+  }
+
+  .world-proof .world-proof__links .intro-pbeat__link {
+    padding: 3px 0;
+  }
+}
+
+@media (min-width: 901px) and (max-height: 820px) {
+  .world-proof .world-proof__screen {
+    gap: 10px;
+    padding: 14px 22px 10px;
+  }
+
+  .world-proof__panel {
+    row-gap: 10px;
+  }
+
+  .world-proof .world-proof__head {
+    font-size: clamp(22px, min(2.7vw, 4.4vh), 40px);
+  }
+
+  .world-proof .intro-pbeat__kicker {
+    margin-bottom: 4px;
+  }
+
+  .world-proof__foot {
+    padding-top: 8px;
   }
 }
 

@@ -25,6 +25,7 @@ import "./world.css";
 import "../ui/ui.css";
 import { Logo } from "../../sant/components/Logo";
 import { Contact } from "../ui/Contact";
+import { GuideHelp, GuideLayer } from "../guide/Guide";
 import { Wait } from "../ui/Wait";
 import { assets } from "./assets";
 import { isStanding } from "./standing";
@@ -197,7 +198,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
       goTo(id) {
         const m = stations.find((s) => s.id === id);
         if (!m) return;
-        // Anywhere else lets go of a held shot (the shelf, a detail view, the tour): Back lands in the room view.
+        // Anywhere else lets go of a held shot (the shelf, a detail view): Back lands in the room view.
         store.setOverride(null);
         if (m.kind === "branch") {
           // A branch is a place in the workshop's room. Opened from anywhere else on the rail (the journey
@@ -357,7 +358,7 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
   }, [store]);
 
   // The page holds still from one place (pageHold.ts): the loader, an open branch, a held shot (the shelf,
-  // the detail view, the tour), or in 3D the room view once the dive has landed (the room is a game: clicks,
+  // the detail view), or in 3D the room view once the dive has landed (the room is a game: clicks,
   // Escape). It writes whenever the page differs from that answer. "↑ Story" (world:story) goes back to
   // the top, which lets go of it.
   useEffect(() => {
@@ -432,22 +433,25 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
     el.classList.add("is-cut");
   }, []);
 
-  // Skip the intro: the room view at once (a cut behind the veil, not the iris: whoever skips wants to
+  // Skip the intro (and the guide, asked for away from the room): the room view at once (a cut behind the veil, not the iris: whoever skips wants to
   // be there now), with the focus on the workshop, so Tab goes on to its four things to click.
+  const toRoom = useCallback(() => {
+    const y = dwellStart(store.rail, "workshop");
+    if (y === null) return;
+    store.setBranch(null);
+    store.setOverride(null);
+    store.jump(y);
+    scrollToY(y, false);
+    onCut();
+    // The section shows once the store has moved there: focus it after this render.
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.world-station[data-station="workshop"]')?.focus({ preventScroll: true }));
+  }, [store, onCut]);
   const skipIntro = useCallback(
     (e: ReactMouseEvent) => {
       e.preventDefault();
-      const y = dwellStart(store.rail, "workshop");
-      if (y === null) return;
-      store.setBranch(null);
-      store.setOverride(null);
-      store.jump(y);
-      scrollToY(y, false);
-      onCut();
-      // The section shows once the store has moved there: focus it after this render.
-      requestAnimationFrame(() => document.querySelector<HTMLElement>('.world-station[data-station="workshop"]')?.focus({ preventScroll: true }));
+      toRoom();
     },
-    [store, onCut],
+    [toRoom],
   );
 
   const at = coarse.branch ?? coarse.current;
@@ -491,11 +495,15 @@ export default function WorldRoot({ stations = STATIONS, webgl }: { stations?: r
           <Logo size="sm" lit="all" />
           <span className="world-brand__line world-u">perfect, then multiply</span>
         </p>
-        <Contact />
+        <Contact>
+          <GuideHelp />
+        </Contact>
         {run3D ? <Wait store={store} assets={assets} tier={quality.name} reduced={reduced} stands={isStanding} /> : null}
         {/* Over everything, wherever the page opens (a return lands in the workshop, not at the hero). */}
         {run3D ? <Loader /> : null}
         <JourneyRail stations={stations} at={at} goTo={jump} />
+        {/* The first-visit guide: once per browser, in the room view (guide/Guide.tsx). */}
+        <GuideLayer toRoom={toRoom} />
         {run3D ? <Hud store={store} quality={quality} forced={tuning.forced} onTier={setTier} /> : null}
         <div className="world-track" style={{ height: coarse.height }} aria-hidden="true" />
       </div>

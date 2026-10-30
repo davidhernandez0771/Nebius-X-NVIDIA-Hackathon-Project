@@ -10,7 +10,6 @@ import type { HeldShot } from "../../core/types";
 import { setSelected, spiral, stepCount } from "../../scene/spiral";
 import { stepView } from "./camera";
 import { hiddenInstance } from "./drag";
-import { endTour } from "./tour";
 
 /** Wheel distance (px) that makes one step, and the pause between steps so a fling doesn't skip. */
 const WHEEL_STEP = 40;
@@ -54,8 +53,8 @@ export function closeShelf(store: WorldStore): void {
 }
 
 /**
- * The page let go of the held shot (the journey rail, a branch opening, ↑ Story): the shelf, a detail view
- * and the tour end with it. Before, they stayed open underneath: the wheel kept stepping the shelf (and the
+ * The page let go of the held shot (the journey rail, a branch opening, ↑ Story): the shelf and a detail view
+ * end with it (the guide, Ask SANT's tour, closes itself when the room view goes: guide/Guide.tsx). Before, they stayed open underneath: the wheel kept stepping the shelf (and the
  * page never scrolled), the camera stayed on it over the story, and Back from the machine landed on it with
  * none of the room's UI. Returns the unsubscribe.
  */
@@ -64,7 +63,6 @@ export function followRelease(store: WorldStore): () => void {
     if (store.getCoarse().override !== null) return;
     shelf.open = false;
     if (spiral.selected >= 0) setSelected(-1);
-    endTour(store);
   });
 }
 

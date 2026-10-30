@@ -13,11 +13,10 @@ import { stateAt } from "../../twin/replay";
 import { useAsync, type Async } from "../data/hooks";
 import { HoloPage, HoloPanel, HoloRule, HoloTag } from "../holo/Holo";
 import { fetchIndex, fetchRun, type Fetch } from "./api";
+import { useTrackClock } from "./useTrackClock";
 import {
-  advance,
   contactAt,
   contactsAt,
-  END_HOLD_S,
   estimateText,
   factTags,
   keyAction,
@@ -47,37 +46,6 @@ const TRAIL = { hand: "#19F5C2", cube: "#FF8A5C" };
 /** What the wide camera keeps in view: the robot (its base and its height), the cube's and the hand's paths, the bin. */
 function framing(run: TrackRun): Vec3[] {
   return [[0, 0, 0], [0, 0, 0.85], run.bin.pos, ...(run.cubePos ?? []), ...(run.handPos ?? [])];
-}
-
-/** A looping clock at `speed`, ticking at most 30 times a second while playing. */
-function useTrackClock(duration: number, playing: boolean, speed: number): [number, (t: number) => void] {
-  const [t, setT] = useState(0);
-  const now = useRef(0);
-  useEffect(() => {
-    if (!playing || duration <= 0) return;
-    let raf = 0;
-    let last: number | null = null;
-    let shown = 0;
-    const tick = (ms: number) => {
-      now.current = advance(now.current, last === null ? 0 : (ms - last) / 1000, speed, duration, END_HOLD_S);
-      last = ms;
-      if (ms - shown >= 1000 / 30 - 1) {
-        shown = ms;
-        setT(now.current);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, duration, speed]);
-  const seek = useCallback(
-    (v: number) => {
-      now.current = Math.max(0, Math.min(duration, v));
-      setT(now.current);
-    },
-    [duration],
-  );
-  return [t, seek];
 }
 
 function BootConsole({ index, run }: { index: Async<TrackIndex>; run: Async<TrackRun> | null }) {

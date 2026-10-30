@@ -103,6 +103,22 @@ function footprintOf(id: RobotId, pose: Pose): number {
   return (Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2) * HEROIC * 0.85 + 0.2;
 }
 
+/**
+ * The space a laid-down robot takes (m, scaled): the radius of a vertical cylinder round its spot that holds it at any
+ * yaw (half its posed box's diagonal on the ground) and how high it stands out of the moss. The fireflies keep out of
+ * it (fireflyPlan.ts solids).
+ */
+export function robotSolid(s: Pick<RobotSpot, "id" | "pose" | "scale" | "sink">): { radius: number; height: number } {
+  const { min, max } = ROBOT_BOUNDS[s.id];
+  const r = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...POSES[s.pose].lay));
+  const box = new THREE.Box3();
+  for (let i = 0; i < 8; i++) box.expandByPoint(new THREE.Vector3(i & 1 ? max[0] : min[0], i & 2 ? max[1] : min[1], i & 4 ? max[2] : min[2]).applyMatrix4(r));
+  return {
+    radius: (Math.hypot(box.max.x - box.min.x, box.max.z - box.min.z) / 2) * s.scale,
+    height: (box.max.y - box.min.y) * s.scale * (1 - s.sink),
+  };
+}
+
 /** The spots, placed along the walk and nudged (outward, then along) until clear. */
 export function robotSpots(walk: readonly XZ[], forest: readonly Tree[], fallen: readonly Log[], design: readonly SpotDesign[] = DESIGN): RobotSpot[] {
   const ground = walk.slice(Math.floor(walk.length * 0.35));
