@@ -115,7 +115,7 @@ def tokenize(text):
     return tokens
 
 
-def captions(text, words, max_len=44):
+def captions(text, words, max_len=36):
     """The line cut into captions (punctuation kept), each timed by its spoken words (offsets in the line)."""
     tokens = tokenize(text)
     starts, ends, k = [], [], 0
@@ -254,9 +254,9 @@ def main():
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 2\nScaledBorderAndShadow: yes\n\n"
         "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, "
         "Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        "Style: Sub,Segoe UI Semibold,44,&H00F7F8F4,&H00FFFFFF,&H00050402,&H38050402,0,0,0,0,100,100,0,0,3,14,0,2,80,80,58,1\n"
-        "Style: Chapter,Consolas,30,&H00C2F519,&H00FFFFFF,&H10050402,&H10050402,1,0,0,0,100,100,2,0,3,12,0,7,60,60,110,1\n"
-        "Style: Tag,Consolas,24,&H00F7F8F4,&H00FFFFFF,&H10050402,&H10050402,0,0,0,0,100,100,1,0,3,10,0,9,60,60,60,1\n"
+        "Style: Sub,Segoe UI Semibold,58,&H00F7F8F4,&H00FFFFFF,&H00050402,&H38050402,0,0,0,0,100,100,0,0,3,16,0,2,80,80,58,1\n"
+        "Style: Chapter,Consolas,36,&H00C2F519,&H00FFFFFF,&H10050402,&H10050402,1,0,0,0,100,100,2,0,3,12,0,7,60,60,110,1\n"
+        "Style: Tag,Consolas,30,&H00F7F8F4,&H00FFFFFF,&H10050402,&H10050402,0,0,0,0,100,100,1,0,3,10,0,9,60,60,60,1\n"
         "Style: End,Segoe UI Semibold,64,&H00F7F8F4,&H00FFFFFF,&H00050402,&H00050402,0,0,0,0,100,100,2,0,1,0,0,5,80,80,80,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" + "\n".join(ev) + "\n"
     )
